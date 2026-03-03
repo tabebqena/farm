@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-5">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0 fw-bold text-primary">
+                            {% if is_edit %}Edit Contact Detail{% else %}New Contact Detail{% endif %}
+                        </h5>
+                        <span class="text-muted small">For: <strong>{{ entity.get_display_name }}</strong></span>
+                    </div>
+                    {% if is_edit %}
+                        <span class="badge bg-light text-dark border">{{ contact.get_contact_type_display }}</span>
+                    {% endif %}
+                </div>
+                
+                <div class="card-body p-4">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold text-muted text-uppercase">Contact Type</label>
+                            {% if is_edit %}
+                                <div class="p-2 bg-light rounded border text-muted small">
+                                    <i class="bi bi-lock-fill me-1"></i> Type cannot be changed after creation.
+                                </div>
+                                <input type="hidden" name="contact_type" value="{{ contact.contact_type }}">
+                            {% else %}
+                                <div class="row g-2">
+                                    {% for val, name in type_choices %}
+                                    <div class="col-6">
+                                        <input type="radio" class="btn-check" name="contact_type" id="t_{{ val }}" value="{{ val }}" {% if forloop.first %}checked{% endif %}>
+                                        <label class="btn btn-outline-secondary btn-sm w-100" for="t_{{ val }}">{{ name }}</label>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold text-muted text-uppercase">Label</label>
+                            <select name="label" class="form-select">
+                                {% for val, name in label_choices %}
+                                    <option value="{{ val }}" {% if contact.label == val %}selected{% endif %}>
+                                        {{ name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold text-muted text-uppercase">Value</label>
+                            <input type="text" name="value" class="form-control" 
+                                   value="{{ contact.value|default:'' }}" placeholder="Enter detail..." required>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <div class="form-check form-switch mb-4">
+                            <input class="form-check-input" type="checkbox" name="is_primary" id="f_primary" 
+                                   {% if contact.is_primary %}checked{% endif %}>
+                            <label class="form-check-label fw-medium" for="f_primary">
+                                Set as Primary Contact
+                            </label>
+                            <small class="d-block text-muted">Primary contacts are prioritized in headers.</small>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary fw-bold shadow-sm">
+                                {% if is_edit %}Update Contact{% else %}Save Contact{% endif %}
+                            </button>
+                            <a href="{% url 'entity_detail' entity.id %}" class="btn btn-link text-muted btn-sm">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

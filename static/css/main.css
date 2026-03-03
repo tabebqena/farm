@@ -1,0 +1,126 @@
+    :root {
+        --sidebar-width: 260px;
+        --primary-color: #2c3e50;
+        --accent-color: #3498db;
+        --bg-light: #f8f9fa;
+    }
+
+    body {
+        font-family: 'Inter', sans-serif;
+        background-color: var(--bg-light);
+        overflow-x: hidden;
+    }
+
+    /* Sidebar Styling */
+    #sidebar {
+        width: var(--sidebar-width);
+        height: 100vh;
+        position: fixed;
+        background: var(--primary-color);
+        color: white;
+        transition: all 0.3s;
+        z-index: 1000;
+    }
+
+    #sidebar .nav-link {
+        color: rgba(255, 255, 255, 0.7);
+        padding: 12px 20px;
+        border-radius: 0;
+        display: flex;
+        align-items: center;
+    }
+
+    #sidebar .nav-link:hover,
+    #sidebar .nav-link.active {
+        color: white;
+        background: rgba(255, 255, 255, 0.1);
+        border-left: 4px solid var(--accent-color);
+    }
+
+    /* Main Content area */
+    #main-content {
+        margin-left: var(--sidebar-width);
+        min-height: 100vh;
+        padding: 2rem;
+    }
+
+    /* Centralized Card Styles for Create/Edit views */
+    .form-card {
+        max-width: 800px;
+        margin: auto;
+        border: none;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.05);
+    }
+
+    /* Utility for Dashboard Stats */
+    .stat-card {
+        border-radius: 12px;
+        border: none;
+        transition: transform 0.2s;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-5px);
+    }
+
+    /* Allow dropdowns to overflow table containers */
+    .table-responsive {
+        overflow: visible !important;
+    }
+
+    /* Ensure the card doesn't clip the dropdown */
+    .card {
+        overflow: visible !important;
+    }
+
+    /* Ensure the dropdown appears above all other table elements */
+    .dropdown-menu {
+        z-index: 1060;
+        /* Higher than standard sticky headers */
+    }
+
+    .message-container {
+        pointer-events: none;
+        /* Allows clicking things 'under' the container area */
+    }
+
+    .alert {
+        pointer-events: auto;
+        /* Re-enables clicking the alert/close button */
+        backdrop-filter: blur(10px);
+        background-color: rgba(255, 255, 255, 0.95);
+        /* Semi-transparent */
+    }
+
+    .ls-wide {
+        letter-spacing: 0.05em;
+    }
+
+    .avatar-circle {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+    }
+
+    .ls-1 {
+        letter-spacing: 1px;
+    }
+
+    @media (max-width: 768px) {
+        #sidebar {
+            margin-left: calc(-1 * var(--sidebar-width));
+        }
+
+        #main-content {
+            margin-left: 0;
+        }
+
+        #sidebar.active {
+            margin-left: 0;
+        }
+    }

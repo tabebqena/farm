@@ -1,0 +1,250 @@
+{% extends 'base.html' %}
+
+{% block title %}
+  Entity: {{ entity.name }}
+{% endblock %}
+
+{% block content %}
+  <nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item">
+        <a href="{% url 'entity_list' %}">Entities</a>
+      </li>
+      <li class="breadcrumb-item active">{{ entity.name }}</li>
+    </ol>
+  </nav>
+
+  <div class="container py-4">
+    {% include 'app_entity/snippets/category_parent_link.html' %}
+
+    <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
+      <div>
+        <div class="d-flex align-items-center">
+          <h2 class="fw-bold mb-0 me-3">{{ entity.get_display_name }}</h2>
+
+          {% if entity.active %}
+            <span class="badge bg-success-subtle text-success border border-success-subtle">Active</span>
+          {% else %}
+            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">Inactive</span>
+          {% endif %}
+        </div>
+        <p class="text-muted mt-1 mb-0">{{ entity.owner.description|default:'No description provided.' }}</p>
+      </div>
+
+      {% include 'app_entity/snippets/entity_edit_link.html' %}
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-lg-4">
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body text-center p-4">
+          <div class="avatar-lg bg-primary bg-opacity-10 text-primary rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px; font-size: 2rem;">
+            {% if entity.person %}
+              <i class="bi bi-person"></i>
+            {% elif entity.project %}
+              <i class="bi bi-kanban"></i>
+            {% else %}
+              <i class="bi bi-tags"></i>
+            {% endif %}
+          </div>
+          <h4 class="fw-bold mb-1">{{ entity.name }}</h4>
+          <p class="text-muted small mb-3">ID: #{{ entity.id|stringformat:'04d' }}</p>
+
+          <div class="d-flex justify-content-center gap-2 mb-4">
+            {% if entity.is_internal %}
+              <span class="badge bg-primary">Internal</span>
+            {% endif %}
+            {% if entity.active %}
+              <span class="badge bg-success">Active</span>
+            {% else %}
+              <span class="badge bg-danger">Inactive</span>
+            {% endif %}
+          </div>
+
+          <div class="bg-light rounded p-3 text-start">
+            <label class="small text-muted text-uppercase fw-bold">Current Fund Balance</label>
+            <h2 class="mb-0 fw-bold text-dark">{{ entity.fund.currency|default:'$' }} {{ entity.fund.balance|default:'0.00' }}</h2>
+            {% if not entity.can_pay %}
+              <small class="text-danger"><i class="bi bi-lock-fill"></i> Fund is locked for payments</small>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% if entity.project or entity.person %}
+        <div class="card border-0 shadow-sm">
+          <div class="card-header bg-white fw-bold py-3 d-flex justify-content-between align-items-center mb-2">
+            <h6 class="fw-bold text-uppercase small text-muted">Contact Information</h6>
+            <a href="{% url 'add_contact_info' entity.id %}" class="btn btn-sm btn-link text-decoration-none">+ Add New</a>
+          </div>
+          <div class="card-body">
+            <div class="list-group list-group-flush">
+              {% for contact in entity.contacts.all %}
+                <div class="list-group-item px-0 py-3 border-0 border-bottom d-flex align-items-center">
+                  <div class="bg-light rounded p-2 me-3 text-primary">
+                    {% if contact.contact_type == 'phone' %}
+                      <i class="bi bi-telephone"></i>
+                    {% elif contact.contact_type == 'email' %}
+                      <i class="bi bi-envelope"></i>
+                    {% elif contact.contact_type == 'address' %}
+                      <i class="bi bi-geo-alt"></i>
+                    {% else %}
+                      <i class="bi bi-globe"></i>
+                    {% endif %}
+                  </div>
+                  <div class="flex-grow-1">
+                    <div class="d-flex align-items-center">
+                      <span class="fw-bold text-dark me-2">{{ contact.value }}</span>
+                      {% if contact.is_primary %}
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size: 0.65rem;">PRIMARY</span>
+                      {% endif %}
+                    </div>
+                    <small class="text-muted text-uppercase ls-1" style="font-size: 0.7rem;">{{ contact.get_label_display }}</small>
+                  </div>
+                  <a href="{% url 'edit_contact_info' contact.id %}" class="btn btn-link btn-sm p-0 text-muted"><i class="bi bi-pencil-square"></i></a>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="col-lg-8">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white py-3">
+          <ul class="nav nav-tabs card-header-tabs" id="entityTab" role="tablist">
+            {% if entity.project or entity.person %}
+              <li class="nav-item">
+                <button class="nav-link active fw-bold" data-bs-toggle="tab" data-bs-target="#stakeholders">Stakeholders</button>
+              </li>
+              <li class="nav-item">
+                <button class="nav-link fw-bold" data-bs-toggle="tab" data-bs-target="#memberships">Memberships</button>
+              </li>
+            {% endif %}
+            <li class="nav-item">
+              <button class="nav-link fw-bold" data-bs-toggle="tab" data-bs-target="#history">Ledger History</button>
+            </li>
+          </ul>
+        </div>
+        <div class="card-body p-4">
+          <div class="tab-content">
+            {% if entity.project or entity.person %}
+              <div class="tab-pane fade show active" id="stakeholders">
+                <div class="card border-0 shadow-sm mt-4">
+                  <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0 fw-bold text-uppercase small text-muted">Project Team & Stakeholders</h6>
+                    {% if entity.is_internal and entity.project %}
+                      <div class="dropdown">
+                        <button class="btn btn-sm btn-dark dropdown-toggle" type="button" data-bs-toggle="dropdown"><i class="bi bi-plus-circle me-1"></i> Add Stakeholder</button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow border-0">
+                          <li>
+                            <a class="dropdown-item" href="{% url 'add_worker' entity.id %}"><i class="bi bi-person me-2"></i>Add Worker</a>
+                          </li>
+                          <li>
+                            <a class="dropdown-item" href="{% url 'add_vendor' entity.id %}"><i class="bi bi-shop me-2"></i>Add Vendor</a>
+                          </li>
+                          <li>
+                            <a class="dropdown-item" href="{% url 'add_client' entity.id %}"><i class="bi bi-briefcase me-2"></i>Add Client</a>
+                          </li>
+
+                          <li>
+                            <a class="dropdown-item" href="{% url 'add_shareholder' entity.id %}"><i class="bi bi-pie-chart me-2"></i>Add Shareholder</a>
+                          </li>
+                        </ul>
+                      </div>
+                    {% endif %}
+                  </div>
+
+                  <div class="list-group list-group-flush">
+                    {% for sh in entity.stakeholders.all %}
+                      <div class="list-group-item d-flex align-items-center py-3">
+                        <div class="avatar-circle me-3 bg-primary-subtle text-primary fw-bold">{{ sh.target.get_display_name|slice:':1' }}</div>
+                        {% comment %} <div class="flex-grow-1">
+                          <a href="{% url 'entity_detail' sh.target.id %}" class="d-block fw-bold text-dark text-decoration-none">{{ sh.target.get_display_name }}</a>
+                          <span class="badge bg-light text-muted border small">{{ sh.get_role_display }}</span>
+                        </div> {% endcomment %}
+
+                        <div class="flex-grow-1">
+                          <div class="d-flex align-items-center">
+                            <a href="{% url 'entity_detail' sh.target.id %}" class="fw-bold text-dark text-decoration-none me-2">{{ sh.target.get_display_name }}</a>
+                            <a href="{% url 'edit_stakeholder' sh.id %}" class="text-muted small"><i class="bi bi-pencil-square"></i></a>
+                          </div>
+                          <span class="badge bg-light text-muted border small">{{ sh.get_role_display }}</span>
+                        </div>
+
+                        {% comment %} {% if sh.notes %}
+                          <div class="text-muted small d-none d-md-block me-3">
+                            <i class="bi bi-info-circle me-1"></i> {{ sh.notes|truncatechars:40 }}
+                          </div>
+                        {% endif %} {% endcomment %}
+                      </div>
+                    {% empty %}
+                      <div class="p-4 text-center text-muted small">No stakeholders assigned to this project yet.</div>
+                    {% endfor %}
+                  </div>
+                </div>
+              </div>
+
+              <div class="tab-pane fade" id="memberships">
+                {% for membership in entity.memberships.all %}
+                  <div class="list-group-item d-flex align-items-center py-3">
+                    <div class="me-3 text-secondary fs-4">
+                      <i class="bi bi-briefcase"></i>
+                    </div>
+                    {% comment %} <div class="flex-grow-1">
+                      <a href="{% url 'entity_detail' membership.parent.id %}" class="d-block fw-bold text-dark text-decoration-none">{{ membership.parent.get_display_name }}</a>
+                      <span class="small text-muted">Role: <strong>{{ membership.get_role_display }}</strong></span>
+                    </div> {% endcomment %}
+
+                    <div class="flex-grow-1">
+                      <div class="d-flex align-items-center">
+                        <a href="{% url 'entity_detail' membership.parent.id %}" class="fw-bold text-dark text-decoration-none me-2">{{ membership.parent.get_display_name }}</a>
+                        <a href="{% url 'edit_stakeholder' membership.id %}" class="text-muted small"><i class="bi bi-pencil-square"></i></a>
+                      </div>
+                      <span class="badge bg-light text-muted border small">{{ sh.get_role_display }}</span>
+                    </div>
+
+                    <div class="text-end">
+                      <span class="small text-muted d-block">Joined</span>
+                      <span class="small fw-medium">{{ membership.created_at|date:'M Y' }}</span>
+                    </div>
+                  </div>
+                {% empty %}
+                  <div class="p-4 text-center text-muted small">This person is not currently assigned to any projects.</div>
+                {% endfor %}
+              </div>
+            {% endif %}
+
+            <div class="tab-pane fade" id="history">
+              <p class="text-muted">Transaction history integration coming soon...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% if entity.project or entity.perosn %}
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="fw-bold">Operational Categories (Sub-Ledgers)</h5>
+        <a href="{% url 'category_create' entity.id %}" class="btn btn-sm btn-primary">+ Add Category</a>
+      </div>
+      <div class="list-group shadow-sm">
+        {% for cat in entity.owned_categories.all %}
+          <a href="{% url 'entity_detail' pk=cat.entity.pk %}" class="list-group-item d-flex justify-content-between align-items-center">
+            <div>
+              <span class="fw-bold text-dark">{{ cat.name }}</span>
+              <small class="text-muted d-block">{{ cat.description }}</small>
+            </div>
+            <div class="text-end">
+              <div class="fw-bold">{{ cat.entity.fund.balance }}</div>
+              <small class="text-muted">Limit: {{ cat.max_limit }}</small>
+            </div>
+          </a>
+        {% empty %}
+          <div class="list-group-item text-muted text-center py-4">No sub-categories defined for this entity.</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}

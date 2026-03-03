@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-dark text-white py-3">
+                    <h5 class="mb-0 fw-bold">
+                        {% if is_edit %}Modify Assignment{% else %}Add {{ role_name }}{% endif %}
+                    </h5>
+                    <small class="opacity-75">Parent: {{ parent.get_display_name }}</small>
+                </div>
+                <div class="card-body p-4">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        {% if is_edit %}
+                            <div class="mb-4 p-3 bg-light rounded border">
+                                <div class="row">
+                                    <div class="col-6">
+                                        <label class="small text-muted text-uppercase fw-bold d-block">Target Entity</label>
+                                        <span class="fw-bold">{{ stakeholder.target.get_display_name }}</span>
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="small text-muted text-uppercase fw-bold d-block">Assigned Role</label>
+                                        <span class="badge bg-primary">{{ stakeholder.get_role_display }}</span>
+                                    </div>
+                                </div>
+                                <div class="mt-2 text-muted small">
+                                    <i class="bi bi-info-circle me-1"></i> Identity and Role are immutable.
+                                </div>
+                            </div>
+                        {% else %}
+                            <div class="mb-4">
+                                <label class="form-label fw-bold small text-muted text-uppercase">Select Eligible {{ role_name }}</label>
+                                <select name="target_entity" class="form-select" required>
+                                    <option value="" selected disabled>Choose from active entities...</option>
+                                    {% for e in entities %}
+                                        <option value="{{ e.id }}">{{ e.get_display_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        {% endif %}
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small text-muted text-uppercase">Role Notes / Scope</label>
+                            <textarea name="notes" class="form-control" rows="3" placeholder="Describe the specific involvement...">{{ stakeholder.notes }}</textarea>
+                        </div>
+
+                        <div class="form-check form-switch mb-4">
+                            <input class="form-check-input" type="checkbox" name="active" id="f_active" 
+                                   {% if not is_edit or stakeholder.active %}checked{% endif %}>
+                            <label class="form-check-label fw-bold" for="f_active">Active Stakeholder</label>
+                            <small class="d-block text-muted">Inactive stakeholders are hidden from current project workflows.</small>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary fw-bold shadow-sm">
+                                {% if is_edit %}Save Changes{% else %}Confirm Assignment{% endif %}
+                            </button>
+                            {% if parent%}
+                            <a href="{% url 'entity_detail' parent.id %}" class="btn btn-link text-muted">Cancel</a>
+                            {% endif %}
+                          </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

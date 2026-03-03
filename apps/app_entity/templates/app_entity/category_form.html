@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container py-4">
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'entity_list' %}">Entities</a></li>
+            {% if entity %}
+            <li class="breadcrumb-item"><a href="{% url 'entity_detail' parent.id %}">{{ parent.get_display_name }}</a></li>
+            {% endif %}
+            <li class="breadcrumb-item active">{% if is_edit %}Edit Category{% else %}New Category{% endif %}</li>
+        </ol>
+    </nav>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-3">
+                    <h5 class="mb-0 fw-bold">
+                        {% if is_edit %}Edit Category: {{ category.name }}{% else %}Add Category to {{ parent.get_display_name }}{% endif %}
+                    </h5>
+                </div>
+                <div class="card-body p-4">
+                    <form method="post">
+                        {% csrf_token %}
+                        {% if parent %}
+                        <div class="mb-4">
+                            <label class="form-label small text-muted text-uppercase fw-bold">Parent Entity</label>
+                            <div class="p-2 bg-light rounded border d-flex align-items-center">
+                                <i class="bi bi-diagram-3 me-2 text-primary"></i>
+                                <span class="fw-medium">{{parent}}{{ parent.get_display_name }}</span>
+                            </div>
+                        </div>
+                        {% endif%}
+
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-8">
+                                <label class="form-label fw-semibold">Category Name</label>
+                                <input type="text" name="name" class="form-control" 
+                                       value="{{ category.name|default:'' }}" placeholder="e.g. Site Materials" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Budget Limit ($)</label>
+                                <input type="number" step="0.01" name="max_limit" class="form-control" 
+                                       value="{{ category.max_limit|default:'0.00' }}" required>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">Description</label>
+                            <textarea name="description" class="form-control" rows="3" placeholder="Purpose of this expense bucket...">{{ category.description }}</textarea>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <h6 class="text-uppercase text-muted small fw-bold mb-3">Status & Permissions</h6>
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <div class="form-check form-switch p-3 border rounded">
+                                    <input class="form-check-input ms-0 me-2" type="checkbox" name="active" id="f_active" 
+                                           {% if not is_edit or entity.active %}checked{% endif %}>
+                                    <label class="form-check-label fw-bold" for="f_active">Active Status</label>
+                                    <small class="d-block text-muted">Inactive categories cannot receive funds.</small>
+                                </div>
+                            </div>
+                            {% comment %} <div class="col-md-6">
+                                <div class="form-check form-switch p-3 border rounded">
+                                    <input class="form-check-input ms-0 me-2" type="checkbox" name="can_pay" id="f_pay" 
+                                           {% if entity.can_pay %}checked{% endif %}>
+                                    <label class="form-check-label fw-bold" for="f_pay">Allow Outflow</label>
+                                    <small class="d-block text-muted">Enable if this category can pay money back out.</small>
+                                </div>
+                            </div> {% endcomment %}
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2">
+                            {% if entity %}
+                            <a href="{% url 'entity_detail' parent.id %}" class="btn btn-light px-4">Cancel</a>
+                            {% endif %}
+                            <button type="submit" class="btn btn-primary px-4 fw-bold">
+                                {% if is_edit %}Update Category{% else %}Create Category{% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
