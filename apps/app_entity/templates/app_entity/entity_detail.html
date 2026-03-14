@@ -31,7 +31,34 @@
         <p class="text-muted mt-1 mb-0">{{ entity.owner.description|default:'No description provided.' }}</p>
       </div>
 
-      {% include 'app_entity/snippets/entity_edit_link.html' %}
+      <div class="dropdown">
+        <button class="btn btn-primary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-gear-fill me-1"></i> Management</button>
+        <ul class="dropdown-menu shadow border-0">
+          <li>
+            {% include 'app_entity/snippets/entity_edit_link.html' with edit_label='Edit' %}
+          </li>
+
+          {% if entity.person %}
+            <li>
+              <h6 class="dropdown-header">Capital</h6>
+            </li>
+            <li>
+              <a class="dropdown-item" href="{% url 'cash_list_view' entity.pk %}"><i class="bi bi-clock-history me-2"></i>Cash History</a>
+            </li>
+          {% else %}
+            <li>
+              <h6 class="dropdown-header">Capital</h6>
+            </li>
+            <li>
+              <a class="dropdown-item" href="{% url 'operation_create_view' entity.pk 'profit-distribution' %}">Profit Distribution</a>
+            </li>
+          {% endif %}
+
+          <li>
+            <hr class="dropdown-divider" />
+          </li>
+        </ul>
+      </div>
     </div>
   </div>
 
@@ -114,10 +141,12 @@
       <div class="card border-0 shadow-sm">
         <div class="card-header bg-white py-3">
           <ul class="nav nav-tabs card-header-tabs" id="entityTab" role="tablist">
-            {% if entity.project or entity.person %}
+            {% if entity.project %}
               <li class="nav-item">
                 <button class="nav-link active fw-bold" data-bs-toggle="tab" data-bs-target="#stakeholders">Stakeholders</button>
               </li>
+            {% endif %}
+            {% if entity.person %}
               <li class="nav-item">
                 <button class="nav-link fw-bold" data-bs-toggle="tab" data-bs-target="#memberships">Memberships</button>
               </li>

@@ -1,14 +1,16 @@
 import typing
 from decimal import Decimal
-from typing import Tuple, Union
+from typing import Union
 
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db import transaction as db_transaction
 from django.db.models import Q, Sum
 from django.forms import ValidationError
+from django.utils import timezone
 
 if typing.TYPE_CHECKING:
-    from app_accounting.models.transaction import TransactionType
+    from apps.app_transaction.models import TransactionType
 
 from .managers import SafeQuerySet
 
@@ -29,6 +31,8 @@ class BaseModelMixin:
 
 
 class ImmutableMixin(BaseModelMixin):
+    """Ensure the save() method will never update immutable fields"""
+
     _immutable_fields: dict[str, dict] = {}
 
     @property
@@ -60,12 +64,15 @@ class ImmutableMixin(BaseModelMixin):
 class HasRelatedTransactions(BaseModelMixin):
     _related_transaction_name = "transactions"
 
-    def get_all_transactions(self) -> Union[None, SafeQuerySet]:
-        tx_queryset = getattr(self, self._related_transaction_name, None)
-        if tx_queryset is None:
-            return None
-        # Optimizing with select_related for the funds usually helps performance here
-        return tx_queryset
+    def get_all_transactions(self) -> SafeQuerySet:
+        # Ensure your Transaction model has content_type and object_id fields
+        from django.contrib.contenttypes.models import ContentType
+
+        from apps.app_transaction.models import Transaction
+
+        ct = ContentType.objects.get_for_model(self.__class__)
+        # Return the QuerySet, don't just execute it!
+        return Transaction.objects.filter(content_type=ct, object_id=self.pk)
 
     def get_undeleted_transactions(self):
         all = self.get_all_transactions()
@@ -73,24 +80,16 @@ class HasRelatedTransactions(BaseModelMixin):
             return all.filter(deleted_at__isnull=True)
         return None
 
-    def get_valid_transactions(self) -> Union[None, SafeQuerySet]:
-        tx_queryset = getattr(self, self._related_transaction_name, None)
-        if tx_queryset is None:
-            return None
-
-        # Optimizing with select_related for the funds usually helps performance here
-        return tx_queryset.filter(
-            deleted_at__isnull=True,
-            reversed_by__isnull=True,
-            reversal_of__isnull=True,  # Important: Exclude the counter-records too
-        )
-
 
 class AdjustableMixin(BaseModelMixin):
+    """Easy wat to calculate the net amount after all adjustments"""
+
+    _adjustments_related_name = "adjustments"
+
     @property
     def total_adjusted_amount(self):
         base = getattr(self, "amount", getattr(self, "total_amount", Decimal("0.00")))
-        if not hasattr(self, "adjustments"):
+        if not hasattr(self, self._adjustments_related_name):
             return base
         self.adjustments: models.QuerySet
 
@@ -107,13 +106,37 @@ class AdjustableMixin(BaseModelMixin):
         return base + inc - dec
 
 
+class Has2FundsMixin(BaseModelMixin):
+    @property
+    def payment_source_fund(self):
+        raise NotImplementedError()
+
+    @property
+    def payment_target_fund(self):
+        raise NotImplementedError()
+
+    def _validate_payment_source_fund_exists(self):
+        if not self.payment_source_fund:
+            raise ValidationError("Payment source fund is not existing.")
+
+    def _validate_payment_target_fund_exists(self):
+        if not self.payment_target_fund:
+            raise ValidationError("Payment target fund is not existing.")
+
+
+# DEPERCATED
+# USE more clear mixin
+# There is 2 cases:
+# The payer pay the amount in multiple transactions
+# The payer recieve a repayment ( like debt repayment )
+# This class was handling both which is incorrect.
+# So write another 2 classes
 class SettlableMixin(HasRelatedTransactions, BaseModelMixin):
     # N.B:. This mixin requires definition of the following properties
     # in the child models:
     # - recever_fund
     # - _related_transaction_name
     # - total_adjusted_amount (provided by inherit from the adjustableMixin)
-    # - get_valid_transactions method (inherited from the HASRElatedTransaction)
 
     settlement_type: Union["TransactionType", None] = None
     _amount_field_name = "amount"
@@ -131,7 +154,7 @@ class SettlableMixin(HasRelatedTransactions, BaseModelMixin):
         # except: the reversed, the reversals & the deleted ones.
         # So, the reversed transactions are exclused from the start.
         # No need for another guard.
-        valid_txs = self.get_valid_transactions()
+        valid_txs = self.get_undeleted_transactions()
         if not valid_txs:
             return Decimal("0")
         # Filter the valid transaction & get the payment only transactions
@@ -180,6 +203,8 @@ class SettlableMixin(HasRelatedTransactions, BaseModelMixin):
 
 
 class AmountCleanMixin(BaseModelMixin):
+    """Ensure amount will never be zero or less"""
+
     _amount_name = "amount"
 
     def clean(self) -> None:
@@ -191,7 +216,134 @@ class AmountCleanMixin(BaseModelMixin):
         return super().clean()
 
 
-class MayHasFundMixin(BaseModelMixin):
+class HasLinkedTransactionMixin(Has2FundsMixin, BaseModelMixin):
+    # Flags:
+    _max_payment_transaction_count = 0
+    # Indicates that this record
+    # _has_issuance_transaction = True
+    # _has_single_payment_transactions = True
+    # _has_multiple_payment_transactions = False
+    # and once created, it should creates
+    # the issuance transaction
+    # and the single payment transaction
+    _is_one_shot_operation = False
+    # End of flags
+    # ################################################
+    # Indicates the type of the issuance transaction
+    _issuance_transaction_type: "TransactionType"
+    _payment_transaction_type: "TransactionType"
+
     @property
-    def has_fund(self):
-        return getattr(self, "fund", None) is not None
+    def _has_issuance_transaction(self):
+        """Indicates if this reord can/should be linked to a transaction that its type is *_Issuance"""
+        return getattr(self, "_issuance_transaction_type", None) is not None
+
+    @property
+    def _has_payment_transaction(self):
+        """indicates whther this record can be linked to one or more transactions"""
+        return getattr(self, "_payment_transaction_type", None) is not None
+
+    @property
+    def _has_single_payment_transaction(self):
+        """Indicates if this record can/should be linked to a single transaction of type payment"""
+        return (
+            self._has_payment_transaction and self._max_payment_transaction_count == 1
+        )
+
+    @property
+    def _has_multiple_payment_transactions(self):
+        """Indicates if this record can/should be linked to more than one payment transaction"""
+        return (
+            self._has_payment_transaction and self._max_payment_transaction_count == -1
+        )
+
+    def create_issuance_transaction(
+        self, description="", note="", officer=None, date=None
+    ):
+        from apps.app_transaction.models import Transaction
+
+        with db_transaction.atomic():
+            return Transaction.create(
+                source=self.payment_source_fund,
+                target=self.payment_target_fund,
+                document=self,
+                type=self._issuance_transaction_type,
+                amount=self.amount,
+                officer=officer or self.officer,
+                description=description
+                or f"Issuance transaction for ({self.__class__}) ({self.pk})",
+                note=note,
+                date=date or timezone.now(),
+            )
+
+    def create_payment_transaction(
+        self, amount, officer, date, description="", note=""
+    ):
+        from apps.app_transaction.models import Transaction
+
+        with db_transaction.atomic():
+            return Transaction.create(
+                source=self.payment_source_fund,
+                target=self.payment_target_fund,
+                document=self,
+                type=self._payment_transaction_type,
+                amount=amount,
+                officer=officer or self.officer,
+                description=description
+                or f"Payment transaction for ({self.__class__}) ({self.pk})",
+                note=note,
+                date=date or timezone.now(),
+            )
+
+    def save(self, *args, **kwargs) -> None:
+        with db_transaction.atomic():
+            is_new = self.pk is None
+            create_transactions = kwargs.pop("create_transactions", True)
+            rv = super().save(*args, **kwargs)
+            if is_new and create_transactions:
+                if getattr(self, "reversal_of", None) is not None and self.reversal_of:
+                    # Don't create transactions
+                    ...
+                if getattr(self, "reversed_by", None) is not None and self.reversed_by:
+                    # Don't create transactions
+                    ...
+                else:
+                    if self._has_issuance_transaction:
+                        self.create_issuance_transaction()
+                    if self._is_one_shot_operation:
+                        if not self._has_single_payment_transaction:
+                            raise ValidationError(
+                                "This record can't act as shot operation record"
+                            )
+                        self.create_payment_transaction(
+                            amount=self.amount,
+                            officer=self.officer,
+                            date=self.date or timezone.now(),
+                            description=f"One shot payment transactiof for ({self.__class__}) ({self.pk})",
+                        )
+            return rv
+
+
+class OfficerMixin(BaseModelMixin):
+    officer = models.ForeignKey(
+        "app_entity.Entity",
+        on_delete=models.PROTECT,
+        null=False,
+        blank=False,
+        limit_choices_to={"is_staff": True},
+    )
+
+    def clean(self):
+        from apps.app_entity.models import ENTITY_TYPE_ENUM
+
+        if not self.officer.type == ENTITY_TYPE_ENUM.PERSONAL:
+            raise ValidationError(
+                f"Officier should be of type `PERSONAL` entity. not {self.officer.type}"
+            )
+        if not self.officer.user:
+            raise ValidationError("Officer should have assciated user account.")
+        if not self.officer.user.is_staff:
+            raise ValidationError("Officer should be staff person.")
+        if not self.officer.active:
+            raise ValidationError("Officer should be `active`")
+        return super().clean()

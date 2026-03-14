@@ -1,3 +1,4 @@
+from django import conf
 from django.db import models
 
 # TODO use database level constrains for dataintegrity.
@@ -22,11 +23,16 @@ class SafeQuerySet(models.QuerySet):
         )
 
     def bulk_update(self, objs, fields, **kwargs):
+        if conf.settings.DEBUG:
+            return super().bulk_update(objs, fields, **kwargs)
         raise NotImplementedError(
             "Direct .bulk_update() is blocked.  Save objects individually."
         )
 
     def delete(self):
+        if conf.settings.DEBUG:
+            return super().delete()
+
         raise NotImplementedError(
             f"Bulk delete is blocked for {self.model.__name__}. "
             "If this is intended, set 'deletable = True' in the model Meta or class."

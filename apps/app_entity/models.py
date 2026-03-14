@@ -1,12 +1,13 @@
 from decimal import Decimal
+from enum import Enum
 
 from django.contrib.auth import get_user_model
 from django.db import models, transaction
 from django.forms import ValidationError
 from django.urls import reverse
 
-from apps.app_base.base_model import BaseModel
 from apps.app_base.mixins import ImmutableMixin
+from apps.app_base.models import BaseModel
 
 User = get_user_model()
 
@@ -151,25 +152,48 @@ class Fund(ImmutableMixin, BaseModel):
     #     return super().clean()
 
 
+from django.utils.translation import gettext_lazy as _
+
+
+class StakeholderRole(models.TextChoices):
+    WORKER = "worker", _("Worker")
+    CLIENT = "client", _("Client")
+    VENDOR = "vendor", _("Vendor")
+    SHAREHOLDER = "shareholder", _("Shareholder")
+
+
 class Stakeholder(ImmutableMixin, BaseModel):
-    _immutable_fields = {"parent": {}, "other": {}, "role": {}}
-    ROLE_CHOICES = [
-        ("worker", "Worker"),
-        ("client", "Client"),
-        ("vendor", "Vendor"),
-        ("shareholder", "Shareholder"),
-    ]
+    _immutable_fields = {"parent": {}, "target": {}, "role": {}}
+
     parent = models.ForeignKey(
         "Entity", on_delete=models.CASCADE, related_name="stakeholders"
     )
     target = models.ForeignKey(
         "Entity", on_delete=models.CASCADE, related_name="memberships"
     )
-    role = models.CharField(max_length=30, choices=ROLE_CHOICES)
+    role = models.CharField(max_length=30, choices=StakeholderRole)
     notes = models.TextField(blank=True)
     active = models.BooleanField(default=True)
 
     def clean(self) -> None:
+        print("Clean", self.parent, self.target)
+        print(
+            "Clean",
+            "parent: ",
+            self.parent,
+            "parent project",
+            self.parent.project,
+            "parent person:",
+            self.parent.person,
+            "target: ",
+            self.target,
+            "target project: ",
+            self.target.project,
+            "target person",
+            self.target.person,
+            self.target.category,
+        )
+
         if not self.parent.project and not self.parent.person:
             raise ValidationError(
                 "The parent party should be a project or person entity."
@@ -186,6 +210,9 @@ class Stakeholder(ImmutableMixin, BaseModel):
 
     def __str__(self):
         return f"{self.target} as {self.get_role_display()} in {self.parent}"
+
+
+ENTITY_TYPE_ENUM = Enum("Type", "PERSONAL PROJECT CATEGORY SYSTEM WORLD")
 
 
 class Entity(ImmutableMixin, BaseModel):
@@ -266,6 +293,19 @@ class Entity(ImmutableMixin, BaseModel):
         if self.is_world:
             return Virtual("World", "WORLD")
 
+    @property
+    def type(self):
+        if self.project:
+            return ENTITY_TYPE_ENUM.PROJECT
+        elif self.person:
+            return ENTITY_TYPE_ENUM.PERSONAL
+        elif self.category:
+            return ENTITY_TYPE_ENUM.CATEGORY
+        elif self.is_system:
+            return ENTITY_TYPE_ENUM.SYSTEM
+        elif self.is_world:
+            return ENTITY_TYPE_ENUM.WORLD
+
     def get_vendors(self):
         return self.stakeholders.filter(is_vendor=True, active=True)
 
@@ -293,7 +333,7 @@ class Entity(ImmutableMixin, BaseModel):
         return reverse("entity_detail", kwargs={"pk": self.pk})
 
     def __str__(self) -> str:
-        return super().__str__()
+        return f"Entity {self.owner}"
 
     def clean(self) -> None:
         # 1. Count the types of identities

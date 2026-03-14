@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+
+{% block content %}
+  <div class="card shadow-sm border-0">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0">{{ operation_type|default:'Capital Injection'|title }}</h5>
+    </div>
+    <div class="card-body">
+      {% if messages %}
+        {% for message in messages %}
+          <div class="alert alert-danger mb-4">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+
+      <div class="d-flex justify-content-between mb-4 text-center">
+        <div class="p-2 bg-light rounded border w-100 me-2">
+          <small class="text-muted d-block text-uppercase fw-bold">From (Source)</small>
+          <strong>{{ source.get_display_name }}</strong>
+        </div>
+        <div class="align-self-center px-2">
+          <i class="bi bi-arrow-right h4 text-primary"></i>
+        </div>
+        <div class="p-2 bg-light rounded border w-100">
+          <small class="text-muted d-block text-uppercase fw-bold">To (Destination)</small>
+          <strong>{{ destination.get_display_name }}</strong>
+        </div>
+      </div>
+
+      <form method="post">
+        {% csrf_token %}
+
+        <div class="mb-3">
+          <label class="form-label fw-bold">Amount</label>
+          <div class="input-group input-group-lg">
+            <span class="input-group-text">$</span>
+            <input type="number" name="amount" step="0.01" class="form-control" value="{{ request.POST.amount }}" required placeholder="0.00" />
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-bold">Effective Date</label>
+          {% if request.POST.date %}
+            <input type="date" name="date" class="form-control" value="{{ request.POST.date }}" required />
+          {% else %}
+            <input type="date" name="date" class="form-control" value="{{ today|date:'Y-m-d' }}" required />
+          {% endif %}
+        </div>
+
+        <div class="mb-4">
+          <label class="form-label fw-bold">Notes / Description</label>
+          <textarea name="description" class="form-control" rows="3" placeholder="Source of funds, reason, etc.">{{ request.POST.description }}</textarea>
+        </div>
+
+        <div class="d-grid gap-2">
+          <button type="submit" class="btn btn-dark btn-lg">Confirm & Commit to Ledger</button>
+          <a href="{% url 'entity_detail' destination.pk %}" class="btn btn-link text-muted">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endblock %}

@@ -41,6 +41,8 @@ INSTALLED_APPS = [
     # My apps
     "apps.app_base",
     "apps.app_entity",
+    "apps.app_transaction",
+    "apps.app_personal_operation",
 ]
 
 MIDDLEWARE = [
@@ -53,6 +55,7 @@ MIDDLEWARE = [
     # Should be after the auth middleware
     "crum.CurrentRequestUserMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "farm.middlewares.LoginRequiredMiddleware",
 ]
 
 ROOT_URLCONF = "farm.urls"
@@ -141,3 +144,9 @@ MESSAGE_TAGS = {
     messages.WARNING: "warning",
     messages.ERROR: "danger",  # This fixes the coloring issue
 }
+
+
+LOGIN_URL = "login"  # Name of your login URL pattern
+LOGIN_REDIRECT_URL = ""  # Where to go after success
+# Where to send users after they log out
+LOGOUT_REDIRECT_URL = "login"

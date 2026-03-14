@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+
+{% block content %}
+  <div class="container mt-5">
+    <div class="row justify-content-center">
+      <div class="col-md-6">
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb">
+            <li class="breadcrumb-item">
+              <a href="{% url 'operation_detail_view' operation.pk %}">Voucher #{{ operation.pk }}</a>
+            </li>
+            <li class="breadcrumb-item active">Reverse Operation</li>
+          </ol>
+        </nav>
+
+        <div class="card border-danger shadow">
+          <div class="card-header bg-danger text-white py-3">
+            <h5 class="mb-0"><i class="bi bi-arrow-counterclockwise me-2"></i>Reverse {{ config.label }}</h5>
+          </div>
+
+          <div class="card-body">
+            <div class="alert alert-warning border-warning">
+              <h6 class="alert-heading fw-bold"><i class="bi bi-exclamation-triangle"></i> Critical Action</h6>
+              {% comment %} <p class="small mb-0">
+                Reversing this will generate <strong>4 counter-entries</strong> in the ledger to neutralize the ${{ operation.amount }} currently recorded between <strong>{{ operation.source.name }}</strong>
+                and <strong>{{ operation.destination.name }}</strong>.
+              </p> {% endcomment %}
+            </div>
+
+            <div class="bg-light p-3 rounded mb-4 border">
+              <div class="row g-2">
+                <div class="col-6 small text-muted">Original Amount:</div>
+                <div class="col-6 small fw-bold text-end">${{ operation.amount }}</div>
+
+                <div class="col-6 small text-muted">Original Date:</div>
+                <div class="col-6 small text-end">{{ operation.date }}</div>
+
+                <div class="col-12 mt-2">
+                  <small class="text-muted d-block text-uppercase" style="font-size: 0.7rem;">Mirror Effect</small>
+                  <div class="d-flex justify-content-between align-items-center mt-1">
+                    <span class="badge bg-secondary">{{ operation.destination.name }}</span>
+                    <i class="bi bi-arrow-right text-danger"></i>
+                    <span class="badge bg-secondary">{{ operation.source.name }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <form method="post">
+              {% csrf_token %}
+
+              <div class="mb-4">
+                <label for="reversal_reason" class="form-label fw-bold">Reversal Reason <span class="text-danger">*</span></label>
+                <select name="reversal_reason_shortcut" class="form-select mb-2" onchange="document.getElementById('reversal_reason').value = this.value">
+                  <option value="">-- Choose a standard reason --</option>
+                  <option value="Data Entry Error">Data Entry Error</option>
+                  <option value="Incorrect Amount">Incorrect Amount</option>
+                  <option value="Duplicate Transaction">Duplicate Transaction</option>
+                  <option value="Wrong Entity Selected">Wrong Entity Selected</option>
+                  <option value="Client/Person Request">Client/Person Request</option>
+                </select>
+                <textarea name="reversal_reason" id="reversal_reason" class="form-control" rows="4" placeholder="Provide a detailed explanation for the audit trail..." required></textarea>
+              </div>
+
+              <div class="d-grid gap-2">
+                <button type="submit" class="btn btn-danger btn-lg"><i class="bi bi-shield-lock-fill me-2"></i>Execute Counter-Voucher</button>
+                <a href="{% url 'operation_detail_view' operation.pk %}" class="btn btn-link text-muted">Keep Original & Go Back</a>
+              </div>
+            </form>
+          </div>
+          <div class="card-footer bg-light text-center">
+            <small class="text-muted">Logged as: <strong>{{ request.user.entity.name }}</strong></small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

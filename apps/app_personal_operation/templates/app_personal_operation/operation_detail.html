@@ -1,0 +1,309 @@
+{% extends 'base.html' %}
+
+{% block content %}
+  <div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <div>
+        <h2 class="mb-0">{{ operation.get_operation_type_display }}</h2>
+        <p class="text-muted">Voucher #{{ operation.pk }} | Date: {{ operation.date }}</p>
+      </div>
+      <div class="btn-group">
+        <a href="{% url 'entity_detail' operation.destination.pk %}" class="btn btn-outline-secondary">Back to Entity</a>
+        <a href="{% url 'cash_list_view' operation.owner.pk %}" class="btn btn-secondary">Back to Cash History</a>
+        <button onclick="window.print()" class="btn btn-outline-dark"><i class="bi bi-printer"></i> Print</button>
+      </div>
+    </div>
+
+    {% if operation.is_reversed %}
+      <div class="alert alert-danger shadow-sm d-flex align-items-center mb-4 border-start border-5">
+        <i class="bi bi-x-circle-fill fs-1 me-3"></i>
+        <div class="flex-grow-1">
+          <h5 class="alert-heading fw-bold mb-1">Operation Voided (Reversed)</h5>
+          <p class="mb-0 opacity-75">
+            <i class="bi bi-calendar-event"></i> Reversed on {{ operation.reversed_at|date:'M d, Y' }}
+          </p>
+        </div>
+        {% if operation.reversed_by %}
+          <a href="{% url 'operation_detail_view' operation.reversed_by.pk %}" class="btn btn-outline-danger btn-sm ms-3">View Correction <i class="bi bi-arrow-right"></i></a>
+        {% endif %}
+      </div>
+    {% elif operation.is_reversed %}
+      <div class="alert alert-warning shadow-sm d-flex align-items-center mb-4 border-start border-5">
+        <i class="bi bi-arrow-counterclockwise fs-1 me-3"></i>
+        <div class="flex-grow-1">
+          <h5 class="alert-heading fw-bold mb-1">Corrective Reversal Entry</h5>
+          <p class="mb-0">This operation was created to neutralize a previous entry.</p>
+        </div>
+        {% if operation.reversal_of %}
+          <a href="{% url 'operation_detail_view' operation.reversal_of.pk %}" class="btn btn-outline-dark btn-sm ms-3"><i class="bi bi-eye"></i> View Original Error</a>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    <div class="row">
+      <div class="col-md-4">
+        <div class="card shadow-sm mb-4">
+          <div class="card-header bg-light fw-bold">Operation Summary</div>
+          <ul class="list-group list-group-flush">
+            <li class="list-group-item d-flex justify-content-between">
+              <span>Initial Amount</span>
+              <span class="fw-bold text-primary">${{ operation.amount }}</span>
+            </li>
+            <li class="list-group-item">
+              <small class="text-muted d-block">Source (Creditor)</small>
+              <strong>{{ operation.source.name }}</strong>
+            </li>
+            <li class="list-group-item">
+              <small class="text-muted d-block">Destination (Debtor)</small>
+              <strong>{{ operation.destination.name }}</strong>
+            </li>
+            <li class="list-group-item">
+              <small class="text-muted d-block">Officer</small>
+              <span>{{ operation.officer.name }}</span>
+            </li>
+          </ul>
+        </div>
+
+        {% if not operation.is_reversed and not operation.is_reversed %}
+          {% if operation.operation_type == 'LOAN' %}
+            <div class="card border-success shadow-sm mb-4">
+              <div class="card-body">
+                <h6 class="text-success fw-bold">Loan Recovery</h6>
+                <p class="small text-muted">Add a repayment transaction to reduce the outstanding balance of this loan.</p>
+                <a href="{% url 'loan_repayment_view' operation.pk %}" class="btn btn-success w-100"><i class="bi bi-cash-coin me-1"></i> Record Repayment</a>
+              </div>
+            </div>
+          {% endif %}
+
+          <div class="card border-warning shadow-sm">
+            <div class="card-body">
+              <h6>Correction</h6>
+              <p class="small text-muted">Void this entire operation and all its linked transactions.</p>
+              <a href="{% url 'operation_reverse_view' operation.pk %}" class="btn btn-sm btn-outline-danger">Reverse Operation</a>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="col-md-8">
+        <div class="card shadow-sm">
+          <div class="card-header bg-dark text-white">Operational Ledger</div>
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Transaction Detail</th>
+                  <th>Account Flow</th>
+                  <th class="text-end">Amount</th>
+                  <th class="text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for tx in transactions %}
+                  {{ tx.type }}
+                  <tr class="{% if tx.is_reversed or tx.reversal_of %}table-light opacity-75{% endif %}">
+                    <td>
+                      <span class="fw-bold d-block">
+                        {% if tx.is_reversed %}
+                          <i class="bi bi-arrow-counterclockwise text-danger"></i> Reversal Entry
+                        {% elif tx.reversal_of %}
+                          <i class="bi bi-x-circle text-muted"></i> <del>Original (Voided)</del>
+                        {% elif 'repayment' in tx.type.lower %}
+                          <i class="bi bi-arrow-return-left text-success"></i> Repayment
+                        {% elif 'payment' in tx.type.lower %}
+                          <i class="bi bi-cash-stack text-warning"></i> Cash Payment
+                        {% elif 'issuance' in tx.type.lower %}
+                          <i class="bi bi-bank text-primary"></i> Debt Issuance
+                        {% else %}
+                          <i class="bi bi-journal-text text-secondary"></i> {{ tx.type|default:'Ledger Entry' }}
+                        {% endif %}
+                      </span>
+                      <small class="text-muted">{{ tx.date|date:'M d, Y' }}</small>
+                    </td>
+
+                    <td>
+                      <div class="small">
+                        <span class="{% if tx.target == operation.source %}
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            fw-bold text-success
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                          {% else %}
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            text-muted
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                          {% endif %}">
+                          {{ tx.source.name }}
+                        </span>
+                        <i class="bi bi-arrow-right px-1"></i>
+                        <span class="{% if tx.target == operation.source %}
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            fw-bold text-primary
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                          {% else %}
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            text-muted
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                          {% endif %}">
+                          {{ tx.target.name }}
+                        </span>
+                      </div>
+                    </td>
+
+                    <td class="text-end fw-bold">
+                      {% if tx.is_reversed or tx.reversal_of %}
+                        <span class="text-muted"><del>${{ tx.amount }}</del></span>
+                      {% elif tx.target == operation.source and not 'Issuance' in tx.label %}
+                        <span class="text-success">+ ${{ tx.amount }}</span>
+                      {% else %}
+                        <span class="text-dark">${{ tx.amount }}</span>
+                      {% endif %}
+                    </td>
+
+                    <td class="text-center">
+                      {% if tx.is_reversed %}
+                        <span class="badge rounded-pill bg-danger">REVERSAL</span>
+                      {% elif tx.reversal_of %}
+                        <span class="badge rounded-pill bg-secondary">VOIDED</span>
+                      {% elif tx.target == operation.source and not 'issuance' in tx.type.lower %}
+                        <span class="badge rounded-pill bg-success">RECOVERY</span>
+                      {% elif 'repayment' in tx.type.lower %}
+                        <span class="badge rounded-pill bg-warning text-dark">REPAYMENT</span>
+                      {% elif 'payment' in tx.type.lower %}
+                        <span class="badge rounded-pill bg-warning text-dark">PAYMENT</span>
+                      {% else %}
+                        <span class="badge rounded-pill bg-primary">ISSUANCE</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% empty %}
+                  <tr>
+                    <td colspan="4" class="text-center py-4 text-muted">No transactions found for this operation.</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+              <tfoot class="table-secondary">
+                <tr>
+                  <td colspan="2" class="fw-bold">Total Ledger Impact</td>
+                  <td colspan="2" class="text-end fw-bold text-primary">${{ operation.get_cash_flow_balance }}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        {% if operation.description %}
+          <div class="card mt-4 shadow-sm">
+            <div class="card-body">
+              <h6 class="fw-bold text-muted">Description / Notes</h6>
+              <p class="mb-0">{{ operation.description }}</p>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+{% endblock %}

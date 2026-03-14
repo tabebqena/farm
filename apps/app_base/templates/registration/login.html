@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+
+{% block content %}
+  <div class="container py-5">
+    <div class="row justify-content-center">
+      <div class="col-md-4">
+        <div class="card shadow border-0">
+          <div class="card-body p-4">
+            <h3 class="fw-bold mb-3">Login</h3>
+
+            {% if form.errors %}
+              <div class="alert alert-danger small">Your username and password didn't match.</div>
+            {% endif %}
+
+            <form method="post" action="{% url 'login' %}">
+              {% csrf_token %}
+              <div class="mb-3">
+                <label class="form-label small fw-bold">Username</label>
+                {{ form.username }}
+              </div>
+              <div class="mb-3">
+                <label class="form-label small fw-bold">Password</label>
+                {{ form.password }}
+              </div>
+              <button type="submit" class="btn btn-primary w-100">Sign In</button>
+              <input type="hidden" name="next" value="{{ next }}" />
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

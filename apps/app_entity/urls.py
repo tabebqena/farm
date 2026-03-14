@@ -4,27 +4,25 @@ from django.views.generic import RedirectView
 from . import views
 
 urlpatterns = [
-    path("", RedirectView.as_view(pattern_name="entity_list", permanent=False)),
-    path("entities/", views.entity_list_view, name="entity_list"),
-    path("entities/person/add/", views.person_create_view, name="person_create"),
-    path("entities/person/edit/<int:pk>", views.person_edit_view, name="person_edit"),
-    path("entities/project/add/", views.project_create_view, name="project_create"),
+    # path("", RedirectView.as_view(pattern_name="entity_list", permanent=False)),
+    path("", views.entity_list_view, name="entity_list"),
+    path("person/add/", views.person_create_view, name="person_create"),
+    path("person/edit/<int:pk>", views.person_edit_view, name="person_edit"),
+    path("project/add/", views.project_create_view, name="project_create"),
+    path("project/edit/<int:pk>", views.project_edit_view, name="project_edit"),
     path(
-        "entities/project/edit/<int:pk>", views.project_edit_view, name="project_edit"
-    ),
-    path(
-        "entities/category/add/<int:parent_entity_id>",
+        "category/add/<int:parent_entity_id>",
         views.category_create_view,
         name="category_create",
     ),
     path(
-        "entities/category/edit/<int:pk>",
+        "category/edit/<int:pk>",
         views.category_edit_view,
         name="category_edit",
     ),
-    path("entities/<int:pk>/", views.entity_detail_view, name="entity_detail"),
+    path("<int:pk>/", views.entity_detail_view, name="entity_detail"),
     path(
-        "entity/<int:entity_id>/contact/add/",
+        "<int:entity_id>/contact/add/",
         views.add_contact_info_view,
         name="add_contact_info",
     ),
