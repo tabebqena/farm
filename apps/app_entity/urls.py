@@ -10,16 +10,6 @@ urlpatterns = [
     path("person/edit/<int:pk>", views.person_edit_view, name="person_edit"),
     path("project/add/", views.project_create_view, name="project_create"),
     path("project/edit/<int:pk>", views.project_edit_view, name="project_edit"),
-    path(
-        "category/add/<int:parent_entity_id>",
-        views.category_create_view,
-        name="category_create",
-    ),
-    path(
-        "category/edit/<int:pk>",
-        views.category_edit_view,
-        name="category_edit",
-    ),
     path("<int:pk>/", views.entity_detail_view, name="entity_detail"),
     path(
         "<int:entity_id>/contact/add/",

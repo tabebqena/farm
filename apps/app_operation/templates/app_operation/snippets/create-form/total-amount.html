@@ -1,0 +1,11 @@
+<div class="col-md-6">
+  <label class="form-label fw-bold">Total Amount</label>
+  <div class="input-group">
+    <span class="input-group-text bg-{{ theme_color }} text-white border-{{ theme_color }}">$</span>
+    {% if config.operation_type == 'PURCHASE' %}
+      <input type="number" step="0.10" name="amount" id="id_total_amount" class="form-control border-{{ theme_color }}" placeholder="0.00" min="0" required readonly />
+    {% else %}
+      <input type="number" step="0.10" name="amount" id="id_total_amount" class="form-control border-{{ theme_color }}" placeholder="0.00" min="0" required />
+    {% endif %}
+  </div>
+</div>

@@ -15,7 +15,6 @@
   </nav>
 
   <div class="container py-4">
-    {% include 'app_entity/snippets/category_parent_link.html' %}
 
     <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
       <div>
@@ -38,14 +37,18 @@
             {% include 'app_entity/snippets/entity_edit_link.html' with edit_label='Edit' %}
           </li>
 
-          {% if entity.person %}
+          {% comment %} {% if entity.person %}
+            {% endcomment %}
             <li>
               <h6 class="dropdown-header">Capital</h6>
             </li>
             <li>
               <a class="dropdown-item" href="{% url 'cash_list_view' entity.pk %}"><i class="bi bi-clock-history me-2"></i>Cash History</a>
             </li>
+            {% comment %}
           {% else %}
+            {% endcomment %}
+            {% if entity.project%}
             <li>
               <h6 class="dropdown-header">Capital</h6>
             </li>
@@ -257,16 +260,18 @@
       <div class="d-flex justify-content-between align-items-center mb-3">
         <h5 class="fw-bold">Operational Categories (Sub-Ledgers)</h5>
         <a href="{% url 'category_create' entity.id %}" class="btn btn-sm btn-primary">+ Add Category</a>
+        <a href="{% url 'category_bulk_create' entity.id %}" class="btn btn-sm btn-secondary">++ Bulk Create </a>
+      
       </div>
       <div class="list-group shadow-sm">
-        {% for cat in entity.owned_categories.all %}
-          <a href="{% url 'entity_detail' pk=cat.entity.pk %}" class="list-group-item d-flex justify-content-between align-items-center">
+        {% for cat in entity.categories.all %}
+          <a href="{% url 'category_detail' pk=cat.pk %}" class="list-group-item d-flex justify-content-between align-items-center">
             <div>
               <span class="fw-bold text-dark">{{ cat.name }}</span>
-              <small class="text-muted d-block">{{ cat.description }}</small>
+              <small class="text-muted d-block">{{ cat.category_type }}</small>
             </div>
             <div class="text-end">
-              <div class="fw-bold">{{ cat.entity.fund.balance }}</div>
+              <div class="fw-bold">{{ cat.balance }}</div>
               <small class="text-muted">Limit: {{ cat.max_limit }}</small>
             </div>
           </a>

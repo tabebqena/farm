@@ -88,12 +88,23 @@ class BaseModel(models.Model):
 
         return super().clean_fields(exclude)
 
+    def post_save(self, tasks):
+        for f, f_args, f_kwargs in tasks:
+            f(*f_args, **f_kwargs)
+
     def save(self, *args, **kwargs):
         self.full_clean()
         is_new = self.pk is None
         if is_new and not isinstance(self.deletable, bool):
             self.deletable = False
-        return super().save(*args, **kwargs)
+        rv = super().save(
+            force_insert=kwargs.get("force_insert", False),
+            force_update=kwargs.get("force_update", False),
+            using=kwargs.get("using", None),
+            update_fields=kwargs.get("update_fields", None),
+        )
+        self.post_save(kwargs.get("tasks", []))
+        return rv
 
     def delete(self, *args, **kwargs):
         if conf.settings.DEBUG:

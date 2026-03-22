@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block content %}
+  <div class="container mt-4">
+    <div class="row justify-content-center">
+      {% if config.operation_type == 'PURCHASE' %}
+      <div class="col-md-10">
+      {% else %}
+      <div class="col-md-7">
+      {%endif%}
+        <div class="card shadow border-{{ theme_color }}">
+          <div class="card-header bg-{{ theme_color }} text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+              <i class="bi {{ theme_icon }} me-2"></i>
+              New {{ config.label }}
+            </h5>
+            <span class="badge bg-white text-{{ theme_color }}">Financial Entry</span>
+          </div>
+
+          <div class="card-body p-4">
+            <form method="post" id="operation-form">
+              {% csrf_token %}
+
+              {% include 'app_operation/snippets/create-form/primary-entity.html' %}
+              <div class="row g-4">
+                {% include 'app_operation/snippets/create-form/secondary-entity.html' %}
+                {% include 'app_operation/snippets/create-form/date.html' %}
+                {% include 'app_operation/snippets/create-form/total-amount.html' %}
+                {% include 'app_operation/snippets/create-form/partial_payment_subform.html' %}
+                {% include 'app_operation/snippets/create-form/invoice_formset.html' %}
+                {% include 'app_operation/snippets/create-form/description.html' %}
+              </div>
+              <hr class="my-4" />
+              <div class="d-flex justify-content-between align-items-center">
+                <a href="{% url 'entity_detail' primary.pk %}" class="btn btn-link text-muted">Cancel</a>
+                <button type="submit" class="btn btn-{{ theme_color }} px-5 fw-bold shadow-sm">Record {{ config.label }}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div class="text-center mt-3">
+          <small class="text-muted text-uppercase fw-bold">Expected Direction</small>
+
+          <div class="d-flex justify-content-center align-items-center gap-2 mt-1">
+            <span class="badge bg-light text-dark p-2 border">
+              {% if config.source == 'world' %}
+                External World
+              {% elif config.source == 'url' %}
+                {{ primary.name }}
+              {% else %}
+                Selected Source
+              {% endif %}
+            </span>
+            <i class="bi bi-arrow-right text-{{ theme_color }}"></i>
+            <span class="badge bg-light text-dark p-2 border">
+              {% if config.dest == 'world' %}
+                External World
+              {% elif config.dest == 'url' %}
+                {{ primary.name }}
+              {% else %}
+                Selected Destination
+              {% endif %}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    window.OperationConfig = {
+        operationType: "{{ config.operation_type }}",
+        label: "{{ config.label }}",
+        // Logic flags from your backend config
+        canPay: {{ config.can_pay|yesno:"true,false" }},
+        isPartiallyPayable: {{ config.is_partially_payable|yesno:"true,false" }},
+        initialStatus: "{{ config.default_status }}", // e.g., 'ISSUED', 'PAID', 'PARTIAL'
+        formsetPrefix: "invoiceitem_set"
+    };
+</script>
+
+  <script src="{% static 'js/operation-formset.js' %}"></script>
+  <script src="{% static 'js/partial-payment-subform.js' %}"></script>
+{% endblock %}

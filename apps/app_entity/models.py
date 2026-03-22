@@ -97,49 +97,6 @@ class Project(ImmutableMixin, BaseModel):
         return self.get_display_name()
 
 
-class Category(ImmutableMixin, BaseModel):
-    _immutable_fields = {"parent_entity": {}}
-    name = models.CharField(max_length=100)
-    # The 'Owner' of this category (The Project or Person)
-    parent_entity = models.ForeignKey(
-        "Entity", on_delete=models.CASCADE, related_name="owned_categories"
-    )
-    description = models.TextField(blank=True)
-    max_limit = models.DecimalField(
-        max_digits=10, decimal_places=2, null=False, blank=False
-    )
-
-    def get_display_name(self):
-        return self.name
-
-    def __str__(self) -> str:
-        return self.get_display_name()
-
-    def clean(self) -> None:
-        print("")
-        if not self.parent_entity.project and not self.parent_entity.person:
-            raise ValidationError("Parent entity should be of type Person or Project")
-        return super().clean()
-
-    @classmethod
-    def create(
-        cls, name, parent_entity: "Entity", max_limit: Decimal, description="", **kwargs
-    ):
-        with transaction.atomic():
-            try:
-                c = Category(
-                    name=name,
-                    description=description,
-                    parent_entity=parent_entity,
-                    max_limit=max_limit,
-                )
-                c.save()
-                e = Entity.create(owner=c, **kwargs)
-                return c
-            except ValidationError as e:
-                raise ValidationError(str(e))
-
-
 class Fund(ImmutableMixin, BaseModel):
     _immutable_fields = {"entity": {}}
     entity = models.OneToOneField(
@@ -191,7 +148,6 @@ class Stakeholder(ImmutableMixin, BaseModel):
             self.target.project,
             "target person",
             self.target.person,
-            self.target.category,
         )
 
         if not self.parent.project and not self.parent.person:
@@ -212,14 +168,13 @@ class Stakeholder(ImmutableMixin, BaseModel):
         return f"{self.target} as {self.get_role_display()} in {self.parent}"
 
 
-ENTITY_TYPE_ENUM = Enum("Type", "PERSONAL PROJECT CATEGORY SYSTEM WORLD")
+ENTITY_TYPE_ENUM = Enum("Type", "PERSONAL PROJECT SYSTEM WORLD")
 
 
 class Entity(ImmutableMixin, BaseModel):
     _immutable_fields = {
         "person": {},
         "project": {},
-        "category": {},
         "user": {},
         # "fund": {"ALLOW_SET": True},
         "is_system": {},
@@ -236,14 +191,6 @@ class Entity(ImmutableMixin, BaseModel):
 
     project = models.OneToOneField(
         to="Project",
-        on_delete=models.PROTECT,
-        null=True,
-        blank=True,
-        related_name="entity",
-    )
-
-    category = models.OneToOneField(
-        to="Category",
         on_delete=models.PROTECT,
         null=True,
         blank=True,
@@ -285,7 +232,7 @@ class Entity(ImmutableMixin, BaseModel):
 
     @property
     def owner(self):
-        a = self.project or self.person or self.category
+        a = self.project or self.person
         if a:
             return a
         if self.is_system:
@@ -299,8 +246,6 @@ class Entity(ImmutableMixin, BaseModel):
             return ENTITY_TYPE_ENUM.PROJECT
         elif self.person:
             return ENTITY_TYPE_ENUM.PERSONAL
-        elif self.category:
-            return ENTITY_TYPE_ENUM.CATEGORY
         elif self.is_system:
             return ENTITY_TYPE_ENUM.SYSTEM
         elif self.is_world:
@@ -327,7 +272,7 @@ class Entity(ImmutableMixin, BaseModel):
 
     @property
     def is_virtual(self):
-        return self.is_world or self.is_system or self.category
+        return self.is_world or self.is_system
 
     def get_absolute_url(self):
         return reverse("entity_detail", kwargs={"pk": self.pk})
@@ -341,7 +286,6 @@ class Entity(ImmutableMixin, BaseModel):
         identity_sources = [
             bool(self.person),
             bool(self.project),
-            bool(self.category),
             self.is_system,
             self.is_world,
         ]
@@ -349,20 +293,17 @@ class Entity(ImmutableMixin, BaseModel):
 
         if active_count == 0:
             raise ValueError(
-                f"Entity must have exactly one identity (Person, Project, Category, System, or World)."
+                f"Entity must have exactly one identity (Person, Project, System, or World)."
                 f"This have {active_count} {identity_sources}"
             )
         if active_count > 1:
             raise ValueError(
                 "Entity cannot represent multiple identities simultaneously."
             )
-        if self.is_system or self.category:
+        if self.is_system:
             self.is_internal = True
         elif self.is_world:
             self.is_internal = False
-
-        if self.category:
-            self.can_pay = False
 
         if self.is_virtual:
             self.is_vendor = False
@@ -413,8 +354,6 @@ class Entity(ImmutableMixin, BaseModel):
                 e.person = owner
             elif isinstance(owner, Project):
                 e.project = owner
-            elif isinstance(owner, Category):
-                e.category = owner
             e.user = auth_user
             e.is_system = is_system
             e.is_world = is_world

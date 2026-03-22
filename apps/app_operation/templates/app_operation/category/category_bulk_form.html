@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container py-4">
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'entity_detail' parent.id %}">{{ parent.get_display_name }}</a></li>
+            <li class="breadcrumb-item active">Bulk Add Categories</li>
+        </ol>
+    </nav>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <form method="post">
+                {% csrf_token %}
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="mb-0 fw-bold text-primary">Suggested Livestock Categories</h5>
+                            <small class="text-muted">Showing only items not yet added to <strong>{{ parent.name }}</strong></small>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="select-all">
+                            <label class="form-check-label fw-bold" for="select-all">Select All</label>
+                        </div>
+                    </div>
+                    
+                    <div class="card-body p-0">
+                        <div class="list-group list-group-flush">
+                            {% for name, details in suggestions.items %}
+                            <label class="list-group-item list-group-item-action p-3 d-flex align-items-center" style="cursor: pointer;">
+                                <input class="form-check-input me-3 category-checkbox" type="checkbox" name="selected_categories" value="{{ name }}">
+                                <div class="flex-grow-1">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="fw-bold">{{ name }}</span>
+                                        <span class="badge {% if details.type == 'SALE' %}bg-success{% elif details.type == 'PURCHASE' %}bg-warning text-dark{% else %}bg-info{% endif %}">
+                                            {{ details.type }}
+                                        </span>
+                                    </div>
+                                    <small class="text-muted d-block">{{ details.desc }}</small>
+                                </div>
+                            </label>
+                            {% empty %}
+                            <div class="text-center py-5">
+                                <i class="bi bi-check-all fs-1 text-success"></i>
+                                <p class="mt-2 fw-bold text-muted">All suggested categories have already been added!</p>
+                                <a href="{% url 'entity_detail' parent.id %}" class="btn btn-outline-primary btn-sm">Return to Project</a>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="card-footer bg-light py-3 d-flex justify-content-between align-items-center">
+                        <span id="counter" class="text-muted small fw-bold">0 items selected</span>
+                        <div>
+                            <a href="{% url 'entity_detail' parent.id %}" class="btn btn-link text-muted text-decoration-none me-2">Cancel</a>
+                            <button type="submit" class="btn btn-primary px-4 fw-bold shadow-sm" {% if not suggestions %}disabled{% endif %}>
+                                Add Selected Categories
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const selectAll = document.getElementById('select-all');
+    const checkboxes = document.querySelectorAll('.category-checkbox');
+    const counter = document.getElementById('counter');
+
+    const updateCounter = () => {
+        const count = document.querySelectorAll('.category-checkbox:checked').length;
+        counter.textContent = `${count} item(s) selected`;
+    };
+
+    selectAll.addEventListener('change', function() {
+        checkboxes.forEach(cb => cb.checked = this.checked);
+        updateCounter();
+    });
+
+    checkboxes.forEach(cb => {
+        cb.addEventListener('change', updateCounter);
+    });
+});
+</script>
+{% endblock %}

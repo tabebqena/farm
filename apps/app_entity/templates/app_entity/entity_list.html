@@ -19,9 +19,7 @@
         <li>
           <a class="dropdown-item" href="{% url 'project_create' %}"><i class="bi bi-kanban me-2"></i> Project</a>
         </li>
-        {% comment %} <li>
-          <a class="dropdown-item" href="{% url 'category_create' %}"><i class="bi bi-tags me-2"></i> Category</a>
-        </li> {% endcomment %}
+        
       </ul>
     </div>
   </div>
@@ -55,7 +53,6 @@
                                     <option value="all" {% if type_filter == 'all' %}selected{% endif %}>All Types</option>
                                     <option value="person" {% if type_filter == 'person' %}selected{% endif %}>People</option>
                                     <option value="project" {% if type_filter == 'project' %}selected{% endif %}>Projects</option>
-                                    <option value="category" {% if type_filter == 'category' %}selected{% endif %}>Categories</option>
                                     <option value="system_world" {% if type_filter == 'system_world' %}selected{% endif %}>System & World</option>
                                 </select>
                             </div>
@@ -115,8 +112,6 @@
                       <i class="bi bi-person"></i>
                     {% elif entity.project %}
                       <i class="bi bi-kanban"></i>
-                    {% elif entity.category %}
-                      <i class="bi bi-tags"></i>
                     {% else %}
                       <i class="bi bi-cpu"></i>
                     {% endif %}
@@ -133,8 +128,6 @@
                     Person
                   {% elif entity.project %}
                     Project
-                  {% elif entity.category %}
-                    Category
                   {% elif entity.is_system %}
                     System
                   {% else %}
@@ -188,8 +181,6 @@
                     <a href="{% url 'person_edit' pk=entity.pk %}" class="btn btn-sm btn-outline-light text-dark border-0"><i class="bi bi-pencil"></i></a>
                   {% elif entity.project %}
                      <a href="{% url 'project_edit' pk=entity.pk %}" class="btn btn-sm btn-outline-light text-dark border-0"><i class="bi bi-pencil"></i></a>
-                  {% elif entity.category %}
-                     <a href="{% url 'category_edit' pk=entity.pk %}" class="btn btn-sm btn-outline-light text-dark border-0"><i class="bi bi-pencil"></i></a>
                   {% endif %}
 
                   <a href="#" class="btn btn-sm btn-outline-light text-dark border-0"><i class="bi bi-three-dots-vertical"></i></a>

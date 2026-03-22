@@ -42,7 +42,7 @@ INSTALLED_APPS = [
     "apps.app_base",
     "apps.app_entity",
     "apps.app_transaction",
-    "apps.app_personal_operation",
+    "apps.app_operation",
 ]
 
 MIDDLEWARE = [

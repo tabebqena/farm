@@ -5,7 +5,7 @@ from apps.app_entity.models import Entity
 
 
 def entity_list_view(request):
-    queryset = Entity.objects.select_related("person", "project", "category")
+    queryset = Entity.objects.select_related("person", "project")
 
     # 1. Get Filter Params
     type_f = request.GET.get("type", "all")
@@ -17,14 +17,10 @@ def entity_list_view(request):
         queryset = queryset.filter(person__isnull=False)
     elif type_f == "project":
         queryset = queryset.filter(project__isnull=False)
-    elif type_f == "category":
-        queryset = queryset.filter(category__isnull=False)
     elif type_f == "system_world":
         queryset = queryset.filter(Q(is_system=True) | Q(is_world=True))
     else:
-        queryset = queryset.filter(
-            Q(category__isnull=True) & Q(is_world=False) & Q(is_system=False)
-        )
+        queryset = queryset.filter(Q(is_world=False) & Q(is_system=False))
 
     # 3. Filter by Deletion (Assuming is_deleted field exists)
     if del_f == "deleted":
@@ -42,9 +38,7 @@ def entity_list_view(request):
     query = request.GET.get("q")
     if query:
         queryset = queryset.filter(
-            Q(person__private_name__icontains=query)
-            | Q(project__name__icontains=query)
-            | Q(category__name__icontains=query)
+            Q(person__private_name__icontains=query) | Q(project__name__icontains=query)
         )
 
     context = {

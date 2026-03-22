@@ -106,22 +106,32 @@ class AdjustableMixin(BaseModelMixin):
         return base + inc - dec
 
 
-class Has2FundsMixin(BaseModelMixin):
+class SourceFundMixin(BaseModelMixin):
     @property
     def payment_source_fund(self):
-        raise NotImplementedError()
-
-    @property
-    def payment_target_fund(self):
         raise NotImplementedError()
 
     def _validate_payment_source_fund_exists(self):
         if not self.payment_source_fund:
             raise ValidationError("Payment source fund is not existing.")
 
+    def clean(self) -> None:
+        self._validate_payment_source_fund_exists()
+        return super().clean()
+
+
+class TargetFundMixin(BaseModelMixin):
+    @property
+    def payment_target_fund(self):
+        raise NotImplementedError()
+
     def _validate_payment_target_fund_exists(self):
         if not self.payment_target_fund:
             raise ValidationError("Payment target fund is not existing.")
+
+    def clean(self) -> None:
+        self._validate_payment_target_fund_exists()
+        return super().clean()
 
 
 # DEPERCATED
@@ -216,46 +226,13 @@ class AmountCleanMixin(BaseModelMixin):
         return super().clean()
 
 
-class HasLinkedTransactionMixin(Has2FundsMixin, BaseModelMixin):
-    # Flags:
-    _max_payment_transaction_count = 0
-    # Indicates that this record
-    # _has_issuance_transaction = True
-    # _has_single_payment_transactions = True
-    # _has_multiple_payment_transactions = False
-    # and once created, it should creates
-    # the issuance transaction
-    # and the single payment transaction
-    _is_one_shot_operation = False
-    # End of flags
-    # ################################################
-    # Indicates the type of the issuance transaction
+class LinkedIssuanceTransactionMixin(SourceFundMixin, TargetFundMixin, BaseModelMixin):
     _issuance_transaction_type: "TransactionType"
-    _payment_transaction_type: "TransactionType"
 
     @property
     def _has_issuance_transaction(self):
         """Indicates if this reord can/should be linked to a transaction that its type is *_Issuance"""
         return getattr(self, "_issuance_transaction_type", None) is not None
-
-    @property
-    def _has_payment_transaction(self):
-        """indicates whther this record can be linked to one or more transactions"""
-        return getattr(self, "_payment_transaction_type", None) is not None
-
-    @property
-    def _has_single_payment_transaction(self):
-        """Indicates if this record can/should be linked to a single transaction of type payment"""
-        return (
-            self._has_payment_transaction and self._max_payment_transaction_count == 1
-        )
-
-    @property
-    def _has_multiple_payment_transactions(self):
-        """Indicates if this record can/should be linked to more than one payment transaction"""
-        return (
-            self._has_payment_transaction and self._max_payment_transaction_count == -1
-        )
 
     def create_issuance_transaction(
         self, description="", note="", officer=None, date=None
@@ -275,6 +252,62 @@ class HasLinkedTransactionMixin(Has2FundsMixin, BaseModelMixin):
                 note=note,
                 date=date or timezone.now(),
             )
+
+    def save(self, *args, **kwargs) -> None:
+        with db_transaction.atomic():
+            is_new = self.pk is None
+            create_transactions = kwargs.pop("create_transactions", True)
+            # rv = super().save(*args, **kwargs)
+
+            if is_new and create_transactions:
+                if getattr(self, "reversal_of", None) is not None and self.reversal_of:
+                    # Don't create transactions
+                    ...
+                if getattr(self, "reversed_by", None) is not None and self.reversed_by:
+                    # Don't create transactions
+                    ...
+                else:
+                    if self._has_issuance_transaction:
+                        kwargs.setdefault("tasks", []).append(
+                            (self.create_issuance_transaction, (), {})
+                        )
+                        # self.create_issuance_transaction()
+            return super().save(*args, **kwargs)
+
+
+class LinkedPaymentTransactionMixin(SourceFundMixin, TargetFundMixin, BaseModelMixin):
+    # Flags:
+    max_payment_transaction_count = 0
+    # Indicates that this record
+    # _has_issuance_transaction = True
+    # _has_single_payment_transactions = True
+    # _has_multiple_payment_transactions = False
+    # and once created, it should creates
+    # the issuance transaction
+    # and the single payment transaction
+    _is_one_shot_operation = False
+    # End of flags
+    # ################################################
+    # Indicates the type of the issuance transaction
+    _issuance_transaction_type: "TransactionType"
+    _payment_transaction_type: "TransactionType"
+
+    @property
+    def _has_payment_transaction(self):
+        """indicates whther this record can be linked to one or more transactions"""
+        return getattr(self, "_payment_transaction_type", None) is not None
+
+    @property
+    def _has_single_payment_transaction(self):
+        """Indicates if this record can/should be linked to a single transaction of type payment"""
+        return self._has_payment_transaction and self.max_payment_transaction_count == 1
+
+    @property
+    def _has_multiple_payment_transactions(self):
+        """Indicates if this record can/should be linked to more than one payment transaction"""
+        return (
+            self._has_payment_transaction and self.max_payment_transaction_count == -1
+        )
 
     def create_payment_transaction(
         self, amount, officer, date, description="", note=""
@@ -299,7 +332,7 @@ class HasLinkedTransactionMixin(Has2FundsMixin, BaseModelMixin):
         with db_transaction.atomic():
             is_new = self.pk is None
             create_transactions = kwargs.pop("create_transactions", True)
-            rv = super().save(*args, **kwargs)
+            # rv = super().save(*args, **kwargs)
             if is_new and create_transactions:
                 if getattr(self, "reversal_of", None) is not None and self.reversal_of:
                     # Don't create transactions
@@ -308,20 +341,30 @@ class HasLinkedTransactionMixin(Has2FundsMixin, BaseModelMixin):
                     # Don't create transactions
                     ...
                 else:
-                    if self._has_issuance_transaction:
-                        self.create_issuance_transaction()
                     if self._is_one_shot_operation:
                         if not self._has_single_payment_transaction:
                             raise ValidationError(
                                 "This record can't act as shot operation record"
                             )
-                        self.create_payment_transaction(
-                            amount=self.amount,
-                            officer=self.officer,
-                            date=self.date or timezone.now(),
-                            description=f"One shot payment transactiof for ({self.__class__}) ({self.pk})",
+                        kwargs.setdefault("tasks", []).append(
+                            (
+                                self.create_payment_transaction,
+                                (),
+                                {
+                                    "amount": self.amount,
+                                    "officer": self.officer,
+                                    "date": self.date or timezone.now(),
+                                    "description": f"One shot payment transactiof for ({self.__class__}) ({self.pk})",
+                                },
+                            )
                         )
-            return rv
+                        # self.create_payment_transaction(
+                        #     amount=self.amount,
+                        #     officer=self.officer,
+                        #     date=self.date or timezone.now(),
+                        #     description=f"One shot payment transactiof for ({self.__class__}) ({self.pk})",
+                        # )
+            return super().save(*args, **kwargs)
 
 
 class OfficerMixin(BaseModelMixin):

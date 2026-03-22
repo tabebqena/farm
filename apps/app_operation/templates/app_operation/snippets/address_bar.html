@@ -1,0 +1,9 @@
+<div>
+  <h2 class="mb-0">{{ operation.get_operation_type_display }}</h2>
+  <p class="text-muted">Voucher #{{ operation.pk }} | Date: {{ operation.date }}</p>
+</div>
+<div class="btn-group">
+  <a href="{% url 'entity_detail' operation.destination.pk %}" class="btn btn-outline-secondary">Back to Entity</a>
+  <a href="{% url 'cash_list_view' operation.owner.pk %}" class="btn btn-secondary">Back to Cash History</a>
+  <button onclick="window.print()" class="btn btn-outline-dark"><i class="bi bi-printer"></i> Print</button>
+</div>

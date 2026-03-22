@@ -1,0 +1,36 @@
+<div class="col-md-4">
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-light fw-bold">Operation Summary</div>
+    {% include 'app_operation/snippets/summary_table.html' %}
+  </div>
+
+  {% if not operation.is_reversed and not operation.is_reversed %}
+    {% if operation.max_payment_transaction_count < 0 %}
+      <div class="card border-success shadow-sm mb-4">
+        <div class="card-body">
+          <h6 class="text-success fw-bold">Record Payment</h6>
+          <p class="small text-muted">Record a payment transaction.</p>
+          {% comment %} <a href="{% url 'loan_repayment_view' operation.pk %}" class="btn btn-success w-100"><i class="bi bi-cash-coin me-1"></i> Record Repayment</a> {% endcomment %}
+        </div>
+      </div>
+    {% endif %}
+
+    {% if operation.has_repayment %}
+      <div class="card border-success shadow-sm mb-4">
+        <div class="card-body">
+          <h6 class="text-success fw-bold">Loan Recovery</h6>
+          <p class="small text-muted">Add a repayment transaction to reduce the outstanding balance of this loan.</p>
+          <a href="{% url 'loan_repayment_view' operation.pk %}" class="btn btn-success w-100"><i class="bi bi-cash-coin me-1"></i> Record Repayment</a>
+        </div>
+      </div>
+    {% endif %}
+
+    <div class="card border-warning shadow-sm">
+      <div class="card-body">
+        <h6>Correction</h6>
+        <p class="small text-muted">Void this entire operation and all its linked transactions.</p>
+        <a href="{% url 'operation_reverse_view' operation.pk %}" class="btn btn-sm btn-outline-danger">Reverse Operation</a>
+      </div>
+    </div>
+  {% endif %}
+</div>

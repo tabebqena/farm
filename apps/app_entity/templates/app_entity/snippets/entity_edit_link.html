@@ -5,16 +5,14 @@
 {% elif entity.project %}
   {% url 'project_edit' entity.id as edit_url %}
   {% comment %} {% edit_label = 'Edit Project' %} {% endcomment %}
-{% elif entity.category %}
-  {% url 'category_edit' entity.category.id as edit_url %}
-  {% comment %} {% edit_label = 'Edit Category' %} {% endcomment %}
+
 {% else %}
   {# Fallback for System/World entities if needed #}
   {% url 'entity_edit_general' entity.id as edit_url %}
   {% comment %} {% edit_label = 'Edit Entity' %} {% endcomment %}
 {% endif %}
 
-<div class="ms-auto d-flex gap-2">
+<div class=" gap-2">
   <a href="{{ edit_url }}" class="btn btn-sm btn-outline-primary px-3 d-flex align-items-center shadow-sm">
     <i class="bi bi-pencil-square me-2"></i>
     <span class="fw-bold">{{ edit_label }}</span>

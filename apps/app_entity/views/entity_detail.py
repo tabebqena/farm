@@ -5,7 +5,7 @@ from django.shortcuts import get_object_or_404, render
 def entity_detail_view(request, pk):
     # Fetch entity with all its identity links and fund in one hit
     entity = get_object_or_404(
-        Entity.objects.select_related("person", "project", "category", "fund", "user"),
+        Entity.objects.select_related("person", "project", "fund", "user"),
         pk=pk,
     )
 

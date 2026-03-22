@@ -5,8 +5,7 @@ from .add_stakeholder import (
     add_vendor_view,
     add_worker_view,
 )
-from .category_create import category_create_view
-from .category_edit import category_edit_view
+
 from .edit_contact_info import edit_contact_info_view
 from .edit_stakeholder import edit_stakeholder_view
 from .entity_detail import entity_detail_view
@@ -21,10 +20,8 @@ __all__ = [
     "entity_detail_view",
     "person_create_view",
     "project_create_view",
-    "category_create_view",
     "person_edit_view",
     "project_edit_view",
-    "category_edit_view",
     "add_contact_info_view",
     "edit_contact_info_view",
     "add_client_view",
