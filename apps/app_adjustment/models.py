@@ -1,18 +1,18 @@
-from app_base.mixins import (
+from django.db import models
+from django.forms import ValidationError
+
+from apps.app_base.mixins import (
     AmountCleanMixin,
-    HasRelatedTransactions,
     ImmutableMixin,
     LinkedIssuanceTransactionMixin,
     OfficerMixin,
 )
 from apps.app_base.models import BaseModel
-from django.db import models
-from django.forms import ValidationError
-from apps.app_transaction.models import TransactionType
 from apps.app_operation.models import OperationType
+from apps.app_transaction.models import TransactionType
 
 
-class InvoiceAdjustmentType(models.TextChoices):
+class AdjustmentType(models.TextChoices):
     # ==========================
     # PURCHASE ADJUSTMENTS (Our Debts)
     # ==========================
@@ -50,21 +50,21 @@ class InvoiceAdjustmentType(models.TextChoices):
     # PROPERTIES
     # ==========================
 
-    @property
-    def is_reduction(self):
+    @classmethod
+    def is_reduction(cls, tp):
         """Returns True if this type subtracts from the balance."""
-        return self in (
-            InvoiceAdjustmentType.PURCHASE_RETURN,
-            InvoiceAdjustmentType.PURCHASE_DISCOUNT,
-            InvoiceAdjustmentType.PURCHASE_OVERCHARGE,
-            InvoiceAdjustmentType.PURCHASE_SHORTAGE,
-            InvoiceAdjustmentType.PURCHASE_DAMAGE,
-            InvoiceAdjustmentType.SALE_RETURN,
-            InvoiceAdjustmentType.SALE_DISCOUNT,
-            InvoiceAdjustmentType.SALE_OVERCHARGE,
-            InvoiceAdjustmentType.SALE_SHORTAGE,
-            InvoiceAdjustmentType.SALE_DAMAGE,
-            InvoiceAdjustmentType.SALE_WRITE_OFF,
+        return tp in (
+            AdjustmentType.PURCHASE_RETURN,
+            AdjustmentType.PURCHASE_DISCOUNT,
+            AdjustmentType.PURCHASE_OVERCHARGE,
+            AdjustmentType.PURCHASE_SHORTAGE,
+            AdjustmentType.PURCHASE_DAMAGE,
+            AdjustmentType.SALE_RETURN,
+            AdjustmentType.SALE_DISCOUNT,
+            AdjustmentType.SALE_OVERCHARGE,
+            AdjustmentType.SALE_SHORTAGE,
+            AdjustmentType.SALE_DAMAGE,
+            AdjustmentType.SALE_WRITE_OFF,
         )
 
 
@@ -87,11 +87,11 @@ class Adjustment(
         on_delete=models.PROTECT,
         related_name="adjustments",
     )
-    type = models.CharField(max_length=20, choices=InvoiceAdjustmentType.choices)
+    type = models.CharField(max_length=20, choices=AdjustmentType.choices)
     amount = models.DecimalField(max_digits=20, decimal_places=2)
     effect = models.CharField(
         max_length=10,
-        choices=[("INCREASE", "Increase"), ("DECREASE", "Decrease")],
+        choices=AdjustmentType,
     )
     reason = models.TextField()
     date = models.DateField()
@@ -122,6 +122,7 @@ class Adjustment(
             raise ValidationError(
                 "One-shot operations cannot be adjusted. Please reverse and redo instead."
             )
+        return super().clean()
 
     def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)
+        return super().save(*args, **kwargs)
