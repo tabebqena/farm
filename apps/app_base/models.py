@@ -9,7 +9,7 @@ from django.forms import ValidationError
 from django.utils import timezone
 
 if typing.TYPE_CHECKING:
-    from apps.app_transaction.models import TransactionType
+    from apps.app_transaction.transaction_type import TransactionType
 
 from django import conf
 
@@ -132,11 +132,11 @@ class ReversableModel(HasRelatedTransactions, BaseModel):
     )
 
     @property
-    def is_reversed(self):
+    def is_reversed(self) -> bool:
         return getattr(self, "reversed_by", None) is not None
 
     @property
-    def is_reversal(self):
+    def is_reversal(self) -> bool:
         return getattr(self, "reversal_of", None) is not None
 
     def _get_issuance_transaction_type(self):
@@ -158,7 +158,7 @@ class ReversableModel(HasRelatedTransactions, BaseModel):
     def _validate_can_be_reversed(self):
         if self.reversal_of is not None:
             raise ValidationError(
-                "You can't reverse this transaction as it is arefersal of another transaction {self.reversal_of}."
+                f"You can't reverse this record as it is a reversal of {self.reversal_of}."
             )
 
         if getattr(self, "reversed_by", None) is not None:
@@ -221,8 +221,6 @@ class ReversableModel(HasRelatedTransactions, BaseModel):
         date = date or timezone.now()
         # Identify related transactions (payments/collections/transactions)
         all_txs = self.get_all_transactions()
-        print("all txs", all_txs)
-        print(all_txs.count())
         if self._requires_transaction_reversal(all_txs):
             raise ValidationError(
                 "You can't reverse this object as it has non-reversed transactions"
@@ -252,9 +250,6 @@ class ReversableModel(HasRelatedTransactions, BaseModel):
             reversal_record = self.__class__(**kwargs)
             reversal_record.save()
             self.reversed_by = reversal_record
-            # I think it is not necessary
-            # but also not harmful
-            self.save()
             return reversal_record
 
     def save(self, *args, **kwargs) -> None:

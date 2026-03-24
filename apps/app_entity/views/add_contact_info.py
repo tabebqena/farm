@@ -1,7 +1,8 @@
-from django.shortcuts import render, get_object_or_404, redirect
-from django.db import transaction
 from django.contrib import messages
-from apps.app_entity.models import Entity, ContactInfo
+from django.db import transaction
+from django.shortcuts import get_object_or_404, redirect, render
+
+from apps.app_entity.models import ContactInfo, Entity
 
 
 def add_contact_info_view(request, entity_id):

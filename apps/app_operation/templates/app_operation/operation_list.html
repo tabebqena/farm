@@ -43,6 +43,19 @@
             <li>
               <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'expense' %}">expense</a>
             </li>
+
+            <li>
+              <hr class="dropdown-divider" />
+            </li>
+            <li>
+              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'capital-gain' %}">Capital Gain</a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'capital-loss' %}">Capital Loss</a>
+            </li>
+            <li>
+              <hr class="dropdown-divider" />
+            </li>
           {% endif %}
 
           <li>

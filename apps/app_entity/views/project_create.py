@@ -1,7 +1,8 @@
-from apps.app_entity.models import Entity, Project
 from django.contrib import messages
 from django.db import transaction
 from django.shortcuts import redirect, render
+
+from apps.app_entity.models import Entity, Project
 
 
 def project_create_view(request):

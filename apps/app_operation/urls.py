@@ -16,7 +16,7 @@ urlpatterns = [
     # ),
     #
     path(
-        "<int:person_pk>/capital-history/",
+        "<int:person_pk>/list/",
         views.operation_list_view,
         name="cash_list_view",
     ),

@@ -1,0 +1,29 @@
+<div class="text-center mt-3">
+  <small class="text-muted text-uppercase fw-bold">Expected Direction</small>
+  {{ config }}
+  <div class="d-flex justify-content-center align-items-center gap-2 mt-1">
+    <span class="badge bg-light text-dark p-2 border">
+      {% if config.source == 'world' %}
+        External World
+      {% elif config.source == 'system' %}
+        System
+      {% elif config.source == 'url' %}
+        {{ primary.name }}
+      {% else %}
+        Selected Source
+      {% endif %}
+    </span>
+    <i class="bi bi-arrow-right text-{{ theme_color }}"></i>
+    <span class="badge bg-light text-dark p-2 border">
+      {% if config.dest == 'world' %}
+        External World
+      {% elif config.dest == 'system' %}
+        System
+      {% elif config.dest == 'url' %}
+        {{ primary.name }}
+      {% else %}
+        Selected Destination
+      {% endif %}
+    </span>
+  </div>
+</div>

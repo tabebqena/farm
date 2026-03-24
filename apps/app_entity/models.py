@@ -133,23 +133,6 @@ class Stakeholder(ImmutableMixin, BaseModel):
     active = models.BooleanField(default=True)
 
     def clean(self) -> None:
-        print("Clean", self.parent, self.target)
-        print(
-            "Clean",
-            "parent: ",
-            self.parent,
-            "parent project",
-            self.parent.project,
-            "parent person:",
-            self.parent.person,
-            "target: ",
-            self.target,
-            "target project: ",
-            self.target.project,
-            "target person",
-            self.target.person,
-        )
-
         if not self.parent.project and not self.parent.person:
             raise ValidationError(
                 "The parent party should be a project or person entity."

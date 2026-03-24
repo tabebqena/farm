@@ -1,5 +1,6 @@
-from apps.app_entity.models import Entity
 from django.shortcuts import get_object_or_404, render
+
+from apps.app_entity.models import Entity
 
 
 def entity_detail_view(request, pk):

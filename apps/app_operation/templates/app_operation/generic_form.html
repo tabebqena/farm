@@ -3,7 +3,7 @@
 {% block content %}
   <div class="container mt-4">
     <div class="row justify-content-center">
-      {% if config.operation_type == 'PURCHASE' %}
+      {% if config.operation_type == 'PURCHASE' %} 
       <div class="col-md-10">
       {% else %}
       <div class="col-md-7">
@@ -25,8 +25,10 @@
               <div class="row g-4">
                 {% include 'app_operation/snippets/create-form/secondary-entity.html' %}
                 {% include 'app_operation/snippets/create-form/date.html' %}
+                
                 {% include 'app_operation/snippets/create-form/total-amount.html' %}
                 {% include 'app_operation/snippets/create-form/partial_payment_subform.html' %}
+                {% include 'app_operation/snippets/create-form/category.html' %}
                 {% include 'app_operation/snippets/create-form/invoice_formset.html' %}
                 {% include 'app_operation/snippets/create-form/description.html' %}
               </div>
@@ -38,34 +40,8 @@
             </form>
           </div>
         </div>
-
-        <div class="text-center mt-3">
-          <small class="text-muted text-uppercase fw-bold">Expected Direction</small>
-
-          <div class="d-flex justify-content-center align-items-center gap-2 mt-1">
-            <span class="badge bg-light text-dark p-2 border">
-              {% if config.source == 'world' %}
-                External World
-              {% elif config.source == 'url' %}
-                {{ primary.name }}
-              {% else %}
-                Selected Source
-              {% endif %}
-            </span>
-            <i class="bi bi-arrow-right text-{{ theme_color }}"></i>
-            <span class="badge bg-light text-dark p-2 border">
-              {% if config.dest == 'world' %}
-                External World
-              {% elif config.dest == 'url' %}
-                {{ primary.name }}
-              {% else %}
-                Selected Destination
-              {% endif %}
-            </span>
-          </div>
-        </div>
+        {% include 'app_operation/snippets/create-form/expected-direction.html' %}
       </div>
-    </div>
   </div>
   <script>
     window.OperationConfig = {
@@ -75,10 +51,13 @@
         canPay: {{ config.can_pay|yesno:"true,false" }},
         isPartiallyPayable: {{ config.is_partially_payable|yesno:"true,false" }},
         initialStatus: "{{ config.default_status }}", // e.g., 'ISSUED', 'PAID', 'PARTIAL'
-        formsetPrefix: "invoiceitem_set"
+        formsetPrefix: "invoiceitem_set",
+        hasCategory: {{ config.has_category|yesno:"true,false" }},
+        categoryRequired: {{ config.category_required|yesno:"true,false" }},
     };
 </script>
-
+{% if formset %}
   <script src="{% static 'js/operation-formset.js' %}"></script>
+{% endif %}
   <script src="{% static 'js/partial-payment-subform.js' %}"></script>
 {% endblock %}

@@ -8,17 +8,16 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from apps.app_entity.models import Entity
-from apps.app_operation.models import Operation
+from apps.app_operation.models import FinancialCategory, Operation, OperationType
 from apps.app_operation.views.common import (
     get_related_entities,
     get_theming,
-    op_type_dict,
     parse_config,
 )
 
 
 def operation_create_factory(request, op_type, pk):
-    canonical_op_type = op_type_dict.get(op_type)
+    canonical_op_type = OperationType.get_canonical_type(op_type)
     if not canonical_op_type:
         return HttpResponseBadRequest(f"Unsupported operation {op_type}")
     try:
@@ -36,36 +35,64 @@ def operation_create_factory(request, op_type, pk):
     #     extra=1,
     #     can_delete=True,
     # )
+    amount = 0
+    date = timezone.now()
+    description = ""
+    note = ""
+    formset = None
 
     # 3. Handle POST
     if request.method == "POST":
-        # secondary_entity = data["secondary_entity"]
-
         # Bind Formset to POST data
         formset = None
         # if canonical_op_type == OperationType.PURCHASE:
         #     formset = InvoiceItemFormSet(request.POST)
-
         # Determine Source/Destination
-
         # VALIDATION: Check formset BEFORE accessing cleaned_data
         is_formset_valid = True
         if formset and not formset.is_valid():
             is_formset_valid = False
             messages.error(request, "Please check the items table for errors.")
-
         if is_formset_valid:
             try:
                 with db_transaction.atomic():
+                    amount = float(request.POST.get("amount"))
+                    date = request.POST.get("date") or date
+                    description = request.POST.get("description", "")
                     op = Operation.objects.create(
                         operation_type=canonical_op_type,
                         source=data["source_entity"],
                         destination=data["dest_entity"],
-                        amount=request.POST.get("amount"),
-                        date=request.POST.get("date") or timezone.now().date(),
-                        description=request.POST.get("description", ""),
+                        amount=amount,
+                        date=date,
+                        description=description,
                         officer=officer,
                     )
+                    # can_pay indicates whether the user can control the payment from the UI or not
+                    # Other operations are payable from the backend
+                    amount_paid = request.POST.get("amount_paid")
+                    amount_paid = float(amount_paid if amount_paid else "0")
+                    can_pay = data.get("can_pay")
+                    if can_pay:
+                        if amount_paid > amount:
+                            raise ValueError(
+                                f"Error: paid amount {amount_paid} is more than the total {amount}"
+                            )
+
+                        if (
+                            not data.get("is_partially_payable")
+                            and amount_paid < amount
+                        ):
+                            raise ValueError(
+                                f"You can't pay less than {amount} for this operation."
+                            )
+                        if amount_paid > 0:
+                            tx = op.create_payment_transaction(
+                                amount_paid,
+                                officer,
+                                date=request.POST.get("date") or timezone.now().date(),
+                                description=f"Instant payment for the operation {op.operation_type} {op.pk}",
+                            )
 
                     # Save items if they exist
                     # if formset:
@@ -90,7 +117,11 @@ def operation_create_factory(request, op_type, pk):
     entities = get_related_entities(canonical_op_type, data["url_entity"], data)
     theme_color, theme_icon = get_theming(canonical_op_type)
 
-    print(data)
+    categories = FinancialCategory.objects.filter(
+        parent_entity=data["url_entity"],  # or project
+        # category_type=operation_type,
+        is_active=True,
+    )
 
     context = {
         "primary": data["url_entity"],
@@ -101,8 +132,13 @@ def operation_create_factory(request, op_type, pk):
         "theme_color": theme_color,
         "theme_icon": theme_icon,
         "formset": formset,
-        "isPartiallyPayable": data.get("is_partially_payable"),
+        "is_partially_payable": data.get("is_partially_payable"),
         "can_pay": data.get("can_pay"),
+        "categories": categories,
+        # Prefill form
+        "amount": amount if amount != 0 else "",
+        "date": date,
+        "description": description,
     }
 
     return render(request, "app_operation/generic_form.html", context)

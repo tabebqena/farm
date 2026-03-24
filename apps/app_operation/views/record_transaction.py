@@ -8,7 +8,8 @@ from django.utils import timezone
 
 from apps.app_entity.models import Entity
 from apps.app_operation.models import Operation, OperationType
-from apps.app_transaction.models import Transaction, TransactionType
+from apps.app_transaction.models import Transaction
+from apps.app_transaction.transaction_type import TransactionType
 
 
 def record_transaction_payment(request, pk):

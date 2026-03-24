@@ -1,0 +1,22 @@
+{% if config.has_category %}
+<div class="col-md-12">
+    <label class="form-label fw-bold">
+        Category 
+        {% if config.category_required %}<span class="text-danger">*</span>{% endif %}
+    </label>
+    <div class="input-group">
+        <span class="input-group-text bg-light"><i class="bi bi-tag"></i></span>
+        <select name="category" id="id_category" class="form-select" {% if config.category_required %}required{% endif %}>
+            <option value="">-- Select Category --</option>
+            {% for cat in categories %}
+                <option value="{{ cat.id }}" {% if cat.id == selected_category_id %}selected{% endif %}>
+                    {{ cat.name }} ({{ cat.get_category_type_display }})
+                </option>
+            {% endfor %}
+        </select>
+    </div>
+    {% if config.category_required %}
+    <div class="invalid-feedback">Please select a valid category for this {{ config.label|lower }}.</div>
+    {% endif %}
+</div>
+{% endif %}

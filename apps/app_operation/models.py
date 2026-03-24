@@ -1,3 +1,4 @@
+import logging
 from decimal import Decimal
 from typing import List
 
@@ -15,7 +16,9 @@ from apps.app_base.mixins import (
     OfficerMixin,
 )
 from apps.app_base.models import BaseModel, ReversableModel
-from apps.app_transaction.models import Transaction, TransactionType
+from apps.app_transaction.transaction_type import TransactionType
+
+logger = logging.getLogger(__name__)
 
 # class TrackingMode(models.TextChoices):
 #     INDIVIDUAL = "INDIVIDUAL", "Individual (Tag ID)"
@@ -130,6 +133,42 @@ class OperationType(models.TextChoices):
     SALE = "SALE", "Sale"
     EXPENSE = "EXPENSE", "EXPENSE"
 
+    CAPITAL_GAIN = "CAPITAL_GAIN", "CAPITAL_GAIN"
+    CAPITAL_LOSS = "CAPITAL_LOSS", "CAPITAL_LOSS"
+
+    @staticmethod
+    def get_canonical_type(url_str_type):
+        return {
+            "cash-injection": OperationType.CASH_INJECTION.value,
+            "cash-withdrawal": OperationType.CASH_WITHDRAWAL.value,
+            "project-funding": OperationType.PROJECT_FUNDING.value,
+            "project-refunding": OperationType.PROJECT_REFUND.value,
+            "profit-distribution": OperationType.PROFIT_DISTRIBUTION.value,
+            "loss-coverage": OperationType.LOSS_COVERAGE.value,
+            "internal-transfer": OperationType.INTERNAL_TRANSFER.value,
+            "loan": OperationType.LOAN,
+            "purchase": OperationType.PURCHASE,
+            "expense": OperationType.EXPENSE.value,
+            "capital-gain": OperationType.CAPITAL_GAIN.value,
+            "capital-loss": OperationType.CAPITAL_LOSS.value,
+        }.get(url_str_type, None)
+
+    @staticmethod
+    def _is_one_shot_operation(operation_type):
+        if operation_type in [
+            OperationType.PURCHASE,
+            OperationType.SALE,
+            OperationType.EXPENSE,
+        ]:
+            return False
+        return True
+
+    @staticmethod
+    def has_repayments(operation_type):
+        if operation_type == OperationType.LOAN:
+            return True
+        return False
+
 
 class Operation(
     ImmutableMixin,
@@ -205,7 +244,6 @@ class Operation(
             OperationType.EXPENSE,
         ]:
             return -1
-
         return 1
 
     @property
@@ -215,7 +253,7 @@ class Operation(
             OperationType.CASH_INJECTION: TransactionType.CAPITAL_INJECTION_ISSUANCE,
             OperationType.CASH_WITHDRAWAL: TransactionType.CAPITAL_WITHDRAWAL_ISSUANCE,
             OperationType.PROJECT_FUNDING: TransactionType.PROJECT_FUNDING_ISSUANCE,
-            OperationType.PROJECT_REFUND: TransactionType.PROJECT_REFUND_ISSUANC,
+            OperationType.PROJECT_REFUND: TransactionType.PROJECT_REFUND_ISSUANCE,
             OperationType.PROFIT_DISTRIBUTION: TransactionType.PROFIT_DISTRIBUTION_ISSUANCE,
             OperationType.LOSS_COVERAGE: TransactionType.LOSS_COVERAGE_ISSUANCE,
             OperationType.INTERNAL_TRANSFER: TransactionType.INTERNAL_TRANSFER_ISSUANCE,
@@ -223,7 +261,8 @@ class Operation(
             OperationType.PURCHASE: TransactionType.PURCHASE_ISSUANCE,
             OperationType.SALE: TransactionType.SALE_ISSUANCE,
             OperationType.EXPENSE: TransactionType.EXPENSE_ISSUANCE,
-            #
+            OperationType.CAPITAL_GAIN: TransactionType.CAPITAL_GAIN_ISSUANCE,
+            OperationType.CAPITAL_LOSS: TransactionType.CAPITAL_LOSS_ISSUANCE,
         }
         return mapping.get(self.operation_type)
 
@@ -234,14 +273,16 @@ class Operation(
             OperationType.CASH_INJECTION: TransactionType.CAPITAL_INJECTION_PAYMENT,
             OperationType.CASH_WITHDRAWAL: TransactionType.CAPITAL_WITHDRAWAL_PAYMENT,
             OperationType.PROJECT_FUNDING: TransactionType.PROJECT_FUNDING_PAYMENT,
-            OperationType.PROJECT_REFUND: TransactionType.PROJECT_REFUND_ISSUANC,
+            OperationType.PROJECT_REFUND: TransactionType.PROJECT_REFUND_PAYMENT,
             OperationType.PROFIT_DISTRIBUTION: TransactionType.PROFIT_DISTRIBUTION_PAYMENT,
             OperationType.LOSS_COVERAGE: TransactionType.LOSS_COVERAGE_PAYMENT,
             OperationType.INTERNAL_TRANSFER: TransactionType.INTERNAL_TRANSFER_PAYMENT,
             OperationType.LOAN: TransactionType.LOAN_PAYMENT,
             OperationType.PURCHASE: TransactionType.PURCHASE_PAYMENT,
-            OperationType.SALE: TransactionType.SALE_ISSUANCE,
-            OperationType.EXPENSE: TransactionType.EXPENSE_ISSUANCE,
+            OperationType.SALE: TransactionType.SALE_COLLECTION,
+            OperationType.EXPENSE: TransactionType.EXPENSE_PAYMENT,
+            OperationType.CAPITAL_GAIN: TransactionType.CAPITAL_GAIN_PAYMENT,
+            OperationType.CAPITAL_LOSS: TransactionType.CAPITAL_LOSS_PAYMENT,
             # OperationType.LOAN_REPAYMENT: TransactionType.LOAN_PAYMENT,
         }
         return mapping.get(self.operation_type)
@@ -252,10 +293,10 @@ class Operation(
         issuance = self._issuance_transaction_type
         if issuance:
             rv.append(issuance)
-        payment = self._payment_transaction_type
-        if payment:
-            rv.append(payment)
-        print("_implicit_reversable_transaction_types", rv)
+        if self._is_one_shot_operation:
+            payment = self._payment_transaction_type
+            if payment:
+                rv.append(payment)
         return rv
 
     @property
@@ -271,19 +312,11 @@ class Operation(
 
     @property
     def _is_one_shot_operation(self):
-        if self.operation_type in [
-            OperationType.PURCHASE,
-            OperationType.SALE,
-            OperationType.EXPENSE,
-        ]:
-            return False
-        return True
+        return OperationType._is_one_shot_operation(self.operation_type)
 
     @property
     def has_repayments(self):
-        if self.operation_type == OperationType.LOAN:
-            return True
-        return False
+        return OperationType.has_repayments(self.operation_type)
 
     def get_cash_flow_balance(self):
         """
@@ -291,10 +324,9 @@ class Operation(
         Logic: (Cash Out / Payment) - (Cash In / Repayment)
         """
         # 1. Get all valid (non-reversed) transactions
-        valid_txs = Transaction.objects.filter(
-            object_id=self.pk,
-            reversal_of__isnull=True,  # Is not a reversal
-            reversed_by__isnull=True,  # Has not been reversed
+        valid_txs = self.get_all_transactions().filter(
+            reversal_of__isnull=True,
+            reversed_by__isnull=True,
         )
 
         # 2. Identify the Payment Leg (The initial cash outflow)
@@ -325,11 +357,13 @@ class Operation(
         return total_payment - total_repayment
 
     def clean_source(self, **kwargs):
+        # TODO complete the logics
         if self.operation_type == OperationType.CASH_INJECTION:
             if not self.source.is_world:
                 raise ValidationError("Injections source must be the World.")
 
     def clean_destination(self, **kwargs):
+        # TODO: complete the logics
         if self.operation_type == OperationType.CASH_INJECTION:
             if not self.destination.person:
                 raise ValidationError("Injections must target a Person.")

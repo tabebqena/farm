@@ -12,6 +12,7 @@ from django.utils import timezone
 
 from apps.app_base.mixins import AmountCleanMixin, ImmutableMixin
 from apps.app_base.models import BaseModel
+from apps.app_transaction.transaction_type import TransactionType
 
 if typing.TYPE_CHECKING:
     from apps.app_entity.models import Entity, Fund
@@ -21,165 +22,15 @@ if typing.TYPE_CHECKING:
 # TODO: Integrity check method
 
 
-# -----------------------------
-# Transaction
-# -----------------------------
-class TransactionType(models.TextChoices):
-    # --- Operational ---
-    REVENUE = ("REVENUE", "REVENUE")
-    OTHER_INCOME = ("OTHER_INCOME", "OTHER_INCOME")
-    TAX_PAYMENT = ("TAX_PAYMENT", "TAX_PAYMENT")
-    INVOICE_ADJUSTMENT = ("INVOICE_ADJUSTMENT", "INVOICE_ADJUSTMENT")
-    EXPENSE_ADJUSTMENT = ("EXPENSE_ADJUSTMENT", "EXPENSE_ADJUSTMENT")
-    PAYROLL_ADJUSTMENT = ("PAYROLL_ADJUSTMENT", "PAYROLL_ADJUSTMENT")
-
-    PURCHASE_ISSUANCE = ("PURCHASE_ISSUANCE", "PURCHASE_ISSUANCE")
-    PURCHASE_PAYMENT = ("PURCHASE_PAYMENT", "PURCHASE_PAYMENT")
-    PURCHASE_RETURN = ("PURCHASE_RETURN", "PURCHASE_RETURN")
-    SALE_ISSUANCE = ("SALE_ISSUANCE", "SALE_ISSUANCE")
-    EXPENSE_ISSUANCE = ("EXPENSE_ISSUANCE", "EXPENSE_ISSUANCE")
-    EXPENSE_PAYMENT = ("EXPENSE_PAYMENT", "EXPENSE_PAYMENT")
-
-    # --- Workers (Strict 1:1 Pairs) ---
-    WORKER_WAGE = ("WORKER_WAGE", "WORKER_WAGE")
-    # SALARY_INCOME = (
-    #     "SALARY_INCOME",
-    #     "SALARY_INCOME",
-    # )  # Mirror of WORKER_WAGE
-
-    WORKER_ADVANCE = ("WORKER_ADVANCE", "WORKER_ADVANCE")  # سلفة
-    # ADVANCE_RECEIPT = (
-    #     "ADVANCE_RECEIPT",
-    #     "WORKER_ADVANCE",
-    # )  # Mirror of WORKER_ADVANCE
-    ADVANCE_REPAYMENT = ("ADVANCE_REPAYMENT", "ADVANCE_REPAYMENT")  # سداد سلفة
-    # ADVANCE_COLLECTION = (
-    #     "ADVANCE_COLLECTION",
-    #     "ADVANCE_COLLECTION",
-    # )  # Mirror of ADVANCE_REPAYMENT
-
-    # --- Capital & Partners ---
-    CAPITAL_INJECTION_ISSUANCE = (
-        "CAPITAL_INJECTION_ISSUANCE",
-        "CAPITAL_INJECTION_ISSUANCE",
-    )
-
-    CAPITAL_INJECTION_PAYMENT = (
-        "CAPITAL_INJECTION_PAYMENT",
-        "CAPITAL_INJECTION_PAYMENT",
-    )
-
-    CAPITAL_WITHDRAWAL_ISSUANCE = (
-        "CAPITAL_WITHDRAWAL_ISSUANCE",
-        "CAPITAL_WITHDRAWAL_ISSUANCE",
-    )
-
-    CAPITAL_WITHDRAWAL_PAYMENT = (
-        "CAPITAL_WITHDRAWAL_PAYMENT",
-        "CAPITAL_WITHDRAWAL_PAYMENT",
-    )
-
-    CAPITAL_GAIN_ISSUANCE = (
-        "CAPITAL_GAIN_ISSUANCE",
-        "CAPITAL_GAIN_ISSUANCE",
-    )
-    CAPITAL_LOSS_ISSUANCE = (
-        "CAPITAL_LOSS_ISSUANCE",
-        "CAPITAL_LOSS_ISSUANCE",
-    )
-
-    LOSS_COVERAGE_ISSUANCE = (
-        "LOSS_COVERAGE_ISSUANCE",
-        "LOSS_COVERAGE_ISSUANCE",
-    )
-
-    LOSS_COVERAGE_PAYMENT = (
-        "LOSS_COVERAGE_PAYMENT",
-        "LOSS_COVERAGE_PAYMENT",
-    )
-
-    PROFIT_DISTRIBUTION_ISSUANCE = (
-        "PROFIT_DISTRIBUTION_ISSUANCE",
-        "PROFIT_DISTRIBUTION_ISSUANCE",
-    )
-    PROFIT_DISTRIBUTION_PAYMENT = (
-        "PROFIT_DISTRIBUTION_PAYMENT",
-        "PROFIT_DISTRIBUTION_PAYMENT",
-    )
-
-    # PROFIT_COLLECTION = ("PROFIT_COLLECTION", "PROFIT_COLLECTION")
-
-    # --- Projects ---
-    PROJECT_FUNDING_ISSUANCE = (
-        "PROJECT_FUNDING_ISSUANCE",
-        "PROJECT_FUNDING_ISSUANCE",
-    )
-
-    PROJECT_FUNDING_PAYMENT = (
-        "PROJECT_FUNDING_PAYMENT",
-        "PROJECT_FUNDING_PAYMENT",
-    )
-    PROJECT_REFUND_ISSUANC = (
-        "PROJECT_REFUND_ISSUANC",
-        "PROJECT_REFUND_ISSUANC",
-    )
-    PROJECT_REFUND_PAYMENT = (
-        "PROJECT_REFUND_PAYMENT",
-        "PROJECT_REFUND_PAYMENT",
-    )
-
-    # --- Loans & Debts (Strict 1:1 Pairs) ---
-    # LOAN_ISSUANCE = ("LOAN_ISSUANCE", "LOAN_ISSUANCE")  # إصدار قرض للغير
-    # LOAN_RECEIVED_BY_OTHER = (
-    #     "LOAN_RECEIVED_BY_OTHER",
-    #     "LOAN_RECEIVED_BY_OTHER",
-    # )  # استلام قرض (عند الطرف الآخر)
-
-    # LOAN_REPAYMENT_BY_OTHER = (
-    #     "LOAN_REPAYMENT_BY_OTHER",
-    #     "LOAN_REPAYMENT_BY_OTHER",
-    # )  # سداد قرض (من الغير)
-    # LOAN_RECOVERY = ("LOAN_RECOVERY", "LOAN_RECOVERY")  # استرداد قرض (عندنا)
-    LOAN_ISSUANCE = (
-        "LOAN_ISSUANCE",
-        "LOAN_ISSUANCE",
-    )
-    LOAN_PAYMENT = (
-        "LOAN_PAYMENT",
-        "LOAN_PAYMENT",
-    )
-    LOAN_REPAYMENT = ("LOAN_REPAYMENT", "LOAN_REPAYMENT")
-    # DEBT_RECEIVED = ("DEBT_RECEIVED", "DEBT_RECEIVED")  # استلام دين (قرض لنا)
-    # DEBT_GIVEN_BY_LENDER = (
-    #     "DEBT_GIVEN_BY_LENDER",
-    #     "DEBT_GIVEN_BY_LENDER",
-    # )  # تقديم دين (عند المقرض)
-
-    # DEBT_SETTLEMENT_BY_LENDER = (
-    #     "DEBT_SETTLEMENT_BY_LENDER",
-    #     "DEBT_SETTLEMENT_BY_LENDER",
-    # )
-
-    # --- Internal ---
-    INTERNAL_TRANSFER_ISSUANCE = (
-        "INTERNAL_TRANSFER_ISSUANCE",
-        "INTERNAL_TRANSFER_ISSUANCE",
-    )
-    INTERNAL_TRANSFER_PAYMENT = (
-        "INTERNAL_TRANSFER_PAYMENT",
-        "INTERNAL_TRANSFER_PAYMENT",
-    )
-
-
 class Transaction(AmountCleanMixin, ImmutableMixin, BaseModel):
-    _immutable_fields = (
-        "source",
-        "target",
-        "type",
-        "amount",
-        "officer",
-        ("reversal_of", {"ALLOW_SET": True}),  # type: ignore
-    )  # type: ignore
+    _immutable_fields = {
+        "source": {},
+        "target": {},
+        "type": {},
+        "amount": {},
+        "officer": {},
+        "reversal_of": {"ALLOW_SET": True},
+    }
     date = models.DateTimeField(default=timezone.now)
     # source is the fund that gives the amount.
     source = models.ForeignKey(

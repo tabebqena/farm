@@ -150,3 +150,32 @@ LOGIN_URL = "login"  # Name of your login URL pattern
 LOGIN_REDIRECT_URL = ""  # Where to go after success
 # Where to send users after they log out
 LOGOUT_REDIRECT_URL = "login"
+
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "{levelname} {asctime} {module} {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "verbose",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "WARNING",  # default level for everything
+    },
+    "loggers": {
+        "apps": {  # covers all your apps since they're under the `apps` package
+            "handlers": ["console"],
+            "level": "DEBUG",  # show debug logs for your own code
+            "propagate": False,
+        },
+    },
+}

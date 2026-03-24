@@ -1,11 +1,6 @@
 from .add_contact_info import add_contact_info_view
-from .add_stakeholder import (
-    add_client_view,
-    add_shareholder_view,
-    add_vendor_view,
-    add_worker_view,
-)
-
+from .add_stakeholder import (add_client_view, add_shareholder_view,
+                              add_vendor_view, add_worker_view)
 from .edit_contact_info import edit_contact_info_view
 from .edit_stakeholder import edit_stakeholder_view
 from .entity_detail import entity_detail_view

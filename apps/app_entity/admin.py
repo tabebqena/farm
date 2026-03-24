@@ -1,5 +1,6 @@
 from django.contrib import admin
-from .models import Entity, Stakeholder, Person, Project, Fund
+
+from .models import Entity, Fund, Person, Project, Stakeholder
 
 
 @admin.register(Entity)
