@@ -1,3 +1,5 @@
+from typing import List
+
 from django.db import models
 from django.forms import ValidationError
 
@@ -7,7 +9,7 @@ from apps.app_base.mixins import (
     LinkedIssuanceTransactionMixin,
     OfficerMixin,
 )
-from apps.app_base.models import BaseModel
+from apps.app_base.models import BaseModel, ReversableModel
 from apps.app_operation.models import OperationType
 from apps.app_transaction.models import TransactionType
 
@@ -68,11 +70,17 @@ class AdjustmentType(models.TextChoices):
         )
 
 
+class AdjustmentEffect(models.TextChoices):
+    INCREASE = "INCREASE", "Increase Original Amount"
+    DECREASE = "DECREASE", "Decrease Original Amount"
+
+
 class Adjustment(
     ImmutableMixin,
     AmountCleanMixin,
     OfficerMixin,
     LinkedIssuanceTransactionMixin,
+    ReversableModel,
     BaseModel,
 ):
     _immutable_fields = {
@@ -91,7 +99,7 @@ class Adjustment(
     amount = models.DecimalField(max_digits=20, decimal_places=2)
     effect = models.CharField(
         max_length=10,
-        choices=AdjustmentType,
+        choices=AdjustmentEffect.choices,
     )
     reason = models.TextField()
     date = models.DateField()
@@ -101,6 +109,9 @@ class Adjustment(
         related_name="adjustments_supervised",
     )
 
+    # We create another transaction in the same direction, but with
+    # a modifierv effect.
+    # So, the payment source & target fund are the same of the original operation.
     @property
     def payment_source_fund(self):
         return self.operation.payment_source_fund
@@ -118,11 +129,31 @@ class Adjustment(
         }.get(self.operation.operation_type)
 
     def clean(self):
+        if self.operation.operation_type not in (
+            OperationType.PURCHASE,
+            OperationType.SALE,
+            OperationType.EXPENSE,
+        ):
+            raise ValidationError("This operation cannot be adjusted.")
         if OperationType._is_one_shot_operation(self.operation.operation_type):
             raise ValidationError(
                 "One-shot operations cannot be adjusted. Please reverse and redo instead."
             )
+
         return super().clean()
 
     def save(self, *args, **kwargs):
+        # 2. Automatically set the effect before validation/save
+        if AdjustmentType.is_reduction(self.type):
+            self.effect = Adjustment.DECREASE
+        else:
+            self.effect = AdjustmentEffect.INCREASE
         return super().save(*args, **kwargs)
+
+    @property
+    def _reversable_transaction_types(self) -> List[TransactionType]:
+        return [self._issuance_transaction_type]  # type: ignore
+
+    @property
+    def _implicit_reversable_transaction_types(self):
+        return [self._issuance_transaction_type]  # type: ignore

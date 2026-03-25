@@ -2,8 +2,7 @@ from django.contrib import messages
 from django.db import transaction as db_transaction
 from django.shortcuts import get_object_or_404, redirect, render
 
-from apps.app_operation.models import Operation
-from apps.app_operation.views.common import OPERATION_MAP
+from apps.app_operation.models import Operation, OperationType
 
 
 def operation_update_view(request, pk):
@@ -29,7 +28,7 @@ def operation_update_view(request, pk):
 
     context = {
         "operation": operation,
-        "config": OPERATION_MAP.get(operation.operation_type, {}),
+        "config": OperationType.get_metadata(operation.operation_type, {}),
         "is_update": True,
     }
     return render(request, "app_operation/generic_edit_form.html", context)

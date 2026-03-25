@@ -11,152 +11,6 @@ from apps.app_operation.models import OperationType
 
 # is_partially_payable key indicates whether the user can pay partially or not
 
-OPERATION_MAP = {
-    # the source is alway the world & the dest is the the person pk in the url.
-    OperationType.CASH_INJECTION.value: {
-        "source": "world",
-        "dest": "url",
-        "label": "Cash Injection",
-        # "Once Issued, Must be Fully Paid" -> Leave payment for the backend
-        #
-        "can_pay": False,
-        "is_partially_payable": False,
-    },
-    # the source is the the person pk in the url,  the dest is alway the world.
-    OperationType.CASH_WITHDRAWAL.value: {
-        "source": "url",
-        "dest": "world",
-        "label": "Cash Withdrawal",
-        # "Once Issued, Must be Fully Paid" -> Leave payment for the backend
-        "can_pay": False,
-        "is_partially_payable": False,
-    },
-    # the destination is the project selected in the form
-    # The source is the person pk in the url
-    OperationType.PROJECT_FUNDING.value: {
-        "source": "url",
-        "dest": "post",
-        "label": "Project Funding",
-        # "dest_type": "project",
-        # "Once Issued, Must be Fully Paid" -> Leave payment for the backend
-        "can_pay": False,
-        "is_partially_payable": False,
-    },
-    # The source is the person pk in the url
-    # the destination is the project selected in the form
-    OperationType.PROJECT_REFUND.value: {
-        "source": "post",
-        "dest": "url",
-        "label": "Project Refund",
-        # "Once Issued, Must be Fully Paid" -> Leave payment for the backend
-        "can_pay": False,
-        "is_partially_payable": False,
-    },
-    # The source is the project pk in the url
-    # dest is the post
-    OperationType.PROFIT_DISTRIBUTION.value: {
-        "source": "url",
-        "dest": "post",
-        "label": "Profit Distribution",
-        # "Once Issued, Must be Fully Paid"  -> Leave payment for the backend
-        "can_pay": False,
-        "is_partially_payable": False,
-    },
-    # The source is the person pk in the url
-    # the destination is the project selected in the form
-    OperationType.LOSS_COVERAGE.value: {
-        "source": "url",
-        "dest": "post",
-        "label": "Loss Coverage",
-        # "Once Issued, Must be Fully Paid"  -> Leave payment for the backend
-        "can_pay": False,
-        "is_partially_payable": False,
-    },
-    OperationType.INTERNAL_TRANSFER.value: {
-        "source": "url",
-        "dest": "post",
-        "label": "Internal Transfer",
-        "source_internal": True,
-        "dest_internal": True,
-        # "Once Issued, Must be Fully Paid"  -> Leave payment for the backend
-        "can_pay": False,
-        "is_partially_payable": False,
-    },
-    # The source is the person pk in the url
-    # the destination is the other party selected in the form
-    OperationType.LOAN.value: {
-        "source": "url",
-        "dest": "post",
-        "label": "Debt Issuance",
-        # "Once Issued, Must be Fully Paid"  -> Leave payment for the backend
-        "can_pay": False,
-        "is_partially_payable": False,
-    },
-    #
-    OperationType.PURCHASE.value: {
-        "source": "url",
-        "dest": "post",
-        "label": "Purchase Issuance",
-        "operation_type": OperationType.PURCHASE.value,
-        # "Once Issued, can be partially payed"
-        "can_pay": True,
-        "is_partially_payable": True,
-        # Whether it has a Financial category or not.
-        "has_category": True,
-        "category_required": False,
-        # indicates whether this operation should show invoice items table
-        "has_invoice": True,
-    },
-    OperationType.EXPENSE.value: {
-        "source": "url",
-        "dest": "world",
-        "label": "Expense Issuance",
-        "operation_type": OperationType.EXPENSE.value,
-        # "Once Issued, can be partially paid"
-        "can_pay": True,
-        "is_partially_payable": True,
-        "has_category": True,
-        "category_required": True,
-        "has_invoice": False,
-    },
-    OperationType.CAPITAL_GAIN.value: {
-        "source": "system",
-        "dest": "url",
-        "label": "CAPITAL GAIN Issuance",
-        "operation_type": OperationType.CAPITAL_GAIN.value,
-        # "Once Issued, Once completely paid, by the system, the user has no UI option"
-        "can_pay": False,
-        "is_partially_payable": False,
-        #
-        "has_category": False,
-        "category_required": False,
-        "has_invoice": True,
-    },
-    OperationType.CAPITAL_LOSS.value: {
-        "source": "url",
-        "dest": "system",
-        "label": "CAPITAL LOSS Issuance",
-        "operation_type": OperationType.CAPITAL_LOSS.value,
-        # "Once Issued, Once completely paid, by the system, the user has no UI option"
-        "can_pay": False,
-        "is_partially_payable": False,
-        #
-        "has_category": False,
-        "category_required": False,
-        "has_invoice": True,
-    },
-    # OperationType.LOAN_PAYMENT.value: {
-    #     "source": "url",
-    #     "dest": "post",
-    #     "label": "Loan Payment",
-    # },
-    # OperationType.LOAN_REPAYMENT.value: {
-    #     "source": "url",
-    #     "dest": "post",
-    #     "label": "Loan Repayment",
-    # },
-}
-
 """
 1. Scenario: "Once Issued, No Option to Pay"
 Behavior: The transaction is a pure record (like a Quote or an Account-only Invoice). 
@@ -195,7 +49,9 @@ and the script calculates the remaining "$100.00" balance.
 
 
 def parse_config(canonical_op_type, url_pk, request) -> dict:
-    config = OPERATION_MAP.get(canonical_op_type, {})
+    config = OperationType.get_metadata(
+        canonical_op_type
+    ) 
     if not config:
         raise BadRequest(f"Operation {canonical_op_type} has no configuration.")
     config["url_entity"] = get_object_or_404(Entity, pk=url_pk)

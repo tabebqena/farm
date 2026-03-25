@@ -95,29 +95,32 @@ class AdjustableMixin(BaseModelMixin):
     """Easy wat to calculate the net amount after all adjustments"""
 
     _adjustments_related_name = "adjustments"
+    _amount_field_name = "amount"
 
     @property
-    def total_adjusted_amount(self):
-        if not hasattr(self, "amount") and not hasattr(self, "total_amount"):
+    def effective_amount(self):
+        if not hasattr(self, self._amount_field_name):
             raise AttributeError(
-                f"{self.__class__.__name__} must define either `amount` or `total_amount`."
+                f"{self.__class__.__name__} must define amount filed {self._amount_field_name}."
             )
-        base = getattr(self, "amount", getattr(self, "total_amount"))
-        if not hasattr(self, self._adjustments_related_name):
-            return base
-        self.adjustments: models.QuerySet
+        base_val = getattr(self, self._amount_field_name, Decimal("0.00"))
+        adjustments_mgr = getattr(self, self._adjustments_related_name, None)
+        if not adjustments_mgr:
+            return Decimal(base_val)
 
-        agg = self.adjustments.filter(
-            deleted_at__isnull=True, reversed_by__isnull=True, reversal_of__isnull=True
+        stats = adjustments_mgr.filter(
+            reversed_by__isnull=True,
+            reversal_of__isnull=True,
+            deleted_at__isnull=True,
         ).aggregate(
             inc=Sum("amount", filter=Q(effect="INCREASE")),
             dec=Sum("amount", filter=Q(effect="DECREASE")),
         )
 
-        inc = agg["inc"] or Decimal("0.00")
-        dec = agg["dec"] or Decimal("0.00")
+        inc = stats["inc"] or Decimal("0.00")
+        dec = stats["dec"] or Decimal("0.00")
 
-        return base + inc - dec
+        return base_val + inc - dec
 
 
 class SourceFundMixin(BaseModelMixin):
@@ -276,10 +279,9 @@ class LinkedPaymentTransactionMixin(
 
     @property
     def total_settlable_amount(self):
-        try:
-            return super().total_adjusted_amount
-        except AttributeError:
-            return getattr(self, self._amount_field_name, 0)
+        if hasattr(self, "effective_amount"):
+            return super().effective_amount
+        return getattr(self, self._amount_field_name, 0)
 
     @property
     def amount_remaining_to_settle(self):

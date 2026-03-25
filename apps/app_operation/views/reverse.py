@@ -5,8 +5,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from apps.app_entity.models import Entity
-from apps.app_operation.models import Operation
-from apps.app_operation.views.common import OPERATION_MAP
+from apps.app_operation.models import Operation, OperationType
 
 
 def operation_reverse_view(request, pk):
@@ -22,7 +21,7 @@ def operation_reverse_view(request, pk):
         )
         return redirect("operation_detail_view", pk=operation.pk)
 
-    config = OPERATION_MAP.get(
+    config = OperationType.get_metadata(
         operation.operation_type,
     )
     if not config:

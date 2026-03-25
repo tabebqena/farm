@@ -136,6 +136,124 @@ class OperationType(models.TextChoices):
     CAPITAL_GAIN = "CAPITAL_GAIN", "CAPITAL_GAIN"
     CAPITAL_LOSS = "CAPITAL_LOSS", "CAPITAL_LOSS"
 
+    @classmethod
+    def MAP(cls):
+        return {
+            cls.CASH_INJECTION: {
+                "source": "world",
+                "dest": "url",
+                "label": "Cash Injection",
+                "can_pay": False,
+                "is_partially_payable": False,
+            },
+            cls.CASH_WITHDRAWAL: {
+                "source": "url",
+                "dest": "world",
+                "label": "Cash Withdrawal",
+                "can_pay": False,
+                "is_partially_payable": False,
+            },
+            cls.PROJECT_FUNDING: {
+                "source": "url",
+                "dest": "post",
+                "label": "Project Funding",
+                "can_pay": False,
+                "is_partially_payable": False,
+            },
+            cls.PROJECT_REFUND: {
+                "source": "post",
+                "dest": "url",
+                "label": "Project Refund",
+                "can_pay": False,
+                "is_partially_payable": False,
+            },
+            cls.PROFIT_DISTRIBUTION: {
+                "source": "url",
+                "dest": "post",
+                "label": "Profit Distribution",
+                "can_pay": False,
+                "is_partially_payable": False,
+            },
+            cls.LOSS_COVERAGE: {
+                "source": "url",
+                "dest": "post",
+                "label": "Loss Coverage",
+                "can_pay": False,
+                "is_partially_payable": False,
+            },
+            cls.INTERNAL_TRANSFER: {
+                "source": "url",
+                "dest": "post",
+                "label": "Internal Transfer",
+                "source_internal": True,
+                "dest_internal": True,
+                "can_pay": False,
+                "is_partially_payable": False,
+            },
+            cls.LOAN: {
+                "source": "url",
+                "dest": "post",
+                "label": "Debt Issuance",
+                "can_pay": False,
+                "is_partially_payable": False,
+            },
+            cls.PURCHASE: {
+                "source": "url",
+                "dest": "post",
+                "label": "Purchase Issuance",
+                "can_pay": True,
+                "is_partially_payable": True,
+                "has_category": True,
+                "category_required": False,
+                "has_invoice": True,
+            },
+            cls.SALE: {
+                "source": "post",
+                "dest": "url",
+                "label": "Sale Issuance",
+                "can_pay": True,
+                "is_partially_payable": True,
+                "has_category": True,
+                "category_required": False,
+                "has_invoice": True,
+            },
+            cls.EXPENSE: {
+                "source": "url",
+                "dest": "world",
+                "label": "Expense Issuance",
+                "can_pay": True,
+                "is_partially_payable": True,
+                "has_category": True,
+                "category_required": True,
+                "has_invoice": False,
+            },
+            cls.CAPITAL_GAIN: {
+                "source": "system",
+                "dest": "url",
+                "label": "CAPITAL GAIN Issuance",
+                "can_pay": False,
+                "is_partially_payable": False,
+                "has_category": False,
+                "category_required": False,
+                "has_invoice": True,
+            },
+            cls.CAPITAL_LOSS: {
+                "source": "url",
+                "dest": "system",
+                "label": "CAPITAL LOSS Issuance",
+                "can_pay": False,
+                "is_partially_payable": False,
+                "has_category": False,
+                "category_required": False,
+                "has_invoice": True,
+            },
+        }
+
+    @classmethod
+    def get_metadata(cls, op_type):
+        """Returns the configuration for a specific operation type."""
+        return cls.MAP().get(op_type, {})
+
     @staticmethod
     def get_canonical_type(url_str_type):
         return {
@@ -146,8 +264,8 @@ class OperationType(models.TextChoices):
             "profit-distribution": OperationType.PROFIT_DISTRIBUTION.value,
             "loss-coverage": OperationType.LOSS_COVERAGE.value,
             "internal-transfer": OperationType.INTERNAL_TRANSFER.value,
-            "loan": OperationType.LOAN,
-            "purchase": OperationType.PURCHASE,
+            "loan": OperationType.LOAN.value,
+            "purchase": OperationType.PURCHASE.value,
             "expense": OperationType.EXPENSE.value,
             "capital-gain": OperationType.CAPITAL_GAIN.value,
             "capital-loss": OperationType.CAPITAL_LOSS.value,
