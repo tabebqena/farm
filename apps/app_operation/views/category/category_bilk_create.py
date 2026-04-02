@@ -5,7 +5,10 @@ from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.app_entity.models import Entity
-from apps.app_operation.models import FinancialCategory, default_categories
+from apps.app_operation.models import (
+    FinancialCategory,
+    default_categories,
+)
 
 
 def category_bulk_create_view(request, parent_entity_id):

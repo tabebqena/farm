@@ -43,7 +43,7 @@
               <h6 class="dropdown-header">Capital</h6>
             </li>
             <li>
-              <a class="dropdown-item" href="{% url 'cash_list_view' entity.pk %}"><i class="bi bi-clock-history me-2"></i>Operations</a>
+              <a class="dropdown-item" href="{% url 'operation_list_view' entity.pk %}"><i class="bi bi-clock-history me-2"></i>Operations</a>
             </li>
             {% comment %}
           {% else %}
@@ -256,7 +256,7 @@
       </div>
     </div>
 
-    {% if entity.project or entity.perosn %}
+    {% if entity.project or entity.person %}
       <div class="d-flex justify-content-between align-items-center mb-3">
         <h5 class="fw-bold">Operational Categories (Sub-Ledgers)</h5>
         <a href="{% url 'category_create' entity.id %}" class="btn btn-sm btn-primary">+ Add Category</a>

@@ -3,22 +3,10 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    # Reversal View
-    # path(
-    #     'ops/<int:pk>/reverse/',
-    #     views.operation_reverse_view,
-    #     name='operation_reverse'
-    # ),
-    # path(
-    #     "<int:person_pk>/capital-history/",
-    #     views.cash_list_view,
-    #     name="cash_list_view",
-    # ),
-    #
     path(
         "<int:person_pk>/list/",
         views.operation_list_view,
-        name="cash_list_view",
+        name="operation_list_view",
     ),
     path(
         "<int:pk>/<op_type>/create",
@@ -65,20 +53,4 @@ urlpatterns = [
         views.category_bulk_create_view,
         name="category_bulk_create",
     ),
-    #
-    # path(
-    #     "<int:pk>/reverse",
-    #     views.cash_injection_reverse_view,
-    #     name="cash_injection_reverse_view",
-    # ),
-    # path(
-    #     "injection/<int:pk>/",
-    #     views.CashInjectionDetailView.as_view(),
-    #     name="cash_injection_detail_view",
-    # ),
-    # path(
-    #     "injection/<int:pk>/edit/",
-    #     views.CashInjectionUpdateView.as_view(),
-    #     name="cash_injection_update_view",
-    # ),
 ]

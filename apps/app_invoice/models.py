@@ -35,7 +35,7 @@ class Invoice(BaseModel):
         raise NotImplementedError()
 
     def clean(self) -> None:
-        from apps.app_operation.models import OperationType
+        from apps.app_operation.models.operation import OperationType
 
         if self.operation.operation_type not in (
             OperationType.PURCHASE,

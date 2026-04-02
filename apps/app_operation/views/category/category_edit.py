@@ -5,7 +5,10 @@ from django.contrib import messages
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 
-from apps.app_operation.models import FinancialCategory, default_categories
+from apps.app_operation.models import (
+    FinancialCategory,
+    default_categories,
+)
 
 
 def category_edit_view(request, pk):

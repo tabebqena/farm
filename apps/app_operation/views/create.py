@@ -8,7 +8,12 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from apps.app_entity.models import Entity
-from apps.app_operation.models import FinancialCategory, Operation, OperationType
+from apps.app_operation.models import (
+    FinancialCategory,
+    Operation,
+    OperationType,
+    get_operation_class,
+)
 from apps.app_operation.views.common import (
     get_related_entities,
     get_theming,
@@ -59,7 +64,8 @@ def operation_create_factory(request, op_type, pk):
                     amount = float(request.POST.get("amount"))
                     date = request.POST.get("date") or date
                     description = request.POST.get("description", "")
-                    op = Operation.objects.create(
+                    OperationClass = get_operation_class(canonical_op_type)
+                    op = OperationClass.objects.create(
                         operation_type=canonical_op_type,
                         source=data["source_entity"],
                         destination=data["dest_entity"],

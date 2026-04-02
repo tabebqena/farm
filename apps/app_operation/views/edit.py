@@ -2,7 +2,7 @@ from django.contrib import messages
 from django.db import transaction as db_transaction
 from django.shortcuts import get_object_or_404, redirect, render
 
-from apps.app_operation.models import Operation, OperationType
+from apps.app_operation.models.operation import Operation, OperationType
 
 
 def operation_update_view(request, pk):

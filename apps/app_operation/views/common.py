@@ -3,7 +3,7 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404
 
 from apps.app_entity.models import Entity, Stakeholder, StakeholderRole
-from apps.app_operation.models import OperationType
+from apps.app_operation.models.operation import OperationType
 
 # can_pay key indicate whether the user can pay the opoeration from the UI
 # Almost all operations are payable
@@ -49,9 +49,7 @@ and the script calculates the remaining "$100.00" balance.
 
 
 def parse_config(canonical_op_type, url_pk, request) -> dict:
-    config = OperationType.get_metadata(
-        canonical_op_type
-    ) 
+    config = OperationType.get_metadata(canonical_op_type)
     if not config:
         raise BadRequest(f"Operation {canonical_op_type} has no configuration.")
     config["url_entity"] = get_object_or_404(Entity, pk=url_pk)
@@ -68,6 +66,8 @@ def parse_config(canonical_op_type, url_pk, request) -> dict:
         config["secondary_entity"] = (
             get_object_or_404(Entity, pk=secondary_pk) if secondary_pk else None
         )
+    else:
+        config["secondary_entity"] = None
     if config["source"] == "world":
         config["source_entity"] = world_entity
     if config["source"] == "system":
@@ -176,4 +176,15 @@ def get_related_entities(canonical_op_type, url_entity, config):
             .all()
         )
         entities = [s.target for s in shareholder_relationships]
+
+    elif canonical_op_type == OperationType.WORKER_ADVANCE.value:
+        shareholder_relationships = (
+            Stakeholder.objects.filter(
+                parent=url_entity, role=StakeholderRole.WORKER, active=True
+            )
+            .select_related("target")
+            .all()
+        )
+        entities = [s.target for s in shareholder_relationships]
+
     return entities if entities else []

@@ -5,7 +5,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from apps.app_entity.models import Entity
-from apps.app_operation.models import Operation, OperationType
+from apps.app_operation.models.operation import Operation, OperationType
 
 
 def operation_reverse_view(request, pk):
@@ -52,42 +52,3 @@ def operation_reverse_view(request, pk):
         "today": timezone.now(),
     }
     return render(request, "app_operation/reverse_form.html", context)
-
-
-# @login_required
-# def cash_injection_reverse_view(request, pk):
-#     # 1. Fetch the injection and ensure the officer exists
-#     injection = get_object_or_404(Operation, pk=pk)
-#     # Resolve the officer (staff member) performing the reversal
-#     officer_entity = get_object_or_404(Entity, user=request.user)
-#     if not officer_entity.user.is_staff:
-#         return HttpResponseBadRequest("Officer required")
-
-#     if request.method == "GET":
-#         return render(
-#             request,
-#             "app_cash_injection/cash_injection_reverse.html",
-#             {"object": injection},
-#         )
-
-#     # 2. Extract reason from the form
-#     reason = request.POST.get("reason", "No reason provided.")
-#     try:
-#         with db_transaction.atomic():
-#             # This calls the method from your ReversableModel mixin
-#             # It handles:
-#             # - Validating it's not already reversed
-#             # - Reversing the associated Ledger Transactions
-#             # - Creating the 'Cloned' reversal Operation record
-#             reversal_record = injection.reverse(officer=officer_entity, reason=reason)
-
-#         messages.success(
-#             request,
-#             f"Successfully reversed Injection #{injection.pk}. Reversal record: #{reversal_record.pk}",
-#         )
-#     except Exception as e:
-#         traceback.print_exc()
-#         messages.error(request, f"Reversal failed: {str(e)}")
-
-#     # Redirect back to the person's capital history or the injection list
-#     return redirect("cash_list_view", person_pk=injection.destination.pk)

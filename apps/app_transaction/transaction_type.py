@@ -67,18 +67,23 @@ class TransactionType(models.TextChoices):
     #     "SALARY_INCOME",
     # )  # Mirror of WORKER_WAGE
 
-    WORKER_ADVANCE = (
-        "WORKER_ADVANCE",
-        "WORKER_ADVANCE",
-    )  # سلفة
+    WORKER_ADVANCE_ISSUANCE = (
+        "WORKER_ADVANCE_ISSUANCE",
+        "WORKER_ADVANCE_ISSUANCE",
+    )
+    WORKER_ADVANCE_PAYMENT = (
+        "WORKER_ADVANCE_PAYMENT",
+        "WORKER_ADVANCE_PAYMENT",
+    )
     # ADVANCE_RECEIPT = (
     #     "ADVANCE_RECEIPT",
     #     "WORKER_ADVANCE",
     # )  # Mirror of WORKER_ADVANCE
-    ADVANCE_REPAYMENT = (
-        "ADVANCE_REPAYMENT",
-        "ADVANCE_REPAYMENT",
-    )  # سداد سلفة
+
+    WORKER_ADVANCE_REPAYMENT = (
+        "WORKER_ADVANCE_REPAYMENT_PAYEMENT",
+        "WORKER_ADVANCE_REPAYMENT_PAYEMENT",
+    )
     # ADVANCE_COLLECTION = (
     #     "ADVANCE_COLLECTION",
     #     "ADVANCE_COLLECTION",

@@ -3,12 +3,12 @@
 {% block content %}
   <div class="card border-success shadow-sm">
     <div class="card-header bg-success text-white">
-      <h5 class="mb-0">Repay Loan #{{ loan.pk }}</h5>
+      <h5 class="mb-0">Repay {{ operation.operation_type }} #{{ operation.pk }}</h5>
     </div>
     <div class="card-body">
       <div class="mb-4">
         <label class="text-muted small d-block">Creditor</label>
-        <span class="fw-bold">{{ loan.source.name }}</span>
+        <span class="fw-bold">{{ operation.source.name }}</span>
 
         <label class="text-muted small d-block mt-2">Remaining Balance</label>
         <span class="h4 text-success">${{ remaining_balance }}</span>

@@ -280,7 +280,7 @@ class LinkedPaymentTransactionMixin(
     @property
     def total_settlable_amount(self):
         if hasattr(self, "effective_amount"):
-            return super().effective_amount
+            return self.effective_amount
         return getattr(self, self._amount_field_name, 0)
 
     @property
@@ -367,6 +367,7 @@ class LinkedPaymentTransactionMixin(
             create_transactions = kwargs.pop("create_transactions", True)
             # rv = super().save(*args, **kwargs)
             if is_new and create_transactions:
+
                 if getattr(self, "reversal_of", None) is not None and self.reversal_of:
                     # Don't create transactions
                     ...
@@ -376,10 +377,14 @@ class LinkedPaymentTransactionMixin(
                     # Don't create transactions
                     ...
                 else:
+                    print(self._is_one_shot_operation)
+                    print(self._has_single_payment_transaction)
+                    print(self._has_payment_transaction)
+                    print(self.max_payment_transaction_count)
                     if self._is_one_shot_operation:
                         if not self._has_single_payment_transaction:
                             raise ValidationError(
-                                "This record can't act as shot operation record"
+                                "This record can't act as a one-shot operation record"
                             )
                         kwargs.setdefault("tasks", []).append(
                             (
@@ -394,3 +399,86 @@ class LinkedPaymentTransactionMixin(
                             )
                         )
             return super().save(*args, **kwargs)
+
+
+class LinkedRePaymentTransactionMixin(
+    SourceFundMixin, TargetFundMixin, HasRelatedTransactions, BaseModelMixin
+):
+    # ################################################
+    # Indicates the type of the issuance transaction
+    _repayment_transaction_type: "TransactionType"
+    _amount_field_name = "amount"
+    _tx_amount_field_name = "amount"
+
+    @property
+    def amount_repayed(self):
+        # valid transactions returns all transactions
+        # except: the reversed, the reversals & the deleted ones.
+        # So, the reversed transactions are exclused from the start.
+        # No need for another guard.
+        valid_txs = self.get_undeleted_transactions()
+        if not valid_txs:
+            return Decimal("0")
+        # Filter the valid transaction & get the payment only transactions
+        valid_txs = valid_txs.filter(type=self._repayment_transaction_type)
+        # We define 'settlement' as money moving toward the Receiver
+        # from the Payer as defined in the document.
+        to_source = valid_txs.filter(target=self.payment_source_fund).aggregate(
+            total=Sum(self._tx_amount_field_name)
+        )["total"] or Decimal("0.00")
+
+        return to_source
+
+    @property
+    def amount_remaining_to_repay(self):
+        return (
+            getattr(self, self._amount_field_name, Decimal("0.00"))
+            - self.amount_repayed
+        )
+
+    @property
+    def is_fully_repayed(self) -> bool:
+        # Precision check: useful when dealing with floating point math / Decimals
+        return self.amount_repayed >= getattr(self, self._amount_field_name)
+
+    @property
+    def is_overpayed_settled(self) -> bool:
+        # Precision check: useful when dealing with floating point math / Decimals
+        return self.amount_repayed >= getattr(self, self._amount_field_name)
+
+    def validate_repayement_amount(self, amount_to_pay: Decimal):
+        # Todo use calculate repayments in the methods
+        if amount_to_pay <= 0:
+            raise ValidationError("The amount should be more than 0")
+        if amount_to_pay > self.amount_remaining_to_repay:
+            # We allow a small margin for rounding or explicitly block overpayment
+            raise ValidationError(
+                f"The payed amount {amount_to_pay} exceeds the remaining: {self.amount_remaining_to_repay}"
+            )
+        return True
+
+    @property
+    def _has_repayment_transaction(self) -> bool:
+        """indicates whther this record can be linked to one or more transactions"""
+        return getattr(self, "_repayment_transaction_type", None) is not None
+
+    def create_repayment_transaction(
+        self, amount, officer, date, description="", note=""
+    ):
+        from apps.app_transaction.models import Transaction
+
+        self.validate_repayement_amount(amount)
+
+        with db_transaction.atomic():
+            return Transaction.create(
+                source=self.payment_target_fund,
+                target=self.payment_source_fund,
+                document=self,
+                type=self._repayment_transaction_type,
+                amount=amount,
+                officer=officer or self.officer,
+                description=description
+                or f"RePayment transaction for ({self.__class__}) ({self.pk})",
+                note=note,
+                date=date or timezone.now(),
+            )

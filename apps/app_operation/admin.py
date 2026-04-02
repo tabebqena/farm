@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Operation
+from .models.operation import Operation
 
 
 # Register your models here.

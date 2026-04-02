@@ -10,7 +10,7 @@ from apps.app_base.mixins import (
     OfficerMixin,
 )
 from apps.app_base.models import BaseModel, ReversableModel
-from apps.app_operation.models import OperationType
+from apps.app_operation.models.operation import OperationType
 from apps.app_transaction.models import TransactionType
 
 
