@@ -92,6 +92,75 @@ class Operation(
         ordering = ["-date", "-created_at"]
 
     # ------------------------------------------------------------------
+    # Request resolution
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def resolve_request(cls, url_pk, request) -> dict:
+        """
+        Resolves a request into a unified config + entity dict.
+        Call on the proxy class: e.g. PurchaseOperation.resolve_request(pk, request)
+        """
+        from django.shortcuts import get_object_or_404
+        from apps.app_entity.models import Entity
+
+        url_entity = get_object_or_404(Entity, pk=url_pk)
+        source_role = cls._source_role
+        dest_role = cls._dest_role
+
+        world_entity = None
+        if source_role == "world" or dest_role == "world":
+            world_entity = Entity.objects.filter(is_world=True).first()
+        system_entity = None
+        if source_role == "system" or dest_role == "system":
+            system_entity = Entity.objects.filter(is_system=True).first()
+
+        secondary_pk = request.POST.get("secondary_entity")
+        secondary_entity = get_object_or_404(Entity, pk=secondary_pk) if secondary_pk else None
+
+        def resolve(role):
+            if role == "world":
+                return world_entity
+            if role == "system":
+                return system_entity
+            if role == "url":
+                return url_entity
+            if role == "post":
+                return secondary_entity
+            return None
+
+        return {
+            "proxy_cls": cls,
+            "label": cls.label,
+            "url_str": cls.url_str,
+            "source": source_role,
+            "dest": dest_role,
+            "can_pay": cls.can_pay,
+            "is_partially_payable": cls.is_partially_payable,
+            "has_category": cls.has_category,
+            "category_required": cls.category_required,
+            "has_repayment": cls.has_repayment,
+            "has_invoice": cls.has_invoice,
+            "repayment_transaction_type": getattr(cls, "_repayment_transaction_type", None),
+            "theme_color": cls.theme_color,
+            "theme_icon": cls.theme_icon,
+            "url_entity": url_entity,
+            "secondary_entity": secondary_entity,
+            "source_entity": resolve(source_role),
+            "dest_entity": resolve(dest_role),
+        }
+
+    @classmethod
+    def get_related_entities(cls, url_entity, config):
+        from apps.app_entity.models import Entity
+        config_dest = config["dest"]
+        if config_dest in ["world", "url"]:
+            return []
+        elif config_dest == "post":
+            return Entity.objects.all()
+        return []
+
+    # ------------------------------------------------------------------
     # Reversal helpers
     # ------------------------------------------------------------------
 

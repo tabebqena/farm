@@ -1,7 +1,6 @@
 import traceback
 
 from django.contrib import messages
-from django.core.exceptions import BadRequest
 from django.db import transaction as db_transaction
 from django.http import HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
@@ -10,7 +9,6 @@ from django.utils import timezone
 from apps.app_entity.models import Entity
 from apps.app_operation.models import FinancialCategory, Operation
 from apps.app_operation.models.proxies import PROXY_MAP, get_canonical_type
-from apps.app_operation.views.common import get_related_entities, parse_config
 
 
 def operation_create_factory(request, op_type, pk):
@@ -18,10 +16,7 @@ def operation_create_factory(request, op_type, pk):
     if not proxy_cls:
         return HttpResponseBadRequest(f"Unsupported operation {op_type}")
     canonical_op_type = next(t for t, c in PROXY_MAP.items() if c is proxy_cls)
-    try:
-        data = parse_config(proxy_cls, pk, request)
-    except BadRequest as e:
-        return HttpResponseBadRequest(e)
+    data = proxy_cls.resolve_request(pk, request)
     # 1. Resolve Entities
     officer = get_object_or_404(Entity, user=request.user)
     # 2. Setup Formset
@@ -112,7 +107,7 @@ def operation_create_factory(request, op_type, pk):
         #     formset = InvoiceItemFormSet()
 
     # 4. Preparation for Render
-    entities = get_related_entities(canonical_op_type, data["url_entity"], data)
+    entities = proxy_cls.get_related_entities(data["url_entity"], data)
     theme_color, theme_icon = data["theme_color"], data["theme_icon"]
 
     categories = FinancialCategory.objects.filter(

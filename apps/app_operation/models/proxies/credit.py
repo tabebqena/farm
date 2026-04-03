@@ -50,6 +50,18 @@ class LoanOperation(Operation):
         # Loans must have repayments manually cleared before reversal is allowed.
         return [TransactionType.LOAN_ISSUANCE, TransactionType.LOAN_PAYMENT]
 
+    @classmethod
+    def get_related_entities(cls, url_entity, config):
+        from django.db.models import Q
+        from apps.app_entity.models import Entity
+        return (
+            Entity.objects.filter(
+                Q(person__isnull=False) | Q(project__isnull=False),
+            )
+            .exclude(pk=url_entity.pk)
+            .all()
+        )
+
     @property
     def _implicit_reversable_transaction_types(self) -> List[TransactionType]:
         # Only the issuance is implicitly reversed; payments must be cleared manually.
@@ -89,6 +101,18 @@ class WorkerAdvanceOperation(Operation):
     def clean_source(self):
         if not self.source.project:
             raise ValidationError("Worker advance source should be a project.")
+
+    @classmethod
+    def get_related_entities(cls, url_entity, config):
+        from apps.app_entity.models import Stakeholder, StakeholderRole
+        relationships = (
+            Stakeholder.objects.filter(
+                parent=url_entity, role=StakeholderRole.WORKER, active=True
+            )
+            .select_related("target")
+            .all()
+        )
+        return [s.target for s in relationships]
 
     def clean_destination(self):
         if not self.destination.person:

@@ -46,6 +46,18 @@ class PurchaseOperation(Operation):
         if not self.source.project:
             raise ValidationError("Purchase source must be a Project entity.")
 
+    @classmethod
+    def get_related_entities(cls, url_entity, config):
+        from apps.app_entity.models import Stakeholder, StakeholderRole
+        relationships = (
+            Stakeholder.objects.filter(
+                parent=url_entity, role=StakeholderRole.VENDOR, active=True
+            )
+            .select_related("target")
+            .all()
+        )
+        return [s.target for s in relationships]
+
     def clean_destination(self):
         if not self.destination.is_vendor:
             raise ValidationError("Purchase destination must be a Vendor entity.")
@@ -91,6 +103,18 @@ class SaleOperation(Operation):
     def clean_source(self):
         if not self.source.is_client:
             raise ValidationError("Sale source must be a Client entity.")
+
+    @classmethod
+    def get_related_entities(cls, url_entity, config):
+        from apps.app_entity.models import Stakeholder, StakeholderRole
+        relationships = (
+            Stakeholder.objects.filter(
+                parent=url_entity, role=StakeholderRole.CLIENT, active=True
+            )
+            .select_related("target")
+            .all()
+        )
+        return [s.target for s in relationships]
 
     def clean_destination(self):
         if not self.destination.project:

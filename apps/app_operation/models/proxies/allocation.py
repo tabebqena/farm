@@ -41,6 +41,20 @@ class ProjectFundingOperation(Operation):
     def project(self):
         return self.destination
 
+    @classmethod
+    def get_related_entities(cls, url_entity, config):
+        from apps.app_entity.models import Entity, StakeholderRole
+        return (
+            Entity.objects.filter(
+                project__isnull=False,
+                stakeholders__target=url_entity,
+                stakeholders__active=True,
+                stakeholders__role=StakeholderRole.SHAREHOLDER,
+            )
+            .distinct()
+            .all()
+        )
+
     def clean_destination(self):
         if not self.destination.project:
             raise ValidationError(
@@ -85,6 +99,20 @@ class ProjectRefundOperation(Operation):
     @property
     def funder(self):
         return self.destination
+
+    @classmethod
+    def get_related_entities(cls, url_entity, config):
+        from apps.app_entity.models import Entity, StakeholderRole
+        return (
+            Entity.objects.filter(
+                project__isnull=False,
+                stakeholders__target=url_entity,
+                stakeholders__active=True,
+                stakeholders__role=StakeholderRole.SHAREHOLDER,
+            )
+            .distinct()
+            .all()
+        )
 
     def clean_source(self):
         if not self.source.project:
@@ -135,6 +163,18 @@ class ProfitDistributionOperation(Operation):
                 "Profit Distribution source must be a Project entity."
             )
 
+    @classmethod
+    def get_related_entities(cls, url_entity, config):
+        from apps.app_entity.models import Stakeholder, StakeholderRole
+        shareholder_relationships = (
+            Stakeholder.objects.filter(
+                parent=url_entity, role=StakeholderRole.SHAREHOLDER, active=True
+            )
+            .select_related("target")
+            .all()
+        )
+        return [s.target for s in shareholder_relationships]
+
     def clean_destination(self):
         if not self.destination.is_shareholder:
             raise ValidationError(
@@ -169,6 +209,20 @@ class LossCoverageOperation(Operation):
     @property
     def payment_target_fund(self):
         return self.destination.fund  # project
+
+    @classmethod
+    def get_related_entities(cls, url_entity, config):
+        from apps.app_entity.models import Entity, StakeholderRole
+        return (
+            Entity.objects.filter(
+                project__isnull=False,
+                stakeholders__target=url_entity,
+                stakeholders__active=True,
+                stakeholders__role=StakeholderRole.SHAREHOLDER,
+            )
+            .distinct()
+            .all()
+        )
 
     @property
     def shareholder(self):
@@ -206,6 +260,11 @@ class InternalTransferOperation(Operation):
     @property
     def payment_target_fund(self):
         return self.destination.fund  # clean ensures this is an internal entity
+
+    @classmethod
+    def get_related_entities(cls, url_entity, config):
+        from apps.app_entity.models import Entity
+        return Entity.objects.filter(person__isnull=False).exclude(pk=url_entity.pk).all()
 
     def clean(self):
         if not self.source.is_internal:

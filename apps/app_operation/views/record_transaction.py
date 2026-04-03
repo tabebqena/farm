@@ -2,7 +2,6 @@ import traceback
 from decimal import Decimal
 
 from django.contrib import messages
-from django.core.exceptions import BadRequest
 from django.db import transaction as db_transaction
 from django.http import HttpResponseBadRequest, HttpResponseNotFound
 from django.shortcuts import get_object_or_404, redirect, render
@@ -11,7 +10,6 @@ from django.utils import timezone
 from apps.app_entity.models import Entity
 from apps.app_operation.models.operation import Operation
 from apps.app_operation.models.proxies import PROXY_MAP
-from apps.app_operation.views.common import parse_config
 from apps.app_transaction.models import Transaction
 
 
@@ -66,15 +64,14 @@ def record_transaction_repayment(request, pk):
     # Cast to correct proxy so amount_remaining_to_repay is available
     operation = Operation.objects.cast(operation)
 
-    try:
-        data = parse_config(PROXY_MAP.get(operation.operation_type), operation.source.pk, request)
-        if not data.get("has_repayment"):
-            return HttpResponseBadRequest(
-                f"This operation does not accept repayments: {canonical_op_type}"
-            )
-    except (BadRequest, Exception) as e:
-        traceback.print_exc()
-        return HttpResponseBadRequest(str(e))
+    proxy_cls = PROXY_MAP.get(operation.operation_type)
+    if not proxy_cls:
+        return HttpResponseBadRequest(f"Unsupported operation type: {operation.operation_type}")
+    data = proxy_cls.resolve_request(operation.source.pk, request)
+    if not data.get("has_repayment"):
+        return HttpResponseBadRequest(
+            f"This operation does not accept repayments: {operation.operation_type}"
+        )
 
     # Safe defaults for both GET and POST
     date = request.POST.get("date") or timezone.now().date()
