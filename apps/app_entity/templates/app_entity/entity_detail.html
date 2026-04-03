@@ -95,7 +95,7 @@
           <div class="bg-light rounded p-3 text-start">
             <label class="small text-muted text-uppercase fw-bold">Current Fund Balance</label>
             <h2 class="mb-0 fw-bold text-dark">{{ entity.fund.currency|default:'$' }} {{ entity.fund.balance|default:'0.00' }}</h2>
-            {% if not entity.can_pay %}
+            {% if not entity.fund.active %}
               <small class="text-danger"><i class="bi bi-lock-fill"></i> Fund is locked for payments</small>
             {% endif %}
           </div>

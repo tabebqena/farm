@@ -19,7 +19,7 @@ def person_create_view(request):
             "is_worker": request.POST.get("is_worker") == "on",
             "is_shareholder": request.POST.get("is_shareholder") == "on",
             "is_internal": request.POST.get("is_internal") == "on",
-            "can_pay": request.POST.get("can_pay") == "on",
+            "fund_active": request.POST.get("fund_active") == "on",
         }
 
         try:

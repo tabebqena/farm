@@ -134,6 +134,11 @@ class SourceFundMixin(BaseModelMixin):
                 raise ValidationError("Payment source fund is not existing.")
         except Exception:
             raise ValidationError("Payment source fund could not be resolved.")
+        fund = self.payment_source_fund
+        if not fund.entity.active:
+            raise ValidationError("The Payment source entity should be active.")
+        if not fund.active:
+            raise ValidationError("The payment source fund is not active.")
 
     def clean(self) -> None:
         self._validate_payment_source_fund_exists()
@@ -151,6 +156,9 @@ class TargetFundMixin(BaseModelMixin):
                 raise ValidationError("Payment target fund is not existing.")
         except Exception:
             raise ValidationError("Payment target fund could not be resolved.")
+        fund = self.payment_target_fund
+        if not fund.entity.active:
+            raise ValidationError("The Payment target entity should be active.")
 
     def clean(self) -> None:
         self._validate_payment_target_fund_exists()
@@ -213,8 +221,7 @@ class LinkedIssuanceTransactionMixin(
     def save(self, *args, **kwargs) -> None:
         with db_transaction.atomic():
             is_new = self.pk is None
-            create_transactions = kwargs.pop("create_transactions", True)
-            if is_new and create_transactions:
+            if is_new:
                 if getattr(self, "reversal_of", None) is not None and self.reversal_of:
                     # Don't create transactions
                     ...
@@ -363,9 +370,7 @@ class LinkedPaymentTransactionMixin(
     def save(self, *args, **kwargs) -> None:
         with db_transaction.atomic():
             is_new = self.pk is None
-            create_transactions = kwargs.pop("create_transactions", True)
-            # rv = super().save(*args, **kwargs)
-            if is_new and create_transactions:
+            if is_new:
 
                 if getattr(self, "reversal_of", None) is not None and self.reversal_of:
                     # Don't create transactions

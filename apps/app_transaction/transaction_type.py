@@ -90,14 +90,14 @@ class TransactionType(models.TextChoices):
     # )  # Mirror of ADVANCE_REPAYMENT
 
     # --- Capital ---
-    CAPITAL_INJECTION_ISSUANCE = (
-        "CAPITAL_INJECTION_ISSUANCE",
-        "CAPITAL_INJECTION_ISSUANCE",
+    CASH_INJECTION_ISSUANCE = (
+        "CASH_INJECTION_ISSUANCE",
+        "CASH_INJECTION_ISSUANCE",
     )
 
-    CAPITAL_INJECTION_PAYMENT = (
-        "CAPITAL_INJECTION_PAYMENT",
-        "CAPITAL_INJECTION_PAYMENT",
+    CASH_INJECTION_PAYMENT = (
+        "CASH_INJECTION_PAYMENT",
+        "CASH_INJECTION_PAYMENT",
     )
 
     CAPITAL_WITHDRAWAL_ISSUANCE = (
@@ -206,3 +206,49 @@ class TransactionType(models.TextChoices):
         "INTERNAL_TRANSFER_PAYMENT",
         "INTERNAL_TRANSFER_PAYMENT",
     )
+
+    @classmethod
+    def payment_types(cls):
+        """Transaction types that represent actual cash movement (affect balance)."""
+        return frozenset(
+            [
+                cls.PURCHASE_PAYMENT,
+                cls.SALE_COLLECTION,
+                cls.EXPENSE_PAYMENT,
+                cls.WORKER_ADVANCE_PAYMENT,
+                cls.WORKER_ADVANCE_REPAYMENT,
+                cls.CASH_INJECTION_PAYMENT,
+                cls.CAPITAL_WITHDRAWAL_PAYMENT,
+                cls.CAPITAL_GAIN_PAYMENT,
+                cls.CAPITAL_LOSS_PAYMENT,
+                cls.LOSS_COVERAGE_PAYMENT,
+                cls.PROFIT_DISTRIBUTION_PAYMENT,
+                cls.PROJECT_FUNDING_PAYMENT,
+                cls.PROJECT_REFUND_PAYMENT,
+                cls.LOAN_PAYMENT,
+                cls.LOAN_REPAYMENT,
+                cls.INTERNAL_TRANSFER_PAYMENT,
+            ]
+        )
+
+    @classmethod
+    def issuance_types(cls):
+        """Transaction types that represent issuance (obligation/receivable, do not affect balance)."""
+        return frozenset(
+            [
+                cls.PURCHASE_ISSUANCE,
+                cls.SALE_ISSUANCE,
+                cls.EXPENSE_ISSUANCE,
+                cls.WORKER_ADVANCE_ISSUANCE,
+                cls.CASH_INJECTION_ISSUANCE,
+                cls.CAPITAL_WITHDRAWAL_ISSUANCE,
+                cls.CAPITAL_GAIN_ISSUANCE,
+                cls.CAPITAL_LOSS_ISSUANCE,
+                cls.LOSS_COVERAGE_ISSUANCE,
+                cls.PROFIT_DISTRIBUTION_ISSUANCE,
+                cls.PROJECT_FUNDING_ISSUANCE,
+                cls.PROJECT_REFUND_ISSUANCE,
+                cls.LOAN_ISSUANCE,
+                cls.INTERNAL_TRANSFER_ISSUANCE,
+            ]
+        )

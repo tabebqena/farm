@@ -159,7 +159,7 @@
                   <div class="text-dark small fw-semibold">
                     <i class="bi bi-wallet2 me-1"></i> {{ entity.fund.balance|default:'0.00' }}
                   </div>
-                  {% if entity.can_pay %}
+                  {% if entity.fund.active %}
                     <span class="text-success small" style="font-size: 0.7rem;"><i class="bi bi-check-circle-fill"></i> Ready</span>
                   {% else %}
                     <span class="text-muted small" style="font-size: 0.7rem;"><i class="bi bi-slash-circle"></i> View Only</span>

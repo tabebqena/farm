@@ -1,4 +1,5 @@
 import sqlite3
+import sys
 
 
 def empty_table(database_file, table_name):
@@ -53,6 +54,9 @@ def empty_table(database_file, table_name):
 
 # --- Usage Example ---
 if __name__ == "__main__":
+    table_name = sys.argv[1]
+    db_name = sys.argv[2] if len(sys.argv) > 2 else "db.sqlite3"
+
     # Replace 'my_database.db' with your database file path
     # Replace 'my_table' with the name of your table
-    empty_table("db.sqlite3", "app_operation_operation")
+    empty_table(db_name, table_name)

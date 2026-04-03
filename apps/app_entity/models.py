@@ -102,11 +102,41 @@ class Fund(ImmutableMixin, BaseModel):
     entity = models.OneToOneField(
         "Entity", on_delete=models.PROTECT, related_name="fund", null=False, blank=False
     )
+    active = models.BooleanField(default=True)
 
-    # def clean(self) -> None:
-    #     if getattr(self, "entity", None) is None:
-    #         raise ValidationError("You should link fund object to an entity.")
-    #     return super().clean()
+    @property
+    def balance(self):
+        from django.db.models import Sum
+
+        from apps.app_transaction.models import Transaction
+        from apps.app_transaction.transaction_type import TransactionType
+
+        valid = dict(
+            deleted_at__isnull=True,
+            reversal_of__isnull=True,
+            reversed_by__isnull=True,
+            type__in=TransactionType.payment_types(),
+        )
+        incoming = (
+            Transaction.objects.filter(target=self, **valid).aggregate(
+                total=Sum("amount")
+            )["total"]
+            or Decimal("0.00")
+        )
+        outgoing = (
+            Transaction.objects.filter(source=self, **valid).aggregate(
+                total=Sum("amount")
+            )["total"]
+            or Decimal("0.00")
+        )
+        return incoming - outgoing
+
+    def can_pay(self, amount: Decimal) -> bool:
+        if not self.active:
+            return False
+        if self.entity.is_world or self.entity.is_system:
+            return True
+        return self.balance >= amount
 
 
 from django.utils.translation import gettext_lazy as _
@@ -203,15 +233,6 @@ class Entity(ImmutableMixin, BaseModel):
     is_shareholder = models.BooleanField(default=False)
 
     active = models.BooleanField(default=True)
-    can_pay = models.BooleanField(default=True)
-    active = models.BooleanField(default=True)
-
-    # stakeholders = models.ManyToManyField(
-    #     to="self",
-    #     symmetrical=False,  # Important: Project A owns Person B, but Person B doesn't own Project A
-    #     related_name="associated_to",
-    #     # related_name="entity"
-    # )
 
     @property
     def owner(self):
@@ -307,7 +328,6 @@ class Entity(ImmutableMixin, BaseModel):
                 raise ValidationError("World entity already exists.")
 
         if getattr(self, "fund", None) is None:
-            self.can_pay = False
             self.active = False
 
         return super().clean()
@@ -328,8 +348,8 @@ class Entity(ImmutableMixin, BaseModel):
         is_worker=False,
         is_shareholder=False,
         is_internal=False,
-        can_pay=True,
         active=True,
+        fund_active=True,
     ):
         with transaction.atomic():
             e = Entity()
@@ -346,14 +366,10 @@ class Entity(ImmutableMixin, BaseModel):
             e.is_shareholder = is_shareholder
             e.is_internal = is_internal
             e.active = False
-            e.can_pay = False
-            e.fund = None
 
             e.save()
             if fund is None:
-                fund = Fund.objects.create(entity=e)
-            e.fund = fund
-            e.can_pay = can_pay
+                fund = Fund.objects.create(entity=e, active=fund_active)
             e.active = active
             e.save()
             return e

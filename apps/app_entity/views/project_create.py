@@ -38,7 +38,6 @@ def project_create_view(request):
                     is_worker=False,
                     is_shareholder=False,
                     active=True,
-                    can_pay=True,
                 )
 
                 messages.success(

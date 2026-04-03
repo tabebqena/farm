@@ -1,4 +1,6 @@
 {
     "html.format.templating": true,
-    "djangoTemplateExtension.wrapDjangoTagsInComments": false
+    "djangoTemplateExtension.wrapDjangoTagsInComments": false,
+    "todo-tree.tree.showBadges": false,
+    "todo-tree.tree.disableCompactFolders": true
 }

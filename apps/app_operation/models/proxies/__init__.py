@@ -10,13 +10,11 @@ from .allocation import (
     ProjectFundingOperation,
     ProjectRefundOperation,
 )
+from .capital_gain import CapitalGainOperation
+from .capital_loss import CapitalLossOperation
+from .cash_injection import CashInjectionOperation
+from .cash_withdrawal import CashWithdrawalOperation
 from .credit import LoanOperation, WorkerAdvanceOperation
-from .equity import (
-    CapitalGainOperation,
-    CapitalLossOperation,
-    CashInjectionOperation,
-    CashWithdrawalOperation,
-)
 from .trade import ExpenseOperation, PurchaseOperation, SaleOperation
 
 PROXY_MAP: dict[str, type[Operation]] = {
