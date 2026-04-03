@@ -8,25 +8,18 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from apps.app_entity.models import Entity
-from apps.app_operation.models import (
-    FinancialCategory,
-    Operation,
-    OperationType,
-    get_operation_class,
-)
-from apps.app_operation.views.common import (
-    get_related_entities,
-    get_theming,
-    parse_config,
-)
+from apps.app_operation.models import FinancialCategory, Operation
+from apps.app_operation.models.proxies import PROXY_MAP, get_canonical_type
+from apps.app_operation.views.common import get_related_entities, parse_config
 
 
 def operation_create_factory(request, op_type, pk):
-    canonical_op_type = OperationType.get_canonical_type(op_type)
-    if not canonical_op_type:
+    proxy_cls = get_canonical_type(op_type)
+    if not proxy_cls:
         return HttpResponseBadRequest(f"Unsupported operation {op_type}")
+    canonical_op_type = next(t for t, c in PROXY_MAP.items() if c is proxy_cls)
     try:
-        data = parse_config(canonical_op_type, pk, request)
+        data = parse_config(proxy_cls, pk, request)
     except BadRequest as e:
         return HttpResponseBadRequest(e)
     # 1. Resolve Entities
@@ -64,8 +57,7 @@ def operation_create_factory(request, op_type, pk):
                     amount = float(request.POST.get("amount"))
                     date = request.POST.get("date") or date
                     description = request.POST.get("description", "")
-                    OperationClass = get_operation_class(canonical_op_type)
-                    op = OperationClass.objects.create(
+                    op = proxy_cls.objects.create(
                         operation_type=canonical_op_type,
                         source=data["source_entity"],
                         destination=data["dest_entity"],
@@ -121,7 +113,7 @@ def operation_create_factory(request, op_type, pk):
 
     # 4. Preparation for Render
     entities = get_related_entities(canonical_op_type, data["url_entity"], data)
-    theme_color, theme_icon = get_theming(canonical_op_type)
+    theme_color, theme_icon = data["theme_color"], data["theme_icon"]
 
     categories = FinancialCategory.objects.filter(
         parent_entity=data["url_entity"],  # or project

@@ -2,7 +2,8 @@ from django.contrib import messages
 from django.db import transaction as db_transaction
 from django.shortcuts import get_object_or_404, redirect, render
 
-from apps.app_operation.models.operation import Operation, OperationType
+from apps.app_operation.models.operation import Operation
+from apps.app_operation.models.proxies import PROXY_MAP
 
 
 def operation_update_view(request, pk):
@@ -28,7 +29,7 @@ def operation_update_view(request, pk):
 
     context = {
         "operation": operation,
-        "config": OperationType.get_metadata(operation.operation_type, {}),
+        "config": PROXY_MAP.get(operation.operation_type),
         "is_update": True,
     }
     return render(request, "app_operation/generic_edit_form.html", context)

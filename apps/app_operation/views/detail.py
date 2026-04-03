@@ -5,6 +5,7 @@ from apps.app_operation.models import Operation
 
 def operation_detail_view(request, pk):
     operation = get_object_or_404(Operation, pk=pk)
+    operation = Operation.objects.cast(operation)
 
     # Prefetch related data for performance
     transactions = operation.get_all_transactions()

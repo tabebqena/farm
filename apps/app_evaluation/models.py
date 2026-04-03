@@ -5,7 +5,7 @@ from apps.app_base.models import BaseModel
 
 class ProductEvaluation(BaseModel):
     product = models.ForeignKey(
-        "Product", on_delete=models.CASCADE, related_name="evaluations"
+        "aap_inventory.Product", on_delete=models.CASCADE, related_name="evaluations"
     )
 
     price = models.DecimalField(max_digits=15, decimal_places=2)

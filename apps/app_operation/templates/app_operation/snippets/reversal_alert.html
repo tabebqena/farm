@@ -11,7 +11,7 @@
       <a href="{% url 'operation_detail_view' operation.reversed_by.pk %}" class="btn btn-outline-danger btn-sm ms-3">View Correction <i class="bi bi-arrow-right"></i></a>
     {% endif %}
   </div>
-{% elif operation.is_reversed %}
+{% elif operation.reversal_of %}
   <div class="alert alert-warning shadow-sm d-flex align-items-center mb-4 border-start border-5">
     <i class="bi bi-arrow-counterclockwise fs-1 me-3"></i>
     <div class="flex-grow-1">

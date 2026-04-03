@@ -2,4 +2,4 @@ from django.apps import AppConfig
 
 
 class AppEvaluationConfig(AppConfig):
-    name = "app_evaluation"
+    name = "apps.app_evaluation"

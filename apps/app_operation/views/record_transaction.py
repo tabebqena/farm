@@ -9,41 +9,37 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from apps.app_entity.models import Entity
-from apps.app_operation.models.operation import Operation, OperationType
+from apps.app_operation.models.operation import Operation
+from apps.app_operation.models.proxies import PROXY_MAP
 from apps.app_operation.views.common import parse_config
 from apps.app_transaction.models import Transaction
 
 
 def record_transaction_payment(request, pk):
-    operation = get_object_or_404(Operation, pk=pk, operation_type=OperationType.LOAN)
+    operation = get_object_or_404(Operation, pk=pk)
+    operation = Operation.objects.cast(operation)
 
-    # Calculate the current balance based on existing transactions
-    # (Assuming payments are marked or have a specific flow)
-    # total_repaid = operation.transactions.filter(is_repayment=True)...
-    amount = request.POST.get("amount") or 0
     date = request.POST.get("date") or timezone.now().date()
     note = request.POST.get("note") or ""
+    amount_raw = request.POST.get("amount", "0") or "0"
 
     if request.method == "POST":
         try:
-            officer = get_object_or_404(Entity, user=request.user)
+            amount = Decimal(amount_raw)
+        except Exception:
+            messages.error(request, "Invalid amount value.")
+            return redirect("operation_detail_view", pk=operation.pk)
 
-            with db_transaction.atomic():
-                # We create a new Transaction inside the SAME operation
-                # This transaction flips the direction of the original loan
-                tx = Transaction.create(
-                    source=operation.destination.fund,  # Debtor pays
-                    target=operation.source.fund,  # Creditor receives
-                    document=operation,
-                    type=operation._payment_transaction_type,
-                    amount=Decimal(amount),
-                    officer=officer,
-                    description=f"Payment of {operation.pk}",
-                    note=note,
-                    date=date,
-                )
+        try:
+            officer = get_object_or_404(Entity, user=request.user)
+            operation.create_payment_transaction(
+                amount=amount,
+                officer=officer,
+                date=date,
+                note=note,
+            )
             messages.success(
-                request, f"Transaction of {amount} added to Operation #{operation.pk}"
+                request, f"Payment of {amount} recorded for Operation #{operation.pk}."
             )
             return redirect("operation_detail_view", pk=operation.pk)
         except Exception as e:
@@ -56,7 +52,7 @@ def record_transaction_payment(request, pk):
         {
             "operation": operation,
             "date": date,
-            "amount": amount,
+            "amount": amount_raw,
             "note": note,
         },
     )
@@ -70,9 +66,8 @@ def record_transaction_repayment(request, pk):
     # Cast to correct proxy so amount_remaining_to_repay is available
     operation = Operation.objects.cast(operation)
 
-    canonical_op_type = operation.operation_type
     try:
-        data = parse_config(canonical_op_type, operation.source.pk, request)
+        data = parse_config(PROXY_MAP.get(operation.operation_type), operation.source.pk, request)
         if not data.get("has_repayment"):
             return HttpResponseBadRequest(
                 f"This operation does not accept repayments: {canonical_op_type}"

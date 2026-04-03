@@ -346,7 +346,6 @@ class LinkedPaymentTransactionMixin(
                 )
 
         self.validate_settlement_amount(amount)
-
         with db_transaction.atomic():
             return Transaction.create(
                 source=self.payment_source_fund,
@@ -377,10 +376,6 @@ class LinkedPaymentTransactionMixin(
                     # Don't create transactions
                     ...
                 else:
-                    print(self._is_one_shot_operation)
-                    print(self._has_single_payment_transaction)
-                    print(self._has_payment_transaction)
-                    print(self.max_payment_transaction_count)
                     if self._is_one_shot_operation:
                         if not self._has_single_payment_transaction:
                             raise ValidationError(

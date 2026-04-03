@@ -10,7 +10,8 @@ from apps.app_base.mixins import (
     OfficerMixin,
 )
 from apps.app_base.models import BaseModel, ReversableModel
-from apps.app_operation.models.operation import OperationType
+from apps.app_operation.models.operation_type import OperationType
+from apps.app_operation.models.proxies import PROXY_MAP
 from apps.app_transaction.models import TransactionType
 
 
@@ -135,7 +136,8 @@ class Adjustment(
             OperationType.EXPENSE,
         ):
             raise ValidationError("This operation cannot be adjusted.")
-        if OperationType._is_one_shot_operation(self.operation.operation_type):
+        proxy_cls = PROXY_MAP.get(self.operation.operation_type)
+        if proxy_cls and proxy_cls._is_one_shot_operation:
             raise ValidationError(
                 "One-shot operations cannot be adjusted. Please reverse and redo instead."
             )

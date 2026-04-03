@@ -2,4 +2,4 @@ from django.apps import AppConfig
 
 
 class AppAdjustmentConfig(AppConfig):
-    name = "app_adjustment"
+    name = "apps.app_adjustment"

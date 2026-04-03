@@ -1,4 +1,4 @@
-from app_base.models import BaseModel
+from apps.app_base.models import BaseModel
 from django.db import models
 from django.forms import ValidationError
 
@@ -8,7 +8,7 @@ class InvoiceItem(BaseModel):
         "Invoice", related_name="items", on_delete=models.CASCADE
     )
     product = models.ForeignKey(
-        "app_inventory.InventoryItem", on_delete=models.PROTECT, related_name="invoices"
+        "app_inventory.Product", on_delete=models.PROTECT, related_name="invoices"
     )
     description = models.TextField(blank=True)
     quantity = models.DecimalField(max_digits=10, decimal_places=2, default=1)
@@ -26,7 +26,7 @@ class InvoiceItem(BaseModel):
 
 class Invoice(BaseModel):
     operation = models.ForeignKey(
-        "Operation", related_name="invoice", on_delete=models.CASCADE
+        "app_operation.Operation", related_name="invoice", on_delete=models.CASCADE
     )
     description = models.TextField(blank=True)
 
@@ -35,7 +35,7 @@ class Invoice(BaseModel):
         raise NotImplementedError()
 
     def clean(self) -> None:
-        from apps.app_operation.models.operation import OperationType
+        from apps.app_operation.models.operation_type import OperationType
 
         if self.operation.operation_type not in (
             OperationType.PURCHASE,

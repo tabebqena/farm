@@ -16,7 +16,12 @@ urlpatterns = [
     path(
         "repayment/<int:pk>/create",
         views.record_transaction_repayment,
-        name="loan_repayment_view",
+        name="record_transaction_repayment",
+    ),
+    path(
+        "payment/<int:pk>/create",
+        views.record_transaction_payment,
+        name="record_transaction_payment",
     ),
     path(
         "<int:pk>/detail/",

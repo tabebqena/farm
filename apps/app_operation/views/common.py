@@ -3,7 +3,7 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404
 
 from apps.app_entity.models import Entity, Stakeholder, StakeholderRole
-from apps.app_operation.models.operation import OperationType
+from apps.app_operation.models.operation_type import OperationType
 
 # can_pay key indicate whether the user can pay the opoeration from the UI
 # Almost all operations are payable
@@ -48,64 +48,57 @@ and the script calculates the remaining "$100.00" balance.
 """
 
 
-def parse_config(canonical_op_type, url_pk, request) -> dict:
-    config = OperationType.get_metadata(canonical_op_type)
-    if not config:
-        raise BadRequest(f"Operation {canonical_op_type} has no configuration.")
-    config["url_entity"] = get_object_or_404(Entity, pk=url_pk)
+def parse_config(proxy_cls, url_pk, request) -> dict:
+    if not proxy_cls:
+        raise BadRequest("Unknown operation type.")
+
+    url_entity = get_object_or_404(Entity, pk=url_pk)
+    source_role = proxy_cls._source_role
+    dest_role = proxy_cls._dest_role
 
     world_entity = None
-    if config["source"] == "world" or config["dest"] == "world":
+    if source_role == "world" or dest_role == "world":
         world_entity = Entity.objects.filter(is_world=True).first()
     system_entity = None
-    if config["source"] == "system" or config["dest"] == "system":
+    if source_role == "system" or dest_role == "system":
         system_entity = Entity.objects.filter(is_system=True).first()
 
     secondary_pk = request.POST.get("secondary_entity")
-    if secondary_pk:
-        config["secondary_entity"] = (
-            get_object_or_404(Entity, pk=secondary_pk) if secondary_pk else None
-        )
-    else:
-        config["secondary_entity"] = None
-    if config["source"] == "world":
-        config["source_entity"] = world_entity
-    if config["source"] == "system":
-        config["source_entity"] = system_entity
-    elif config["source"] == "url":
-        config["source_entity"] = config["url_entity"]
-    elif config["source"] == "post":
-        config["source_entity"] = config["secondary_entity"]
+    secondary_entity = get_object_or_404(Entity, pk=secondary_pk) if secondary_pk else None
 
-    if config["dest"] == "world":
-        config["dest_entity"] = world_entity
-    elif config["dest"] == "system":
-        config["dest"] = system_entity
-    elif config["dest"] == "url":
-        config["dest_entity"] = config["url_entity"]
-    elif config["dest"] == "post":
-        config["dest_entity"] = config["secondary_entity"]
+    def resolve(role):
+        if role == "world":
+            return world_entity
+        if role == "system":
+            return system_entity
+        if role == "url":
+            return url_entity
+        if role == "post":
+            return secondary_entity
+        return None
 
-    return config
-
-
-def get_theming(canonical_op_type):
-    # This if the visualizer own the source fund
-    inflow_types = [
-        "CASH_INJECTION",
-        "PROJECT_REFUND",
-        "PROFIT_DISTRIBUTION",
-        "DEBT_REPAYMENT",
-    ]
-    inflow = "inflow" if canonical_op_type in inflow_types else "outflow"
-
-    if inflow == "inflow":
-        theme_color = "success"
-        theme_icon = "bi-box-arrow-in-down"
-    else:
-        theme_color = "danger"
-        theme_icon = "bi-box-arrow-up-right"
-    return theme_color, theme_icon
+    return {
+        # Static config from proxy class
+        "proxy_cls": proxy_cls,
+        "label": proxy_cls.label,
+        "url_str": proxy_cls.url_str,
+        "source": source_role,
+        "dest": dest_role,
+        "can_pay": proxy_cls.can_pay,
+        "is_partially_payable": proxy_cls.is_partially_payable,
+        "has_category": proxy_cls.has_category,
+        "category_required": proxy_cls.category_required,
+        "has_repayment": proxy_cls.has_repayment,
+        "has_invoice": proxy_cls.has_invoice,
+        "repayment_transaction_type": getattr(proxy_cls, "_repayment_transaction_type", None),
+        "theme_color": proxy_cls.theme_color,
+        "theme_icon": proxy_cls.theme_icon,
+        # Runtime-resolved entities
+        "url_entity": url_entity,
+        "secondary_entity": secondary_entity,
+        "source_entity": resolve(source_role),
+        "dest_entity": resolve(dest_role),
+    }
 
 
 def get_related_entities(canonical_op_type, url_entity, config):

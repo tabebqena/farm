@@ -91,63 +91,7 @@ class Transaction(AmountCleanMixin, ImmutableMixin, BaseModel):
     def is_reversal(self):
         return self.reversal_of is not None
 
-    # Map Document Models to their permitted TransactionTypes
-    DOCUMENT_TYPE_MAP = {
-        "operation": {
-            "CASH_INJECTION": [
-                TransactionType.CAPITAL_INJECTION_ISSUANCE,
-                TransactionType.CAPITAL_INJECTION_PAYMENT,
-            ]
-        },
-    }
-
-    def clean_type(self, **kwargs):
-        document = self.document
-        model_name = self.content_type.model
-        return
-
-        # Validation for your new centralized 'FinancialOperation' model
-        if model_name == "operation":
-            op_type = getattr(document, "operation_type", None)
-
-            # 1. Verify the Transaction Type matches the Operation Type
-            allowed_types = Transaction.DOCUMENT_TYPE_MAP.get(model_name, {}).get(
-                op_type, []
-            )
-            if self.type not in allowed_types:
-                raise ValidationError(
-                    f"Invalid Transaction Type: '{self.type}' is not allowed "
-                    f"for a financial operation of type '{op_type}'."
-                    f"allowed types: {allowed_types}"
-                )
-
-            # 2. Verify Fund Directionality
-            # For Injections: Target MUST be an Internal Person's fund
-            if op_type == "CASH_INJECTION" and not self.is_reversal:
-                if not self.target.entity.is_internal or not self.target.entity.person:
-                    raise ValidationError(
-                        "Cash Injections must target an Internal Person's fund."
-                    )
-                if not self.source.entity.is_world:
-                    raise ValidationError(
-                        "Cash Injections must sourced from the world fund."
-                    )
-
-            # For Project Funding: Target MUST be a Project fund
-            if op_type == "PROJECT_FUNDING":
-                if not self.target.entity.is_project:
-                    raise ValidationError(
-                        "Project Funding must target a Project's fund."
-                    )
-
-        # # 3. Generic Document Safety
-        # if self.amount != document.amount and not self.reversal_of:
-        #     # Note: Only check this for 'Issuance' types,
-        #     # as 'Payment' types might be partial.
-        #     if "_ISSUANCE" in self.type.name:
-        #         raise ValidationError(
-        #             "Transaction amount must match the source document amount."
-        #         )
+    def clean_type(self, **kwargs): ...
 
     def save(self, *args, **kwargs):
         return super().save(*args, **kwargs)
@@ -155,14 +99,9 @@ class Transaction(AmountCleanMixin, ImmutableMixin, BaseModel):
     def clean(self) -> None:
         if self.source == self.target:
             raise ValidationError("Source and target funds must be different.")
-        if self.content_type:
-            model_name = self.content_type.model  # lowercase model name
+        # if self.content_type:
+        #     model_name = self.content_type.model  # lowercase model name
 
-            # 1. Ensure the model is even allowed to create transactions
-            if model_name not in Transaction.DOCUMENT_TYPE_MAP:
-                raise ValidationError(
-                    f"Entities of type '{model_name}' are not authorized to issue ledger transactions."
-                )
         return super().clean()
 
     @staticmethod
@@ -182,7 +121,7 @@ class Transaction(AmountCleanMixin, ImmutableMixin, BaseModel):
             target=target,
             type=type,
             document=document,
-            amount=amount,
+            amount=Decimal(str(amount)) if not isinstance(amount, Decimal) else amount,
             officer=officer or document.officer,
             description=description or f"Transaction for {document.description}",
             note=note,

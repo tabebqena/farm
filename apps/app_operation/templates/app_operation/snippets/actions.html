@@ -10,7 +10,7 @@
         <div class="card-body">
           <h6 class="text-success fw-bold">Record Payment</h6>
           <p class="small text-muted">Record a payment transaction.</p>
-          {% comment %} <a href="{% url 'loan_repayment_view' operation.pk %}" class="btn btn-success w-100"><i class="bi bi-cash-coin me-1"></i> Record Repayment</a> {% endcomment %}
+          <a href="{% url 'record_transaction_payment' operation.pk %}" class="btn btn-success w-100"><i class="bi bi-cash-coin me-1"></i> Record Payment</a>
         </div>
       </div>
     {% endif %}
@@ -20,7 +20,7 @@
         <div class="card-body">
           <h6 class="text-success fw-bold">{{ operation.repayment_label }}</h6>
           <p class="small text-muted">Add a repayment transaction to reduce the outstanding balance of this operation.</p>
-          <a href="{% url 'loan_repayment_view' operation.pk %}" class="btn btn-success w-100"><i class="bi bi-cash-coin me-1"></i> Record Repayment</a>
+          <a href="{% url 'record_transaction_repayment' operation.pk %}" class="btn btn-success w-100"><i class="bi bi-cash-coin me-1"></i> Record Repayment</a>
         </div>
       </div>
     {% endif %}
