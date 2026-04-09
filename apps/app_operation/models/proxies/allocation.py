@@ -55,10 +55,47 @@ class ProjectFundingOperation(Operation):
             .all()
         )
 
+    def clean_source(self):
+        if not self.source.person:
+            raise ValidationError(
+                "Project Funding source must be a Person entity."
+            )
+
     def clean_destination(self):
         if not self.destination.project:
             raise ValidationError(
                 "Project Funding destination must be a Project entity."
+            )
+
+    def clean(self):
+        super().clean()
+        # Shareholder check
+        try:
+            if self.source.person and self.destination.project:
+                from apps.app_entity.models import StakeholderRole
+                if not self.destination.stakeholders.filter(
+                    target=self.source,
+                    role=StakeholderRole.SHAREHOLDER,
+                    active=True,
+                ).exists():
+                    raise ValidationError(
+                        "The funding source must be a registered shareholder of the project."
+                    )
+        except ValidationError:
+            raise
+        except Exception:
+            pass  # type errors handled by clean_source / clean_destination
+        # Balance check (create only — amount is immutable so updates skip this)
+        if self.pk:
+            return
+        try:
+            fund = self.payment_source_fund
+        except Exception:
+            return
+        if not fund.can_pay(self.amount):
+            raise ValidationError(
+                f"Insufficient funds: balance is {fund.balance}, "
+                f"cannot fund {self.amount}."
             )
 
 
@@ -117,6 +154,78 @@ class ProjectRefundOperation(Operation):
     def clean_source(self):
         if not self.source.project:
             raise ValidationError("Project Refund source must be a Project entity.")
+
+    def clean_destination(self):
+        if not self.destination.person:
+            raise ValidationError("Project Refund destination must be a Person entity.")
+
+    def clean(self):
+        super().clean()
+        # Shareholder check
+        try:
+            if self.source.project and self.destination.person:
+                from apps.app_entity.models import StakeholderRole
+                if not self.source.stakeholders.filter(
+                    target=self.destination,
+                    role=StakeholderRole.SHAREHOLDER,
+                    active=True,
+                ).exists():
+                    raise ValidationError(
+                        "The refund destination must be a registered shareholder of the project."
+                    )
+        except ValidationError:
+            raise
+        except Exception:
+            pass  # type errors handled by clean_source / clean_destination
+        # Balance and investment-cap checks (new operations only; reversals bypass these)
+        if self.pk or getattr(self, "reversal_of", None) is not None:
+            return
+        try:
+            fund = self.payment_source_fund
+        except Exception:
+            return
+        if not fund.can_pay(self.amount):
+            raise ValidationError(
+                f"Insufficient project funds: balance is {fund.balance}, "
+                f"cannot refund {self.amount}."
+            )
+        # Refund must not exceed the net amount the shareholder has funded this project
+        try:
+            if self.source_id and self.destination_id and self.source.project and self.destination.person:
+                from decimal import Decimal as D
+                from django.db.models import Sum
+                from apps.app_operation.models.operation_type import OperationType
+
+                total_funded = (
+                    Operation.objects.filter(
+                        operation_type=OperationType.PROJECT_FUNDING,
+                        source=self.destination,
+                        destination=self.source,
+                        reversal_of__isnull=True,
+                        reversed_by__isnull=True,
+                    ).aggregate(total=Sum("amount"))["total"]
+                    or D("0.00")
+                )
+                total_refunded = (
+                    Operation.objects.filter(
+                        operation_type=OperationType.PROJECT_REFUND,
+                        source=self.source,
+                        destination=self.destination,
+                        reversal_of__isnull=True,
+                        reversed_by__isnull=True,
+                    ).aggregate(total=Sum("amount"))["total"]
+                    or D("0.00")
+                )
+                net_refundable = total_funded - total_refunded
+                if self.amount > net_refundable:
+                    raise ValidationError(
+                        f"Refund amount {self.amount} exceeds the net amount funded "
+                        f"({net_refundable}) by this shareholder."
+                    )
+        except ValidationError:
+            raise
+        except Exception:
+            pass
 
 
 class ProfitDistributionOperation(Operation):
