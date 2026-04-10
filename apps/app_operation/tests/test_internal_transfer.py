@@ -5,43 +5,59 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from apps.app_entity.models import Entity, Person, Project
+from apps.app_entity.models import Entity, Person
 from apps.app_operation.models.operation_type import OperationType
-from apps.app_operation.models.proxies import CapitalLossOperation
+from apps.app_operation.models.proxies import CashInjectionOperation, InternalTransferOperation
 from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
 
 
-class CapitalLossCreateTest(TestCase):
+def _make_officer(username="officer"):
+    user = User.objects.create_user(username=username, password="testpass", is_staff=True)
+    person = Person.create(private_name=f"Officer {username}", auth_user=user)
+    return person.entity
+
+
+def _make_internal_person(name):
+    person = Person.create(private_name=name, is_internal=True)
+    return person.entity
+
+
+def _inject(world_entity, dest_entity, amount, officer_entity):
+    CashInjectionOperation(
+        source=world_entity,
+        destination=dest_entity,
+        amount=amount,
+        operation_type=OperationType.CASH_INJECTION,
+        date=date.today(),
+        description="Seed balance",
+        officer=officer_entity,
+    ).save()
+
+
+class InternalTransferCreateTest(TestCase):
     def setUp(self):
-        self.system_entity = Entity.create(is_system=True)
+        self.world_entity = Entity.create(is_world=True)
+        self.officer_entity = _make_officer()
+        self.source_entity = _make_internal_person("Source Person")
+        self.dest_entity = _make_internal_person("Destination Person")
 
-        self.officer_user = User.objects.create_user(
-            username="officer", password="testpass", is_staff=True
-        )
-        officer_person = Person.create(
-            private_name="Officer Person", auth_user=self.officer_user
-        )
-        self.officer_entity = officer_person.entity
-
-        # Source: active project entity
-        project = Project(name="Test Project")
-        project.save()
-        self.project_entity = Entity.create(owner=project)
+        # Seed source fund so it has sufficient balance for most tests
+        _inject(self.world_entity, self.source_entity, Decimal("2000.00"), self.officer_entity)
 
     def _make_op(self, **kwargs):
         defaults = dict(
-            source=self.project_entity,
-            destination=self.system_entity,
+            source=self.source_entity,
+            destination=self.dest_entity,
             amount=Decimal("500.00"),
-            operation_type=OperationType.CAPITAL_LOSS,
+            operation_type=OperationType.INTERNAL_TRANSFER,
             date=date.today(),
-            description="Test capital loss",
+            description="Test internal transfer",
             officer=self.officer_entity,
         )
         defaults.update(kwargs)
-        return CapitalLossOperation(**defaults)
+        return InternalTransferOperation(**defaults)
 
     # ------------------------------------------------------------------
     # Happy path
@@ -52,35 +68,24 @@ class CapitalLossCreateTest(TestCase):
         op.save()
 
         self.assertIsNotNone(op.pk)
-
         transactions = op.get_all_transactions()
         self.assertEqual(transactions.count(), 2)
-
         self.assertTrue(
-            transactions.filter(type=TransactionType.CAPITAL_LOSS_ISSUANCE).exists(),
-            "Issuance transaction should be created",
+            transactions.filter(type=TransactionType.INTERNAL_TRANSFER_ISSUANCE).exists()
         )
         self.assertTrue(
-            transactions.filter(type=TransactionType.CAPITAL_LOSS_PAYMENT).exists(),
-            "Payment transaction should be created",
+            transactions.filter(type=TransactionType.INTERNAL_TRANSFER_PAYMENT).exists()
         )
-
-    def test_transaction_amounts_match_operation(self):
-        op = self._make_op(amount=Decimal("300.00"))
-        op.save()
-
-        for tx in op.get_all_transactions():
-            self.assertEqual(tx.amount, Decimal("300.00"))
 
     def test_transaction_funds_are_correct(self):
         op = self._make_op()
         op.save()
 
         for tx in op.get_all_transactions():
-            self.assertEqual(tx.source, self.project_entity.fund)
-            self.assertEqual(tx.target, self.system_entity.fund)
+            self.assertEqual(tx.source, self.source_entity.fund)
+            self.assertEqual(tx.target, self.dest_entity.fund)
 
-    def test_is_fully_settled_after_creation(self):
+    def test_is_fully_settled_immediately(self):
         op = self._make_op(amount=Decimal("500.00"))
         op.save()
 
@@ -88,54 +93,63 @@ class CapitalLossCreateTest(TestCase):
         self.assertTrue(op.is_fully_settled)
         self.assertEqual(op.amount_remaining_to_settle, Decimal("0.00"))
 
-    def test_project_fund_decreases_by_loss_amount(self):
-        # Seed some balance so the project can absorb the loss
-        from apps.app_operation.models.proxies import CapitalGainOperation
+    def test_source_balance_decreases_after_transfer(self):
+        balance_before = self.source_entity.fund.balance
 
-        seed = CapitalGainOperation(
-            source=self.system_entity,
-            destination=self.project_entity,
-            amount=Decimal("1000.00"),
-            operation_type=OperationType.CAPITAL_GAIN,
-            date=date.today(),
-            description="Seed balance",
-            officer=self.officer_entity,
-        )
-        seed.save()
-
-        balance_before = self.project_entity.fund.balance
-
-        op = self._make_op(amount=Decimal("750.00"))
+        op = self._make_op(amount=Decimal("300.00"))
         op.save()
 
-        self.project_entity.fund.refresh_from_db()
-        self.assertEqual(
-            self.project_entity.fund.balance,
-            balance_before - Decimal("750.00"),
-        )
+        self.source_entity.fund.refresh_from_db()
+        self.assertEqual(self.source_entity.fund.balance, balance_before - Decimal("300.00"))
+
+    def test_destination_balance_increases_after_transfer(self):
+        balance_before = self.dest_entity.fund.balance
+
+        op = self._make_op(amount=Decimal("300.00"))
+        op.save()
+
+        self.dest_entity.fund.refresh_from_db()
+        self.assertEqual(self.dest_entity.fund.balance, balance_before + Decimal("300.00"))
 
     # ------------------------------------------------------------------
     # Source validation
     # ------------------------------------------------------------------
 
-    def test_source_system_entity_raises_validation_error(self):
-        op = self._make_op(source=self.system_entity, destination=self.system_entity)
+    def test_non_internal_source_raises_validation_error(self):
+        external = Person.create(private_name="External Person")
+        op = self._make_op(source=external.entity)
         with self.assertRaises(ValidationError):
             op.save()
 
-    def test_source_project_must_be_active(self):
-        self.project_entity.active = False
-        self.project_entity.save()
+    def test_system_entity_as_source_raises_validation_error(self):
+        system_entity = Entity.create(is_system=True)
+        op = self._make_op(source=system_entity)
+        with self.assertRaises(ValidationError):
+            op.save()
+
+    def test_world_entity_as_source_raises_validation_error(self):
+        op = self._make_op(source=self.world_entity)
+        with self.assertRaises(ValidationError):
+            op.save()
+
+    def test_source_must_be_active(self):
+        self.source_entity.active = False
+        self.source_entity.save()
 
         op = self._make_op()
         with self.assertRaises(ValidationError):
             op.save()
 
     def test_source_fund_must_be_active(self):
-        self.project_entity.fund.active = False
-        self.project_entity.fund.save()
+        self.source_entity.fund.active = False
+        self.source_entity.fund.save()
 
         op = self._make_op()
+        with self.assertRaises(ValidationError):
+            op.save()
+
+    def test_source_insufficient_balance_raises_validation_error(self):
+        op = self._make_op(amount=Decimal("9999.00"))  # exceeds 2000 seeded
         with self.assertRaises(ValidationError):
             op.save()
 
@@ -143,15 +157,28 @@ class CapitalLossCreateTest(TestCase):
     # Destination validation
     # ------------------------------------------------------------------
 
-    def test_destination_must_be_system_entity(self):
-        non_system_person = Person.create(private_name="Non System Person")
-        op = self._make_op(destination=non_system_person.entity)
+    def test_non_internal_destination_raises_validation_error(self):
+        external = Person.create(private_name="External Dest")
+        op = self._make_op(destination=external.entity)
         with self.assertRaises(ValidationError):
             op.save()
 
-    def test_destination_world_entity_raises_validation_error(self):
-        world_entity = Entity.create(is_world=True)
-        op = self._make_op(destination=world_entity)
+    def test_system_entity_as_destination_raises_validation_error(self):
+        system_entity = Entity.create(is_system=True)
+        op = self._make_op(destination=system_entity)
+        with self.assertRaises(ValidationError):
+            op.save()
+
+    def test_world_entity_as_destination_raises_validation_error(self):
+        op = self._make_op(destination=self.world_entity)
+        with self.assertRaises(ValidationError):
+            op.save()
+
+    def test_destination_must_be_active(self):
+        self.dest_entity.active = False
+        self.dest_entity.save()
+
+        op = self._make_op()
         with self.assertRaises(ValidationError):
             op.save()
 
@@ -174,7 +201,8 @@ class CapitalLossCreateTest(TestCase):
     # ------------------------------------------------------------------
 
     def test_officer_must_be_personal_entity(self):
-        op = self._make_op(officer=self.system_entity)
+        system_entity = Entity.create(is_system=True)
+        op = self._make_op(officer=system_entity)
         with self.assertRaises(ValidationError):
             op.save()
 
@@ -211,11 +239,9 @@ class CapitalLossCreateTest(TestCase):
         op = self._make_op()
         op.save()
 
-        other_project = Project(name="Other Project")
-        other_project.save()
-        other_entity = Entity.create(owner=other_project)
-
-        op.source = other_entity
+        other = _make_internal_person("Other Source")
+        _inject(self.world_entity, other, Decimal("1000.00"), self.officer_entity)
+        op.source = other
         with self.assertRaises(ValidationError):
             op.save()
 
@@ -223,11 +249,8 @@ class CapitalLossCreateTest(TestCase):
         op = self._make_op()
         op.save()
 
-        other_project = Project(name="Other Project")
-        other_project.save()
-        other_entity = Entity.create(owner=other_project)
-
-        op.destination = other_entity
+        other = _make_internal_person("Other Dest")
+        op.destination = other
         with self.assertRaises(ValidationError):
             op.save()
 
@@ -255,29 +278,22 @@ class CapitalLossCreateTest(TestCase):
             )
 
 
-class CapitalLossReversalTest(TestCase):
+class InternalTransferReversalTest(TestCase):
     def setUp(self):
-        self.system_entity = Entity.create(is_system=True)
+        self.world_entity = Entity.create(is_world=True)
+        self.officer_entity = _make_officer()
+        self.source_entity = _make_internal_person("Source Person")
+        self.dest_entity = _make_internal_person("Destination Person")
 
-        self.officer_user = User.objects.create_user(
-            username="officer", password="testpass", is_staff=True
-        )
-        officer_person = Person.create(
-            private_name="Officer Person", auth_user=self.officer_user
-        )
-        self.officer_entity = officer_person.entity
+        _inject(self.world_entity, self.source_entity, Decimal("2000.00"), self.officer_entity)
 
-        project = Project(name="Test Project")
-        project.save()
-        self.project_entity = Entity.create(owner=project)
-
-        self.op = CapitalLossOperation(
-            source=self.project_entity,
-            destination=self.system_entity,
-            amount=Decimal("1000.00"),
-            operation_type=OperationType.CAPITAL_LOSS,
+        self.op = InternalTransferOperation(
+            source=self.source_entity,
+            destination=self.dest_entity,
+            amount=Decimal("500.00"),
+            operation_type=OperationType.INTERNAL_TRANSFER,
             date=date.today(),
-            description="Test capital loss",
+            description="Test internal transfer",
             officer=self.officer_entity,
         )
         self.op.save()
@@ -316,7 +332,7 @@ class CapitalLossReversalTest(TestCase):
         self.op.reverse(officer=self.officer_entity)
 
         original_txs = self.op.get_all_transactions()
-        self.assertEqual(original_txs.count(), 4)  # 2 original + 2 counter-transactions
+        self.assertEqual(original_txs.count(), 4)  # 2 original + 2 counter
 
         reversed_txs = original_txs.filter(reversal_of__isnull=False)
         self.assertEqual(reversed_txs.count(), 2)
@@ -338,14 +354,24 @@ class CapitalLossReversalTest(TestCase):
         for tx in original_txs:
             self.assertEqual(tx.reversed_by.type, tx.type)
 
-    def test_project_fund_restored_after_reversal(self):
-        balance_after_loss = self.project_entity.fund.balance
+    def test_source_balance_restored_after_reversal(self):
+        balance_after_transfer = self.source_entity.fund.balance
         self.op.reverse(officer=self.officer_entity)
 
-        self.project_entity.fund.refresh_from_db()
+        self.source_entity.fund.refresh_from_db()
         self.assertEqual(
-            self.project_entity.fund.balance,
-            balance_after_loss + self.op.amount,
+            self.source_entity.fund.balance,
+            balance_after_transfer + self.op.amount,
+        )
+
+    def test_destination_balance_restored_after_reversal(self):
+        balance_after_transfer = self.dest_entity.fund.balance
+        self.op.reverse(officer=self.officer_entity)
+
+        self.dest_entity.fund.refresh_from_db()
+        self.assertEqual(
+            self.dest_entity.fund.balance,
+            balance_after_transfer - self.op.amount,
         )
 
     # ------------------------------------------------------------------

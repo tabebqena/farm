@@ -384,4 +384,18 @@ class InternalTransferOperation(Operation):
             raise ValidationError(
                 "Internal Transfer destination must be an internal entity."
             )
+        if self.source.is_system or self.source.is_world:
+            raise ValidationError(
+                "Internal Transfer source cannot be a system or world entity."
+            )
+        if self.destination.is_system or self.destination.is_world:
+            raise ValidationError(
+                "Internal Transfer destination cannot be a system or world entity."
+            )
+        source_fund = self.source.fund
+        if source_fund.balance < self.amount:
+            raise ValidationError(
+                f"Insufficient funds: source fund balance ({source_fund.balance}) "
+                f"is less than transfer amount ({self.amount})."
+            )
         return super().clean()
