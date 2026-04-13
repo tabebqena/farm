@@ -1,5 +1,12 @@
 # EPIC 5 — Entity & Stakeholder Management
 
+> **Design note — Entities as mutual vendor/client**
+> An entity (person or project) can simultaneously act as a **vendor** to one party and a **client** of another.
+> The `Stakeholder` model captures this at the relationship level (`parent` ↔ `target` with a `role`),
+> while the `Entity.is_vendor` / `Entity.is_client` flags are convenience denormalisations for global filtering.
+> Example: *Project A* can be a vendor to *Project B* (supplying goods) while also being a client of *Project C* (purchasing services).
+> There is no constraint preventing an entity from holding both roles across different stakeholder records, or even within the same parent if the business relationship warrants it.
+
 ---
 
 ### Feature 5.1 — Entity List Filtering

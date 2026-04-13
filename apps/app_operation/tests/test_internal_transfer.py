@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from apps.app_entity.models import Entity, Person
+from apps.app_entity.models import Entity, Person, Project
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import CashInjectionOperation, InternalTransferOperation
 from apps.app_transaction.transaction_type import TransactionType
@@ -277,6 +277,14 @@ class InternalTransferCreateTest(TestCase):
                 date=date.today(),
             )
 
+    # ------------------------------------------------------------------
+    # check_balance_on_payment
+    # ------------------------------------------------------------------
+
+    def test_check_balance_on_payment_is_disabled(self):
+        """Balance is enforced by clean() at creation; no per-payment gate needed."""
+        self.assertFalse(InternalTransferOperation.check_balance_on_payment)
+
 
 class InternalTransferReversalTest(TestCase):
     def setUp(self):
@@ -390,3 +398,47 @@ class InternalTransferReversalTest(TestCase):
 
         with self.assertRaises(ValidationError):
             reversal.reverse(officer=self.officer_entity)
+
+
+class InternalTransferGetRelatedEntitiesTest(TestCase):
+    """
+    Tests for get_related_entities — the method that populates the destination
+    dropdown on the create form.  Only internal Person entities (excluding the
+    url_entity itself) should be eligible destinations.
+    """
+
+    def setUp(self):
+        self.world_entity = Entity.create(is_world=True)
+        self.system_entity = Entity.create(is_system=True)
+        self.url_entity = _make_internal_person("Source Person")
+
+        self.other_internal = _make_internal_person("Other Internal Person")
+        self.external_person = Person.create(private_name="External Person").entity
+
+        project = Project(name="Test Project")
+        project.save()
+        self.project_entity = Entity.create(owner=project)
+
+        # config mirrors what resolve_request produces for internal transfer
+        self.config = {"source": "url", "dest": "post"}
+
+    def test_returns_all_person_entities_except_url_entity(self):
+        result = InternalTransferOperation.get_related_entities(self.url_entity, self.config)
+        self.assertIn(self.other_internal, result)
+        self.assertIn(self.external_person, result)
+
+    def test_excludes_url_entity_itself(self):
+        result = InternalTransferOperation.get_related_entities(self.url_entity, self.config)
+        self.assertNotIn(self.url_entity, result)
+
+    def test_excludes_world_entity(self):
+        result = InternalTransferOperation.get_related_entities(self.url_entity, self.config)
+        self.assertNotIn(self.world_entity, result)
+
+    def test_excludes_system_entity(self):
+        result = InternalTransferOperation.get_related_entities(self.url_entity, self.config)
+        self.assertNotIn(self.system_entity, result)
+
+    def test_excludes_project_entity(self):
+        result = InternalTransferOperation.get_related_entities(self.url_entity, self.config)
+        self.assertNotIn(self.project_entity, result)

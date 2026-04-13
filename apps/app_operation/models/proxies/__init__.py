@@ -3,19 +3,22 @@ from typing import Union
 from apps.app_operation.models.operation import Operation
 from apps.app_operation.models.operation_type import OperationType
 
-from .allocation import (
-    InternalTransferOperation,
-    LossCoverageOperation,
-    ProfitDistributionOperation,
-    ProjectFundingOperation,
-    ProjectRefundOperation,
-)
-from .capital_gain import CapitalGainOperation
-from .capital_loss import CapitalLossOperation
-from .cash_injection import CashInjectionOperation
-from .cash_withdrawal import CashWithdrawalOperation
-from .credit import LoanOperation, WorkerAdvanceOperation
-from .trade import ExpenseOperation, PurchaseOperation, SaleOperation
+from .op_capital_gain import CapitalGainOperation
+from .op_correction_credit import CorrectionCreditOperation
+from .op_correction_debit import CorrectionDebitOperation
+from .op_capital_loss import CapitalLossOperation
+from .op_cash_injection import CashInjectionOperation
+from .op_cash_withdrawal import CashWithdrawalOperation
+from .op_expense import ExpenseOperation
+from .op_internal_transfer import InternalTransferOperation
+from .op_loan import LoanOperation
+from .op_loss_coverage import LossCoverageOperation
+from .op_profit_distribution import ProfitDistributionOperation
+from .op_project_funding import ProjectFundingOperation
+from .op_project_refund import ProjectRefundOperation
+from .op_purchase import PurchaseOperation
+from .op_sale import SaleOperation
+from .op_worker_advance import WorkerAdvanceOperation
 
 PROXY_MAP: dict[str, type[Operation]] = {
     OperationType.CASH_INJECTION: CashInjectionOperation,
@@ -31,6 +34,8 @@ PROXY_MAP: dict[str, type[Operation]] = {
     OperationType.EXPENSE: ExpenseOperation,
     OperationType.CAPITAL_GAIN: CapitalGainOperation,
     OperationType.CAPITAL_LOSS: CapitalLossOperation,
+    OperationType.CORRECTION_CREDIT: CorrectionCreditOperation,
+    OperationType.CORRECTION_DEBIT: CorrectionDebitOperation,
     OperationType.WORKER_ADVANCE: WorkerAdvanceOperation,
 }
 
@@ -74,6 +79,8 @@ __all__ = [
     "CashWithdrawalOperation",
     "CapitalGainOperation",
     "CapitalLossOperation",
+    "CorrectionCreditOperation",
+    "CorrectionDebitOperation",
     "ProjectFundingOperation",
     "ProjectRefundOperation",
     "ProfitDistributionOperation",

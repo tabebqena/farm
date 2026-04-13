@@ -240,6 +240,14 @@ class LoanCreateTest(TestCase):
         with self.assertRaises(ValidationError):
             op.save()
 
+    # ------------------------------------------------------------------
+    # check_balance_on_payment
+    # ------------------------------------------------------------------
+
+    def test_check_balance_on_payment_is_enabled(self):
+        """Creditor fund balance is checked before each disbursement."""
+        self.assertTrue(LoanOperation.check_balance_on_payment)
+
 
 class LoanDisbursementTest(TestCase):
     """

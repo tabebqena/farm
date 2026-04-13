@@ -1,6 +1,8 @@
 import logging
+from datetime import date as today_date
 from typing import List
 
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q, Sum
 
@@ -22,7 +24,6 @@ from .operation_type import OperationType
 logger = logging.getLogger(__name__)
 
 # TODO use database level constrains for data integrity.
-# TODO add financial period closing
 # TODO: "Financial Statement" method
 # TODO: Integrity check method
 
@@ -60,12 +61,19 @@ class Operation(
     )
     amount = models.DecimalField(max_digits=20, decimal_places=2)
     operation_type = models.CharField(max_length=30, choices=OperationType.choices)
-    date = models.DateField()
+    date = models.DateField(default=today_date.today)
     description = models.TextField(blank=True)
     officer = models.ForeignKey(
         "app_entity.Entity",
         on_delete=models.PROTECT,
         related_name="operations_supervised",
+    )
+    period = models.ForeignKey(
+        "app_operation.FinancialPeriod",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="operations",
     )
 
     objects = OperationManager()
@@ -116,7 +124,9 @@ class Operation(
             system_entity = Entity.objects.filter(is_system=True).first()
 
         secondary_pk = request.POST.get("secondary_entity")
-        secondary_entity = get_object_or_404(Entity, pk=secondary_pk) if secondary_pk else None
+        secondary_entity = (
+            get_object_or_404(Entity, pk=secondary_pk) if secondary_pk else None
+        )
 
         def resolve(role):
             if role == "world":
@@ -141,7 +151,9 @@ class Operation(
             "category_required": cls.category_required,
             "has_repayment": cls.has_repayment,
             "has_invoice": cls.has_invoice,
-            "repayment_transaction_type": getattr(cls, "_repayment_transaction_type", None),
+            "repayment_transaction_type": getattr(
+                cls, "_repayment_transaction_type", None
+            ),
             "theme_color": cls.theme_color,
             "theme_icon": cls.theme_icon,
             "url_entity": url_entity,
@@ -153,6 +165,7 @@ class Operation(
     @classmethod
     def get_related_entities(cls, url_entity, config):
         from apps.app_entity.models import Entity
+
         config_dest = config["dest"]
         if config_dest in ["world", "url"]:
             return []
@@ -183,38 +196,67 @@ class Operation(
         return rv
 
     # ------------------------------------------------------------------
-    # Cash flow
+    # Period helpers
     # ------------------------------------------------------------------
 
-    def get_cash_flow_balance(self):
-        valid_txs = self.get_all_transactions().filter(
-            reversal_of__isnull=True,
-            reversed_by__isnull=True,
-        )
-        payment_type = self._payment_transaction_type
-        cash_movements = valid_txs.filter(
-            Q(type=payment_type) | Q(type=TransactionType.LOAN_REPAYMENT)
-        )
-        total_payment = (
-            cash_movements.filter(type=payment_type).aggregate(Sum("amount"))[
-                "amount__sum"
-            ]
-            or 0
-        )
-        total_repayment = (
-            cash_movements.filter(type=TransactionType.LOAN_REPAYMENT).aggregate(
-                Sum("amount")
-            )["amount__sum"]
-            or 0
-        )
-        return total_payment - total_repayment
+    @property
+    def period_entity(self):
+        """
+        Returns the URL-role entity — the entity whose financial period this
+        operation belongs to. Determined by _source_role / _dest_role set on
+        each proxy class.
+        """
+        if self._source_role == "url":
+            return self.source
+        if self._dest_role == "url":
+            return self.destination
+        return None
 
     # ------------------------------------------------------------------
     # Validation
     # ------------------------------------------------------------------
 
     def clean(self):
+        # Only block NEW, non-reversal operations from landing in a closed period.
+        if not self.pk and not getattr(self, "reversal_of_id", None):
+            entity = self.period_entity
+            if entity:
+                from datetime import date as date_type
+
+                from .period import FinancialPeriod
+
+                closed = FinancialPeriod.objects.filter(
+                    entity=entity,
+                    end_date__isnull=False,
+                    end_date__lt=date_type.today(),
+                    start_date__lte=self.date,
+                    end_date__gte=self.date,
+                )
+                if closed.exists():
+                    raise ValidationError(
+                        "Cannot create an operation whose date falls within a closed financial period."
+                    )
         return super().clean()
+
+    def save(self, *args, **kwargs):
+        # Auto-assign the current open period for new operations (never creates one).
+        if (
+            self.pk is None
+            and self.period_id is None
+            and not getattr(self, "reversal_of_id", None)
+        ):
+            entity = self.period_entity
+            if entity:
+                from .period import FinancialPeriod
+
+                self.period = FinancialPeriod.objects.filter(
+                    entity=entity, end_date__isnull=True
+                ).first()
+                if self.period is None:
+                    raise ValidationError(
+                        "Cannot create an operation: no open financial period exists for this entity."
+                    )
+        return super().save(*args, **kwargs)
 
     def __str__(self):
         return (

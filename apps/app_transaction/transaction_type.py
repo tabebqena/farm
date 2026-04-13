@@ -197,6 +197,24 @@ class TransactionType(models.TextChoices):
     #     "DEBT_SETTLEMENT_BY_LENDER",
     # )
 
+    # --- Corrections ---
+    CORRECTION_CREDIT_ISSUANCE = (
+        "CORRECTION_CREDIT_ISSUANCE",
+        "CORRECTION_CREDIT_ISSUANCE",
+    )
+    CORRECTION_CREDIT_PAYMENT = (
+        "CORRECTION_CREDIT_PAYMENT",
+        "CORRECTION_CREDIT_PAYMENT",
+    )
+    CORRECTION_DEBIT_ISSUANCE = (
+        "CORRECTION_DEBIT_ISSUANCE",
+        "CORRECTION_DEBIT_ISSUANCE",
+    )
+    CORRECTION_DEBIT_PAYMENT = (
+        "CORRECTION_DEBIT_PAYMENT",
+        "CORRECTION_DEBIT_PAYMENT",
+    )
+
     # --- Internal ---
     INTERNAL_TRANSFER_ISSUANCE = (
         "INTERNAL_TRANSFER_ISSUANCE",
@@ -228,6 +246,8 @@ class TransactionType(models.TextChoices):
                 cls.LOAN_PAYMENT,
                 cls.LOAN_REPAYMENT,
                 cls.INTERNAL_TRANSFER_PAYMENT,
+                cls.CORRECTION_CREDIT_PAYMENT,
+                cls.CORRECTION_DEBIT_PAYMENT,
             ]
         )
 
@@ -250,5 +270,7 @@ class TransactionType(models.TextChoices):
                 cls.PROJECT_REFUND_ISSUANCE,
                 cls.LOAN_ISSUANCE,
                 cls.INTERNAL_TRANSFER_ISSUANCE,
+                cls.CORRECTION_CREDIT_ISSUANCE,
+                cls.CORRECTION_DEBIT_ISSUANCE,
             ]
         )

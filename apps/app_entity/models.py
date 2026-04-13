@@ -3,6 +3,7 @@ from enum import Enum
 
 from django.contrib.auth import get_user_model
 from django.db import models, transaction
+from django.db.models import Sum
 from django.forms import ValidationError
 from django.urls import reverse
 
@@ -137,6 +138,62 @@ class Fund(ImmutableMixin, BaseModel):
         if self.entity.is_world or self.entity.is_system:
             return True
         return self.balance >= amount
+
+    def profit_loss(self) -> Decimal:
+        """
+        Calculates P&L for a project fund.
+
+        Positives (income):  entity as destination of Sale, Capital Gain, Correction Credit
+                             entity as destination of Purchase (project acting as vendor)
+        Negatives (costs):   entity as source of Expense, Purchase, Capital Loss, Correction Debit
+                             entity as source of Sale (project acting as client)
+
+        Only counts non-deleted, non-reversed operations.
+        Raises ValueError if the fund's entity is not a project.
+        """
+        if not self.entity.project:
+            raise ValueError("profit_loss() is only defined for project funds.")
+
+        from apps.app_operation.models.operation import Operation
+        from apps.app_operation.models.operation_type import OperationType
+
+        INCOME_TYPES = [
+            OperationType.SALE,
+            OperationType.CAPITAL_GAIN,
+            OperationType.CORRECTION_CREDIT,
+        ]
+        COST_TYPES = [
+            OperationType.EXPENSE,
+            OperationType.PURCHASE,
+            OperationType.CAPITAL_LOSS,
+            OperationType.CORRECTION_DEBIT,
+        ]
+
+        base_qs = Operation.objects.filter(
+            reversal_of__isnull=True,
+            reversed_by__isnull=True,
+        )
+
+        from django.db.models import Q
+
+        income = (
+            base_qs.filter(
+                Q(destination=self.entity, operation_type__in=INCOME_TYPES)
+                | Q(destination=self.entity, operation_type=OperationType.PURCHASE)
+            )
+            .aggregate(total=Sum("amount"))["total"]
+            or Decimal("0.00")
+        )
+        costs = (
+            base_qs.filter(
+                Q(source=self.entity, operation_type__in=COST_TYPES)
+                | Q(source=self.entity, operation_type=OperationType.SALE)
+            )
+            .aggregate(total=Sum("amount"))["total"]
+            or Decimal("0.00")
+        )
+
+        return income - costs
 
 
 from django.utils.translation import gettext_lazy as _

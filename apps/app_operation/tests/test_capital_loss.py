@@ -254,6 +254,14 @@ class CapitalLossCreateTest(TestCase):
                 date=date.today(),
             )
 
+    # ------------------------------------------------------------------
+    # check_balance_on_payment
+    # ------------------------------------------------------------------
+
+    def test_check_balance_on_payment_is_disabled(self):
+        """Destination is the system entity; no fund balance gate on payment."""
+        self.assertFalse(CapitalLossOperation.check_balance_on_payment)
+
 
 class CapitalLossReversalTest(TestCase):
     def setUp(self):

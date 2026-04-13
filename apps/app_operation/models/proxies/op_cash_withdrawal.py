@@ -19,6 +19,7 @@ class CashWithdrawalOperation(Operation):
     _is_one_shot_operation = True
     has_repayment = False
     max_payment_transaction_count = 1
+    check_balance_on_payment = True
 
     class Meta:
         proxy = True
@@ -33,20 +34,6 @@ class CashWithdrawalOperation(Operation):
         return (
             self.destination.fund
         )  # clean_destination ensures this is the world entity
-
-    def clean(self):
-        super().clean()
-        if self.pk:
-            return  # immutability checks already ran; skip balance re-check on updates
-        try:
-            fund = self.payment_source_fund
-        except Exception:
-            return  # fund resolution failed; source validation will raise
-        if not fund.can_pay(self.amount):
-            raise ValidationError(
-                f"Insufficient funds: balance is {fund.balance}, "
-                f"cannot withdraw {self.amount}."
-            )
 
     def clean_source(self):
         if not self.source.person:

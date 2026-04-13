@@ -27,10 +27,10 @@ Tasks:
 - [x] Verify non-internal source raises ValidationError
 - [x] Verify destination must be an internal entity (`is_internal=True`)
 - [x] Verify non-internal destination raises ValidationError
-- [ ] Verify system entity as source raises ValidationError
-- [ ] Verify system entity as destination raises ValidationError
-- [ ] Verify world entity as source raises ValidationError
-- [ ] Verify world entity as destination raises ValidationError
+- [x] Verify system entity as source raises ValidationError
+- [x] Verify system entity as destination raises ValidationError
+- [x] Verify world entity as source raises ValidationError
+- [x] Verify world entity as destination raises ValidationError
 - [x] Verify both entities must be `active=True`
 - [x] Verify source fund must be `active=True`
 - [x] Verify source fund must have sufficient balance (insufficient funds raises ValidationError)

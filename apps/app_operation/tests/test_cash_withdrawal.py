@@ -7,7 +7,10 @@ from django.test import TestCase
 
 from apps.app_entity.models import Entity, Person, Project
 from apps.app_operation.models.operation_type import OperationType
-from apps.app_operation.models.proxies import CashInjectionOperation, CashWithdrawalOperation
+from apps.app_operation.models.proxies import (
+    CashInjectionOperation,
+    CashWithdrawalOperation,
+)
 from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
@@ -285,6 +288,22 @@ class CashWithdrawalCreateTest(TestCase):
             self.withdrawer_entity.fund.balance,
             balance_before - Decimal("300.00"),
         )
+
+    # ------------------------------------------------------------------
+    # check_balance_on_payment
+    # ------------------------------------------------------------------
+
+    def test_check_balance_on_payment_is_enabled(self):
+        """Balance is checked before each payment transaction is created."""
+        self.assertTrue(CashWithdrawalOperation.check_balance_on_payment)
+
+    def test_insufficient_funds_blocked(self):
+        """check_balance_on_payment=True: clean() enforces balance at creation time."""
+        broke_person = Person.create(private_name="Broke Person")
+        broke_entity = broke_person.entity
+        op = self._make_op(source=broke_entity, amount=Decimal("1.00"))
+        with self.assertRaises(ValidationError):
+            op.save()
 
     # ------------------------------------------------------------------
     # No funds → error

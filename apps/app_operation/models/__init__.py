@@ -1,6 +1,7 @@
 from .category import FinancialCategory, default_categories
 from .operation import Operation
 from .operation_type import OperationType
+from .period import FinancialPeriod
 from .proxies import (
     PROXY_MAP,
     CapitalGainOperation,
@@ -25,6 +26,7 @@ __all__ = [
     "Operation",
     "FinancialCategory",
     "default_categories",
+    "FinancialPeriod",
     "get_operation_class",
     "PROXY_MAP",
     "CashInjectionOperation",

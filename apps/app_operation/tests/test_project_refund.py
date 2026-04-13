@@ -348,6 +348,14 @@ class ProjectRefundCreateTest(TestCase):
         )
 
     # ------------------------------------------------------------------
+    # check_balance_on_payment
+    # ------------------------------------------------------------------
+
+    def test_check_balance_on_payment_is_disabled(self):
+        """Balance is enforced by clean() at creation; no per-payment gate needed."""
+        self.assertFalse(ProjectRefundOperation.check_balance_on_payment)
+
+    # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
 

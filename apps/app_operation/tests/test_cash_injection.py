@@ -242,6 +242,20 @@ class CashInjectionCreateTest(TestCase):
             )
 
     # ------------------------------------------------------------------
+    # check_balance_on_payment
+    # ------------------------------------------------------------------
+
+    def test_check_balance_on_payment_is_disabled(self):
+        """Payer is the world entity; balance is not enforced before issuing payment."""
+        self.assertFalse(CashInjectionOperation.check_balance_on_payment)
+
+    def test_injection_succeeds_regardless_of_prior_injections(self):
+        """World entity is never balance-checked; injection proceeds without limit."""
+        op = self._make_op(amount=Decimal("9_999_999.00"))
+        op.save()
+        self.assertIsNotNone(op.pk)
+
+    # ------------------------------------------------------------------
     # Balance
     # ------------------------------------------------------------------
 

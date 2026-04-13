@@ -35,11 +35,15 @@
             <div class="small">
               <span class="{% if tx.target == operation.source %}
                   
+                  
                                               fw-bold text-success
 
+
                 {% else %}
+                  
                             
                             text-muted
+
 
                 {% endif %}">
                 {{ tx.source.name }}
@@ -47,12 +51,16 @@
               <i class="bi bi-arrow-right px-1"></i>
               <span class="{% if tx.target == operation.source %}
                   
+                  
                             fw-bold text-primary
+
 
 
                 {% else %}
                   
+                  
                             text-muted
+
 
                 {% endif %}">
                 {{ tx.target.name }}
@@ -91,11 +99,6 @@
         </tr>
       {% endfor %}
     </tbody>
-    <tfoot class="table-secondary">
-      <tr>
-        {% comment %} <td colspan="2" class="fw-bold">Total Ledger Impact</td>
-        <td colspan="2" class="text-end fw-bold text-primary">${{ operation.get_cash_flow_balance }}</td> {% endcomment %}
-      </tr>
-    </tfoot>
+    <tfoot class="table-secondary"></tfoot>
   </table>
 </div>

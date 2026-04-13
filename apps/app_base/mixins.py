@@ -196,7 +196,8 @@ class LinkedIssuanceTransactionMixin(
         self, description="", note="", officer=None, date=None
     ):
         existing = self.get_all_transactions().filter(
-            type=self._issuance_transaction_type
+            type=self._issuance_transaction_type,
+            reversal_of__isnull=True,
         )
         if existing.exists():
             raise ValidationError(
@@ -252,6 +253,13 @@ class LinkedPaymentTransactionMixin(
     # the issuance transaction
     # and the single payment transaction
     _is_one_shot_operation = False
+    # Whether to enforce a fund balance check before creating a payment transaction.
+    # Set to True on operations where the payer is a real person/project entity.
+    # For one-shot operations this check runs at creation time (failing the whole op);
+    # for partial-payment operations it runs per payment while issuance is unrestricted.
+    # Leave False for operations whose payer is the system/world entity, or for
+    # admin correction operations that must never be blocked by fund balance.
+    check_balance_on_payment = False
     # End of flags
     # ################################################
     # Indicates the type of the issuance transaction
@@ -338,6 +346,14 @@ class LinkedPaymentTransactionMixin(
         self, amount, officer, date, description="", note=""
     ):
         from apps.app_transaction.models import Transaction
+
+        if self.check_balance_on_payment:
+            fund = self.payment_source_fund
+            if not fund.can_pay(amount):
+                raise ValidationError(
+                    f"Insufficient funds: fund balance ({fund.balance}) "
+                    f"is less than the payment amount ({amount})."
+                )
 
         if self._is_one_shot_operation:
             existing = self.get_all_transactions().filter(

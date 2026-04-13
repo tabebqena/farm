@@ -13,6 +13,10 @@ class CapitalLossOperation(Operation):
     _source_role = "url"
     _dest_role = "system"
     can_pay = False
+    # No balance check: capital loss is an accounting write-down entry, not a real cash
+    # outflow. The system entity sits on the destination side; the source entity is
+    # recording a loss, not transferring spendable funds.
+    check_balance_on_payment = False
     is_partially_payable = False
     has_category = False
     category_required = False
