@@ -45,7 +45,7 @@ class Operation(
     This class holds only shared fields and shared behavior.
     """
 
-    _immutable_fields = {"source": {}, "destination": {}, "amount": {}}
+    _immutable_fields = {"source": {}, "destination": {}, "amount": {}, "period": {}}
     _amount_name = "amount"
     _adjustments_related_name = "adjustments"
 
@@ -70,6 +70,13 @@ class Operation(
     )
     period = models.ForeignKey(
         "app_operation.FinancialPeriod",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="operations",
+    )
+    plan = models.ForeignKey(
+        "app_operation.DistributionPlan",
         on_delete=models.PROTECT,
         null=True,
         blank=True,
@@ -177,6 +184,18 @@ class Operation(
     # Reversal helpers
     # ------------------------------------------------------------------
 
+    def _reverse_period(self):
+        """Allow the reversal to set in a different period than the original.
+        Open periods are those with no end_date or a future end_date."""
+        from .period import FinancialPeriod
+
+        entity = self.period_entity
+        if entity:
+            return FinancialPeriod.objects.filter(entity=entity).filter(
+                Q(end_date__isnull=True) | Q(end_date__gte=today_date.today())
+            ).first()
+        return None
+
     @property
     def _reversable_transaction_types(self) -> List[TransactionType]:
         rv = []
@@ -221,16 +240,14 @@ class Operation(
         if not self.pk and not getattr(self, "reversal_of_id", None):
             entity = self.period_entity
             if entity:
-                from datetime import date as date_type
-
                 from .period import FinancialPeriod
 
                 closed = FinancialPeriod.objects.filter(
                     entity=entity,
                     end_date__isnull=False,
-                    end_date__lt=date_type.today(),
+                    end_date__lt=today_date.today(),  # truly closed: end_date in the past
                     start_date__lte=self.date,
-                    end_date__gte=self.date,
+                    end_date__gt=self.date,  # half-open interval: date < end_date
                 )
                 if closed.exists():
                     raise ValidationError(
@@ -239,7 +256,7 @@ class Operation(
         return super().clean()
 
     def save(self, *args, **kwargs):
-        # Auto-assign the current open period for new operations (never creates one).
+        # Auto-assign the period that contains this operation's date (never creates one).
         if (
             self.pk is None
             and self.period_id is None
@@ -247,14 +264,19 @@ class Operation(
         ):
             entity = self.period_entity
             if entity:
+                from django.db.models import Q
+
                 from .period import FinancialPeriod
 
                 self.period = FinancialPeriod.objects.filter(
-                    entity=entity, end_date__isnull=True
+                    entity=entity,
+                    start_date__lte=self.date,
+                ).filter(
+                    Q(end_date__isnull=True) | Q(end_date__gt=self.date)
                 ).first()
                 if self.period is None:
                     raise ValidationError(
-                        "Cannot create an operation: no open financial period exists for this entity."
+                        "Cannot create an operation: no financial period covers this operation's date."
                     )
         return super().save(*args, **kwargs)
 

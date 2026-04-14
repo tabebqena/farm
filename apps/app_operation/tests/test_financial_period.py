@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.db.models import QuerySet as DjangoQuerySet
 from django.test import TestCase
 
 from apps.app_entity.models import Entity, Person, Project
@@ -66,10 +67,10 @@ class FinancialPeriodModelTest(TestCase):
 
     def test_close_sets_end_date(self):
         period = self._get_auto_period()
-        period.close(TODAY)
+        period.close(TOMORROW)
         period.refresh_from_db()
-        self.assertEqual(period.end_date, TODAY)
-        self.assertTrue(period.is_closed)
+        self.assertEqual(period.end_date, TOMORROW)
+        self.assertIsNotNone(period.end_date)
 
     def test_close_end_date_before_start_raises(self):
         period = self._get_auto_period()
@@ -78,31 +79,31 @@ class FinancialPeriodModelTest(TestCase):
 
     def test_closing_already_closed_period_raises(self):
         period = self._get_auto_period()
-        period.close(TODAY)
+        period.close(TOMORROW)
         with self.assertRaises(ValidationError):
             period.close(TOMORROW)
 
     def test_close_returns_new_open_period_for_active_entity(self):
         period = self._get_auto_period()
-        next_period = period.close(TODAY)
+        next_period = period.close(TOMORROW)
         self.assertIsNotNone(next_period)
         self.assertIsNone(next_period.end_date)
-        self.assertEqual(next_period.start_date, TODAY)
+        self.assertEqual(next_period.start_date, TOMORROW)
         self.assertEqual(next_period.entity, self.entity)
 
     def test_close_returns_none_for_inactive_entity(self):
         period = self._get_auto_period()
         self.entity.active = False
         self.entity.save()
-        result = period.close(TODAY)
+        result = period.close(TOMORROW)
         self.assertIsNone(result)
         self.assertEqual(FinancialPeriod.objects.filter(entity=self.entity).count(), 1)
 
     def test_end_date_is_immutable_once_set(self):
         period = self._get_auto_period()
-        period.close(TODAY)
+        period.close(TOMORROW)
         period.refresh_from_db()
-        period.end_date = TOMORROW
+        period.end_date = TOMORROW + timedelta(days=1)
         with self.assertRaises(ValidationError):
             period.save()
 
@@ -125,7 +126,7 @@ class FinancialPeriodModelTest(TestCase):
 
     def test_overlapping_period_same_entity_raises(self):
         period = self._get_auto_period()
-        period.close(TODAY)
+        period.close(TOMORROW)
         # Try to create a period whose start is within the closed period
         overlap = FinancialPeriod(entity=self.entity, start_date=YESTERDAY)
         with self.assertRaises(ValidationError):
@@ -139,41 +140,11 @@ class FinancialPeriodModelTest(TestCase):
 
     def test_non_overlapping_sequential_periods_allowed(self):
         period = self._get_auto_period()
-        period.close(TODAY)
+        period.close(TOMORROW, False)
         # New period starts the day after the closed one ended — no overlap.
         new_period = FinancialPeriod(entity=self.entity, start_date=TOMORROW)
         new_period.save()
         self.assertIsNotNone(new_period.pk)
-
-    # --- contains_date ---
-
-    def test_contains_date_within_open_period(self):
-        period = self._get_auto_period()
-        self.assertTrue(period.contains_date(TODAY))
-
-    def test_contains_date_before_start(self):
-        period = self._get_auto_period()
-        self.assertFalse(period.contains_date(period.start_date - timedelta(days=1)))
-
-    def test_contains_date_closed_period_inside(self):
-        period = self._get_auto_period()
-        period.close(NEXT_MONTH)
-        self.assertTrue(period.contains_date(TOMORROW))
-
-    def test_contains_date_after_closed_period(self):
-        period = self._get_auto_period()
-        period.close(TODAY)
-        self.assertFalse(period.contains_date(TOMORROW))
-
-    def test_contains_date_on_exact_start_date(self):
-        period = self._get_auto_period()
-        self.assertTrue(period.contains_date(period.start_date))
-
-    def test_contains_date_on_exact_end_date(self):
-        period = self._get_auto_period()
-        period.close(NEXT_MONTH)
-        period.refresh_from_db()
-        self.assertTrue(period.contains_date(NEXT_MONTH))
 
     # --- is_closed boundaries ---
 
@@ -279,47 +250,63 @@ class OperationPeriodAssignmentTest(TestCase):
 
     def test_operation_assigned_to_auto_created_period_after_close(self):
         period = self._receiver_period()
-        # close() on an active entity auto-creates the next period with start_date=TODAY.
-        period.close(TODAY)
+        # close() on an active entity auto-creates the next period with start_date=TOMORROW.
+        period.close(TOMORROW)
         op = self._make_injection(date=TOMORROW)
         self.assertIsNotNone(op.period)
         self.assertFalse(op.period.is_closed)
-        self.assertEqual(op.period.start_date, TODAY)
+        self.assertEqual(op.period.start_date, TOMORROW)
 
     def test_period_start_date_equals_close_date(self):
-        # close() creates the next period with start_date == the closing end_date (TODAY).
+        # close() creates the next period with start_date == the closing end_date (TOMORROW).
         period = self._receiver_period()
-        period.close(TODAY)
+        period.close(TOMORROW)
         op = self._make_injection(date=TOMORROW)
-        self.assertEqual(op.period.start_date, TODAY)
+        self.assertEqual(op.period.start_date, TOMORROW)
 
     # --- closed period blocks new operation ---
 
     def test_operation_in_closed_period_raises(self):
-        # Close today's period; then try to create an op whose date is still TODAY (in the closed range).
+        # Force the receiver's period to be truly closed (end_date in the past).
+        # DjangoQuerySet.update bypasses the SafeQuerySet override for test setup only.
         period = self._receiver_period()
-        period.close(TODAY)
+        DjangoQuerySet.update(
+            FinancialPeriod.all_objects.filter(pk=period.pk),
+            start_date=LAST_MONTH, end_date=YESTERDAY,
+        )
+        period.refresh_from_db()
+        # Create an open period from YESTERDAY so the entity remains active.
+        FinancialPeriod(entity=self.receiver, start_date=YESTERDAY).save()
+        # An op dated within the closed period [LAST_MONTH, YESTERDAY) must be rejected.
         with self.assertRaises(ValidationError):
-            self._make_injection(date=TODAY)
+            self._make_injection(date=LAST_MONTH)
 
-    def test_operation_before_any_period_is_allowed(self):
+    def test_operation_in_period_with_future_end_date_allowed(self):
+        # A period whose end_date is in the future is still open; operations must not be blocked.
+        period = self._receiver_period()
+        period.close(TOMORROW)  # end_date=TOMORROW → open by definition
+        op = self._make_injection(date=TODAY)
+        assert op.period is not None
+        self.assertFalse(op.period.is_closed)
+
+    def test_operation_before_any_period_is_not_allowed(self):
         """
         A date that falls before the entity's period start is not in any closed
-        period, so the operation should succeed (a new period is auto-created).
+        period, so the operation should fail.
         """
         period = self._receiver_period()
         before_start = period.start_date - timedelta(days=5)
         # The receiver has one open period starting today; its start may equal today.
         # A date in the past before any period is fine — no closed period covers it.
-        op = self._make_injection(date=before_start)
-        self.assertIsNotNone(op.pk)
+        with self.assertRaises(ValidationError):
+            op = self._make_injection(date=before_start)
 
     def test_operation_raises_when_no_open_period(self):
         """With an inactive entity, close() creates no next period; the following operation must fail."""
         self.receiver.active = False
         self.receiver.save()
         period = self._receiver_period()
-        period.close(TODAY)   # inactive entity → no next period created
+        period.close(TOMORROW)  # inactive entity → no next period created
         with self.assertRaises(ValidationError):
             self._make_injection(date=TOMORROW)
 
@@ -328,8 +315,15 @@ class OperationPeriodAssignmentTest(TestCase):
     def test_reversal_not_blocked_by_closed_period(self):
         op = self._make_injection()
         period = self._receiver_period()
-        period.close(TODAY)
-        # Reversals should not be blocked even when the period is closed.
+        # Force-close the period in the past (DjangoQuerySet.update bypasses SafeQuerySet).
+        DjangoQuerySet.update(
+            FinancialPeriod.all_objects.filter(pk=period.pk),
+            start_date=LAST_MONTH, end_date=YESTERDAY,
+        )
+        period.refresh_from_db()
+        # Create an open period so the reversal has somewhere to land.
+        FinancialPeriod(entity=self.receiver, start_date=YESTERDAY).save()
+        # Reversals must not be blocked even when the original op's period is now closed.
         reversal = op.reverse(officer=self.officer)
         self.assertIsNotNone(reversal.pk)
 

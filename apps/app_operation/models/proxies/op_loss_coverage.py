@@ -1,3 +1,7 @@
+from decimal import Decimal
+
+from django.core.exceptions import ValidationError
+
 from apps.app_operation.models.operation import Operation
 from apps.app_transaction.transaction_type import TransactionType
 
@@ -54,4 +58,38 @@ class LossCoverageOperation(Operation):
     @property
     def project(self):
         return self.destination
+
+    def clean(self):
+        if self.plan_id is None:
+            raise ValidationError(
+                "Loss Coverage requires a Distribution Plan."
+            )
+        plan = self.plan
+        if not plan.is_loss:
+            raise ValidationError(
+                "The linked Distribution Plan has no loss to cover "
+                f"(amount={plan.amount})."
+            )
+        if self.amount is not None:
+            remaining = plan.remaining_coverable
+            # Exclude the current operation's own amount when editing
+            if self.pk:
+                from apps.app_operation.models.operation import Operation
+                from apps.app_operation.models.operation_type import OperationType
+                own = (
+                    Operation.objects.filter(
+                        pk=self.pk,
+                        operation_type=OperationType.LOSS_COVERAGE,
+                        reversal_of__isnull=True,
+                        reversed_by__isnull=True,
+                    ).values_list("amount", flat=True).first()
+                    or Decimal("0.00")
+                )
+                remaining += own
+            if self.amount > remaining:
+                raise ValidationError(
+                    f"Amount {self.amount} exceeds remaining coverable loss "
+                    f"{remaining} for this plan."
+                )
+        return super().clean()
 

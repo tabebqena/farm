@@ -1,4 +1,5 @@
 from .category import FinancialCategory, default_categories
+from .distribution_plan import DistributionPlan, ShareholderAllocation
 from .operation import Operation
 from .operation_type import OperationType
 from .period import FinancialPeriod
@@ -27,6 +28,8 @@ __all__ = [
     "FinancialCategory",
     "default_categories",
     "FinancialPeriod",
+    "DistributionPlan",
+    "ShareholderAllocation",
     "get_operation_class",
     "PROXY_MAP",
     "CashInjectionOperation",

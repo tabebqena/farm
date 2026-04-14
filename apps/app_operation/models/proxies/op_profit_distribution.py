@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.core.exceptions import ValidationError
 
 from apps.app_operation.models.operation import Operation
@@ -68,4 +70,38 @@ class ProfitDistributionOperation(Operation):
             raise ValidationError(
                 "Profit Distribution destination must be a Shareholder."
             )
+
+    def clean(self):
+        if self.plan_id is None:
+            raise ValidationError(
+                "Profit Distribution requires a Distribution Plan."
+            )
+        plan = self.plan
+        if not plan.is_profit:
+            raise ValidationError(
+                "The linked Distribution Plan has no profit to distribute "
+                f"(amount={plan.amount})."
+            )
+        if self.amount is not None:
+            remaining = plan.remaining_distributable
+            # Exclude the current operation's own amount when editing
+            if self.pk:
+                from apps.app_operation.models.operation import Operation
+                from apps.app_operation.models.operation_type import OperationType
+                own = (
+                    Operation.objects.filter(
+                        pk=self.pk,
+                        operation_type=OperationType.PROFIT_DISTRIBUTION,
+                        reversal_of__isnull=True,
+                        reversed_by__isnull=True,
+                    ).values_list("amount", flat=True).first()
+                    or Decimal("0.00")
+                )
+                remaining += own
+            if self.amount > remaining:
+                raise ValidationError(
+                    f"Amount {self.amount} exceeds remaining distributable profit "
+                    f"{remaining} for this plan."
+                )
+        return super().clean()
 
