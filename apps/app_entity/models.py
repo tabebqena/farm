@@ -3,7 +3,6 @@ from enum import Enum
 
 from django.contrib.auth import get_user_model
 from django.db import models, transaction
-from django.db.models import Sum
 from django.forms import ValidationError
 from django.urls import reverse
 
@@ -118,18 +117,12 @@ class Fund(ImmutableMixin, BaseModel):
             reversed_by__isnull=True,
             type__in=TransactionType.payment_types(),
         )
-        incoming = (
-            Transaction.objects.filter(target=self, **valid).aggregate(
-                total=Sum("amount")
-            )["total"]
-            or Decimal("0.00")
-        )
-        outgoing = (
-            Transaction.objects.filter(source=self, **valid).aggregate(
-                total=Sum("amount")
-            )["total"]
-            or Decimal("0.00")
-        )
+        incoming = Transaction.objects.filter(target=self, **valid).aggregate(
+            total=Sum("amount")
+        )["total"] or Decimal("0.00")
+        outgoing = Transaction.objects.filter(source=self, **valid).aggregate(
+            total=Sum("amount")
+        )["total"] or Decimal("0.00")
         return incoming - outgoing
 
     def can_pay(self, amount: Decimal) -> bool:
@@ -141,57 +134,100 @@ class Fund(ImmutableMixin, BaseModel):
 
     def profit_loss(self) -> Decimal:
         """
-        Calculates P&L for a project fund.
+        P&L for a project fund, driven by issuance transactions so that
+        adjustments (discounts, returns, surcharges) are included automatically.
 
-        Positives (income):  entity as destination of Sale, Capital Gain, Correction Credit
-                             entity as destination of Purchase (project acting as vendor)
-        Negatives (costs):   entity as source of Expense, Purchase, Capital Loss, Correction Debit
-                             entity as source of Sale (project acting as client)
+        Income: issuance transactions where this fund is the target
+                (Sale, Capital Gain, Correction Credit, and Purchase where project is vendor).
+        Costs:  issuance transactions where this fund is the source
+                (Purchase, Expense, Capital Loss, Correction Debit, and Sale where project is client).
+        Adjustments: net of INCREASE minus DECREASE per Adjustment.effect,
+                     resolved through the transaction records created at adjustment time.
 
-        Only counts non-deleted, non-reversed operations.
         Raises ValueError if the fund's entity is not a project.
         """
         if not self.entity.project:
             raise ValueError("profit_loss() is only defined for project funds.")
 
-        from apps.app_operation.models.operation import Operation
+        from django.contrib.contenttypes.models import ContentType
+        from django.db.models import Sum
+
+        from apps.app_adjustment.models import Adjustment, AdjustmentEffect
         from apps.app_operation.models.operation_type import OperationType
+        from apps.app_transaction.models import Transaction
+        from apps.app_transaction.transaction_type import TransactionType
 
-        INCOME_TYPES = [
-            OperationType.SALE,
-            OperationType.CAPITAL_GAIN,
-            OperationType.CORRECTION_CREDIT,
-        ]
-        COST_TYPES = [
-            OperationType.EXPENSE,
-            OperationType.PURCHASE,
-            OperationType.CAPITAL_LOSS,
-            OperationType.CORRECTION_DEBIT,
-        ]
+        fund = self.entity.fund
 
-        base_qs = Operation.objects.filter(
+        tx_valid = dict(
+            deleted_at__isnull=True,
             reversal_of__isnull=True,
             reversed_by__isnull=True,
         )
 
-        from django.db.models import Q
+        # fund direction disambiguates the edge cases naturally:
+        # - target=fund + PURCHASE_ISSUANCE → project acting as vendor (income)
+        # - source=fund + PURCHASE_ISSUANCE → project acting as buyer  (cost)
+        # - target=fund + SALE_ISSUANCE     → project acting as seller (income, but filtered via source below)
+        # - source=fund + SALE_ISSUANCE     → project acting as client (cost)
+        income = Transaction.objects.filter(
+            target=fund,
+            type__in=[
+                TransactionType.SALE_ISSUANCE,
+                TransactionType.CAPITAL_GAIN_ISSUANCE,
+                TransactionType.CORRECTION_CREDIT_ISSUANCE,
+                TransactionType.PURCHASE_ISSUANCE,  # project as vendor
+            ],
+            **tx_valid,
+        ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+        costs = Transaction.objects.filter(
+            source=fund,
+            type__in=[
+                TransactionType.PURCHASE_ISSUANCE,
+                TransactionType.EXPENSE_ISSUANCE,
+                TransactionType.CAPITAL_LOSS_ISSUANCE,
+                TransactionType.CORRECTION_DEBIT_ISSUANCE,
+                TransactionType.SALE_ISSUANCE,  # project as client
+            ],
+            **tx_valid,
+        ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
 
-        income = (
-            base_qs.filter(
-                Q(destination=self.entity, operation_type__in=INCOME_TYPES)
-                | Q(destination=self.entity, operation_type=OperationType.PURCHASE)
-            )
-            .aggregate(total=Sum("amount"))["total"]
-            or Decimal("0.00")
+        # Adjustment transactions carry no effect flag — the sign lives on Adjustment.effect.
+        # Resolve via content_type + object_id subquery.
+        adj_ct = ContentType.objects.get_for_model(Adjustment)
+        adj_valid = dict(
+            deleted_at__isnull=True,
+            reversal_of__isnull=True,
+            reversed_by__isnull=True,
         )
-        costs = (
-            base_qs.filter(
-                Q(source=self.entity, operation_type__in=COST_TYPES)
-                | Q(source=self.entity, operation_type=OperationType.SALE)
-            )
-            .aggregate(total=Sum("amount"))["total"]
-            or Decimal("0.00")
+
+        def _adj_tx_sum(adj_qs):
+            ids = adj_qs.values_list("id", flat=True)
+            return Transaction.objects.filter(
+                content_type=adj_ct, object_id__in=ids, **tx_valid
+            ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+
+        # Income adjustments: project is the destination of the adjusted operation
+        income_adjs = Adjustment.objects.filter(
+            **adj_valid,
+            operation__destination=self.entity,
+            operation__operation_type__in=[OperationType.SALE, OperationType.PURCHASE],
         )
+        income += _adj_tx_sum(income_adjs.filter(effect=AdjustmentEffect.INCREASE))
+        income -= _adj_tx_sum(income_adjs.filter(effect=AdjustmentEffect.DECREASE))
+
+        # Cost adjustments: project is the source of the adjusted operation
+        cost_adjs = Adjustment.objects.filter(
+            **adj_valid,
+            operation__source=self.entity,
+            operation__operation_type__in=[
+                OperationType.PURCHASE,
+                OperationType.EXPENSE,
+                OperationType.SALE,  # project as client
+            ],
+        )
+        costs += _adj_tx_sum(cost_adjs.filter(effect=AdjustmentEffect.INCREASE))
+        costs -= _adj_tx_sum(cost_adjs.filter(effect=AdjustmentEffect.DECREASE))
 
         return income - costs
 

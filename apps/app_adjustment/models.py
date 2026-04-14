@@ -3,6 +3,7 @@ from typing import List
 from django.db import models
 from django.forms import ValidationError
 
+from apps.app_adjustment._effect import AdjustmentEffect
 from apps.app_base.mixins import (
     AmountCleanMixin,
     ImmutableMixin,
@@ -11,7 +12,6 @@ from apps.app_base.mixins import (
 )
 from apps.app_base.models import BaseModel, ReversableModel
 from apps.app_operation.models.operation_type import OperationType
-from apps.app_operation.models.proxies import PROXY_MAP
 from apps.app_transaction.models import TransactionType
 
 
@@ -26,11 +26,19 @@ class AdjustmentType(models.TextChoices):
     PURCHASE_OVERCHARGE = "PUR_OVER", "Purchase: Price Overcharge Correction (Credit)"
     PURCHASE_SHORTAGE = "PUR_SHORT", "Purchase: Quantity Shortage (Credit)"
     PURCHASE_DAMAGE = "PUR_DAM", "Purchase: Damage Allowance (Credit)"
+    PURCHASE_GENERAL_REDUCTION = (
+        "PUR_G_RED",
+        "Purchase: Reduction of the amount of the purchase by a not mentioned cause",
+    )
 
     # Increases in what WE owe the Vendor
     PURCHASE_UNDERCHARGE = "PUR_UNDER", "Purchase: Price Undercharge Correction (Debit)"
     PURCHASE_TAX_ADDITION = "PUR_TAX", "Purchase: Tax Undercharge (Debit)"
     PURCHASE_FREIGHT = "PUR_FREIGHT", "Purchase: Unbilled Freight (Debit)"
+    PURCHASE_GENERAL_INCREASE = (
+        "PUR_G_INC",
+        "Purchase: Increase of the amount of the purchase by a not mentioned cause",
+    )
 
     # ==========================
     # SALE ADJUSTMENTS (Their Debts)
@@ -43,15 +51,31 @@ class AdjustmentType(models.TextChoices):
     SALE_SHORTAGE = "SALE_SHORT", "Sale: Quantity Shortage (Credit)"
     SALE_DAMAGE = "SALE_DAM", "Sale: Damage Allowance (Credit)"
     SALE_WRITE_OFF = "SALE_WRITE", "Sale: Bad Debt Write-off (Credit)"
+    SALE_GENERAL_REDUCTION = (
+        "SALE_G_RED",
+        "Sale: Reduction of the amount of the sale by a not mentioned cause",
+    )
 
     # Increases in what the CLIENT owes us
     SALE_UNDERCHARGE = "SALE_UNDER", "Sale: Price Undercharge Correction (Debit)"
     SALE_TAX_ADDITION = "SALE_TAX", "Sale: Tax Undercharge (Debit)"
     SALE_LATE_FEE = "SALE_FEE", "Sale: Late Payment Penalty (Debit)"
+    SALE_GENERAL_INCREASE = (
+        "SALE_G_INC",
+        "Sale: Increase of the amount of the sale by a not mentioned cause",
+    )
 
     # ==========================
     # PROPERTIES
     # ==========================
+    @classmethod
+    def is_general(cls, tp):
+        return tp in (
+            AdjustmentType.PURCHASE_GENERAL_INCREASE,
+            AdjustmentType.PURCHASE_GENERAL_REDUCTION,
+            AdjustmentType.SALE_GENERAL_INCREASE,
+            AdjustmentType.SALE_GENERAL_REDUCTION,
+        )
 
     @classmethod
     def is_reduction(cls, tp):
@@ -68,12 +92,9 @@ class AdjustmentType(models.TextChoices):
             AdjustmentType.SALE_SHORTAGE,
             AdjustmentType.SALE_DAMAGE,
             AdjustmentType.SALE_WRITE_OFF,
+            AdjustmentType.PURCHASE_GENERAL_REDUCTION,
+            AdjustmentType.SALE_GENERAL_REDUCTION,
         )
-
-
-class AdjustmentEffect(models.TextChoices):
-    INCREASE = "INCREASE", "Increase Original Amount"
-    DECREASE = "DECREASE", "Decrease Original Amount"
 
 
 class Adjustment(
@@ -102,7 +123,7 @@ class Adjustment(
         max_length=10,
         choices=AdjustmentEffect.choices,
     )
-    reason = models.TextField()
+    reason = models.TextField(blank=True)
     date = models.DateField()
     officer = models.ForeignKey(
         "app_entity.Entity",
@@ -136,18 +157,15 @@ class Adjustment(
             OperationType.EXPENSE,
         ):
             raise ValidationError("This operation cannot be adjusted.")
-        proxy_cls = PROXY_MAP.get(self.operation.operation_type)
-        if proxy_cls and proxy_cls._is_one_shot_operation:
-            raise ValidationError(
-                "One-shot operations cannot be adjusted. Please reverse and redo instead."
-            )
+        if AdjustmentType.is_general(self.type) and not self.reason:
+            raise ValidationError("Reason is required in general adjustment types.")
 
         return super().clean()
 
     def save(self, *args, **kwargs):
         # 2. Automatically set the effect before validation/save
         if AdjustmentType.is_reduction(self.type):
-            self.effect = Adjustment.DECREASE
+            self.effect = AdjustmentEffect.DECREASE
         else:
             self.effect = AdjustmentEffect.INCREASE
         return super().save(*args, **kwargs)
