@@ -27,13 +27,11 @@ class CashWithdrawalOperation(Operation):
 
     @property
     def payment_source_fund(self):
-        return self.source.fund  # clean_source ensures this is a person
+        return self.source  # clean_source ensures this is a person
 
     @property
     def payment_target_fund(self):
-        return (
-            self.destination.fund
-        )  # clean_destination ensures this is the world entity
+        return self.destination  # clean_destination ensures this is the world entity
 
     def clean_source(self):
         if not self.source.is_person:

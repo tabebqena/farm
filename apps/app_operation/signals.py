@@ -19,4 +19,4 @@ def create_initial_period(sender, instance, created, **kwargs):
 def register():
     from apps.app_entity.models import Entity
 
-    post_save.connect(create_initial_period, sender=Entity)
+    # post_save.connect(create_initial_period, sender=Entity)

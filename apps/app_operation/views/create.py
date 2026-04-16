@@ -12,7 +12,6 @@ from django.utils.translation import gettext as _
 from django.views import View
 
 from apps.app_inventory.forms import InvoiceItemCreateFormSet, InvoiceItemSelectFormSet
-from apps.app_inventory.models import Invoice
 from apps.app_operation.models import FinancialCategory
 from apps.app_operation.models.proxies import PROXY_MAP, get_canonical_type
 
@@ -119,7 +118,8 @@ class OperationCreateView(View):
         )
 
     def _make_formset(self, data=None):
-        return _build_formset(self.proxy_cls, data=data, instance=Invoice(), project=self.project)
+        from apps.app_operation.models.operation import Operation
+        return _build_formset(self.proxy_cls, data=data, instance=Operation(), project=self.project)
 
     def _compute_amount(self, formset):
         if self.has_invoice and formset:
@@ -168,13 +168,12 @@ class OperationCreateView(View):
             )
 
     def _process_invoice(self, op):
-        invoice = Invoice.objects.create(operation=op)
         bound_formset = _build_formset(
-            self.proxy_cls, data=self.request.POST, instance=invoice, project=self.project
+            self.proxy_cls, data=self.request.POST, instance=op, project=self.project
         )
         bound_formset.is_valid()  # already validated; re-bind to saved instance
         bound_formset.save()
-        op.save_inventory(bound_formset, invoice)
+        op.save_inventory(bound_formset)
 
     def _build_context(self, *, formset, amount=Decimal("0.00"), date=None,
                        description="", selected_category_id=None, errors=None):

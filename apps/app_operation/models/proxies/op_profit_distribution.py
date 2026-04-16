@@ -33,11 +33,11 @@ class ProfitDistributionOperation(Operation):
 
     @property
     def payment_source_fund(self):
-        return self.source.fund  # clean_source ensures this is a project
+        return self.source  # clean_source ensures this is a project
 
     @property
     def payment_target_fund(self):
-        return self.destination.fund  # clean_destination ensures this is a shareholder
+        return self.destination  # clean_destination ensures this is a shareholder
 
     @property
     def project(self):

@@ -22,7 +22,6 @@ from apps.app_adjustment.models import (
 )
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
 from apps.app_inventory.models import (
-    Invoice,
     InvoiceItem,
     Product,
     ProductLedgerEntry,
@@ -112,11 +111,10 @@ def _make_product_template(name="Cattle"):
 
 
 def _make_invoice_with_item(operation, template, quantity, unit_price):
-    invoice = Invoice.objects.create(operation=operation)
     item = InvoiceItem.objects.create(
-        invoice=invoice, product=template, quantity=quantity, unit_price=unit_price
+        operation=operation, product=template, quantity=quantity, unit_price=unit_price
     )
-    return invoice, item
+    return item
 
 
 def _make_product_for_item(template, item, unit_price, quantity=1):
@@ -167,7 +165,7 @@ class FinalizationTest(TestCase):
 
     def _purchase_setup(self, qty, price):
         op = _make_purchase_op(self.project, self.vendor, self.officer, qty * price)
-        _, item = _make_invoice_with_item(op, self.template, qty, price)
+        item = _make_invoice_with_item(op, self.template, qty, price)
         _make_product_for_item(self.template, item, price)
         return op, item
 
@@ -267,13 +265,13 @@ class LedgerEntryTest(TestCase):
 
     def _purchase_setup(self, qty, price):
         op = _make_purchase_op(self.project, self.vendor, self.officer, qty * price)
-        _, item = _make_invoice_with_item(op, self.template, qty, price)
+        item = _make_invoice_with_item(op, self.template, qty, price)
         product = _make_product_for_item(self.template, item, price)
         return op, item, product
 
     def _sale_setup(self, qty, price):
         op = _make_sale_op(self.client, self.project, self.officer, qty * price)
-        _, item = _make_invoice_with_item(op, self.template, qty, price)
+        item = _make_invoice_with_item(op, self.template, qty, price)
         product = _make_product_for_item(self.template, item, price)
         return op, item, product
 
@@ -420,7 +418,7 @@ class ValidationTest(TestCase):
 
     def test_line_requires_at_least_one_change_field(self):
         op = _make_purchase_op(self.project, self.vendor, self.officer)
-        _, item = _make_invoice_with_item(
+        item = _make_invoice_with_item(
             op, self.template, Decimal("5"), Decimal("100.00")
         )
         ia = _make_item_adj(
@@ -439,7 +437,7 @@ class ValidationTest(TestCase):
         op2 = _make_purchase_op(
             self.project, self.vendor, self.officer, Decimal("500.00")
         )
-        _, item_of_op2 = _make_invoice_with_item(
+        item_of_op2 = _make_invoice_with_item(
             op2, self.template, Decimal("5"), Decimal("100.00")
         )
         ia = _make_item_adj(
@@ -467,7 +465,7 @@ class ImmutabilityTest(TestCase):
         _link_vendor(self.project, self.vendor)
         self.template = _make_product_template()
         self.op = _make_purchase_op(self.project, self.vendor, self.officer)
-        _, self.item = _make_invoice_with_item(
+        self.item = _make_invoice_with_item(
             self.op, self.template, Decimal("10"), Decimal("100.00")
         )
 
@@ -520,7 +518,7 @@ class ReversalTest(TestCase):
         op = _make_purchase_op(
             self.project, self.vendor, self.officer, Decimal("1000.00")
         )
-        _, item = _make_invoice_with_item(
+        item = _make_invoice_with_item(
             op, self.template, Decimal("10"), Decimal("100.00")
         )
         _make_product_for_item(self.template, item, Decimal("100.00"))
@@ -541,7 +539,7 @@ class ReversalTest(TestCase):
         op = _make_purchase_op(
             self.project, self.vendor, self.officer, Decimal("500.00")
         )
-        _, item = _make_invoice_with_item(
+        item = _make_invoice_with_item(
             op, self.template, Decimal("5"), Decimal("100.00")
         )
         product = _make_product_for_item(self.template, item, Decimal("100.00"))
@@ -566,7 +564,7 @@ class ReversalTest(TestCase):
         op = _make_purchase_op(
             self.project, self.vendor, self.officer, Decimal("1000.00")
         )
-        _, item = _make_invoice_with_item(
+        item = _make_invoice_with_item(
             op, self.template, Decimal("10"), Decimal("100.00")
         )
         _make_product_for_item(self.template, item, Decimal("100.00"))

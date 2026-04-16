@@ -4,32 +4,32 @@ from django.db import transaction as db_transaction
 
 class Command(BaseCommand):
     help = (
-        "Backfill ProductLedgerEntry rows from existing Invoice records. "
+        "Backfill ProductLedgerEntry rows from existing Operation items. "
         "Safe to re-run — get_or_create skips already-written entries."
     )
 
     def handle(self, *args, **options):
-        from apps.app_inventory.models import Invoice, ProductLedgerEntry
+        from apps.app_inventory.models import ProductLedgerEntry
+        from apps.app_operation.models.operation import Operation
 
-        invoices = (
-            Invoice.objects.select_related("operation")
+        operations = (
+            Operation.objects.filter(items__isnull=False)
             .prefetch_related("items__products")
-            .order_by("operation__date", "pk")
+            .distinct()
+            .order_by("date", "pk")
         )
 
         total_created = total_skipped = 0
 
-        for invoice in invoices:
+        for op in operations:
             with db_transaction.atomic():
-                created, skipped = ProductLedgerEntry.record(invoice)
+                created, skipped = ProductLedgerEntry.record(op)
                 total_created += created
                 total_skipped += skipped
 
                 # If the operation was reversed, also write the negating entries.
-                if invoice.operation.reversed_by_id is not None:
-                    created, skipped = ProductLedgerEntry.record(
-                        invoice, negate=True
-                    )
+                if op.reversed_by_id is not None:
+                    created, skipped = ProductLedgerEntry.record(op, negate=True)
                     total_created += created
                     total_skipped += skipped
 

@@ -95,8 +95,8 @@
 
           <div class="bg-light rounded p-3 text-start">
             <label class="small text-muted text-uppercase fw-bold">{% trans 'Current Fund Balance' %}</label>
-            <h2 class="mb-0 fw-bold text-dark">{{ entity.fund.currency|default:'$' }} {{ entity.fund.balance|default:'0.00' }}</h2>
-            {% if not entity.fund.active %}
+            <h2 class="mb-0 fw-bold text-dark">{{ entity.currency|default:'$' }} {{ entity.balance|default:'0.00' }}</h2>
+            {% if not entity.active %}
               <small class="text-danger"><i class="bi bi-lock-fill"></i> {% trans 'Fund is locked for payments' %}</small>
             {% endif %}
           </div>

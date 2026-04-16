@@ -1,7 +1,8 @@
 from django import forms
 from django.forms import BaseInlineFormSet, inlineformset_factory
 
-from .models import Invoice, InvoiceItem, Product, ProductTemplate
+from apps.app_operation.models.operation import Operation
+from .models import InvoiceItem, Product, ProductTemplate
 
 
 # ---------------------------------------------------------------------------
@@ -76,7 +77,7 @@ class BaseInvoiceItemCreateFormSet(BaseInlineFormSet):
 
 
 InvoiceItemCreateFormSet = inlineformset_factory(
-    Invoice,
+    Operation,
     InvoiceItem,
     form=InvoiceItemCreateForm,
     formset=BaseInvoiceItemCreateFormSet,
@@ -124,7 +125,7 @@ class InvoiceItemSelectForm(forms.ModelForm):
 
 
 InvoiceItemSelectFormSet = inlineformset_factory(
-    Invoice,
+    Operation,
     InvoiceItem,
     form=InvoiceItemSelectForm,
     extra=1,

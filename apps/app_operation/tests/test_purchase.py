@@ -135,8 +135,8 @@ class PurchaseCreateTest(TestCase):
         op.save()
 
         tx = op.get_all_transactions().get(type=TransactionType.PURCHASE_ISSUANCE)
-        self.assertEqual(tx.source, self.project_entity.fund)
-        self.assertEqual(tx.target, self.vendor_entity.fund)
+        self.assertEqual(tx.source, self.project_entity)
+        self.assertEqual(tx.target, self.vendor_entity)
 
     def test_issuance_transaction_amount_matches_operation(self):
         op = self._make_op(amount=Decimal("750.00"))
@@ -147,13 +147,13 @@ class PurchaseCreateTest(TestCase):
 
     def test_project_fund_balance_unchanged_after_save(self):
         """PURCHASE_ISSUANCE is non-cash; it does not affect fund balances."""
-        balance_before = self.project_entity.fund.balance
+        balance_before = self.project_entity.balance
 
         op = self._make_op(amount=Decimal("800.00"))
         op.save()
 
-        self.project_entity.fund.refresh_from_db()
-        self.assertEqual(self.project_entity.fund.balance, balance_before)
+        self.project_entity.refresh_from_db()
+        self.assertEqual(self.project_entity.balance, balance_before)
 
     def test_amount_remaining_to_settle_equals_full_amount_after_creation(self):
         op = self._make_op(amount=Decimal("1200.00"))
@@ -186,8 +186,8 @@ class PurchaseCreateTest(TestCase):
             op.save()
 
     def test_source_fund_must_be_active(self):
-        self.project_entity.fund.active = False
-        self.project_entity.fund.save()
+        self.project_entity.active = False
+        self.project_entity.save()
 
         op = self._make_op()
         with self.assertRaises(ValidationError):
@@ -302,7 +302,7 @@ class PurchasePaymentTest(TestCase):
     Tests for PURCHASE_PAYMENT transactions.
 
     The project records a purchase obligation on save (PURCHASE_ISSUANCE, non-cash).
-    Payments are created explicitly and move funds: project.fund → vendor.fund.
+    Payments are created explicitly and move funds: project → vendor.
     Multiple partial payments are allowed, up to the total operation amount.
     """
 
@@ -355,8 +355,8 @@ class PurchasePaymentTest(TestCase):
         self._pay(Decimal("400.00"))
 
         tx = self.op.get_all_transactions().get(type=TransactionType.PURCHASE_PAYMENT)
-        self.assertEqual(tx.source, self.project_entity.fund)
-        self.assertEqual(tx.target, self.vendor_entity.fund)
+        self.assertEqual(tx.source, self.project_entity)
+        self.assertEqual(tx.target, self.vendor_entity)
 
     def test_amount_remaining_to_settle_decreases_after_payment(self):
         self._pay(Decimal("400.00"))
@@ -388,24 +388,24 @@ class PurchasePaymentTest(TestCase):
         self.assertEqual(self.op.amount_remaining_to_settle, Decimal("0.00"))
 
     def test_project_fund_decreases_by_payment_amount(self):
-        balance_before = self.project_entity.fund.balance
+        balance_before = self.project_entity.balance
 
         self._pay(Decimal("600.00"))
 
-        self.project_entity.fund.refresh_from_db()
+        self.project_entity.refresh_from_db()
         self.assertEqual(
-            self.project_entity.fund.balance,
+            self.project_entity.balance,
             balance_before - Decimal("600.00"),
         )
 
     def test_vendor_fund_increases_by_payment_amount(self):
-        balance_before = self.vendor_entity.fund.balance
+        balance_before = self.vendor_entity.balance
 
         self._pay(Decimal("600.00"))
 
-        self.vendor_entity.fund.refresh_from_db()
+        self.vendor_entity.refresh_from_db()
         self.assertEqual(
-            self.vendor_entity.fund.balance,
+            self.vendor_entity.balance,
             balance_before + Decimal("600.00"),
         )
 
@@ -568,12 +568,12 @@ class PurchaseReversalTest(TestCase):
 
     def test_project_fund_unchanged_after_reversal(self):
         """Issuance is non-cash; reversing it leaves the project fund balance untouched."""
-        balance_before_reversal = self.project_entity.fund.balance
+        balance_before_reversal = self.project_entity.balance
 
         self.op.reverse(officer=self.officer_user)
 
-        self.project_entity.fund.refresh_from_db()
-        self.assertEqual(self.project_entity.fund.balance, balance_before_reversal)
+        self.project_entity.refresh_from_db()
+        self.assertEqual(self.project_entity.balance, balance_before_reversal)
 
     # ------------------------------------------------------------------
     # Reversal blocked by existing payment

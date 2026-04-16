@@ -2,7 +2,7 @@ from decimal import Decimal
 
 from django.db import models
 from django.db.models import DecimalField, ExpressionWrapper, F, Sum
-from django.forms import ValidationError
+from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 
 from apps.app_base.mixins import AmountCleanMixin
@@ -60,15 +60,15 @@ class ProductLedgerEntry(BaseModel):
     # ------------------------------------------------------------------
 
     @classmethod
-    def record(cls, invoice, negate: bool = False) -> tuple[int, int]:
+    def record(cls, operation, negate: bool = False) -> tuple[int, int]:
         """
-        Write ledger entries for every product linked to *invoice*.
+        Write ledger entries for every product linked to *operation*.
 
         Must be called inside a ``db_transaction.atomic()`` block, **after**
         all InvoiceItems and their Product M2M links are fully committed.
 
         ``negate=True`` flips the signs and marks entries as REVERSAL — use
-        this when recording the cancellation of a previously recorded invoice
+        this when recording the cancellation of a previously recorded operation
         (e.g. after ``operation.reverse()``).
 
         Returns ``(created, skipped)`` counts.
@@ -84,8 +84,7 @@ class ProductLedgerEntry(BaseModel):
             OperationType.CAPITAL_LOSS: (cls.EntryType.CAPITAL_LOSS, 0, -1),
         }
 
-        op = invoice.operation
-        mapping = _MAP.get(op.operation_type)
+        mapping = _MAP.get(operation.operation_type)
         if mapping is None:
             return 0, 0
 
@@ -97,10 +96,10 @@ class ProductLedgerEntry(BaseModel):
             entry_type = cls.EntryType.REVERSAL
 
         key_prefix = "rev_" if negate else ""
-        date = op.date
+        date = operation.date
         created_count = skipped_count = 0
 
-        for item in invoice.items.prefetch_related("products").all():
+        for item in operation.items.prefetch_related("products").all():
             for product in item.products.all():
                 key = f"{key_prefix}item_{item.pk}_product_{product.pk}"
                 _, created = cls.objects.get_or_create(
@@ -295,11 +294,11 @@ class ProductTemplate(BaseModel):
 class InvoiceItem(AmountCleanMixin, BaseModel):
     _amount_name = "quantity"
 
-    invoice = models.ForeignKey(
-        "Invoice",
+    operation = models.ForeignKey(
+        "app_operation.Operation",
         related_name="items",
         on_delete=models.CASCADE,
-        verbose_name=_("invoice"),
+        verbose_name=_("operation"),
     )
     product = models.ForeignKey(
         ProductTemplate,
@@ -323,7 +322,7 @@ class InvoiceItem(AmountCleanMixin, BaseModel):
 
     def clean(self) -> None:
         try:
-            op_type = self.invoice.operation.operation_type
+            op_type = self.operation.operation_type
         except Exception:
             return super().clean()
 
@@ -343,52 +342,6 @@ class InvoiceItem(AmountCleanMixin, BaseModel):
     class Meta:
         verbose_name = _("invoice item")
         verbose_name_plural = _("invoice items")
-
-
-class Invoice(BaseModel):
-    # Direction of goods (who gave vs. received InvoiceItems) is not
-    # encoded in source/destination field names alone — it depends on
-    # operation_type (e.g. PURCHASE vs. SALE).
-    operation = models.OneToOneField(
-        "app_operation.Operation",
-        related_name="invoice",
-        on_delete=models.CASCADE,
-        verbose_name=_("operation"),
-    )
-    description = models.TextField(_("description"), blank=True)
-
-    @property
-    def total_price(self):
-        result = self.items.aggregate(
-            total=Sum(
-                ExpressionWrapper(
-                    F("quantity") * F("unit_price"),
-                    output_field=DecimalField(max_digits=15, decimal_places=2),
-                )
-            )
-        )
-        return result["total"] or Decimal("0.00")
-
-    def clean(self) -> None:
-        from apps.app_operation.models.operation_type import OperationType
-
-        if self.operation.operation_type not in (
-            OperationType.PURCHASE,
-            OperationType.SALE,
-            OperationType.CAPITAL_GAIN,
-            OperationType.CAPITAL_LOSS,
-            OperationType.BIRTH,
-            OperationType.DEATH,
-        ):
-            raise ValidationError(
-                _("This operation type %(op_type)s is not allowed to have invoice")
-                % {"op_type": self.operation.operation_type}
-            )
-        return super().clean()
-
-    class Meta:
-        verbose_name = _("invoice")
-        verbose_name_plural = _("invoices")
 
 
 class Product(AmountCleanMixin, BaseModel):
@@ -431,10 +384,10 @@ class Product(AmountCleanMixin, BaseModel):
 
         last_op = (
             self.invoice_items.filter(
-                invoice__operation__operation_type__in=STATUS_CHANGING_TYPES
+                operation__operation_type__in=STATUS_CHANGING_TYPES
             )
-            .order_by("-invoice__operation__date", "-invoice__operation__created_at")
-            .values_list("invoice__operation__operation_type", flat=True)
+            .order_by("-operation__date", "-operation__created_at")
+            .values_list("operation__operation_type", flat=True)
             .first()
         )
 
@@ -450,7 +403,7 @@ class Product(AmountCleanMixin, BaseModel):
 
         def _sum(op_type):
             result = self.invoice_items.filter(
-                invoice__operation__operation_type=op_type
+                operation__operation_type=op_type
             ).aggregate(
                 total=Sum(
                     ExpressionWrapper(
@@ -479,8 +432,8 @@ class Product(AmountCleanMixin, BaseModel):
         # M2M is unavailable until the object has been persisted.
         if self.pk is None:
             return
-        for item in self.invoice_items.select_related("invoice__operation").all():
-            op_type = item.invoice.operation.operation_type
+        for item in self.invoice_items.select_related("operation").all():
+            op_type = item.operation.operation_type
             if not self.product_template.accepts_operation(op_type):
                 raise ValidationError(
                     _("Product '%(p)s' is not compatible with operation type %(op)s.")

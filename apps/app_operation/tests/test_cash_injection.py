@@ -75,8 +75,8 @@ class CashInjectionCreateTest(TestCase):
         op = self._make_op()
         op.save()
 
-        expected_source = self.world_entity.fund
-        expected_target = self.receiver_entity.fund
+        expected_source = self.world_entity
+        expected_target = self.receiver_entity
 
         for tx in op.get_all_transactions():
             self.assertEqual(tx.source, expected_source)
@@ -129,8 +129,8 @@ class CashInjectionCreateTest(TestCase):
             op.save()
 
     def test_source_entity_must_be_able_to_pay(self):
-        self.world_entity.fund.active = False
-        self.world_entity.fund.save()
+        self.world_entity.active = False
+        self.world_entity.save()
 
         op = self._make_op()
         with self.assertRaises(ValidationError):
@@ -234,13 +234,13 @@ class CashInjectionCreateTest(TestCase):
     # ------------------------------------------------------------------
 
     def test_receiver_balance_increases_after_cash_injection(self):
-        balance_before = self.receiver_entity.fund.balance
+        balance_before = self.receiver_entity.balance
 
         op = self._make_op(amount=Decimal("1000.00"))
         op.save()
 
         self.assertEqual(
-            self.receiver_entity.fund.balance,
+            self.receiver_entity.balance,
             balance_before + Decimal("1000.00"),
         )
 
@@ -351,10 +351,10 @@ class CashInjectionReversalTest(TestCase):
 
     def test_receiver_balance_restored_to_zero_after_reversal(self):
         # setUp already saved the operation, so balance is already 1000 here.
-        balance_after_injection = self.receiver_entity.fund.balance
+        balance_after_injection = self.receiver_entity.balance
         self.op.reverse(officer=self.officer_user)
 
         self.assertEqual(
-            self.receiver_entity.fund.balance,
+            self.receiver_entity.balance,
             balance_after_injection - self.op.amount,
         )

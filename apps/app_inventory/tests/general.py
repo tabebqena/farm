@@ -4,9 +4,8 @@ from typing import Union
 
 from django.contrib.auth import get_user_model
 
-from apps.app_entity.models import Entity, Person, Project
+from apps.app_entity.models import Entity, EntityType
 from apps.app_inventory.models import (
-    Invoice,
     InvoiceItem,
     Product,
     ProductTemplate,
@@ -31,27 +30,22 @@ def make_user(username="officer1", is_staff=True):
 
 
 def make_entity(
+    entity_type,
     name="TestEntity",
-    type_class: Union[type[Person], type[Project]] = Person,
     is_vendor=False,
     is_client=False,
 ):
-    obj = type_class.objects.create(name=name)
-    e = Entity.create(owner=obj)
-    if is_vendor:
-        e.is_vendor = is_vendor
-    if is_client:
-        e.is_client = is_client
-    e.save()
+    e = Entity.create(entity_type, name=name, is_vendor=is_vendor, is_client=is_client)
+
     return e
 
 
 def make_project_entity(name="TestEntity", is_vendor=False, is_client=False):
-    return make_entity(name, Project, is_vendor, is_client)
+    return make_entity(EntityType.PROJECT, name, is_vendor, is_client)
 
 
 def make_person_entity(name="TestEntity", is_vendor=False, is_client=False):
-    return make_entity(name, Person, is_vendor, is_client)
+    return make_entity(EntityType.PERSON, name, is_vendor, is_client)
 
 
 def make_operation(
@@ -89,18 +83,14 @@ def make_product_template(name="Calves"):
     )
 
 
-def make_invoice(operation):
-    return Invoice.objects.create(operation=operation)
-
-
 def make_invoice_item(
-    invoice,
+    operation,
     template,
     quantity=Decimal("5.00"),
     unit_price=Decimal("100.00"),
 ):
     return InvoiceItem.objects.create(
-        invoice=invoice,
+        operation=operation,
         product=template,
         quantity=quantity,
         unit_price=unit_price,

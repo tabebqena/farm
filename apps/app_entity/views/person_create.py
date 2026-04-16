@@ -29,7 +29,7 @@ def person_create_view(request):
                 )
                 messages.success(
                     request,
-                    f"Person {entity.name} created with Fund ID #{entity.fund.id}",
+                    f"Person {entity.name} created with Fund ID #{entity.id}",
                 )
                 return redirect("entity_detail", pk=entity.pk)
 

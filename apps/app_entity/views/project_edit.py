@@ -17,13 +17,13 @@ def project_edit_view(request, pk):
         entity.description = request.POST.get("description", "")
         entity.is_internal = request.POST.get("is_internal") == "on"
         entity.active = request.POST.get("active") == "on"
-        entity.fund.active = request.POST.get("fund_active") == "on"
+        # entity.active = request.POST.get("fund_active") == "on"
         entity.is_client = request.POST.get("is_client") == "on"
         entity.is_vendor = request.POST.get("is_vendor") == "on"
 
         try:
             with transaction.atomic():
-                entity.fund.save()
+                entity.save()
                 entity.save()
                 messages.success(
                     request, f"Project '{entity.name}' updated successfully."

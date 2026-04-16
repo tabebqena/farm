@@ -1,5 +1,6 @@
 from django.test import TestCase
 
+from apps.app_entity.models import EntityType
 from apps.app_inventory.tests.general import make_entity, make_product_template
 from apps.app_inventory.models import ProductTemplate
 
@@ -27,7 +28,7 @@ class ProductTemplateTest(TestCase):
 
     def test_entities_m2m(self):
         t = make_product_template()
-        e = make_entity()
+        e = make_entity(EntityType.PROJECT)
         t.entities.add(e)
         self.assertIn(e, t.entities.all())
 

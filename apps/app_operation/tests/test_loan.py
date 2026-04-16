@@ -97,8 +97,8 @@ class LoanCreateTest(TestCase):
         op.save()
 
         tx = op.get_all_transactions().get(type=TransactionType.LOAN_ISSUANCE)
-        self.assertEqual(tx.source, self.creditor_entity.fund)
-        self.assertEqual(tx.target, self.debtor_entity.fund)
+        self.assertEqual(tx.source, self.creditor_entity)
+        self.assertEqual(tx.target, self.debtor_entity)
 
     def test_issuance_transaction_amount_matches_operation(self):
         op = self._make_op(amount=Decimal("750.00"))
@@ -147,8 +147,8 @@ class LoanCreateTest(TestCase):
             op.save()
 
     def test_source_fund_must_be_active(self):
-        self.creditor_entity.fund.active = False
-        self.creditor_entity.fund.save()
+        self.creditor_entity.active = False
+        self.creditor_entity.save()
 
         op = self._make_op()
         with self.assertRaises(ValidationError):
@@ -290,11 +290,11 @@ class LoanDisbursementTest(TestCase):
         )
 
         tx = self.op.get_all_transactions().get(type=TransactionType.LOAN_PAYMENT)
-        self.assertEqual(tx.source, self.creditor_entity.fund)
-        self.assertEqual(tx.target, self.debtor_entity.fund)
+        self.assertEqual(tx.source, self.creditor_entity)
+        self.assertEqual(tx.target, self.debtor_entity)
 
     def test_creditor_fund_decreases_after_payment(self):
-        balance_before = self.creditor_entity.fund.balance
+        balance_before = self.creditor_entity.balance
 
         self.op.create_payment_transaction(
             amount=Decimal("600.00"),
@@ -303,11 +303,11 @@ class LoanDisbursementTest(TestCase):
         )
 
         self.assertEqual(
-            self.creditor_entity.fund.balance, balance_before - Decimal("600.00")
+            self.creditor_entity.balance, balance_before - Decimal("600.00")
         )
 
     def test_debtor_fund_increases_after_payment(self):
-        balance_before = self.debtor_entity.fund.balance
+        balance_before = self.debtor_entity.balance
 
         self.op.create_payment_transaction(
             amount=Decimal("600.00"),
@@ -316,7 +316,7 @@ class LoanDisbursementTest(TestCase):
         )
 
         self.assertEqual(
-            self.debtor_entity.fund.balance, balance_before + Decimal("600.00")
+            self.debtor_entity.balance, balance_before + Decimal("600.00")
         )
 
     def test_multiple_payment_disbursements_allowed(self):
@@ -398,8 +398,8 @@ class LoanRepaymentTest(TestCase):
         )
 
         tx = self.op.get_all_transactions().get(type=TransactionType.LOAN_REPAYMENT)
-        self.assertEqual(tx.source, self.debtor_entity.fund)
-        self.assertEqual(tx.target, self.creditor_entity.fund)
+        self.assertEqual(tx.source, self.debtor_entity)
+        self.assertEqual(tx.target, self.creditor_entity)
 
     def test_amount_remaining_to_repay_decreases_after_repayment(self):
         self.op.create_repayment_transaction(
@@ -435,7 +435,7 @@ class LoanRepaymentTest(TestCase):
         self.assertEqual(self.op.amount_remaining_to_repay, Decimal("0.00"))
 
     def test_debtor_fund_decreases_after_repayment(self):
-        balance_before = self.debtor_entity.fund.balance
+        balance_before = self.debtor_entity.balance
 
         self.op.create_repayment_transaction(
             amount=Decimal("400.00"),
@@ -444,11 +444,11 @@ class LoanRepaymentTest(TestCase):
         )
 
         self.assertEqual(
-            self.debtor_entity.fund.balance, balance_before - Decimal("400.00")
+            self.debtor_entity.balance, balance_before - Decimal("400.00")
         )
 
     def test_creditor_fund_increases_after_repayment(self):
-        balance_before = self.creditor_entity.fund.balance
+        balance_before = self.creditor_entity.balance
 
         self.op.create_repayment_transaction(
             amount=Decimal("400.00"),
@@ -457,7 +457,7 @@ class LoanRepaymentTest(TestCase):
         )
 
         self.assertEqual(
-            self.creditor_entity.fund.balance, balance_before + Decimal("400.00")
+            self.creditor_entity.balance, balance_before + Decimal("400.00")
         )
 
     # ------------------------------------------------------------------

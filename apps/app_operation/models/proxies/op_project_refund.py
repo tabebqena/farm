@@ -28,11 +28,11 @@ class ProjectRefundOperation(Operation):
 
     @property
     def payment_source_fund(self):
-        return self.source.fund  # clean_source ensures this is a project
+        return self.source  # clean_source ensures this is a project
 
     @property
     def payment_target_fund(self):
-        return self.destination.fund  # funder (person/shareholder)
+        return self.destination  # funder (person/shareholder)
 
     @property
     def project(self):

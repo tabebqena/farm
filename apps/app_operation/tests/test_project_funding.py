@@ -103,8 +103,8 @@ class ProjectFundingCreateTest(TestCase):
         op.save()
 
         for tx in op.get_all_transactions():
-            self.assertEqual(tx.source, self.funder_entity.fund)
-            self.assertEqual(tx.target, self.project_entity.fund)
+            self.assertEqual(tx.source, self.funder_entity)
+            self.assertEqual(tx.target, self.project_entity)
 
     # ------------------------------------------------------------------
     # Settlement state
@@ -167,8 +167,8 @@ class ProjectFundingCreateTest(TestCase):
             op.save()
 
     def test_source_fund_must_be_active(self):
-        self.funder_entity.fund.active = False
-        self.funder_entity.fund.save()
+        self.funder_entity.active = False
+        self.funder_entity.save()
 
         op = self._make_op()
         with self.assertRaises(ValidationError):
@@ -189,14 +189,14 @@ class ProjectFundingCreateTest(TestCase):
             op.save()
 
     def test_amount_exceeding_funder_balance_raises_error(self):
-        balance = self.funder_entity.fund.balance  # 2000.00 from setUp
+        balance = self.funder_entity.balance  # 2000.00 from setUp
 
         op = self._make_op(amount=balance + Decimal("1.00"))
         with self.assertRaises(ValidationError):
             op.save()
 
     def test_amount_equal_to_funder_balance_succeeds(self):
-        balance = self.funder_entity.fund.balance  # 2000.00 from setUp
+        balance = self.funder_entity.balance  # 2000.00 from setUp
 
         op = self._make_op(amount=balance)
         op.save()  # should not raise
@@ -280,24 +280,24 @@ class ProjectFundingCreateTest(TestCase):
     # ------------------------------------------------------------------
 
     def test_project_fund_increases_after_funding(self):
-        balance_before = self.project_entity.fund.balance
+        balance_before = self.project_entity.balance
 
         op = self._make_op(amount=Decimal("700.00"))
         op.save()
 
         self.assertEqual(
-            self.project_entity.fund.balance,
+            self.project_entity.balance,
             balance_before + Decimal("700.00"),
         )
 
     def test_funder_fund_decreases_after_funding(self):
-        balance_before = self.funder_entity.fund.balance
+        balance_before = self.funder_entity.balance
 
         op = self._make_op(amount=Decimal("700.00"))
         op.save()
 
         self.assertEqual(
-            self.funder_entity.fund.balance,
+            self.funder_entity.balance,
             balance_before - Decimal("700.00"),
         )
 
@@ -447,19 +447,19 @@ class ProjectFundingReversalTest(TestCase):
     # ------------------------------------------------------------------
 
     def test_project_fund_restored_after_reversal(self):
-        balance_after_funding = self.project_entity.fund.balance
+        balance_after_funding = self.project_entity.balance
         self.op.reverse(officer=self.officer)
 
         self.assertEqual(
-            self.project_entity.fund.balance,
+            self.project_entity.balance,
             balance_after_funding - self.op.amount,
         )
 
     def test_funder_fund_restored_after_reversal(self):
-        balance_after_funding = self.funder_entity.fund.balance
+        balance_after_funding = self.funder_entity.balance
         self.op.reverse(officer=self.officer)
 
         self.assertEqual(
-            self.funder_entity.fund.balance,
+            self.funder_entity.balance,
             balance_after_funding + self.op.amount,
         )

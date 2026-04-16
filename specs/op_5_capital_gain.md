@@ -2,8 +2,8 @@
 **Epic:** 10.2 — Miscellaneous One-Shot Operations
 **Type:** One-shot
 **Transaction flow:**
-- Issuance: `system.fund → entity.fund` — type: `CAPITAL_GAIN_ISSUANCE`
-- Payment: `system.fund → entity.fund` — type: `CAPITAL_GAIN_PAYMENT`
+- Issuance: `system.fund → entity` — type: `CAPITAL_GAIN_ISSUANCE`
+- Payment: `system.fund → entity` — type: `CAPITAL_GAIN_PAYMENT`
 
 Tasks:
 - [x] Verify issuance and payment transactions are created

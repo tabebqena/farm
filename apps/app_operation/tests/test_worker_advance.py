@@ -134,16 +134,16 @@ class WorkerAdvanceCreateTest(TestCase):
         op.save()
 
         tx = op.get_all_transactions().get(type=TransactionType.WORKER_ADVANCE_ISSUANCE)
-        self.assertEqual(tx.source, self.project_entity.fund)
-        self.assertEqual(tx.target, self.worker_entity.fund)
+        self.assertEqual(tx.source, self.project_entity)
+        self.assertEqual(tx.target, self.worker_entity)
 
     def test_payment_transaction_direction_is_project_to_worker(self):
         op = self._make_op()
         op.save()
 
         tx = op.get_all_transactions().get(type=TransactionType.WORKER_ADVANCE_PAYMENT)
-        self.assertEqual(tx.source, self.project_entity.fund)
-        self.assertEqual(tx.target, self.worker_entity.fund)
+        self.assertEqual(tx.source, self.project_entity)
+        self.assertEqual(tx.target, self.worker_entity)
 
     def test_both_transactions_amount_match_operation(self):
         op = self._make_op(amount=Decimal("800.00"))
@@ -153,24 +153,24 @@ class WorkerAdvanceCreateTest(TestCase):
             self.assertEqual(tx.amount, Decimal("800.00"))
 
     def test_project_fund_decreases_by_advance_amount(self):
-        balance_before = self.project_entity.fund.balance
+        balance_before = self.project_entity.balance
 
         op = self._make_op(amount=Decimal("600.00"))
         op.save()
 
         self.assertEqual(
-            self.project_entity.fund.balance,
+            self.project_entity.balance,
             balance_before - Decimal("600.00"),
         )
 
     def test_worker_fund_increases_by_advance_amount(self):
-        balance_before = self.worker_entity.fund.balance
+        balance_before = self.worker_entity.balance
 
         op = self._make_op(amount=Decimal("600.00"))
         op.save()
 
         self.assertEqual(
-            self.worker_entity.fund.balance,
+            self.worker_entity.balance,
             balance_before + Decimal("600.00"),
         )
 
@@ -214,8 +214,8 @@ class WorkerAdvanceCreateTest(TestCase):
             op.save()
 
     def test_source_fund_must_be_active(self):
-        self.project_entity.fund.active = False
-        self.project_entity.fund.save()
+        self.project_entity.active = False
+        self.project_entity.save()
 
         op = self._make_op()
         with self.assertRaises(ValidationError):
@@ -406,8 +406,8 @@ class WorkerAdvanceRepaymentTest(TestCase):
         tx = self.op.get_all_transactions().get(
             type=TransactionType.WORKER_ADVANCE_REPAYMENT
         )
-        self.assertEqual(tx.source, self.worker_entity.fund)
-        self.assertEqual(tx.target, self.project_entity.fund)
+        self.assertEqual(tx.source, self.worker_entity)
+        self.assertEqual(tx.target, self.project_entity)
 
     def test_amount_remaining_to_repay_decreases_after_repayment(self):
         self._repay(Decimal("400.00"))
@@ -427,21 +427,21 @@ class WorkerAdvanceRepaymentTest(TestCase):
         self.assertEqual(self.op.amount_remaining_to_repay, Decimal("0.00"))
 
     def test_worker_fund_decreases_after_repayment(self):
-        balance_before = self.worker_entity.fund.balance
+        balance_before = self.worker_entity.balance
 
         self._repay(Decimal("400.00"))
 
         self.assertEqual(
-            self.worker_entity.fund.balance, balance_before - Decimal("400.00")
+            self.worker_entity.balance, balance_before - Decimal("400.00")
         )
 
     def test_project_fund_increases_after_repayment(self):
-        balance_before = self.project_entity.fund.balance
+        balance_before = self.project_entity.balance
 
         self._repay(Decimal("400.00"))
 
         self.assertEqual(
-            self.project_entity.fund.balance, balance_before + Decimal("400.00")
+            self.project_entity.balance, balance_before + Decimal("400.00")
         )
 
     # ------------------------------------------------------------------
@@ -551,20 +551,20 @@ class WorkerAdvanceReversalTest(TestCase):
             self.assertEqual(counter.amount, tx.amount)
 
     def test_project_fund_restored_after_reversal(self):
-        balance_after_advance = self.project_entity.fund.balance
+        balance_after_advance = self.project_entity.balance
         self.op.reverse(officer=self.officer)
 
         self.assertEqual(
-            self.project_entity.fund.balance,
+            self.project_entity.balance,
             balance_after_advance + self.op.amount,
         )
 
     def test_worker_fund_restored_after_reversal(self):
-        balance_after_advance = self.worker_entity.fund.balance
+        balance_after_advance = self.worker_entity.balance
         self.op.reverse(officer=self.officer)
 
         self.assertEqual(
-            self.worker_entity.fund.balance,
+            self.worker_entity.balance,
             balance_after_advance - self.op.amount,
         )
 

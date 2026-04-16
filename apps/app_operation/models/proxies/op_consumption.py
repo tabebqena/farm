@@ -37,11 +37,11 @@ class ConsumptionOperation(Operation):
 
     @property
     def payment_source_fund(self):
-        return self.source.fund  # project absorbing the write-off
+        return self.source  # project absorbing the write-off
 
     @property
     def payment_target_fund(self):
-        return self.destination.fund  # system entity — exempt from balance validation
+        return self.destination  # system entity — exempt from balance validation
 
     @property
     def project(self):

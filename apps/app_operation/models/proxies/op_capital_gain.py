@@ -33,11 +33,11 @@ class CapitalGainOperation(Operation):
     def payment_source_fund(self):
         # No balance check: the system entity is always the payer here.
         # System entities are exempt from fund balance validation by design.
-        return self.source.fund  # clean_source ensures this is the system entity
+        return self.source  # clean_source ensures this is the system entity
 
     @property
     def payment_target_fund(self):
-        return self.destination.fund  # entity receiving the gain
+        return self.destination  # entity receiving the gain
 
     def clean_source(self):
         if not self.source.is_system:

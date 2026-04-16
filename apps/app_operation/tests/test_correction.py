@@ -94,8 +94,8 @@ class CorrectionCreditCreateTest(TestCase):
         op.save()
 
         for tx in op.get_all_transactions():
-            self.assertEqual(tx.source, self.system_entity.fund)
-            self.assertEqual(tx.target, self.project_entity.fund)
+            self.assertEqual(tx.source, self.system_entity)
+            self.assertEqual(tx.target, self.project_entity)
 
     def test_is_fully_settled_after_creation(self):
         op = self._make_op(amount=Decimal("500.00"))
@@ -106,14 +106,14 @@ class CorrectionCreditCreateTest(TestCase):
         self.assertEqual(op.amount_remaining_to_settle, Decimal("0.00"))
 
     def test_project_fund_increases_by_correction_amount(self):
-        balance_before = self.project_entity.fund.balance
+        balance_before = self.project_entity.balance
 
         op = self._make_op(amount=Decimal("750.00"))
         op.save()
 
-        self.project_entity.fund.refresh_from_db()
+        self.project_entity.refresh_from_db()
         self.assertEqual(
-            self.project_entity.fund.balance,
+            self.project_entity.balance,
             balance_before + Decimal("750.00"),
         )
 
@@ -146,8 +146,8 @@ class CorrectionCreditCreateTest(TestCase):
             op.save()
 
     def test_source_fund_must_be_active(self):
-        self.system_entity.fund.active = False
-        self.system_entity.fund.save()
+        self.system_entity.active = False
+        self.system_entity.save()
 
         op = self._make_op()
         with self.assertRaises(ValidationError):
@@ -336,12 +336,12 @@ class CorrectionCreditReversalTest(TestCase):
             self.assertEqual(tx.reversed_by.type, tx.type)
 
     def test_project_fund_restored_after_reversal(self):
-        balance_after_credit = self.project_entity.fund.balance
+        balance_after_credit = self.project_entity.balance
         self.op.reverse(officer=self.officer_user)
 
-        self.project_entity.fund.refresh_from_db()
+        self.project_entity.refresh_from_db()
         self.assertEqual(
-            self.project_entity.fund.balance,
+            self.project_entity.balance,
             balance_after_credit - self.op.amount,
         )
 
@@ -413,8 +413,8 @@ class CorrectionDebitCreateTest(TestCase):
         op.save()
 
         for tx in op.get_all_transactions():
-            self.assertEqual(tx.source, self.project_entity.fund)
-            self.assertEqual(tx.target, self.system_entity.fund)
+            self.assertEqual(tx.source, self.project_entity)
+            self.assertEqual(tx.target, self.system_entity)
 
     def test_is_fully_settled_after_creation(self):
         op = self._make_op(amount=Decimal("500.00"))
@@ -425,15 +425,15 @@ class CorrectionDebitCreateTest(TestCase):
         self.assertEqual(op.amount_remaining_to_settle, Decimal("0.00"))
 
     def test_project_fund_decreases_by_correction_amount(self):
-        self.project_entity.fund.refresh_from_db()
-        balance_before = self.project_entity.fund.balance
+        self.project_entity.refresh_from_db()
+        balance_before = self.project_entity.balance
 
         op = self._make_op(amount=Decimal("300.00"))
         op.save()
 
-        self.project_entity.fund.refresh_from_db()
+        self.project_entity.refresh_from_db()
         self.assertEqual(
-            self.project_entity.fund.balance,
+            self.project_entity.balance,
             balance_before - Decimal("300.00"),
         )
 
@@ -465,8 +465,8 @@ class CorrectionDebitCreateTest(TestCase):
             op.save()
 
     def test_source_fund_must_be_active(self):
-        self.project_entity.fund.active = False
-        self.project_entity.fund.save()
+        self.project_entity.active = False
+        self.project_entity.save()
 
         op = self._make_op()
         with self.assertRaises(ValidationError):
@@ -573,8 +573,8 @@ class CorrectionDebitCreateTest(TestCase):
 
     def test_debit_succeeds_even_with_insufficient_balance(self):
         """A debit for more than the fund balance must succeed — no balance gate."""
-        self.project_entity.fund.refresh_from_db()
-        over_amount = self.project_entity.fund.balance + Decimal("9999.00")
+        self.project_entity.refresh_from_db()
+        over_amount = self.project_entity.balance + Decimal("9999.00")
         op = self._make_op(amount=over_amount)
         op.save()
         self.assertIsNotNone(op.pk)
@@ -680,12 +680,12 @@ class CorrectionDebitReversalTest(TestCase):
             self.assertEqual(tx.reversed_by.type, tx.type)
 
     def test_project_fund_restored_after_reversal(self):
-        balance_after_debit = self.project_entity.fund.balance
+        balance_after_debit = self.project_entity.balance
         self.op.reverse(officer=self.officer_user)
 
-        self.project_entity.fund.refresh_from_db()
+        self.project_entity.refresh_from_db()
         self.assertEqual(
-            self.project_entity.fund.balance,
+            self.project_entity.balance,
             balance_after_debit + self.op.amount,
         )
 

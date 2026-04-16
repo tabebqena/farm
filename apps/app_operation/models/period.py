@@ -120,7 +120,7 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
         from apps.app_transaction.models import Transaction
 
         filters: dict = dict(
-            target=self.entity.fund,
+            target=self.entity,
             type__in=types,
         )
         if date_lte is not None:
@@ -138,7 +138,7 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
         from apps.app_transaction.models import Transaction
 
         filters: dict = dict(
-            source=self.entity.fund,
+            source=self.entity,
             type__in=types,
         )
         if date_lte is not None:
@@ -155,7 +155,7 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
         """
         if self.end_date is None:
             return None
-        return self.entity.fund.balance_at(self.end_date)
+        return self.entity.balance_at(self.end_date)
 
     @property
     def remaining_inventory_value(self) -> Decimal:
@@ -276,10 +276,10 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
 
     def compute_profit_loss(self) -> "FinancialPeriod":
         """
-        Derive amount from entity.fund.profit_loss(self) and save.
+        Derive amount from entity.profit_loss(self) and save.
         The period must be closed and the entity must be a project.
         """
-        self.amount = self.entity.fund.profit_loss(self)
+        self.amount = self.entity.profit_loss(self)
         self.save()
         return self
 

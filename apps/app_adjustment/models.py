@@ -424,7 +424,7 @@ class InvoiceItemAdjustmentLine(
             )
         # Ensure the item belongs to the same operation
         try:
-            item_op = self.invoice_item.invoice.operation
+            item_op = self.invoice_item.operation
         except Exception:
             item_op = None
         if item_op is not None and item_op != self.adjustment.operation:

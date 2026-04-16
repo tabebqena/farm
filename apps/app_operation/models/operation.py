@@ -287,7 +287,7 @@ class Operation(
                     )
         return super().save(*args, **kwargs)
 
-    def save_inventory(self, bound_formset, invoice):
+    def save_inventory(self, bound_formset):
         """
         Called inside an atomic block after the formset is saved.
         - create-mode (PURCHASE/BIRTH): create a Product per item, link via M2M.
@@ -319,14 +319,13 @@ class Operation(
                     selected.validate_active()
                     selected.invoice_items.add(item)
 
-        ProductLedgerEntry.record(invoice)
+        ProductLedgerEntry.record(self)
 
     def reverse(self, officer, date=None, reason=None):
         reversal = super().reverse(officer=officer, date=date, reason=reason)
-        original_invoice = getattr(self, "invoice", None)
-        if original_invoice is not None:
+        if type(self).has_invoice:
             from apps.app_inventory.models import ProductLedgerEntry
-            ProductLedgerEntry.record(original_invoice, negate=True)
+            ProductLedgerEntry.record(self, negate=True)
         return reversal
 
     def __str__(self):

@@ -148,8 +148,8 @@ class SaleCreateTest(TestCase):
         op.save()
 
         tx = op.get_all_transactions().get(type=TransactionType.SALE_ISSUANCE)
-        self.assertEqual(tx.source, self.client_entity.fund)
-        self.assertEqual(tx.target, self.project_entity.fund)
+        self.assertEqual(tx.source, self.client_entity)
+        self.assertEqual(tx.target, self.project_entity)
 
     def test_issuance_transaction_amount_matches_operation(self):
         op = self._make_op(amount=Decimal("750.00"))
@@ -160,23 +160,23 @@ class SaleCreateTest(TestCase):
 
     def test_project_fund_balance_unchanged_after_save(self):
         """SALE_ISSUANCE is non-cash; it does not affect fund balances."""
-        balance_before = self.project_entity.fund.balance
+        balance_before = self.project_entity.balance
 
         op = self._make_op(amount=Decimal("800.00"))
         op.save()
 
-        self.project_entity.fund.refresh_from_db()
-        self.assertEqual(self.project_entity.fund.balance, balance_before)
+        self.project_entity.refresh_from_db()
+        self.assertEqual(self.project_entity.balance, balance_before)
 
     def test_client_fund_balance_unchanged_after_save(self):
         """SALE_ISSUANCE is non-cash; it does not affect fund balances."""
-        balance_before = self.client_entity.fund.balance
+        balance_before = self.client_entity.balance
 
         op = self._make_op(amount=Decimal("800.00"))
         op.save()
 
-        self.client_entity.fund.refresh_from_db()
-        self.assertEqual(self.client_entity.fund.balance, balance_before)
+        self.client_entity.refresh_from_db()
+        self.assertEqual(self.client_entity.balance, balance_before)
 
     def test_amount_remaining_to_settle_equals_full_amount_after_creation(self):
         op = self._make_op(amount=Decimal("1200.00"))
@@ -215,8 +215,8 @@ class SaleCreateTest(TestCase):
             op.save()
 
     def test_source_fund_must_be_active(self):
-        self.client_entity.fund.active = False
-        self.client_entity.fund.save()
+        self.client_entity.active = False
+        self.client_entity.save()
 
         op = self._make_op()
         with self.assertRaises(ValidationError):
@@ -324,7 +324,7 @@ class SaleCollectionTest(TestCase):
     Tests for SALE_COLLECTION transactions.
 
     The project records a sale receivable on save (SALE_ISSUANCE, non-cash).
-    Collections are created explicitly and move funds: client.fund → project.fund.
+    Collections are created explicitly and move funds: client → project.
     Multiple partial collections are allowed, up to the total operation amount.
     """
 
@@ -377,8 +377,8 @@ class SaleCollectionTest(TestCase):
         self._collect(Decimal("400.00"))
 
         tx = self.op.get_all_transactions().get(type=TransactionType.SALE_COLLECTION)
-        self.assertEqual(tx.source, self.client_entity.fund)
-        self.assertEqual(tx.target, self.project_entity.fund)
+        self.assertEqual(tx.source, self.client_entity)
+        self.assertEqual(tx.target, self.project_entity)
 
     def test_amount_remaining_to_settle_decreases_after_collection(self):
         self._collect(Decimal("400.00"))
@@ -410,24 +410,24 @@ class SaleCollectionTest(TestCase):
         self.assertEqual(self.op.amount_remaining_to_settle, Decimal("0.00"))
 
     def test_client_fund_decreases_by_collection_amount(self):
-        balance_before = self.client_entity.fund.balance
+        balance_before = self.client_entity.balance
 
         self._collect(Decimal("600.00"))
 
-        self.client_entity.fund.refresh_from_db()
+        self.client_entity.refresh_from_db()
         self.assertEqual(
-            self.client_entity.fund.balance,
+            self.client_entity.balance,
             balance_before - Decimal("600.00"),
         )
 
     def test_project_fund_increases_by_collection_amount(self):
-        balance_before = self.project_entity.fund.balance
+        balance_before = self.project_entity.balance
 
         self._collect(Decimal("600.00"))
 
-        self.project_entity.fund.refresh_from_db()
+        self.project_entity.refresh_from_db()
         self.assertEqual(
-            self.project_entity.fund.balance,
+            self.project_entity.balance,
             balance_before + Decimal("600.00"),
         )
 
@@ -553,15 +553,15 @@ class SaleReversalTest(TestCase):
 
     def test_fund_balances_unchanged_after_reversal(self):
         """Issuance is non-cash; reversing it leaves all fund balances untouched."""
-        project_balance_before = self.project_entity.fund.balance
-        client_balance_before = self.client_entity.fund.balance
+        project_balance_before = self.project_entity.balance
+        client_balance_before = self.client_entity.balance
 
         self.op.reverse(officer=self.officer)
 
-        self.project_entity.fund.refresh_from_db()
-        self.client_entity.fund.refresh_from_db()
-        self.assertEqual(self.project_entity.fund.balance, project_balance_before)
-        self.assertEqual(self.client_entity.fund.balance, client_balance_before)
+        self.project_entity.refresh_from_db()
+        self.client_entity.refresh_from_db()
+        self.assertEqual(self.project_entity.balance, project_balance_before)
+        self.assertEqual(self.client_entity.balance, client_balance_before)
 
     # ------------------------------------------------------------------
     # Reversal blocked by existing collection
@@ -659,5 +659,5 @@ class SaleBalanceGuardTest(TestCase):
             officer=self.officer,
             date=date.today(),
         )
-        self.client_entity.fund.refresh_from_db()
-        self.assertEqual(self.client_entity.fund.balance, Decimal("50.00"))
+        self.client_entity.refresh_from_db()
+        self.assertEqual(self.client_entity.balance, Decimal("50.00"))

@@ -31,13 +31,11 @@ class CapitalLossOperation(Operation):
 
     @property
     def payment_source_fund(self):
-        return self.source.fund  # entity absorbing the loss
+        return self.source  # entity absorbing the loss
 
     @property
     def payment_target_fund(self):
-        return (
-            self.destination.fund
-        )  # clean_destination ensures this is the system entity
+        return self.destination  # clean_destination ensures this is the system entity
 
     def clean_destination(self):
         if not self.destination.is_system:

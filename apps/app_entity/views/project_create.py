@@ -30,7 +30,7 @@ def project_create_view(request):
                 messages.success(
                     request,
                     _("Project '%(name)s' initialized with Fund ID #%(fund_id)s")
-                    % {"name": entity.name, "fund_id": entity.fund.id},
+                    % {"name": entity.name, "fund_id": entity.id},
                 )
                 return redirect("entity_detail", pk=entity.pk)
 

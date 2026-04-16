@@ -4,11 +4,10 @@ from unittest.mock import MagicMock
 
 from django.test import TestCase
 
-from apps.app_entity.models import Entity, Stakeholder, StakeholderRole
+from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
 from apps.app_inventory.models import ProductLedgerEntry
 from apps.app_inventory.tests.general import (
     make_entity,
-    make_invoice,
     make_invoice_item,
     make_operation,
     make_product,
@@ -31,7 +30,7 @@ class ProductLedgerEntryTest(TestCase):
     def setUp(self):
         self.officer = make_user()
         self.system = Entity.create(EntityType.SYSTEM)
-        self.vendor = make_entity("Vendor", is_vendor=True)
+        self.vendor = make_entity(EntityType.PERSON, "Vendor", is_vendor=True)
         self.project = make_project_entity("Farm")
         Stakeholder.objects.create(
             parent=self.project,
@@ -39,7 +38,7 @@ class ProductLedgerEntryTest(TestCase):
             active=True,
             role=StakeholderRole.VENDOR,
         )
-        self.client = make_entity("Client", is_client=True)
+        self.client = make_entity(EntityType.PERSON, "Client", is_client=True)
         Stakeholder.objects.create(
             parent=self.project,
             target=self.client,
@@ -50,7 +49,7 @@ class ProductLedgerEntryTest(TestCase):
         self.template.entities.add(self.project)
         self.product = make_product(self.template)
 
-    def _make_invoice(
+    def _make_operation_with_item(
         self,
         proxy_class,
         op_type,
@@ -59,20 +58,19 @@ class ProductLedgerEntryTest(TestCase):
         qty=Decimal("5.00"),
         price=Decimal("100"),
     ):
-        """Build op → invoice → item, link self.product to the item, return the invoice."""
+        """Build op → item, link self.product to the item, return the operation."""
         op = make_operation(source, destination, self.officer, proxy_class, op_type)
-        invoice = make_invoice(op)
-        item = make_invoice_item(invoice, self.template, qty, price)
+        item = make_invoice_item(op, self.template, qty, price)
         self.product.invoice_items.add(item)
-        return invoice
+        return op
 
     # --- record() — all six operation types ---
 
     def test_record_purchase(self):
-        invoice = self._make_invoice(
+        op = self._make_operation_with_item(
             PurchaseOperation, OperationType.PURCHASE, self.project, self.vendor
         )
-        created, skipped = ProductLedgerEntry.record(invoice)
+        created, skipped = ProductLedgerEntry.record(op)
         self.assertEqual((created, skipped), (1, 0))
         entry = ProductLedgerEntry.objects.get(product=self.product)
         self.assertEqual(entry.entry_type, ProductLedgerEntry.EntryType.PURCHASE)
@@ -80,50 +78,50 @@ class ProductLedgerEntryTest(TestCase):
         self.assertEqual(entry.value_delta, Decimal("500.00"))
 
     def test_record_sale(self):
-        invoice = self._make_invoice(
+        op = self._make_operation_with_item(
             SaleOperation, OperationType.SALE, self.client, self.project
         )
-        ProductLedgerEntry.record(invoice)
+        ProductLedgerEntry.record(op)
         entry = ProductLedgerEntry.objects.get(product=self.product)
         self.assertEqual(entry.entry_type, ProductLedgerEntry.EntryType.SALE)
         self.assertEqual(entry.quantity_delta, Decimal("-5.00"))
         self.assertEqual(entry.value_delta, Decimal("-500.00"))
 
     def test_record_birth(self):
-        invoice = self._make_invoice(
+        op = self._make_operation_with_item(
             BirthOperation, OperationType.BIRTH, self.system, self.project
         )
-        ProductLedgerEntry.record(invoice)
+        ProductLedgerEntry.record(op)
         entry = ProductLedgerEntry.objects.get(product=self.product)
         self.assertEqual(entry.entry_type, ProductLedgerEntry.EntryType.BIRTH)
         self.assertEqual(entry.quantity_delta, Decimal("5.00"))
         self.assertEqual(entry.value_delta, Decimal("500.00"))
 
     def test_record_death(self):
-        invoice = self._make_invoice(
+        op = self._make_operation_with_item(
             DeathOperation, OperationType.DEATH, self.project, self.system
         )
-        ProductLedgerEntry.record(invoice)
+        ProductLedgerEntry.record(op)
         entry = ProductLedgerEntry.objects.get(product=self.product)
         self.assertEqual(entry.entry_type, ProductLedgerEntry.EntryType.DEATH)
         self.assertEqual(entry.quantity_delta, Decimal("-5.00"))
         self.assertEqual(entry.value_delta, Decimal("-500.00"))
 
     def test_record_capital_gain_zero_quantity_delta(self):
-        invoice = self._make_invoice(
+        op = self._make_operation_with_item(
             CapitalGainOperation, OperationType.CAPITAL_GAIN, self.system, self.project
         )
-        ProductLedgerEntry.record(invoice)
+        ProductLedgerEntry.record(op)
         entry = ProductLedgerEntry.objects.get(product=self.product)
         self.assertEqual(entry.entry_type, ProductLedgerEntry.EntryType.CAPITAL_GAIN)
         self.assertEqual(entry.quantity_delta, Decimal("0.00"))
         self.assertEqual(entry.value_delta, Decimal("500.00"))
 
     def test_record_capital_loss_zero_quantity_delta(self):
-        invoice = self._make_invoice(
+        op = self._make_operation_with_item(
             CapitalLossOperation, OperationType.CAPITAL_LOSS, self.project, self.system
         )
-        ProductLedgerEntry.record(invoice)
+        ProductLedgerEntry.record(op)
         entry = ProductLedgerEntry.objects.get(product=self.product)
         self.assertEqual(entry.entry_type, ProductLedgerEntry.EntryType.CAPITAL_LOSS)
         self.assertEqual(entry.quantity_delta, Decimal("0.00"))
@@ -132,21 +130,21 @@ class ProductLedgerEntryTest(TestCase):
     # --- idempotency and reversal ---
 
     def test_record_idempotent(self):
-        invoice = self._make_invoice(
+        op = self._make_operation_with_item(
             PurchaseOperation, OperationType.PURCHASE, self.project, self.vendor
         )
-        created1, skipped1 = ProductLedgerEntry.record(invoice)
-        created2, skipped2 = ProductLedgerEntry.record(invoice)
+        created1, skipped1 = ProductLedgerEntry.record(op)
+        created2, skipped2 = ProductLedgerEntry.record(op)
         self.assertEqual((created1, skipped1), (1, 0))
         self.assertEqual((created2, skipped2), (0, 1))
         self.assertEqual(ProductLedgerEntry.objects.count(), 1)
 
     def test_record_negate_creates_reversal_entry(self):
-        invoice = self._make_invoice(
+        op = self._make_operation_with_item(
             PurchaseOperation, OperationType.PURCHASE, self.project, self.vendor
         )
-        ProductLedgerEntry.record(invoice)
-        ProductLedgerEntry.record(invoice, negate=True)
+        ProductLedgerEntry.record(op)
+        ProductLedgerEntry.record(op, negate=True)
         reversal = ProductLedgerEntry.objects.get(
             entry_type=ProductLedgerEntry.EntryType.REVERSAL
         )
@@ -154,9 +152,9 @@ class ProductLedgerEntryTest(TestCase):
         self.assertEqual(reversal.value_delta, Decimal("-500.00"))
 
     def test_record_unsupported_type_returns_zero(self):
-        mock_invoice = MagicMock()
-        mock_invoice.operation.operation_type = OperationType.EXPENSE
-        created, skipped = ProductLedgerEntry.record(mock_invoice)
+        mock_op = MagicMock()
+        mock_op.operation_type = OperationType.EXPENSE
+        created, skipped = ProductLedgerEntry.record(mock_op)
         self.assertEqual((created, skipped), (0, 0))
 
     # --- state_as_of() ---
@@ -167,7 +165,7 @@ class ProductLedgerEntryTest(TestCase):
         self.assertEqual(state["value"], Decimal("0.00"))
 
     def test_state_as_of_sums_entries(self):
-        invoice = self._make_invoice(
+        op = self._make_operation_with_item(
             PurchaseOperation,
             OperationType.PURCHASE,
             self.project,
@@ -175,7 +173,7 @@ class ProductLedgerEntryTest(TestCase):
             qty=Decimal("10.00"),
             price=Decimal("50.00"),
         )
-        ProductLedgerEntry.record(invoice)
+        ProductLedgerEntry.record(op)
         state = ProductLedgerEntry.state_as_of(self.product, date.today())
         self.assertEqual(state["quantity"], Decimal("10.00"))
         self.assertEqual(state["value"], Decimal("500.00"))
@@ -184,12 +182,12 @@ class ProductLedgerEntryTest(TestCase):
 
     def test_record_negate_idempotent(self):
         """Calling record(negate=True) twice is idempotent — second call is skipped."""
-        invoice = self._make_invoice(
+        op = self._make_operation_with_item(
             PurchaseOperation, OperationType.PURCHASE, self.project, self.vendor
         )
-        ProductLedgerEntry.record(invoice)
-        created1, skipped1 = ProductLedgerEntry.record(invoice, negate=True)
-        created2, skipped2 = ProductLedgerEntry.record(invoice, negate=True)
+        ProductLedgerEntry.record(op)
+        created1, skipped1 = ProductLedgerEntry.record(op, negate=True)
+        created2, skipped2 = ProductLedgerEntry.record(op, negate=True)
         self.assertEqual((created1, skipped1), (1, 0))
         self.assertEqual((created2, skipped2), (0, 1))
         self.assertEqual(
@@ -218,7 +216,7 @@ class ProductLedgerEntryTest(TestCase):
 
     def test_portfolio_as_of_excludes_zero_quantity_products(self):
         # Purchase 5 units of self.product
-        purchase_invoice = self._make_invoice(
+        purchase_op = self._make_operation_with_item(
             PurchaseOperation,
             OperationType.PURCHASE,
             self.project,
@@ -226,7 +224,7 @@ class ProductLedgerEntryTest(TestCase):
             qty=Decimal("5.00"),
             price=Decimal("100.00"),
         )
-        ProductLedgerEntry.record(purchase_invoice)
+        ProductLedgerEntry.record(purchase_op)
 
         # A second template/product still in stock
         template2 = make_product_template("Sheep")
@@ -239,15 +237,12 @@ class ProductLedgerEntryTest(TestCase):
             PurchaseOperation,
             OperationType.PURCHASE,
         )
-        invoice2 = make_invoice(op2)
-        item2 = make_invoice_item(
-            invoice2, template2, Decimal("3.00"), Decimal("80.00")
-        )
+        item2 = make_invoice_item(op2, template2, Decimal("3.00"), Decimal("80.00"))
         product2.invoice_items.add(item2)
-        ProductLedgerEntry.record(invoice2)
+        ProductLedgerEntry.record(op2)
 
         # Sell all 5 units of self.product → net quantity = 0
-        sell_invoice = self._make_invoice(
+        sell_op = self._make_operation_with_item(
             SaleOperation,
             OperationType.SALE,
             self.client,
@@ -255,7 +250,7 @@ class ProductLedgerEntryTest(TestCase):
             qty=Decimal("5.00"),
             price=Decimal("100.00"),
         )
-        ProductLedgerEntry.record(sell_invoice)
+        ProductLedgerEntry.record(sell_op)
 
         portfolio = list(ProductLedgerEntry.portfolio_as_of(self.project, date.today()))
         product_ids = {row["product_id"] for row in portfolio}

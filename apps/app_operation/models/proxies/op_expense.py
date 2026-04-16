@@ -32,11 +32,11 @@ class ExpenseOperation(Operation):
 
     @property
     def payment_source_fund(self):
-        return self.source.fund  # clean_source ensures this is a project (pays)
+        return self.source  # clean_source ensures this is a project (pays)
 
     @property
     def payment_target_fund(self):
-        return self.destination.fund  # clean_destination ensures this is world
+        return self.destination  # clean_destination ensures this is world
 
     @property
     def project(self):

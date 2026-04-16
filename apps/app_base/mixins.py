@@ -134,7 +134,7 @@ class SourceFundMixin(BaseModelMixin):
         except Exception:
             raise ValidationError(_("Payment source fund could not be resolved."))
         fund = self.payment_source_fund
-        if not fund.entity.active:
+        if not fund.active:
             raise ValidationError(_("The Payment source entity should be active."))
         if not fund.active:
             raise ValidationError(_("The payment source fund is not active."))
@@ -156,7 +156,7 @@ class TargetFundMixin(BaseModelMixin):
         except Exception:
             raise ValidationError(_("Payment target fund could not be resolved."))
         fund = self.payment_target_fund
-        if not fund.entity.active:
+        if not fund.active:
             raise ValidationError(_("The Payment target entity should be active."))
 
     def clean(self) -> None:

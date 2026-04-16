@@ -32,11 +32,11 @@ class CorrectionDebitOperation(Operation):
 
     @property
     def payment_source_fund(self):
-        return self.source.fund  # project entity
+        return self.source  # project entity
 
     @property
     def payment_target_fund(self):
-        return self.destination.fund  # system entity
+        return self.destination  # system entity
 
     def clean_source(self):
         if not self.source.is_project:

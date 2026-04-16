@@ -2,8 +2,8 @@
 **Epic:** 10.3 — Miscellaneous One-Shot Operations
 **Type:** One-shot
 **Transaction flow:**
-- Issuance: `entity.fund → system.fund` — type: `CAPITAL_LOSS_ISSUANCE`
-- Payment: `entity.fund → system.fund` — type: `CAPITAL_LOSS_PAYMENT`
+- Issuance: `entity → system.fund` — type: `CAPITAL_LOSS_ISSUANCE`
+- Payment: `entity → system.fund` — type: `CAPITAL_LOSS_PAYMENT`
 
 **Settlement:** Fully settled immediately — `is_fully_settled=True`, `amount_settled == amount`, `amount_remaining_to_settle == 0`
 
@@ -20,7 +20,7 @@
 Tasks:
 - [x] Verify issuance and payment transactions are created
 - [x] Verify transaction types are `CAPITAL_LOSS_ISSUANCE` and `CAPITAL_LOSS_PAYMENT`
-- [x] Verify transaction funds: source=entity.fund, target=system.fund
+- [x] Verify transaction funds: source=entity, target=system.fund
 - [x] Verify destination is the System entity (`is_system=True`)
 - [x] Verify non-system destination raises ValidationError
 - [x] Verify source entity must be active
@@ -33,7 +33,7 @@ Tasks:
 - [x] Verify one-shot constraint prevents a second payment transaction
 - [x] Verify reversal creates a reversal operation linked to the original
 - [x] Verify reversal marks original as reversed and sets `reversed_by`
-- [x] Verify reversal counter-transactions flip funds (`system.fund → entity.fund`)
+- [x] Verify reversal counter-transactions flip funds (`system.fund → entity`)
 - [x] Verify counter-transactions preserve transaction type
 - [x] Verify entity fund is restored to pre-loss balance after reversal
 - [x] Verify cannot reverse an already-reversed operation

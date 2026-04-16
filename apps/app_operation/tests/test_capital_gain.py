@@ -71,8 +71,8 @@ class CapitalGainCreateTest(TestCase):
         op.save()
 
         for tx in op.get_all_transactions():
-            self.assertEqual(tx.source, self.system_entity.fund)
-            self.assertEqual(tx.target, self.project_entity.fund)
+            self.assertEqual(tx.source, self.system_entity)
+            self.assertEqual(tx.target, self.project_entity)
 
     def test_is_fully_settled_after_creation(self):
         op = self._make_op(amount=Decimal("500.00"))
@@ -83,13 +83,13 @@ class CapitalGainCreateTest(TestCase):
         self.assertEqual(op.amount_remaining_to_settle, Decimal("0.00"))
 
     def test_project_fund_increases_by_gain_amount(self):
-        balance_before = self.project_entity.fund.balance
+        balance_before = self.project_entity.balance
 
         op = self._make_op(amount=Decimal("750.00"))
         op.save()
 
         self.assertEqual(
-            self.project_entity.fund.balance,
+            self.project_entity.balance,
             balance_before + Decimal("750.00"),
         )
 
@@ -288,11 +288,11 @@ class CapitalGainReversalTest(TestCase):
             self.assertEqual(tx.reversed_by.type, tx.type)
 
     def test_project_fund_restored_after_reversal(self):
-        balance_after_gain = self.project_entity.fund.balance
+        balance_after_gain = self.project_entity.balance
         self.op.reverse(officer=self.officer_user)
 
         self.assertEqual(
-            self.project_entity.fund.balance,
+            self.project_entity.balance,
             balance_after_gain - self.op.amount,
         )
 

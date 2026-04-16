@@ -71,8 +71,8 @@ class CapitalLossCreateTest(TestCase):
         op.save()
 
         for tx in op.get_all_transactions():
-            self.assertEqual(tx.source, self.project_entity.fund)
-            self.assertEqual(tx.target, self.system_entity.fund)
+            self.assertEqual(tx.source, self.project_entity)
+            self.assertEqual(tx.target, self.system_entity)
 
     def test_is_fully_settled_after_creation(self):
         op = self._make_op(amount=Decimal("500.00"))
@@ -97,14 +97,14 @@ class CapitalLossCreateTest(TestCase):
         )
         seed.save()
 
-        balance_before = self.project_entity.fund.balance
+        balance_before = self.project_entity.balance
 
         op = self._make_op(amount=Decimal("750.00"))
         op.save()
 
-        self.project_entity.fund.refresh_from_db()
+        self.project_entity.refresh_from_db()
         self.assertEqual(
-            self.project_entity.fund.balance,
+            self.project_entity.balance,
             balance_before - Decimal("750.00"),
         )
 
@@ -126,8 +126,8 @@ class CapitalLossCreateTest(TestCase):
             op.save()
 
     def test_source_fund_must_be_active(self):
-        self.project_entity.fund.active = False
-        self.project_entity.fund.save()
+        self.project_entity.active = False
+        self.project_entity.save()
 
         op = self._make_op()
         with self.assertRaises(ValidationError):
@@ -317,12 +317,12 @@ class CapitalLossReversalTest(TestCase):
             self.assertEqual(tx.reversed_by.type, tx.type)
 
     def test_project_fund_restored_after_reversal(self):
-        balance_after_loss = self.project_entity.fund.balance
+        balance_after_loss = self.project_entity.balance
         self.op.reverse(officer=self.officer_user)
 
-        self.project_entity.fund.refresh_from_db()
+        self.project_entity.refresh_from_db()
         self.assertEqual(
-            self.project_entity.fund.balance,
+            self.project_entity.balance,
             balance_after_loss + self.op.amount,
         )
 

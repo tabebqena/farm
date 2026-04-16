@@ -3,11 +3,10 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from apps.app_entity.models import Entity, Stakeholder, StakeholderRole
+from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
 from apps.app_inventory.models import Product
 from apps.app_inventory.tests.general import (
     make_entity,
-    make_invoice,
     make_invoice_item,
     make_operation,
     make_product,
@@ -29,7 +28,7 @@ class ProductTest(TestCase):
     def setUp(self):
         self.officer = make_user()
         self.system = Entity.create(EntityType.SYSTEM)
-        self.vendor = make_entity("Vendor", is_vendor=True)
+        self.vendor = make_entity(EntityType.PERSON, "Vendor", is_vendor=True)
         self.project = make_project_entity("Farm")
         Stakeholder.objects.create(
             parent=self.project,
@@ -37,7 +36,7 @@ class ProductTest(TestCase):
             active=True,
             role=StakeholderRole.VENDOR,
         )
-        self.client = make_entity("Client", is_client=True)
+        self.client = make_entity(EntityType.PERSON, "Client", is_client=True)
         Stakeholder.objects.create(
             parent=self.project,
             target=self.client,
@@ -55,9 +54,9 @@ class ProductTest(TestCase):
         qty=Decimal("1"),
         price=Decimal("100.00"),
     ):
-        """Create an operation → invoice → item → product chain and return the product."""
+        """Create an operation → item → product chain and return the product."""
         op = make_operation(source, destination, self.officer, proxy_class, op_type)
-        item = make_invoice_item(make_invoice(op), self.template, qty, price)
+        item = make_invoice_item(op, self.template, qty, price)
         product = make_product(self.template, price, int(qty))
         product.invoice_items.add(item)
         return product
@@ -90,12 +89,12 @@ class ProductTest(TestCase):
         sale_op = make_operation(
             self.client, self.project, self.officer, SaleOperation, OperationType.SALE
         )
-        sale_item = make_invoice_item(make_invoice(sale_op), self.template)
+        sale_item = make_invoice_item(sale_op, self.template)
 
         death_op = make_operation(
             self.project, self.system, self.officer, DeathOperation, OperationType.DEATH
         )
-        death_item = make_invoice_item(make_invoice(death_op), self.template)
+        death_item = make_invoice_item(death_op, self.template)
 
         product = make_product(self.template)
         product.invoice_items.add(sale_item, death_item)
@@ -115,9 +114,7 @@ class ProductTest(TestCase):
             CapitalGainOperation,
             OperationType.CAPITAL_GAIN,
         )
-        item = make_invoice_item(
-            make_invoice(cg_op), self.template, Decimal("1"), Decimal("20.00")
-        )
+        item = make_invoice_item(cg_op, self.template, Decimal("1"), Decimal("20.00"))
         product = make_product(self.template, Decimal("100.00"), 1)
         product.invoice_items.add(item)
         self.assertEqual(product.current_value, Decimal("120.00"))
@@ -130,9 +127,7 @@ class ProductTest(TestCase):
             CapitalLossOperation,
             OperationType.CAPITAL_LOSS,
         )
-        item = make_invoice_item(
-            make_invoice(cl_op), self.template, Decimal("1"), Decimal("15.00")
-        )
+        item = make_invoice_item(cl_op, self.template, Decimal("1"), Decimal("15.00"))
         product = make_product(self.template, Decimal("100.00"), 1)
         product.invoice_items.add(item)
         self.assertEqual(product.current_value, Decimal("85.00"))
@@ -153,12 +148,8 @@ class ProductTest(TestCase):
             CapitalLossOperation,
             OperationType.CAPITAL_LOSS,
         )
-        gain_item = make_invoice_item(
-            make_invoice(cg_op), self.template, Decimal("1"), Decimal("30.00")
-        )
-        loss_item = make_invoice_item(
-            make_invoice(cl_op), self.template, Decimal("1"), Decimal("10.00")
-        )
+        gain_item = make_invoice_item(cg_op, self.template, Decimal("1"), Decimal("30.00"))
+        loss_item = make_invoice_item(cl_op, self.template, Decimal("1"), Decimal("10.00"))
         product = make_product(self.template, Decimal("100.00"), 1)
         product.invoice_items.add(gain_item, loss_item)
         # 100 + 30 - 10 = 120

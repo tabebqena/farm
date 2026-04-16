@@ -31,15 +31,16 @@ class LossCoverageOperation(Operation):
 
     @property
     def payment_source_fund(self):
-        return self.source.fund  # shareholder
+        return self.source  # shareholder
 
     @property
     def payment_target_fund(self):
-        return self.destination.fund  # project
+        return self.destination  # project
 
     @classmethod
     def get_related_entities(cls, url_entity, config):
         from apps.app_entity.models import Entity, StakeholderRole
+
         return (
             Entity.objects.filter(
                 project__isnull=False,
@@ -61,9 +62,7 @@ class LossCoverageOperation(Operation):
 
     def clean(self):
         if self.plan_id is None:
-            raise ValidationError(
-                "Loss Coverage requires a Distribution Plan."
-            )
+            raise ValidationError("Loss Coverage requires a Distribution Plan.")
         plan = self.plan
         if not plan.is_loss:
             raise ValidationError(
@@ -76,15 +75,13 @@ class LossCoverageOperation(Operation):
             if self.pk:
                 from apps.app_operation.models.operation import Operation
                 from apps.app_operation.models.operation_type import OperationType
-                own = (
-                    Operation.objects.filter(
-                        pk=self.pk,
-                        operation_type=OperationType.LOSS_COVERAGE,
-                        reversal_of__isnull=True,
-                        reversed_by__isnull=True,
-                    ).values_list("amount", flat=True).first()
-                    or Decimal("0.00")
-                )
+
+                own = Operation.objects.filter(
+                    pk=self.pk,
+                    operation_type=OperationType.LOSS_COVERAGE,
+                    reversal_of__isnull=True,
+                    reversed_by__isnull=True,
+                ).values_list("amount", flat=True).first() or Decimal("0.00")
                 remaining += own
             if self.amount > remaining:
                 raise ValidationError(
@@ -92,4 +89,3 @@ class LossCoverageOperation(Operation):
                     f"{remaining} for this plan."
                 )
         return super().clean()
-

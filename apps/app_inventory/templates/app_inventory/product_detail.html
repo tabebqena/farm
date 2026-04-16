@@ -73,7 +73,7 @@
               <table class="table mb-0">
                 <thead class="table-light">
                   <tr>
-                    <th>{% trans "Invoice" %}</th>
+                    <th>{% trans "Operation" %}</th>
                     <th>{% trans "Operation type" %}</th>
                     <th>{% trans "Date" %}</th>
                     <th class="text-end">{% trans "Qty" %}</th>
@@ -85,10 +85,10 @@
                   {% for item in product.invoice_items.all %}
                     <tr>
                       <td>
-                        <a href="{% url 'invoice_detail' item.invoice.pk %}">#{{ item.invoice.pk }}</a>
+                        <a href="{% url 'operation_detail_view' item.operation.pk %}">#{{ item.operation.pk }}</a>
                       </td>
-                      <td>{{ item.invoice.operation.get_operation_type_display }}</td>
-                      <td>{{ item.invoice.operation.date }}</td>
+                      <td>{{ item.operation.get_operation_type_display }}</td>
+                      <td>{{ item.operation.date }}</td>
                       <td class="text-end">{{ item.quantity }}</td>
                       <td class="text-end">{{ item.unit_price }}</td>
                       <td class="text-end fw-bold">{{ item.total_price }}</td>

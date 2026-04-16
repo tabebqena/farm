@@ -97,8 +97,8 @@ class CashWithdrawalCreateTest(TestCase):
         op = self._make_op()
         op.save()
 
-        expected_source = self.withdrawer_entity.fund
-        expected_target = self.world_entity.fund
+        expected_source = self.withdrawer_entity
+        expected_target = self.world_entity
 
         for tx in op.get_all_transactions():
             self.assertEqual(tx.source, expected_source)
@@ -149,8 +149,8 @@ class CashWithdrawalCreateTest(TestCase):
             op.save()
 
     def test_source_fund_must_be_active(self):
-        self.withdrawer_entity.fund.active = False
-        self.withdrawer_entity.fund.save()
+        self.withdrawer_entity.active = False
+        self.withdrawer_entity.save()
 
         op = self._make_op()
         with self.assertRaises(ValidationError):
@@ -242,13 +242,13 @@ class CashWithdrawalCreateTest(TestCase):
     # ------------------------------------------------------------------
 
     def test_withdrawer_balance_decreases_after_withdrawal(self):
-        balance_before = self.withdrawer_entity.fund.balance
+        balance_before = self.withdrawer_entity.balance
 
         op = self._make_op(amount=Decimal("500.00"))
         op.save()
 
         self.assertEqual(
-            self.withdrawer_entity.fund.balance,
+            self.withdrawer_entity.balance,
             balance_before - Decimal("500.00"),
         )
 
@@ -259,14 +259,14 @@ class CashWithdrawalCreateTest(TestCase):
     def test_injection_then_withdrawal_succeeds(self):
         # Inject a specific known amount on top of setUp injection
         self._inject(Decimal("300.00"))
-        balance_before = self.withdrawer_entity.fund.balance
+        balance_before = self.withdrawer_entity.balance
 
         op = self._make_op(amount=Decimal("300.00"))
         op.save()  # should not raise
 
         self.assertIsNotNone(op.pk)
         self.assertEqual(
-            self.withdrawer_entity.fund.balance,
+            self.withdrawer_entity.balance,
             balance_before - Decimal("300.00"),
         )
 
@@ -300,7 +300,7 @@ class CashWithdrawalCreateTest(TestCase):
             op.save()
 
     def test_withdrawal_exceeding_balance_raises_error(self):
-        balance = self.withdrawer_entity.fund.balance  # 2000.00 from setUp
+        balance = self.withdrawer_entity.balance  # 2000.00 from setUp
 
         op = self._make_op(amount=balance + Decimal("1.00"))
         with self.assertRaises(ValidationError):
@@ -422,10 +422,10 @@ class CashWithdrawalReversalTest(TestCase):
 
     def test_withdrawer_balance_restored_after_reversal(self):
         # setUp already saved the withdrawal, so balance is already reduced
-        balance_after_withdrawal = self.withdrawer_entity.fund.balance
+        balance_after_withdrawal = self.withdrawer_entity.balance
         self.op.reverse(officer=self.officer_user)
 
         self.assertEqual(
-            self.withdrawer_entity.fund.balance,
+            self.withdrawer_entity.balance,
             balance_after_withdrawal + self.op.amount,
         )

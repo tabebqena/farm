@@ -27,11 +27,11 @@ class InternalTransferOperation(Operation):
 
     @property
     def payment_source_fund(self):
-        return self.source.fund  # clean ensures this is an internal entity
+        return self.source  # clean ensures this is an internal entity
 
     @property
     def payment_target_fund(self):
-        return self.destination.fund  # clean ensures this is an internal entity
+        return self.destination  # clean ensures this is an internal entity
 
     @classmethod
     def get_related_entities(cls, url_entity, config):
@@ -60,7 +60,7 @@ class InternalTransferOperation(Operation):
             raise ValidationError(
                 "Internal Transfer destination cannot be a system or world entity."
             )
-        source_fund = self.source.fund
+        source_fund = self.source
         if source_fund.balance < self.amount:
             raise ValidationError(
                 f"Insufficient funds: source fund balance ({source_fund.balance}) "

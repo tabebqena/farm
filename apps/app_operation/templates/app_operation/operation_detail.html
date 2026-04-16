@@ -16,7 +16,7 @@
           {% include 'app_operation/snippets/transactions_table.html' %}
         </div>
 
-        {% if invoice %}
+        {% if items %}
           <div class="card mt-4 shadow-sm">
             <div class="card-header fw-bold">{% trans "Invoice Items" %}</div>
             <div class="card-body p-0">
@@ -32,7 +32,7 @@
                     </tr>
                   </thead>
                   <tbody>
-                    {% for item in invoice.items.all %}
+                    {% for item in items %}
                       <tr>
                         <td>{{ item.product.name }}</td>
                         <td class="text-muted">{{ item.description }}</td>
@@ -47,7 +47,7 @@
                   <tfoot class="table-light">
                     <tr>
                       <td colspan="4" class="text-end fw-bold">{% trans "Total" %}</td>
-                      <td class="text-end fw-bold">{{ invoice.total_price }}</td>
+                      <td class="text-end fw-bold">{{ operation.amount }}</td>
                     </tr>
                   </tfoot>
                 </table>

@@ -1,3 +1,4 @@
+import datetime
 import typing
 from decimal import Decimal
 
@@ -19,7 +20,7 @@ from apps.app_transaction.transaction_type import TransactionType
 if typing.TYPE_CHECKING:
     from django.contrib.auth.base_user import AbstractBaseUser
 
-    from apps.app_entity.models import Fund
+    from apps.app_entity.models import Entity
 # TODO use database level constrains for dataintegrity.
 # TODO add finiancial period closing
 # TODO : "Financial Statement" method
@@ -38,7 +39,7 @@ class Transaction(AmountCleanMixin, ImmutableMixin, BaseModel):
     date = models.DateTimeField(default=timezone.now)
     # source is the fund that gives the amount.
     source = models.ForeignKey(
-        "app_entity.Fund",
+        "app_entity.Entity",
         on_delete=models.PROTECT,
         related_name="transactions_outgoing",
         blank=False,
@@ -46,7 +47,7 @@ class Transaction(AmountCleanMixin, ImmutableMixin, BaseModel):
     )
     # target is the fund that receives the amount.
     target = models.ForeignKey(
-        "app_entity.Fund",
+        "app_entity.Entity",
         on_delete=models.PROTECT,
         related_name="transactions_incoming",
         blank=False,
@@ -110,8 +111,8 @@ class Transaction(AmountCleanMixin, ImmutableMixin, BaseModel):
 
     @staticmethod
     def create(
-        source: "Fund",
-        target: "Fund",
+        source: "Entity",
+        target: "Entity",
         document,
         type: TransactionType,
         amount: Decimal,
@@ -120,6 +121,13 @@ class Transaction(AmountCleanMixin, ImmutableMixin, BaseModel):
         note="",
         date=None,
     ):
+        resolved_date = date or timezone.now()
+        if isinstance(resolved_date, datetime.date) and not isinstance(
+            resolved_date, datetime.datetime
+        ):
+            resolved_date = timezone.make_aware(
+                datetime.datetime.combine(resolved_date, datetime.time.min)
+            )
         return Transaction.objects.create(
             source=source,
             target=target,
@@ -129,7 +137,7 @@ class Transaction(AmountCleanMixin, ImmutableMixin, BaseModel):
             officer=officer or document.officer,
             description=description or f"Transaction for {document.description}",
             note=note,
-            date=date or timezone.now(),
+            date=resolved_date,
         )
 
     @db_transaction.atomic
@@ -146,8 +154,15 @@ class Transaction(AmountCleanMixin, ImmutableMixin, BaseModel):
         # Use the same type in the reversal to make it readable
         # This has no effect in calculations
         # 1. Create the mirror-image Transaction
+        resolved_date = date or timezone.now()
+        if isinstance(resolved_date, datetime.date) and not isinstance(
+            resolved_date, datetime.datetime
+        ):
+            resolved_date = timezone.make_aware(
+                datetime.datetime.combine(resolved_date, datetime.time.min)
+            )
         reversal = Transaction(
-            date=date or timezone.now(),
+            date=resolved_date,
             source=self.target,
             target=self.source,
             amount=self.amount,

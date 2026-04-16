@@ -7,13 +7,13 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.translation import gettext as _
 
 from apps.app_entity.models import Entity
-from apps.app_inventory.models import Invoice, Product, ProductTemplate
+from apps.app_inventory.models import Product, ProductTemplate
 
 
 def stock_detail(request):
     products = (
         Product.objects.select_related("product_template")
-        .prefetch_related("invoice_items__invoice__operation")
+        .prefetch_related("invoice_items__operation")
         .order_by("product_template__nature", "product_template__name", "pk")
     )
     return render(request, "app_inventory/stock_detail.html", {"products": products})
@@ -22,19 +22,11 @@ def stock_detail(request):
 def product_detail(request, pk):
     product = get_object_or_404(
         Product.objects.select_related("product_template").prefetch_related(
-            "invoice_items__invoice__operation"
+            "invoice_items__operation"
         ),
         pk=pk,
     )
     return render(request, "app_inventory/product_detail.html", {"product": product})
-
-
-def invoice_detail(request, pk):
-    invoice = get_object_or_404(
-        Invoice.objects.select_related("operation").prefetch_related("items__product"),
-        pk=pk,
-    )
-    return render(request, "app_inventory/invoice_detail.html", {"invoice": invoice})
 
 
 def project_product_templates_setup(request, entity_pk):

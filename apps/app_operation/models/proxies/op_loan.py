@@ -33,11 +33,11 @@ class LoanOperation(Operation):
 
     @property
     def payment_source_fund(self):
-        return self.source.fund  # creditor disburses
+        return self.source  # creditor disburses
 
     @property
     def payment_target_fund(self):
-        return self.destination.fund  # debtor receives
+        return self.destination  # debtor receives
 
     @property
     def creditor(self):
@@ -56,6 +56,7 @@ class LoanOperation(Operation):
     def get_related_entities(cls, url_entity, config):
         from django.db.models import Q
         from apps.app_entity.models import Entity
+
         return (
             Entity.objects.filter(
                 Q(person__isnull=False) | Q(project__isnull=False),
@@ -68,4 +69,3 @@ class LoanOperation(Operation):
     def _implicit_reversable_transaction_types(self) -> List[TransactionType]:
         # Only the issuance is implicitly reversed; payments must be cleared manually.
         return [TransactionType.LOAN_ISSUANCE]
-

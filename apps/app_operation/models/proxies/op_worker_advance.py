@@ -28,13 +28,11 @@ class WorkerAdvanceOperation(Operation):
 
     @property
     def payment_source_fund(self):
-        return self.source.fund  # clean_source ensures this is a project (advances)
+        return self.source  # clean_source ensures this is a project (advances)
 
     @property
     def payment_target_fund(self):
-        return (
-            self.destination.fund
-        )  # clean_destination ensures this is an active worker
+        return self.destination  # clean_destination ensures this is an active worker
 
     def clean_source(self):
         if not self.source.is_project:
@@ -71,7 +69,7 @@ class WorkerAdvanceOperation(Operation):
     def clean(self):
         super().clean()
         if self.source_id and hasattr(self.source, "fund"):
-            fund = self.source.fund
+            fund = self.source
             if self.amount and fund.balance < self.amount:
                 raise ValidationError(
                     f"Insufficient funds: project fund balance ({fund.balance}) "

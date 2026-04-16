@@ -14,11 +14,6 @@ urlpatterns = [
         name="product_detail",
     ),
     path(
-        "invoices/<int:pk>/",
-        views.invoice_detail,
-        name="invoice_detail",
-    ),
-    path(
         "entity/<int:entity_pk>/product-templates",
         views.project_product_templates_setup,
         name="entity_product_templates_setup",

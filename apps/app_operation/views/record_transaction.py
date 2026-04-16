@@ -66,7 +66,9 @@ def record_transaction_repayment(request, pk):
 
     proxy_cls = PROXY_MAP.get(operation.operation_type)
     if not proxy_cls:
-        return HttpResponseBadRequest(f"Unsupported operation type: {operation.operation_type}")
+        return HttpResponseBadRequest(
+            f"Unsupported operation type: {operation.operation_type}"
+        )
     data = proxy_cls.resolve_request(operation.source.pk, request)
     if not data.get("has_repayment"):
         return HttpResponseBadRequest(
@@ -101,8 +103,8 @@ def record_transaction_repayment(request, pk):
 
                 with db_transaction.atomic():
                     Transaction.create(
-                        source=operation.destination.fund,
-                        target=operation.source.fund,
+                        source=operation.destination,
+                        target=operation.source,
                         document=operation,
                         type=transaction_type,
                         amount=amount,

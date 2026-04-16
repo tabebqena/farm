@@ -39,11 +39,11 @@ class BirthOperation(Operation):
 
     @property
     def payment_source_fund(self):
-        return self.source.fund  # system entity — exempt from balance validation
+        return self.source  # system entity — exempt from balance validation
 
     @property
     def payment_target_fund(self):
-        return self.destination.fund  # project receiving the newborn asset
+        return self.destination  # project receiving the newborn asset
 
     def clean_source(self):
         if not self.source.is_system:

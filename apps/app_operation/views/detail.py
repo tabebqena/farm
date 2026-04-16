@@ -10,13 +10,13 @@ def operation_detail_view(request, pk):
     # Prefetch related data for performance
     transactions = operation.get_all_transactions()
 
-    invoice = getattr(operation, "invoice", None)
+    items = operation.items.all() if type(operation).has_invoice else None
 
     # Group transactions for the UI
     context = {
         "operation": operation,
         "transactions": transactions,
-        "invoice": invoice,
+        "items": items,
         "is_reversed": operation.is_reversed,
     }
     return render(request, "app_operation/operation_detail.html", context)

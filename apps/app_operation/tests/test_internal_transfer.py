@@ -87,8 +87,8 @@ class InternalTransferCreateTest(TestCase):
         op.save()
 
         for tx in op.get_all_transactions():
-            self.assertEqual(tx.source, self.source_entity.fund)
-            self.assertEqual(tx.target, self.dest_entity.fund)
+            self.assertEqual(tx.source, self.source_entity)
+            self.assertEqual(tx.target, self.dest_entity)
 
     def test_is_fully_settled_immediately(self):
         op = self._make_op(amount=Decimal("500.00"))
@@ -99,25 +99,25 @@ class InternalTransferCreateTest(TestCase):
         self.assertEqual(op.amount_remaining_to_settle, Decimal("0.00"))
 
     def test_source_balance_decreases_after_transfer(self):
-        balance_before = self.source_entity.fund.balance
+        balance_before = self.source_entity.balance
 
         op = self._make_op(amount=Decimal("300.00"))
         op.save()
 
-        self.source_entity.fund.refresh_from_db()
+        self.source_entity.refresh_from_db()
         self.assertEqual(
-            self.source_entity.fund.balance, balance_before - Decimal("300.00")
+            self.source_entity.balance, balance_before - Decimal("300.00")
         )
 
     def test_destination_balance_increases_after_transfer(self):
-        balance_before = self.dest_entity.fund.balance
+        balance_before = self.dest_entity.balance
 
         op = self._make_op(amount=Decimal("300.00"))
         op.save()
 
-        self.dest_entity.fund.refresh_from_db()
+        self.dest_entity.refresh_from_db()
         self.assertEqual(
-            self.dest_entity.fund.balance, balance_before + Decimal("300.00")
+            self.dest_entity.balance, balance_before + Decimal("300.00")
         )
 
     # ------------------------------------------------------------------
@@ -150,8 +150,8 @@ class InternalTransferCreateTest(TestCase):
             op.save()
 
     def test_source_fund_must_be_active(self):
-        self.source_entity.fund.active = False
-        self.source_entity.fund.save()
+        self.source_entity.active = False
+        self.source_entity.save()
 
         op = self._make_op()
         with self.assertRaises(ValidationError):
@@ -359,22 +359,22 @@ class InternalTransferReversalTest(TestCase):
             self.assertEqual(tx.reversed_by.type, tx.type)
 
     def test_source_balance_restored_after_reversal(self):
-        balance_after_transfer = self.source_entity.fund.balance
+        balance_after_transfer = self.source_entity.balance
         self.op.reverse(officer=self.officer)
 
-        self.source_entity.fund.refresh_from_db()
+        self.source_entity.refresh_from_db()
         self.assertEqual(
-            self.source_entity.fund.balance,
+            self.source_entity.balance,
             balance_after_transfer + self.op.amount,
         )
 
     def test_destination_balance_restored_after_reversal(self):
-        balance_after_transfer = self.dest_entity.fund.balance
+        balance_after_transfer = self.dest_entity.balance
         self.op.reverse(officer=self.officer)
 
-        self.dest_entity.fund.refresh_from_db()
+        self.dest_entity.refresh_from_db()
         self.assertEqual(
-            self.dest_entity.fund.balance,
+            self.dest_entity.balance,
             balance_after_transfer - self.op.amount,
         )
 

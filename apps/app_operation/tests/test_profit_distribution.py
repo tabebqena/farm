@@ -148,8 +148,8 @@ class ProfitDistributionCreateTest(TestCase):
         op.save()
 
         for tx in op.get_all_transactions():
-            self.assertEqual(tx.source, self.project_entity.fund)
-            self.assertEqual(tx.target, self.shareholder.fund)
+            self.assertEqual(tx.source, self.project_entity)
+            self.assertEqual(tx.target, self.shareholder)
 
     def test_is_fully_settled_after_creation(self):
         op = self._make_op()
@@ -159,22 +159,22 @@ class ProfitDistributionCreateTest(TestCase):
         self.assertEqual(op.amount_remaining_to_settle, Decimal("0.00"))
 
     def test_project_fund_decreases_by_distribution_amount(self):
-        balance_before = self.project_entity.fund.balance
+        balance_before = self.project_entity.balance
         op = self._make_op(amount=Decimal("500.00"))
         op.save()
 
         self.assertEqual(
-            self.project_entity.fund.balance,
+            self.project_entity.balance,
             balance_before - Decimal("500.00"),
         )
 
     def test_shareholder_fund_increases_by_distribution_amount(self):
-        balance_before = self.shareholder.fund.balance
+        balance_before = self.shareholder.balance
         op = self._make_op(amount=Decimal("500.00"))
         op.save()
 
         self.assertEqual(
-            self.shareholder.fund.balance,
+            self.shareholder.balance,
             balance_before + Decimal("500.00"),
         )
 
@@ -458,20 +458,20 @@ class ProfitDistributionReversalTest(TestCase):
             self.assertEqual(tx.reversed_by.type, tx.type)
 
     def test_project_fund_restored_after_reversal(self):
-        balance_after_distribution = self.project_entity.fund.balance
+        balance_after_distribution = self.project_entity.balance
         self.op.reverse(officer=self.officer)
 
         self.assertEqual(
-            self.project_entity.fund.balance,
+            self.project_entity.balance,
             balance_after_distribution + self.op.amount,
         )
 
     def test_shareholder_fund_reduced_after_reversal(self):
-        balance_after_distribution = self.shareholder.fund.balance
+        balance_after_distribution = self.shareholder.balance
         self.op.reverse(officer=self.officer)
 
         self.assertEqual(
-            self.shareholder.fund.balance,
+            self.shareholder.balance,
             balance_after_distribution - self.op.amount,
         )
 
