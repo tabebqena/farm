@@ -36,7 +36,7 @@ class CashWithdrawalOperation(Operation):
         )  # clean_destination ensures this is the world entity
 
     def clean_source(self):
-        if not self.source.person:
+        if not self.source.is_person:
             raise ValidationError("Cash Withdrawal source must be a Person entity.")
 
     def clean_destination(self):

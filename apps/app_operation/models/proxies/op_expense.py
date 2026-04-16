@@ -43,7 +43,7 @@ class ExpenseOperation(Operation):
         return self.source
 
     def clean_source(self):
-        if not self.source.project:
+        if not self.source.is_project:
             raise ValidationError("Expense source must be a Project entity.")
 
     def clean_destination(self):

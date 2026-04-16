@@ -6,13 +6,13 @@
     <form method="post">
         {% csrf_token %}
         <div class="card-header bg-white py-3">
-            <h5 class="mb-0 fw-bold">{% trans "Manage Entity:" %} {{ person.name }}</h5>
+            <h5 class="mb-0 fw-bold">{% trans "Manage Entity:" %} {{ entity.name }}</h5>
         </div>
 
         <div class="card-body p-4">
             <div class="mb-4">
-                <label class="form-label fw-bold">{% trans "Private Name" %}</label>
-                <input type="text" name="private_name" class="form-control" value="{{ person.private_name }}">
+                <label class="form-label fw-bold">{% trans "Name" %}</label>
+                <input type="text" name="name" class="form-control" value="{{ entity.name }}">
             </div>
 
             <hr>

@@ -320,7 +320,7 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
 
     def clean(self):
         if self.amount is not None and self.entity_id:
-            if not self.entity.project:
+            if not self.entity.is_project:
                 raise ValidationError(
                     "Only project entities can have a profit/loss amount."
                 )

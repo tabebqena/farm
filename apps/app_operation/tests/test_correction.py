@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from apps.app_entity.models import Entity, Person, Project
+from apps.app_entity.models import Entity, EntityType
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import (
     CapitalGainOperation,
@@ -29,9 +29,7 @@ def _make_officer():
 
 
 def _make_project_entity(name="Test Project"):
-    project = Project(name=name)
-    project.save()
-    return Entity.create(owner=project)
+    return Entity.create(EntityType.PROJECT, name=name)
 
 
 def _seed_balance(system_entity, project_entity, officer_user, amount):
@@ -55,7 +53,7 @@ def _seed_balance(system_entity, project_entity, officer_user, amount):
 
 class CorrectionCreditCreateTest(TestCase):
     def setUp(self):
-        self.system_entity = Entity.create(is_system=True)
+        self.system_entity = Entity.create(EntityType.SYSTEM)
         self.officer_user = _make_officer()
         self.project_entity = _make_project_entity()
 
@@ -128,13 +126,13 @@ class CorrectionCreditCreateTest(TestCase):
     # ------------------------------------------------------------------
 
     def test_source_must_be_system_entity(self):
-        non_system = Person.create(private_name="Regular Person")
-        op = self._make_op(source=non_system.entity)
+        non_system = Entity.create(EntityType.PERSON, name="Regular Person")
+        op = self._make_op(source=non_system)
         with self.assertRaises(ValidationError):
             op.save()
 
     def test_source_world_entity_raises_validation_error(self):
-        world_entity = Entity.create(is_world=True)
+        world_entity = Entity.create(EntityType.WORLD)
         op = self._make_op(source=world_entity)
         with self.assertRaises(ValidationError):
             op.save()
@@ -160,8 +158,8 @@ class CorrectionCreditCreateTest(TestCase):
     # ------------------------------------------------------------------
 
     def test_destination_must_be_project_entity(self):
-        person = Person.create(private_name="Some Person")
-        op = self._make_op(destination=person.entity)
+        person = Entity.create(EntityType.PERSON, name="Some Person")
+        op = self._make_op(destination=person)
         with self.assertRaises(ValidationError):
             op.save()
 
@@ -270,7 +268,7 @@ class CorrectionCreditCreateTest(TestCase):
 
 class CorrectionCreditReversalTest(TestCase):
     def setUp(self):
-        self.system_entity = Entity.create(is_system=True)
+        self.system_entity = Entity.create(EntityType.SYSTEM)
         self.officer_user = _make_officer()
         self.project_entity = _make_project_entity()
 
@@ -368,7 +366,7 @@ class CorrectionCreditReversalTest(TestCase):
 
 class CorrectionDebitCreateTest(TestCase):
     def setUp(self):
-        self.system_entity = Entity.create(is_system=True)
+        self.system_entity = Entity.create(EntityType.SYSTEM)
         self.officer_user = _make_officer()
         self.project_entity = _make_project_entity()
 
@@ -448,8 +446,8 @@ class CorrectionDebitCreateTest(TestCase):
     # ------------------------------------------------------------------
 
     def test_source_must_be_project_entity(self):
-        person = Person.create(private_name="Some Person")
-        op = self._make_op(source=person.entity)
+        person = Entity.create(EntityType.PERSON, name="Some Person")
+        op = self._make_op(source=person)
         with self.assertRaises(ValidationError):
             op.save()
 
@@ -479,13 +477,13 @@ class CorrectionDebitCreateTest(TestCase):
     # ------------------------------------------------------------------
 
     def test_destination_must_be_system_entity(self):
-        non_system = Person.create(private_name="Non System Person")
-        op = self._make_op(destination=non_system.entity)
+        non_system = Entity.create(EntityType.PERSON, name="Non System Person")
+        op = self._make_op(destination=non_system)
         with self.assertRaises(ValidationError):
             op.save()
 
     def test_destination_world_entity_raises_validation_error(self):
-        world_entity = Entity.create(is_world=True)
+        world_entity = Entity.create(EntityType.WORLD)
         op = self._make_op(destination=world_entity)
         with self.assertRaises(ValidationError):
             op.save()
@@ -607,7 +605,7 @@ class CorrectionDebitCreateTest(TestCase):
 
 class CorrectionDebitReversalTest(TestCase):
     def setUp(self):
-        self.system_entity = Entity.create(is_system=True)
+        self.system_entity = Entity.create(EntityType.SYSTEM)
         self.officer_user = _make_officer()
         self.project_entity = _make_project_entity()
 

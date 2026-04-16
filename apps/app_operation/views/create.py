@@ -1,216 +1,205 @@
 import traceback
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from django.contrib import messages
 from django.db import transaction as db_transaction
 from django.http import HttpResponseBadRequest
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.utils.translation import gettext as _
+from django.views import View
 
 from apps.app_inventory.forms import InvoiceItemCreateFormSet, InvoiceItemSelectFormSet
-from apps.app_inventory.models import Invoice, Product
+from apps.app_inventory.models import Invoice
 from apps.app_operation.models import FinancialCategory
 from apps.app_operation.models.proxies import PROXY_MAP, get_canonical_type
 
+if TYPE_CHECKING:
+    from apps.app_operation.models.operation import Operation
+
+
+# ---------------------------------------------------------------------------
+# Module-level helpers (pure logic, no request/view state)
+# ---------------------------------------------------------------------------
 
 def _build_formset(proxy_cls, data=None, instance=None, project=None):
     """Return the correct formset class for this operation, bound or unbound."""
     if proxy_cls.creates_assets:
-        if data is not None:
-            return InvoiceItemCreateFormSet(data, instance=instance, project=project)
-        return InvoiceItemCreateFormSet(instance=instance, project=project)
-    else:
-        if data is not None:
-            return InvoiceItemSelectFormSet(data, instance=instance)
-        return InvoiceItemSelectFormSet(instance=instance)
+        return InvoiceItemCreateFormSet(data, instance=instance, project=project) if data is not None \
+            else InvoiceItemCreateFormSet(instance=instance, project=project)
+    return InvoiceItemSelectFormSet(data, instance=instance) if data is not None \
+        else InvoiceItemSelectFormSet(instance=instance)
 
 
-def _save_inventory(proxy_cls, bound_formset):
-    """
-    Called inside an atomic block after the formset is saved.
-    - create-mode (PURCHASE/BIRTH): create a Product from each item, link via M2M.
-    - select-mode (SALE/DEATH/CAPITAL_GAIN/CAPITAL_LOSS): link the chosen Product via M2M.
-    """
-    if proxy_cls.creates_assets:
-        for form in bound_formset.forms:
-            item = form.instance
-            if not item.pk:
-                continue  # deleted form
-            template = item.product  # FK to ProductTemplate
-            uid = form.cleaned_data.get("unique_id", "").strip() or None
-            product = Product.objects.create(
-                product_template=template,
-                quantity=item.quantity,
-                unit_price=item.unit_price,
-                unique_id=uid,
+# ---------------------------------------------------------------------------
+# View
+# ---------------------------------------------------------------------------
+
+class OperationCreateView(View):
+    template_name = "app_operation/generic_form.html"
+
+    # Declared here for type-checker visibility; assigned in dispatch() after guard.
+    proxy_cls: "type[Operation]"
+    canonical_op_type: str
+    data: dict
+    has_invoice: bool
+    project: object
+
+    # ---- lifecycle ----------------------------------------------------------
+
+    def dispatch(self, request, *args, **kwargs):
+        proxy_cls = get_canonical_type(kwargs["op_type"])
+        if not proxy_cls:
+            return HttpResponseBadRequest(
+                _("Unsupported operation %(op_type)s") % {"op_type": kwargs["op_type"]}
             )
-            product.invoice_items.add(item)
-    else:
-        for form in bound_formset.forms:
-            item = form.instance
-            if not item.pk:
-                continue
-            selected = form.cleaned_data.get("selected_product")
-            if selected:
-                selected.invoice_items.add(item)
+        # proxy_cls is narrowed to type[Operation] from here on
+        self.proxy_cls = proxy_cls
+        self.canonical_op_type = next(t for t, c in PROXY_MAP.items() if c is proxy_cls)
+        self.data = proxy_cls.resolve_request(kwargs["pk"], request)
+        self.has_invoice = self.data.get("has_invoice", False)
+        self.project = self.data["url_entity"]
+        return super().dispatch(request, *args, **kwargs)
 
+    # ---- HTTP handlers ------------------------------------------------------
 
-def operation_create_factory(request, op_type, pk):
-    proxy_cls = get_canonical_type(op_type)
-    if not proxy_cls:
-        return HttpResponseBadRequest(
-            _("Unsupported operation %(op_type)s") % {"op_type": op_type}
-        )
-    canonical_op_type = next(t for t, c in PROXY_MAP.items() if c is proxy_cls)
-    data = proxy_cls.resolve_request(pk, request)
-    has_invoice = data.get("has_invoice", False)
+    def get(self, request, *args, **kwargs):
+        formset = self._make_formset() if self.has_invoice else None
+        return render(request, self.template_name, self._build_context(formset=formset))
 
-    officer = request.user
+    def post(self, request, *args, **kwargs):
+        date, description, selected_category_id = self._parse_post_fields()
+        formset = self._make_formset(data=request.POST) if self.has_invoice else None
 
-    amount = Decimal("0.00")
-    date = timezone.now().date()
-    description = ""
-    selected_category_id = None
-    formset = None
-
-    project = data["url_entity"]
-    errors = []
-
-    if request.method == "POST":
-        date_str = request.POST.get("date", "")
-        date = parse_date(date_str) if date_str else timezone.now().date()
-        description = request.POST.get("description", "")
-        cat = request.POST.get("category", "")
-        selected_category_id = int(cat) if cat else None
-
-        if has_invoice:
-            formset = _build_formset(
-                proxy_cls, data=request.POST, instance=Invoice(), project=project
-            )
-
-        is_formset_valid = True
         if formset and not formset.is_valid():
-            is_formset_valid = False
             messages.error(request, _("Please check the items table for errors."))
+            return render(request, self.template_name, self._build_context(
+                formset=formset, date=date, description=description,
+                selected_category_id=selected_category_id,
+            ))
 
-        if is_formset_valid:
-            try:
-                with db_transaction.atomic():
+        amount = Decimal("0.00")
+        errors = []
+        try:
+            with db_transaction.atomic():
+                amount = self._compute_amount(formset)
+                op = self._create_operation(amount, date, description)
+                self._process_payment(op, amount)
+                if formset:
+                    self._process_invoice(op)
 
-                    if has_invoice and formset:
-                        amount = sum(
-                            (
-                                f.cleaned_data["quantity"]
-                                * f.cleaned_data["unit_price"]
-                                for f in formset
-                                if f.cleaned_data and not f.cleaned_data.get("DELETE")
-                            ),
-                            Decimal("0.00"),
-                        )
-                    else:
-                        amount = Decimal(request.POST.get("amount") or "0")
+            messages.success(
+                request,
+                _("%(label)s recorded successfully.") % {"label": self.data["label"]},
+            )
+            return redirect("operation_detail_view", pk=op.pk)
 
-                    op = proxy_cls.objects.create(
-                        operation_type=canonical_op_type,
-                        source=data["source_entity"],
-                        destination=data["dest_entity"],
-                        amount=amount,
-                        date=date,
-                        description=description,
-                        officer=officer,
-                    )
+        except Exception as e:
+            traceback.print_exc()
+            errors.append(str(e))
+            messages.error(request, _("Transaction Error: %(error)s") % {"error": str(e)})
 
-                    amount_paid = request.POST.get("amount_paid")
-                    amount_paid = Decimal(amount_paid if amount_paid else "0")
-                    can_pay = data.get("can_pay")
-                    if can_pay:
-                        if amount_paid > amount:
-                            raise ValueError(
-                                _(
-                                    "Error: paid amount %(paid)s is more than the total %(total)s"
-                                )
-                                % {"paid": amount_paid, "total": amount}
-                            )
-                        if (
-                            not data.get("is_partially_payable")
-                            and amount_paid < amount
-                        ):
-                            raise ValueError(
-                                _(
-                                    "You can't pay less than %(amount)s for this operation."
-                                )
-                                % {"amount": amount}
-                            )
-                        if amount_paid > 0:
-                            op.create_payment_transaction(
-                                amount_paid,
-                                officer,
-                                date=request.POST.get("date") or timezone.now().date(),
-                                description=_(
-                                    "Instant payment for the operation %(op_type)s %(pk)s"
-                                )
-                                % {
-                                    "op_type": op.operation_type,
-                                    "pk": op.pk,
-                                },
-                            )
+        return render(request, self.template_name, self._build_context(
+            formset=formset, amount=amount, date=date,
+            description=description, selected_category_id=selected_category_id,
+            errors=errors,
+        ))
 
-                    if formset:
-                        invoice = Invoice.objects.create(operation=op)
-                        bound_formset = _build_formset(
-                            proxy_cls,
-                            data=request.POST,
-                            instance=invoice,
-                            project=project,
-                        )
-                        bound_formset.is_valid()  # already validated; re-bind to saved instance
-                        bound_formset.save()
-                        _save_inventory(proxy_cls, bound_formset)
+    # ---- business logic helpers ---------------------------------------------
 
-                messages.success(
-                    request,
-                    _("%(label)s recorded successfully.") % {"label": data["label"]},
-                )
-                return redirect("operation_detail_view", pk=op.pk)
-            except Exception as e:
-                traceback.print_exc()
-                errors.append(str(e))
-                messages.error(
-                    request, _("Transaction Error: %(error)s") % {"error": str(e)}
-                )
-    else:
-        if has_invoice:
-            formset = _build_formset(proxy_cls, instance=Invoice(), project=project)
+    def _parse_post_fields(self):
+        date_str = self.request.POST.get("date", "")
+        cat = self.request.POST.get("category", "")
+        return (
+            parse_date(date_str) if date_str else timezone.now().date(),
+            self.request.POST.get("description", ""),
+            int(cat) if cat else None,
+        )
 
-    entities = proxy_cls.get_related_entities(data["url_entity"], data)
-    theme_color, theme_icon = data["theme_color"], data["theme_icon"]
-    categories = FinancialCategory.objects.filter(
-        parent_entity=data["url_entity"],
-        category_type=proxy_cls.category_type,
-        is_active=True,
-    )
+    def _make_formset(self, data=None):
+        return _build_formset(self.proxy_cls, data=data, instance=Invoice(), project=self.project)
 
-    context = {
-        "primary": data["url_entity"],
-        "config": data,
-        "op_type": canonical_op_type,
-        "today": timezone.now().date(),
-        "entities": entities,
-        "theme_color": theme_color,
-        "theme_icon": theme_icon,
-        "formset": formset,
-        "has_invoice": has_invoice,
-        "creates_assets": proxy_cls.creates_assets,
-        "is_partially_payable": data.get("is_partially_payable"),
-        "can_pay": data.get("can_pay"),
-        "categories": categories,
-        "selected_category_id": selected_category_id,
-        "amount": amount if amount != Decimal("0.00") else "",
-        "date": date,
-        "description": description,
-        "errors": errors,
-    }
+    def _compute_amount(self, formset):
+        if self.has_invoice and formset:
+            return sum(
+                (
+                    f.cleaned_data["quantity"] * f.cleaned_data["unit_price"]
+                    for f in formset
+                    if f.cleaned_data and not f.cleaned_data.get("DELETE")
+                ),
+                Decimal("0.00"),
+            )
+        return Decimal(self.request.POST.get("amount") or "0")
 
-    return render(request, "app_operation/generic_form.html", context)
+    def _create_operation(self, amount, date, description):
+        return self.proxy_cls.objects.create(
+            operation_type=self.canonical_op_type,
+            source=self.data["source_entity"],
+            destination=self.data["dest_entity"],
+            amount=amount,
+            date=date,
+            description=description,
+            officer=self.request.user,
+        )
+
+    def _process_payment(self, op, amount):
+        if not self.data.get("can_pay"):
+            return
+        amount_paid = Decimal(self.request.POST.get("amount_paid") or "0")
+        if amount_paid > amount:
+            raise ValueError(
+                _("Error: paid amount %(paid)s is more than the total %(total)s")
+                % {"paid": amount_paid, "total": amount}
+            )
+        if not self.data.get("is_partially_payable") and amount_paid < amount:
+            raise ValueError(
+                _("You can't pay less than %(amount)s for this operation.")
+                % {"amount": amount}
+            )
+        if amount_paid > 0:
+            op.create_payment_transaction(
+                amount_paid,
+                self.request.user,
+                date=self.request.POST.get("date") or timezone.now().date(),
+                description=_("Instant payment for the operation %(op_type)s %(pk)s")
+                % {"op_type": op.operation_type, "pk": op.pk},
+            )
+
+    def _process_invoice(self, op):
+        invoice = Invoice.objects.create(operation=op)
+        bound_formset = _build_formset(
+            self.proxy_cls, data=self.request.POST, instance=invoice, project=self.project
+        )
+        bound_formset.is_valid()  # already validated; re-bind to saved instance
+        bound_formset.save()
+        op.save_inventory(bound_formset, invoice)
+
+    def _build_context(self, *, formset, amount=Decimal("0.00"), date=None,
+                       description="", selected_category_id=None, errors=None):
+        categories = FinancialCategory.objects.filter(
+            parent_entity=self.data["url_entity"],
+            category_type=self.proxy_cls.category_type,
+            is_active=True,
+        )
+        return {
+            "primary": self.data["url_entity"],
+            "config": self.data,
+            "op_type": self.canonical_op_type,
+            "today": timezone.now().date(),
+            "entities": self.proxy_cls.get_related_entities(self.data["url_entity"], self.data),
+            "theme_color": self.data["theme_color"],
+            "theme_icon": self.data["theme_icon"],
+            "formset": formset,
+            "has_invoice": self.has_invoice,
+            "creates_assets": self.proxy_cls.creates_assets,
+            "is_partially_payable": self.data.get("is_partially_payable"),
+            "can_pay": self.data.get("can_pay"),
+            "categories": categories,
+            "selected_category_id": selected_category_id,
+            "amount": amount if amount != Decimal("0.00") else "",
+            "date": date or timezone.now().date(),
+            "description": description,
+            "errors": errors or [],
+        }

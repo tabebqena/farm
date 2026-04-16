@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from apps.app_entity.models import Entity, Person, Project
+from apps.app_entity.models import Entity, EntityType
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import CapitalLossOperation
 from apps.app_transaction.transaction_type import TransactionType
@@ -15,16 +15,14 @@ User = get_user_model()
 
 class CapitalLossCreateTest(TestCase):
     def setUp(self):
-        self.system_entity = Entity.create(is_system=True)
+        self.system_entity = Entity.create(EntityType.SYSTEM)
 
         self.officer_user = User.objects.create_user(
             username="officer", password="testpass", is_staff=True
         )
 
         # Source: active project entity
-        project = Project(name="Test Project")
-        project.save()
-        self.project_entity = Entity.create(owner=project)
+        self.project_entity = Entity.create(EntityType.PROJECT, name="Test Project")
 
     def _make_op(self, **kwargs):
         defaults = dict(
@@ -140,13 +138,13 @@ class CapitalLossCreateTest(TestCase):
     # ------------------------------------------------------------------
 
     def test_destination_must_be_system_entity(self):
-        non_system_person = Person.create(private_name="Non System Person")
-        op = self._make_op(destination=non_system_person.entity)
+        non_system_person = Entity.create(EntityType.PERSON, name="Non System Person")
+        op = self._make_op(destination=non_system_person)
         with self.assertRaises(ValidationError):
             op.save()
 
     def test_destination_world_entity_raises_validation_error(self):
-        world_entity = Entity.create(is_world=True)
+        world_entity = Entity.create(EntityType.WORLD)
         op = self._make_op(destination=world_entity)
         with self.assertRaises(ValidationError):
             op.save()
@@ -194,9 +192,7 @@ class CapitalLossCreateTest(TestCase):
         op = self._make_op()
         op.save()
 
-        other_project = Project(name="Other Project")
-        other_project.save()
-        other_entity = Entity.create(owner=other_project)
+        other_entity = Entity.create(EntityType.PROJECT, name="Other Project")
 
         op.source = other_entity
         with self.assertRaises(ValidationError):
@@ -205,10 +201,7 @@ class CapitalLossCreateTest(TestCase):
     def test_destination_is_immutable(self):
         op = self._make_op()
         op.save()
-
-        other_project = Project(name="Other Project")
-        other_project.save()
-        other_entity = Entity.create(owner=other_project)
+        other_entity = Entity.create(EntityType.PROJECT, name="Other Project")
 
         op.destination = other_entity
         with self.assertRaises(ValidationError):
@@ -248,15 +241,13 @@ class CapitalLossCreateTest(TestCase):
 
 class CapitalLossReversalTest(TestCase):
     def setUp(self):
-        self.system_entity = Entity.create(is_system=True)
+        self.system_entity = Entity.create(EntityType.SYSTEM)
 
         self.officer_user = User.objects.create_user(
             username="officer", password="testpass", is_staff=True
         )
 
-        project = Project(name="Test Project")
-        project.save()
-        self.project_entity = Entity.create(owner=project)
+        self.project_entity = Entity.create(EntityType.PROJECT, name="Test Project")
 
         self.op = CapitalLossOperation(
             source=self.project_entity,

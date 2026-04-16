@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from apps.app_entity.models import Entity, Person, Project, Stakeholder, StakeholderRole
+from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import (
     CapitalGainOperation,
@@ -23,18 +23,17 @@ User = get_user_model()
 
 
 def _make_officer(username="officer"):
-    return User.objects.create_user(username=username, password="testpass", is_staff=True)
+    return User.objects.create_user(
+        username=username, password="testpass", is_staff=True
+    )
 
 
 def _make_person_entity(name):
-    person = Person.create(private_name=name)
-    return person.entity
+    return Entity.create(EntityType.PERSON, name=name)
 
 
 def _make_project_entity(name):
-    project = Project(name=name)
-    project.save()
-    return Entity.create(owner=project)
+    return Entity.create(EntityType.PROJECT, name)
 
 
 def _inject_person(world_entity, dest_entity, amount, officer):
@@ -63,8 +62,12 @@ def _inject_project(system_entity, dest_entity, amount, officer):
     ).save()
 
 
-def _make_worker_stakeholder(project_entity, worker_entity, role=StakeholderRole.WORKER, active=True):
-    sh = Stakeholder(parent=project_entity, target=worker_entity, role=role, active=active)
+def _make_worker_stakeholder(
+    project_entity, worker_entity, role=StakeholderRole.WORKER, active=True
+):
+    sh = Stakeholder(
+        parent=project_entity, target=worker_entity, role=role, active=active
+    )
     sh.save()
     return sh
 
@@ -83,11 +86,13 @@ class WorkerAdvanceCreateTest(TestCase):
     """
 
     def setUp(self):
-        self.system_entity = Entity.create(is_system=True)
+        self.system_entity = Entity.create(EntityType.SYSTEM)
         self.officer = _make_officer()
 
         self.project_entity = _make_project_entity("Test Farm Project")
-        _inject_project(self.system_entity, self.project_entity, Decimal("5000.00"), self.officer)
+        _inject_project(
+            self.system_entity, self.project_entity, Decimal("5000.00"), self.officer
+        )
 
         self.worker_entity = _make_person_entity("Ali Worker")
         _make_worker_stakeholder(self.project_entity, self.worker_entity)
@@ -257,7 +262,9 @@ class WorkerAdvanceCreateTest(TestCase):
     def test_destination_must_be_worker_role_stakeholder(self):
         """A person with a non-WORKER stakeholder role should not be a valid destination."""
         non_worker = _make_person_entity("Client Person")
-        _make_worker_stakeholder(self.project_entity, non_worker, role=StakeholderRole.CLIENT)
+        _make_worker_stakeholder(
+            self.project_entity, non_worker, role=StakeholderRole.CLIENT
+        )
 
         op = self._make_op(destination=non_worker)
         with self.assertRaises(ValidationError):
@@ -352,11 +359,13 @@ class WorkerAdvanceRepaymentTest(TestCase):
     """
 
     def setUp(self):
-        self.system_entity = Entity.create(is_system=True)
+        self.system_entity = Entity.create(EntityType.SYSTEM)
         self.officer = _make_officer()
 
         self.project_entity = _make_project_entity("Farm Project")
-        _inject_project(self.system_entity, self.project_entity, Decimal("5000.00"), self.officer)
+        _inject_project(
+            self.system_entity, self.project_entity, Decimal("5000.00"), self.officer
+        )
 
         self.worker_entity = _make_person_entity("Ali Worker")
         _make_worker_stakeholder(self.project_entity, self.worker_entity)
@@ -394,7 +403,9 @@ class WorkerAdvanceRepaymentTest(TestCase):
     def test_repayment_transaction_direction_is_worker_to_project(self):
         self._repay(Decimal("400.00"))
 
-        tx = self.op.get_all_transactions().get(type=TransactionType.WORKER_ADVANCE_REPAYMENT)
+        tx = self.op.get_all_transactions().get(
+            type=TransactionType.WORKER_ADVANCE_REPAYMENT
+        )
         self.assertEqual(tx.source, self.worker_entity.fund)
         self.assertEqual(tx.target, self.project_entity.fund)
 
@@ -420,14 +431,18 @@ class WorkerAdvanceRepaymentTest(TestCase):
 
         self._repay(Decimal("400.00"))
 
-        self.assertEqual(self.worker_entity.fund.balance, balance_before - Decimal("400.00"))
+        self.assertEqual(
+            self.worker_entity.fund.balance, balance_before - Decimal("400.00")
+        )
 
     def test_project_fund_increases_after_repayment(self):
         balance_before = self.project_entity.fund.balance
 
         self._repay(Decimal("400.00"))
 
-        self.assertEqual(self.project_entity.fund.balance, balance_before + Decimal("400.00"))
+        self.assertEqual(
+            self.project_entity.fund.balance, balance_before + Decimal("400.00")
+        )
 
     # ------------------------------------------------------------------
     # Over-repayment blocked
@@ -463,11 +478,13 @@ class WorkerAdvanceReversalTest(TestCase):
     """
 
     def setUp(self):
-        self.system_entity = Entity.create(is_system=True)
+        self.system_entity = Entity.create(EntityType.SYSTEM)
         self.officer = _make_officer()
 
         self.project_entity = _make_project_entity("Farm Project")
-        _inject_project(self.system_entity, self.project_entity, Decimal("5000.00"), self.officer)
+        _inject_project(
+            self.system_entity, self.project_entity, Decimal("5000.00"), self.officer
+        )
 
         self.worker_entity = _make_person_entity("Ali Worker")
         _make_worker_stakeholder(self.project_entity, self.worker_entity)

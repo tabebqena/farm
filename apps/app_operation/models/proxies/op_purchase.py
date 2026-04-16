@@ -49,7 +49,7 @@ class PurchaseOperation(Operation):
         return self.destination
 
     def clean_source(self):
-        if not self.source.project:
+        if not self.source.is_project:
             raise ValidationError("Purchase source must be a Project entity.")
 
     @classmethod

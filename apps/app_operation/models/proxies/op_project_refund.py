@@ -45,6 +45,7 @@ class ProjectRefundOperation(Operation):
     @classmethod
     def get_related_entities(cls, url_entity, config):
         from apps.app_entity.models import Entity, StakeholderRole
+
         return (
             Entity.objects.filter(
                 project__isnull=False,
@@ -57,19 +58,20 @@ class ProjectRefundOperation(Operation):
         )
 
     def clean_source(self):
-        if not self.source.project:
+        if not self.source.is_project:
             raise ValidationError("Project Refund source must be a Project entity.")
 
     def clean_destination(self):
-        if not self.destination.person:
+        if not self.destination.is_person:
             raise ValidationError("Project Refund destination must be a Person entity.")
 
     def clean(self):
         super().clean()
         # Shareholder check
         try:
-            if self.source.project and self.destination.person:
+            if self.source.is_project and self.destination.is_person:
                 from apps.app_entity.models import StakeholderRole
+
                 if not self.source.stakeholders.filter(
                     target=self.destination,
                     role=StakeholderRole.SHAREHOLDER,
@@ -96,31 +98,32 @@ class ProjectRefundOperation(Operation):
             )
         # Refund must not exceed the net amount the shareholder has funded this project
         try:
-            if self.source_id and self.destination_id and self.source.project and self.destination.person:
+            if (
+                self.source_id
+                and self.destination_id
+                and self.source.is_project
+                and self.destination.is_person
+            ):
                 from decimal import Decimal as D
+
                 from django.db.models import Sum
+
                 from apps.app_operation.models.operation_type import OperationType
 
-                total_funded = (
-                    Operation.objects.filter(
-                        operation_type=OperationType.PROJECT_FUNDING,
-                        source=self.destination,
-                        destination=self.source,
-                        reversal_of__isnull=True,
-                        reversed_by__isnull=True,
-                    ).aggregate(total=Sum("amount"))["total"]
-                    or D("0.00")
-                )
-                total_refunded = (
-                    Operation.objects.filter(
-                        operation_type=OperationType.PROJECT_REFUND,
-                        source=self.source,
-                        destination=self.destination,
-                        reversal_of__isnull=True,
-                        reversed_by__isnull=True,
-                    ).aggregate(total=Sum("amount"))["total"]
-                    or D("0.00")
-                )
+                total_funded = Operation.objects.filter(
+                    operation_type=OperationType.PROJECT_FUNDING,
+                    source=self.destination,
+                    destination=self.source,
+                    reversal_of__isnull=True,
+                    reversed_by__isnull=True,
+                ).aggregate(total=Sum("amount"))["total"] or D("0.00")
+                total_refunded = Operation.objects.filter(
+                    operation_type=OperationType.PROJECT_REFUND,
+                    source=self.source,
+                    destination=self.destination,
+                    reversal_of__isnull=True,
+                    reversed_by__isnull=True,
+                ).aggregate(total=Sum("amount"))["total"] or D("0.00")
                 net_refundable = total_funded - total_refunded
                 if self.amount > net_refundable:
                     raise ValidationError(

@@ -5,21 +5,26 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from apps.app_entity.models import Entity, Person, Project
+from apps.app_entity.models import Entity, EntityType
 from apps.app_operation.models.operation_type import OperationType
-from apps.app_operation.models.proxies import CashInjectionOperation, InternalTransferOperation
+from apps.app_operation.models.proxies import (
+    CashInjectionOperation,
+    InternalTransferOperation,
+)
 from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
 
 
 def _make_officer(username="officer"):
-    return User.objects.create_user(username=username, password="testpass", is_staff=True)
+    return User.objects.create_user(
+        username=username, password="testpass", is_staff=True
+    )
 
 
 def _make_internal_person(name):
-    person = Person.create(private_name=name, is_internal=True)
-    return person.entity
+    person = Entity.create(EntityType.PERSON, name=name, is_internal=True)
+    return person
 
 
 def _inject(world_entity, dest_entity, amount, officer):
@@ -36,7 +41,7 @@ def _inject(world_entity, dest_entity, amount, officer):
 
 class InternalTransferCreateTest(TestCase):
     def setUp(self):
-        self.world_entity = Entity.create(is_world=True)
+        self.world_entity = Entity.create(EntityType.WORLD)
         self.officer = _make_officer()
         self.source_entity = _make_internal_person("Source Person")
         self.dest_entity = _make_internal_person("Destination Person")
@@ -69,7 +74,9 @@ class InternalTransferCreateTest(TestCase):
         transactions = op.get_all_transactions()
         self.assertEqual(transactions.count(), 2)
         self.assertTrue(
-            transactions.filter(type=TransactionType.INTERNAL_TRANSFER_ISSUANCE).exists()
+            transactions.filter(
+                type=TransactionType.INTERNAL_TRANSFER_ISSUANCE
+            ).exists()
         )
         self.assertTrue(
             transactions.filter(type=TransactionType.INTERNAL_TRANSFER_PAYMENT).exists()
@@ -98,7 +105,9 @@ class InternalTransferCreateTest(TestCase):
         op.save()
 
         self.source_entity.fund.refresh_from_db()
-        self.assertEqual(self.source_entity.fund.balance, balance_before - Decimal("300.00"))
+        self.assertEqual(
+            self.source_entity.fund.balance, balance_before - Decimal("300.00")
+        )
 
     def test_destination_balance_increases_after_transfer(self):
         balance_before = self.dest_entity.fund.balance
@@ -107,20 +116,22 @@ class InternalTransferCreateTest(TestCase):
         op.save()
 
         self.dest_entity.fund.refresh_from_db()
-        self.assertEqual(self.dest_entity.fund.balance, balance_before + Decimal("300.00"))
+        self.assertEqual(
+            self.dest_entity.fund.balance, balance_before + Decimal("300.00")
+        )
 
     # ------------------------------------------------------------------
     # Source validation
     # ------------------------------------------------------------------
 
     def test_non_internal_source_raises_validation_error(self):
-        external = Person.create(private_name="External Person")
-        op = self._make_op(source=external.entity)
+        external = Entity.create(EntityType.PERSON, name="External Person")
+        op = self._make_op(source=external)
         with self.assertRaises(ValidationError):
             op.save()
 
     def test_system_entity_as_source_raises_validation_error(self):
-        system_entity = Entity.create(is_system=True)
+        system_entity = Entity.create(EntityType.SYSTEM)
         op = self._make_op(source=system_entity)
         with self.assertRaises(ValidationError):
             op.save()
@@ -156,13 +167,15 @@ class InternalTransferCreateTest(TestCase):
     # ------------------------------------------------------------------
 
     def test_non_internal_destination_raises_validation_error(self):
-        external = Person.create(private_name="External Dest")
-        op = self._make_op(destination=external.entity)
+        external = Entity.create(
+            EntityType.PERSON, is_internal=False, name="External Dest"
+        )
+        op = self._make_op(destination=external)
         with self.assertRaises(ValidationError):
             op.save()
 
     def test_system_entity_as_destination_raises_validation_error(self):
-        system_entity = Entity.create(is_system=True)
+        system_entity = Entity.create(EntityType.SYSTEM)
         op = self._make_op(destination=system_entity)
         with self.assertRaises(ValidationError):
             op.save()
@@ -271,7 +284,7 @@ class InternalTransferCreateTest(TestCase):
 
 class InternalTransferReversalTest(TestCase):
     def setUp(self):
-        self.world_entity = Entity.create(is_world=True)
+        self.world_entity = Entity.create(EntityType.WORLD)
         self.officer = _make_officer()
         self.source_entity = _make_internal_person("Source Person")
         self.dest_entity = _make_internal_person("Destination Person")
@@ -391,37 +404,45 @@ class InternalTransferGetRelatedEntitiesTest(TestCase):
     """
 
     def setUp(self):
-        self.world_entity = Entity.create(is_world=True)
-        self.system_entity = Entity.create(is_system=True)
+        self.world_entity = Entity.create(EntityType.WORLD)
+        self.system_entity = Entity.create(EntityType.SYSTEM)
         self.url_entity = _make_internal_person("Source Person")
 
         self.other_internal = _make_internal_person("Other Internal Person")
-        self.external_person = Person.create(private_name="External Person").entity
+        self.external_person = Entity.create(EntityType.PERSON, name="External Person")
 
-        project = Project(name="Test Project")
-        project.save()
-        self.project_entity = Entity.create(owner=project)
+        self.project_entity = Entity.create(EntityType.PROJECT, name="Test Project")
 
         # config mirrors what resolve_request produces for internal transfer
         self.config = {"source": "url", "dest": "post"}
 
     def test_returns_all_person_entities_except_url_entity(self):
-        result = InternalTransferOperation.get_related_entities(self.url_entity, self.config)
+        result = InternalTransferOperation.get_related_entities(
+            self.url_entity, self.config
+        )
         self.assertIn(self.other_internal, result)
         self.assertIn(self.external_person, result)
 
     def test_excludes_url_entity_itself(self):
-        result = InternalTransferOperation.get_related_entities(self.url_entity, self.config)
+        result = InternalTransferOperation.get_related_entities(
+            self.url_entity, self.config
+        )
         self.assertNotIn(self.url_entity, result)
 
     def test_excludes_world_entity(self):
-        result = InternalTransferOperation.get_related_entities(self.url_entity, self.config)
+        result = InternalTransferOperation.get_related_entities(
+            self.url_entity, self.config
+        )
         self.assertNotIn(self.world_entity, result)
 
     def test_excludes_system_entity(self):
-        result = InternalTransferOperation.get_related_entities(self.url_entity, self.config)
+        result = InternalTransferOperation.get_related_entities(
+            self.url_entity, self.config
+        )
         self.assertNotIn(self.system_entity, result)
 
     def test_excludes_project_entity(self):
-        result = InternalTransferOperation.get_related_entities(self.url_entity, self.config)
+        result = InternalTransferOperation.get_related_entities(
+            self.url_entity, self.config
+        )
         self.assertNotIn(self.project_entity, result)

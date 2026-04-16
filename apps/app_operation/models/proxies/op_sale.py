@@ -77,5 +77,5 @@ class SaleOperation(Operation):
         return [s.target for s in relationships]
 
     def clean_destination(self):
-        if not self.destination.project:
+        if not self.destination.is_project:
             raise ValidationError("Sale destination must be a Project entity.")

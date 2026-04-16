@@ -32,15 +32,18 @@ class WorkerAdvanceOperation(Operation):
 
     @property
     def payment_target_fund(self):
-        return self.destination.fund  # clean_destination ensures this is an active worker
+        return (
+            self.destination.fund
+        )  # clean_destination ensures this is an active worker
 
     def clean_source(self):
-        if not self.source.project:
+        if not self.source.is_project:
             raise ValidationError("Worker advance source should be a project.")
 
     @classmethod
     def get_related_entities(cls, url_entity, config):
         from apps.app_entity.models import Stakeholder, StakeholderRole
+
         relationships = (
             Stakeholder.objects.filter(
                 parent=url_entity, role=StakeholderRole.WORKER, active=True
@@ -51,12 +54,15 @@ class WorkerAdvanceOperation(Operation):
         return [s.target for s in relationships]
 
     def clean_destination(self):
-        if not self.destination.person:
+        if not self.destination.is_person:
             raise ValidationError("Worker Advance destination must be a person entity.")
         from apps.app_entity.models import Stakeholder, StakeholderRole
 
         if not Stakeholder.objects.filter(
-            parent=self.source, target=self.destination, role=StakeholderRole.WORKER, active=True
+            parent=self.source,
+            target=self.destination,
+            role=StakeholderRole.WORKER,
+            active=True,
         ).exists():
             raise ValidationError(
                 "Worker Advance destination must be an active worker in the selected project."

@@ -10,7 +10,7 @@ urlpatterns = [
     ),
     path(
         "<int:pk>/<op_type>/create",
-        views.operation_create_factory,
+        views.OperationCreateView.as_view(),
         name="operation_create_view",
     ),
     path(

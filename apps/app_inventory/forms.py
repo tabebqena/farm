@@ -117,6 +117,7 @@ class InvoiceItemSelectForm(forms.ModelForm):
         cleaned = super().clean()
         product = cleaned.get("selected_product")
         if product:
+            product.validate_active()
             # Derive the required ProductTemplate FK from the selected Product
             self.instance.product = product.product_template
         return cleaned

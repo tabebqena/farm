@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from apps.app_entity.models import Entity, Person, Project
+from apps.app_entity.models import Entity, EntityType
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import CashInjectionOperation, LoanOperation
 from apps.app_transaction.transaction_type import TransactionType
@@ -20,14 +20,12 @@ def _make_officer(username="officer"):
 
 
 def _make_person_entity(name):
-    person = Person.create(private_name=name)
-    return person.entity
+    person = Entity.create(EntityType.PERSON, name=name)
+    return person
 
 
 def _make_project_entity(name):
-    project = Project(name=name)
-    project.save()
-    return Entity.create(owner=project)
+    return Entity.create(EntityType.PROJECT, name=name)
 
 
 def _inject(world_entity, dest_entity, amount, officer_user):
@@ -53,7 +51,7 @@ class LoanCreateTest(TestCase):
     """
 
     def setUp(self):
-        self.world_entity = Entity.create(is_world=True)
+        self.world_entity = Entity.create(EntityType.WORLD)
         self.officer_user = _make_officer()
         # Creditor: a Person entity seeded with funds
         self.creditor_entity = _make_person_entity("Creditor Person")
@@ -249,7 +247,7 @@ class LoanDisbursementTest(TestCase):
     """
 
     def setUp(self):
-        self.world_entity = Entity.create(is_world=True)
+        self.world_entity = Entity.create(EntityType.WORLD)
         self.officer_user = _make_officer()
         self.creditor_entity = _make_person_entity("Creditor Person")
         self.debtor_entity = _make_person_entity("Debtor Person")
@@ -346,7 +344,7 @@ class LoanRepaymentTest(TestCase):
     """
 
     def setUp(self):
-        self.world_entity = Entity.create(is_world=True)
+        self.world_entity = Entity.create(EntityType.WORLD)
         self.officer_user = _make_officer()
         self.creditor_entity = _make_person_entity("Creditor Person")
         self.debtor_entity = _make_person_entity("Debtor Person")
@@ -498,7 +496,7 @@ class LoanRepaymentTest(TestCase):
 
 class LoanReversalTest(TestCase):
     def setUp(self):
-        self.world_entity = Entity.create(is_world=True)
+        self.world_entity = Entity.create(EntityType.WORLD)
         self.officer_user = _make_officer()
         self.creditor_entity = _make_person_entity("Creditor Person")
         self.debtor_entity = _make_project_entity("Debtor Project")

@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from apps.app_entity.models import Entity, Person, Project
+from apps.app_entity.models import Entity, EntityType
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import CashInjectionOperation
 from apps.app_transaction.transaction_type import TransactionType
@@ -16,7 +16,7 @@ User = get_user_model()
 class CashInjectionCreateTest(TestCase):
     def setUp(self):
         # Source: world entity
-        self.world_entity = Entity.create(is_world=True)
+        self.world_entity = Entity.create(EntityType.WORLD)
 
         # Officer: staff user linked to a person entity
         self.officer_user = User.objects.create_user(
@@ -24,8 +24,7 @@ class CashInjectionCreateTest(TestCase):
         )
 
         # Receiver: person entity (has person, no project)
-        receiver_person = Person.create(private_name="Receiver Person")
-        self.receiver_entity = receiver_person.entity
+        self.receiver_entity = Entity.create(EntityType.PERSON, name="Receiver Person")
 
     def _make_op(self, **kwargs):
         defaults = dict(
@@ -50,8 +49,8 @@ class CashInjectionCreateTest(TestCase):
 
         self.assertIsNotNone(op.pk)
         self.assertTrue(op.source.is_world)
-        self.assertIsNotNone(op.destination.person)
-        self.assertIsNone(op.destination.project)
+        self.assertIsNotNone(op.destination)
+        self.assertIsNotNone(op.destination)
 
         transactions = op.get_all_transactions()
         self.assertEqual(transactions.count(), 2)
@@ -100,17 +99,14 @@ class CashInjectionCreateTest(TestCase):
     # ------------------------------------------------------------------
 
     def test_source_must_be_world(self):
-        non_world_person = Person.create(private_name="Non World Person")
-        non_world_entity = Entity.objects.get(person=non_world_person)
+        non_world_entity = Entity.create(EntityType.PERSON, name="non_world_person")
 
         op = self._make_op(source=non_world_entity)
         with self.assertRaises(ValidationError):
             op.save()
 
     def test_destination_must_be_person_entity(self):
-        project = Project(name="Test Project")
-        project.save()
-        project_entity = Entity.create(owner=project)
+        project_entity = Entity.create(EntityType.PROJECT, name="Test Project")
 
         op = self._make_op(destination=project_entity)
         with self.assertRaises(ValidationError):
@@ -179,20 +175,20 @@ class CashInjectionCreateTest(TestCase):
     # ------------------------------------------------------------------
 
     def test_source_is_immutable(self):
-        other_person = Person.create(private_name="Other Source Person")
+        other_person = Entity.create(EntityType.PERSON, name="Other Source Person")
         op = self._make_op()
         op.save()
 
-        op.source = other_person.entity
+        op.source = other_person
         with self.assertRaises(ValidationError):
             op.save()
 
     def test_destination_is_immutable(self):
-        other_person = Person.create(private_name="Other Dest Person")
+        other_person = Entity.create(EntityType.PERSON, name="Other Source Person")
         op = self._make_op()
         op.save()
 
-        op.destination = other_person.entity
+        op.destination = other_person
         with self.assertRaises(ValidationError):
             op.save()
 
@@ -251,14 +247,14 @@ class CashInjectionCreateTest(TestCase):
 
 class CashInjectionReversalTest(TestCase):
     def setUp(self):
-        self.world_entity = Entity.create(is_world=True)
+        self.world_entity = Entity.create(EntityType.WORLD)
 
         self.officer_user = User.objects.create_user(
             username="officer", password="testpass", is_staff=True
         )
 
-        receiver_person = Person.create(private_name="Receiver Person")
-        self.receiver_entity = receiver_person.entity
+        receiver_person = Entity.create(EntityType.PERSON, name="Receiver Person")
+        self.receiver_entity = receiver_person
 
         self.op = CashInjectionOperation(
             source=self.world_entity,

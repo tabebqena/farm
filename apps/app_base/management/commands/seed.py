@@ -89,9 +89,9 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS("Created officer user (is_staff=True)."))
 
     def _create_world_entity(self):
-        from apps.app_entity.models import Entity
+        from apps.app_entity.models import Entity, EntityType
 
-        if Entity.objects.filter(is_world=True).exists():
+        if Entity.objects.filter(entity_type=EntityType.WORLD).exists():
             self.stdout.write("World entity already exists, skipping.")
             return
 
@@ -99,9 +99,9 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS("Created world entity with active fund."))
 
     def _create_system_entity(self):
-        from apps.app_entity.models import Entity
+        from apps.app_entity.models import Entity, EntityType
 
-        if Entity.objects.filter(is_system=True).exists():
+        if Entity.objects.filter(entity_type=EntityType.SYSTEM).exists():
             self.stdout.write("System entity already exists, skipping.")
             return
 

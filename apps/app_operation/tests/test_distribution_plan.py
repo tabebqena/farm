@@ -6,7 +6,7 @@ from django.core.exceptions import ValidationError
 from django.db.models import QuerySet as DjangoQuerySet
 from django.test import TestCase
 
-from apps.app_entity.models import Entity, Person, Project, Stakeholder, StakeholderRole
+from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.period import FinancialPeriod
 from apps.app_operation.models.proxies import (
@@ -35,17 +35,12 @@ def _make_officer(username="officer_dp"):
 
 
 def _make_project_entity(name="Test Project"):
-    project = Project(name=name)
-    project.save()
-    return Entity.create(owner=project)
+    return Entity.create(EntityType.PROJECT, name=name)
 
 
 def _make_shareholder_entity(name="Shareholder A"):
-    person = Person.create(private_name=name)
-    entity = person.entity
-    entity.is_shareholder = True
-    entity.save()
-    return entity
+    person = Entity.create(EntityType.PERSON, is_shareholder=True, name=name)
+    return person
 
 
 def _register_shareholder(project_entity, shareholder_entity):
@@ -107,8 +102,8 @@ def _seed_cash_injection(world, destination, amount, officer):
 
 class PeriodProfitLossPropertiesTest(TestCase):
     def setUp(self):
-        self.world = Entity.create(is_world=True)
-        self.system = Entity.create(is_system=True)
+        self.world = Entity.create(EntityType.WORLD)
+        self.system = Entity.create(EntityType.SYSTEM)
         self.officer = _make_officer("officer_props")
         self.project_entity = _make_project_entity("Props Project")
         self.shareholder = _make_shareholder_entity("Props Shareholder")
@@ -289,8 +284,8 @@ class PeriodProfitLossPropertiesTest(TestCase):
 
 class PeriodAmountValidationTest(TestCase):
     def setUp(self):
-        self.world = Entity.create(is_world=True)
-        self.system = Entity.create(is_system=True)
+        self.world = Entity.create(EntityType.WORLD)
+        self.system = Entity.create(EntityType.SYSTEM)
         self.officer = _make_officer("officer_val")
         self.project_entity = _make_project_entity("Val Project")
 
@@ -299,8 +294,8 @@ class PeriodAmountValidationTest(TestCase):
         FinancialPeriod(entity=self.project_entity, start_date=TODAY).save()
 
     def test_entity_must_be_a_project(self):
-        person = Person.create(private_name="Non-project person")
-        non_project = person.entity
+        person = Entity.create(EntityType.PERSON, name="Non-project person")
+        non_project = person
         non_project_period = FinancialPeriod.objects.get(entity=non_project)
         _force_close_period(non_project_period)
 
@@ -331,7 +326,7 @@ class PeriodAmountValidationTest(TestCase):
 
 class PeriodAmountImmutabilityTest(TestCase):
     def setUp(self):
-        self.system = Entity.create(is_system=True)
+        self.system = Entity.create(EntityType.SYSTEM)
         self.officer = _make_officer("officer_imm")
         self.project_entity = _make_project_entity("Imm Project")
 
@@ -355,7 +350,7 @@ class PeriodAmountImmutabilityTest(TestCase):
 
 class ShareholderAllocationTest(TestCase):
     def setUp(self):
-        self.system = Entity.create(is_system=True)
+        self.system = Entity.create(EntityType.SYSTEM)
         self.officer = _make_officer("officer_alloc")
         self.project_entity = _make_project_entity("Alloc Project")
         self.shareholder = _make_shareholder_entity("Alloc Shareholder")
@@ -391,10 +386,10 @@ class ShareholderAllocationTest(TestCase):
     # --- clean() validation ---
 
     def test_non_shareholder_entity_raises_validation_error(self):
-        non_shareholder_person = Person.create(private_name="Non Shareholder")
-        non_shareholder = (
-            non_shareholder_person.entity
-        )  # is_shareholder=False by default
+        non_shareholder_person = Entity.create(
+            EntityType.PERSON, name="Non Shareholder"
+        )
+        non_shareholder = non_shareholder_person  # is_shareholder=False by default
         alloc = ShareholderAllocation(
             period=self.period,
             shareholder=non_shareholder,
@@ -449,8 +444,8 @@ class ShareholderAllocationTest(TestCase):
 
 class ProfitDistributionOperationTest(TestCase):
     def setUp(self):
-        self.world = Entity.create(is_world=True)
-        self.system = Entity.create(is_system=True)
+        self.world = Entity.create(EntityType.WORLD)
+        self.system = Entity.create(EntityType.SYSTEM)
         self.officer = _make_officer("officer_pd")
         self.project_entity = _make_project_entity("PD Project")
         self.shareholder = _make_shareholder_entity("PD Shareholder")
@@ -573,7 +568,7 @@ class ProfitDistributionOperationTest(TestCase):
     # --- destination validation ---
 
     def test_destination_must_be_shareholder(self):
-        non_shareholder = Person.create(private_name="Non-SH Person").entity
+        non_shareholder = Entity.create(EntityType.PERSON, name="Non-SH Person")
         op = self._make_op(destination=non_shareholder)
         with self.assertRaises(ValidationError):
             op.save()
@@ -595,8 +590,8 @@ class ProfitDistributionOperationTest(TestCase):
 
 class LossCoverageOperationTest(TestCase):
     def setUp(self):
-        self.world = Entity.create(is_world=True)
-        self.system = Entity.create(is_system=True)
+        self.world = Entity.create(EntityType.WORLD)
+        self.system = Entity.create(EntityType.SYSTEM)
         self.officer = _make_officer("officer_lc")
         self.project_entity = _make_project_entity("LC Project")
         self.shareholder = _make_shareholder_entity("LC Shareholder")

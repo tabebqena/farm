@@ -4,6 +4,7 @@ from apps.app_operation.models.operation import Operation
 from apps.app_operation.models.operation_type import OperationType
 
 from .op_birth import BirthOperation
+from .op_consumption import ConsumptionOperation
 from .op_capital_gain import CapitalGainOperation
 from .op_death import DeathOperation
 from .op_correction_credit import CorrectionCreditOperation
@@ -41,6 +42,7 @@ PROXY_MAP: dict[str, type[Operation]] = {
     OperationType.CORRECTION_CREDIT: CorrectionCreditOperation,
     OperationType.CORRECTION_DEBIT: CorrectionDebitOperation,
     OperationType.WORKER_ADVANCE: WorkerAdvanceOperation,
+    OperationType.CONSUMPTION: ConsumptionOperation,
 }
 
 # Reverse lookup: url_str → proxy class
@@ -97,4 +99,5 @@ __all__ = [
     "PurchaseOperation",
     "SaleOperation",
     "ExpenseOperation",
+    "ConsumptionOperation",
 ]

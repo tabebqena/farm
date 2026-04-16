@@ -227,6 +227,16 @@ class TransactionType(models.TextChoices):
         "DEATH_PAYMENT",
     )
 
+    # --- Consumption ---
+    CONSUMPTION_ISSUANCE = (
+        "CONSUMPTION_ISSUANCE",
+        "CONSUMPTION_ISSUANCE",
+    )
+    CONSUMPTION_PAYMENT = (
+        "CONSUMPTION_PAYMENT",
+        "CONSUMPTION_PAYMENT",
+    )
+
     # --- Corrections ---
     CORRECTION_CREDIT_ISSUANCE = (
         "CORRECTION_CREDIT_ISSUANCE",
@@ -280,6 +290,7 @@ class TransactionType(models.TextChoices):
                 cls.CORRECTION_DEBIT_PAYMENT,
                 cls.BIRTH_PAYMENT,
                 cls.DEATH_PAYMENT,
+                cls.CONSUMPTION_PAYMENT,
             ]
         )
 
@@ -312,5 +323,6 @@ class TransactionType(models.TextChoices):
                 cls.CORRECTION_DEBIT_ISSUANCE,
                 cls.BIRTH_ISSUANCE,
                 cls.DEATH_ISSUANCE,
+                cls.CONSUMPTION_ISSUANCE,
             ]
         )

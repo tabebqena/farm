@@ -43,5 +43,7 @@ class CorrectionCreditOperation(Operation):
             raise ValidationError("Correction Credit source must be the System entity.")
 
     def clean_destination(self):
-        if not self.destination.project:
-            raise ValidationError("Correction Credit destination must be a Project entity.")
+        if not self.destination.is_project:
+            raise ValidationError(
+                "Correction Credit destination must be a Project entity."
+            )

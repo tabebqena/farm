@@ -43,6 +43,7 @@ class ProjectFundingOperation(Operation):
     @classmethod
     def get_related_entities(cls, url_entity, config):
         from apps.app_entity.models import Entity, StakeholderRole
+
         return (
             Entity.objects.filter(
                 project__isnull=False,
@@ -55,13 +56,11 @@ class ProjectFundingOperation(Operation):
         )
 
     def clean_source(self):
-        if not self.source.person:
-            raise ValidationError(
-                "Project Funding source must be a Person entity."
-            )
+        if not self.source.is_person:
+            raise ValidationError("Project Funding source must be a Person entity.")
 
     def clean_destination(self):
-        if not self.destination.project:
+        if not self.destination.is_project:
             raise ValidationError(
                 "Project Funding destination must be a Project entity."
             )
@@ -70,8 +69,9 @@ class ProjectFundingOperation(Operation):
         super().clean()
         # Shareholder check
         try:
-            if self.source.person and self.destination.project:
+            if self.source.is_person and self.destination.is_project:
                 from apps.app_entity.models import StakeholderRole
+
                 if not self.destination.stakeholders.filter(
                     target=self.source,
                     role=StakeholderRole.SHAREHOLDER,

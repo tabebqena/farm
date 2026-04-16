@@ -6,7 +6,7 @@ from django.core.exceptions import ValidationError
 from django.db.models import QuerySet as DjangoQuerySet
 from django.test import TestCase
 
-from apps.app_entity.models import Entity, Person, Project, Stakeholder, StakeholderRole
+from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.period import FinancialPeriod
 from apps.app_operation.models.proxies import (
@@ -32,14 +32,13 @@ def _make_officer(username):
 
 
 def _make_project_entity(name):
-    project = Project(name=name)
-    project.save()
-    return Entity.create(owner=project)
+
+    return Entity.create(EntityType.PROJECT, name=name)
 
 
 def _make_shareholder_entity(name):
-    person = Person.create(private_name=name)
-    entity = person.entity
+    person = Entity.create(EntityType.PERSON, name=name)
+    entity = person
     entity.is_shareholder = True
     entity.save()
     return entity
@@ -88,15 +87,17 @@ def _seed_cash_injection(world, destination, amount, officer):
 
 class LossCoverageCreateTest(TestCase):
     def setUp(self):
-        self.world = Entity.create(is_world=True)
-        self.system = Entity.create(is_system=True)
+        self.world = Entity.create(EntityType.WORLD)
+        self.system = Entity.create(EntityType.SYSTEM)
         self.officer = _make_officer("officer_lc_create")
         self.project_entity = _make_project_entity("LC Create Project")
         self.shareholder = _make_shareholder_entity("LC Create Shareholder")
         _register_shareholder(self.project_entity, self.shareholder)
 
         # Seed shareholder with funds (also creates their financial period)
-        _seed_cash_injection(self.world, self.shareholder, Decimal("2000.00"), self.officer)
+        _seed_cash_injection(
+            self.world, self.shareholder, Decimal("2000.00"), self.officer
+        )
 
         self.period = FinancialPeriod.objects.get(entity=self.project_entity)
         _force_close_period(self.period)
@@ -207,7 +208,9 @@ class LossCoverageCreateTest(TestCase):
         profit_project = _make_project_entity("LC Profit Project")
         profit_shareholder = _make_shareholder_entity("LC Profit Shareholder")
         _register_shareholder(profit_project, profit_shareholder)
-        _seed_cash_injection(self.world, profit_shareholder, Decimal("1000.00"), self.officer)
+        _seed_cash_injection(
+            self.world, profit_shareholder, Decimal("1000.00"), self.officer
+        )
         profit_period = FinancialPeriod.objects.get(entity=profit_project)
         _force_close_period(profit_period)
         FinancialPeriod(entity=profit_project, start_date=TODAY).save()
@@ -230,7 +233,9 @@ class LossCoverageCreateTest(TestCase):
         be_project = _make_project_entity("LC BreakEven Project")
         be_shareholder = _make_shareholder_entity("LC BreakEven Shareholder")
         _register_shareholder(be_project, be_shareholder)
-        _seed_cash_injection(self.world, be_shareholder, Decimal("1000.00"), self.officer)
+        _seed_cash_injection(
+            self.world, be_shareholder, Decimal("1000.00"), self.officer
+        )
         be_period = FinancialPeriod.objects.get(entity=be_project)
         _force_close_period(be_period)
         FinancialPeriod(entity=be_project, start_date=TODAY).save()
@@ -250,7 +255,9 @@ class LossCoverageCreateTest(TestCase):
             op.save()
 
     def test_raises_when_amount_exceeds_plan_loss(self):
-        op = self._make_op(amount=Decimal("1001.00"))  # plan.amount=-1000 → coverable=1000
+        op = self._make_op(
+            amount=Decimal("1001.00")
+        )  # plan.amount=-1000 → coverable=1000
         with self.assertRaises(ValidationError):
             op.save()
 
@@ -278,7 +285,9 @@ class LossCoverageCreateTest(TestCase):
         poor_shareholder = _make_shareholder_entity("LC Poor Shareholder")
         _register_shareholder(poor_project, poor_shareholder)
         # Only 100 available
-        _seed_cash_injection(self.world, poor_shareholder, Decimal("100.00"), self.officer)
+        _seed_cash_injection(
+            self.world, poor_shareholder, Decimal("100.00"), self.officer
+        )
         poor_period = FinancialPeriod.objects.get(entity=poor_project)
         _force_close_period(poor_period)
         FinancialPeriod(entity=poor_project, start_date=TODAY).save()
@@ -316,7 +325,9 @@ class LossCoverageCreateTest(TestCase):
         op = self._make_op()
         op.save()
         other_shareholder = _make_shareholder_entity("Other LC Source SH")
-        _seed_cash_injection(self.world, other_shareholder, Decimal("1000.00"), self.officer)
+        _seed_cash_injection(
+            self.world, other_shareholder, Decimal("1000.00"), self.officer
+        )
         op.source = other_shareholder
         with self.assertRaises(ValidationError):
             op.save()
@@ -358,14 +369,16 @@ class LossCoverageCreateTest(TestCase):
 
 class LossCoverageReversalTest(TestCase):
     def setUp(self):
-        self.world = Entity.create(is_world=True)
-        self.system = Entity.create(is_system=True)
+        self.world = Entity.create(EntityType.WORLD)
+        self.system = Entity.create(EntityType.SYSTEM)
         self.officer = _make_officer("officer_lc_rev")
         self.project_entity = _make_project_entity("LC Reversal Project")
         self.shareholder = _make_shareholder_entity("LC Reversal Shareholder")
         _register_shareholder(self.project_entity, self.shareholder)
 
-        _seed_cash_injection(self.world, self.shareholder, Decimal("2000.00"), self.officer)
+        _seed_cash_injection(
+            self.world, self.shareholder, Decimal("2000.00"), self.officer
+        )
 
         self.period = FinancialPeriod.objects.get(entity=self.project_entity)
         _force_close_period(self.period)

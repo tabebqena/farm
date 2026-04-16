@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from apps.app_entity.models import Entity, Person, Project
+from apps.app_entity.models import Entity, EntityType
 from apps.app_operation.models import FinancialCategory
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import CapitalGainOperation, ExpenseOperation
@@ -26,18 +26,18 @@ def _make_officer(username="officer"):
 
 
 def _make_person_entity(name):
-    person = Person.create(private_name=name)
-    return person.entity
+    person = Entity.create(EntityType.PERSON, name=name)
+    return person
 
 
 def _make_project_entity(name):
-    project = Project(name=name)
+    project = Entity.create(EntityType.PROJECT, name=name)
     project.save()
-    return Entity.create(owner=project)
+    return project
 
 
 def _make_world_entity():
-    return Entity.create(is_world=True)
+    return Entity.create(EntityType.WORLD)
 
 
 def _inject_project(system_entity, dest_entity, amount, officer_user):
@@ -77,7 +77,7 @@ class ExpenseCreateTest(TestCase):
     """
 
     def setUp(self):
-        self.system_entity = Entity.create(is_system=True)
+        self.system_entity = Entity.create(EntityType.SYSTEM)
         self.world_entity = _make_world_entity()
         self.officer_user = _make_officer()
 
@@ -312,7 +312,7 @@ class ExpensePaymentTest(TestCase):
     """
 
     def setUp(self):
-        self.system_entity = Entity.create(is_system=True)
+        self.system_entity = Entity.create(EntityType.SYSTEM)
         self.world_entity = _make_world_entity()
         self.officer_user = _make_officer()
 
@@ -482,7 +482,7 @@ class ExpenseReversalTest(TestCase):
     """
 
     def setUp(self):
-        self.system_entity = Entity.create(is_system=True)
+        self.system_entity = Entity.create(EntityType.SYSTEM)
         self.world_entity = _make_world_entity()
         self.officer_user = _make_officer()
 

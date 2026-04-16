@@ -1,5 +1,6 @@
 from django.core.exceptions import ValidationError
 
+from apps.app_entity.models import EntityType
 from apps.app_operation.models.operation import Operation
 from apps.app_transaction.transaction_type import TransactionType
 
@@ -35,7 +36,12 @@ class InternalTransferOperation(Operation):
     @classmethod
     def get_related_entities(cls, url_entity, config):
         from apps.app_entity.models import Entity
-        return Entity.objects.filter(person__isnull=False).exclude(pk=url_entity.pk).all()
+
+        return (
+            Entity.objects.filter(entity_type=EntityType.PERSON)
+            .exclude(pk=url_entity.pk)
+            .all()
+        )
 
     def clean(self):
         if not self.source.is_internal:

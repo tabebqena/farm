@@ -39,5 +39,5 @@ class CashInjectionOperation(Operation):
             raise ValidationError("Cash Injection source must be the World entity.")
 
     def clean_destination(self):
-        if not self.destination.person:
+        if not self.destination.is_person:
             raise ValidationError("Cash Injection must target a Person entity.")

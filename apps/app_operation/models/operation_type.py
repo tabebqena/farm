@@ -20,3 +20,4 @@ class OperationType(models.TextChoices):
     CORRECTION_DEBIT = "CORRECTION_DEBIT", "Correction Debit"
     BIRTH = "BIRTH", "Birth"
     DEATH = "DEATH", "Death"
+    CONSUMPTION = "CONSUMPTION", "Consumption"

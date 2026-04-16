@@ -39,9 +39,11 @@ class CorrectionDebitOperation(Operation):
         return self.destination.fund  # system entity
 
     def clean_source(self):
-        if not self.source.project:
+        if not self.source.is_project:
             raise ValidationError("Correction Debit source must be a Project entity.")
 
     def clean_destination(self):
         if not self.destination.is_system:
-            raise ValidationError("Correction Debit destination must be the System entity.")
+            raise ValidationError(
+                "Correction Debit destination must be the System entity."
+            )

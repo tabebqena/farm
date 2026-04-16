@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from apps.app_entity.models import Entity, Person, Project
+from apps.app_entity.models import Entity, EntityType
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import (
     CashInjectionOperation,
@@ -18,15 +18,16 @@ User = get_user_model()
 
 class CashWithdrawalCreateTest(TestCase):
     def setUp(self):
-        self.world_entity = Entity.create(is_world=True)
+        self.world_entity = Entity.create(EntityType.WORLD)
 
         self.officer_user = User.objects.create_user(
             username="officer", password="testpass", is_staff=True
         )
 
         # Withdrawer: person entity (source of withdrawal)
-        withdrawer_person = Person.create(private_name="Withdrawer Person")
-        self.withdrawer_entity = withdrawer_person.entity
+        self.withdrawer_entity = Entity.create(
+            EntityType.PERSON, name="Withdrawer Person"
+        )
 
         # Fund the withdrawer's account so withdrawal can succeed
         self._inject(Decimal("2000.00"))
@@ -66,7 +67,7 @@ class CashWithdrawalCreateTest(TestCase):
         op.save()
 
         self.assertIsNotNone(op.pk)
-        self.assertIsNotNone(op.source.person)
+        self.assertIsNotNone(op.source)
         self.assertTrue(op.destination.is_world)
 
         transactions = op.get_all_transactions()
@@ -125,9 +126,7 @@ class CashWithdrawalCreateTest(TestCase):
             op.save()
 
     def test_destination_must_be_world_entity(self):
-        project = Project(name="Test Project")
-        project.save()
-        project_entity = Entity.create(owner=project)
+        project_entity = Entity.create(EntityType.PROJECT, name="Test Project")
 
         op = self._make_op(destination=project_entity)
         with self.assertRaises(ValidationError):
@@ -196,22 +195,22 @@ class CashWithdrawalCreateTest(TestCase):
     # ------------------------------------------------------------------
 
     def test_source_is_immutable(self):
-        other_person = Person.create(private_name="Other Source Person")
+        other_person = Entity.create(EntityType.PERSON, name="Other Source Person")
         # Give the other person funds so the change itself isn't blocked by balance
         self._inject(Decimal("1000.00"))
         op = self._make_op()
         op.save()
 
-        op.source = other_person.entity
+        op.source = other_person
         with self.assertRaises(ValidationError):
             op.save()
 
     def test_destination_is_immutable(self):
-        other_person = Person.create(private_name="Other Dest Person")
+        other_person = Entity.create(EntityType.PERSON, name="Other Dest Person")
         op = self._make_op()
         op.save()
 
-        op.destination = other_person.entity
+        op.destination = other_person
         with self.assertRaises(ValidationError):
             op.save()
 
@@ -281,8 +280,8 @@ class CashWithdrawalCreateTest(TestCase):
 
     def test_insufficient_funds_blocked(self):
         """check_balance_on_payment=True: clean() enforces balance at creation time."""
-        broke_person = Person.create(private_name="Broke Person")
-        broke_entity = broke_person.entity
+        broke_person = Entity.create(EntityType.PERSON, name="Broke Person")
+        broke_entity = broke_person
         op = self._make_op(source=broke_entity, amount=Decimal("1.00"))
         with self.assertRaises(ValidationError):
             op.save()
@@ -293,8 +292,8 @@ class CashWithdrawalCreateTest(TestCase):
 
     def test_withdrawal_without_sufficient_funds_raises_error(self):
         # Fresh person with zero balance
-        broke_person = Person.create(private_name="Broke Person")
-        broke_entity = broke_person.entity
+        broke_person = Entity.create(EntityType.PERSON, name="Broke Person")
+        broke_entity = broke_person
 
         op = self._make_op(source=broke_entity, amount=Decimal("100.00"))
         with self.assertRaises(ValidationError):
@@ -310,14 +309,14 @@ class CashWithdrawalCreateTest(TestCase):
 
 class CashWithdrawalReversalTest(TestCase):
     def setUp(self):
-        self.world_entity = Entity.create(is_world=True)
-
+        self.world_entity = Entity.create(EntityType.WORLD)
         self.officer_user = User.objects.create_user(
             username="officer", password="testpass", is_staff=True
         )
 
-        withdrawer_person = Person.create(private_name="Withdrawer Person")
-        self.withdrawer_entity = withdrawer_person.entity
+        self.withdrawer_entity = Entity.create(
+            EntityType.PERSON, name="Withdrawer Person"
+        )
 
         # Fund the withdrawer so the withdrawal operation can be created
         CashInjectionOperation(

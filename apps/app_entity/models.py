@@ -1,6 +1,5 @@
 import typing
 from decimal import Decimal
-from enum import Enum
 
 from django.contrib.auth import get_user_model
 from django.db import models, transaction
@@ -17,17 +16,11 @@ if typing.TYPE_CHECKING:
 User = get_user_model()
 
 
-class Virtual:
-    def __init__(self, name, type) -> None:
-        self._name = name
-        self.type = type
-
-    @property
-    def name(self):
-        return self._name
-
-    def get_display_name(self):
-        return self.name
+class EntityType(models.TextChoices):
+    PERSON = "person", _("Person")
+    PROJECT = "project", _("Project")
+    SYSTEM = "system", _("System")
+    WORLD = "world", _("World")
 
 
 class ContactInfo(ImmutableMixin, BaseModel):
@@ -66,64 +59,7 @@ class ContactInfo(ImmutableMixin, BaseModel):
         verbose_name_plural = _("contact info")
 
 
-class Person(BaseModel):
-    private_name = models.CharField(
-        _("private name"), max_length=255, null=False, blank=False, unique=True
-    )
-    private_description = models.TextField(_("private description"), blank=True)
-
-    def get_display_name(self):
-        return self.private_name
-
-    @property
-    def name(self):
-        return self.get_display_name()
-
-    def __str__(self):
-        return f"{self.name}"
-
-    @classmethod
-    def create(cls, private_name, private_description="", **kwargs):
-        with transaction.atomic():
-            try:
-                p = Person(
-                    private_name=private_name, private_description=private_description
-                )
-                p.save()
-                e = Entity.create(owner=p, **kwargs)
-                return p
-            except:
-                raise
-
-    class Meta:
-        verbose_name = _("person")
-        verbose_name_plural = _("people")
-
-
-class Project(ImmutableMixin, BaseModel):
-    name = models.CharField(
-        _("name"), max_length=255, null=False, blank=False, unique=True
-    )
-    description = models.CharField(
-        _("description"), max_length=180, default="", null=True, blank=True
-    )
-    feasibility_study = models.FileField(_("feasibility study"), null=True, blank=True)
-    start_date = models.DateTimeField(
-        auto_now_add=True, verbose_name=_("the project start date")
-    )
-    end_date = models.DateTimeField(_("end date"), null=True, blank=True)
-
-    def get_display_name(self):
-        return self.name
-
-    def __str__(self) -> str:
-        return self.get_display_name()
-
-    class Meta:
-        verbose_name = _("project")
-        verbose_name_plural = _("projects")
-
-
+# TODO consider revising the transaction type BIRTH, DEATH, CONSUMPTION
 class Fund(ImmutableMixin, BaseModel):
     _immutable_fields = {"entity": {}}
     entity = models.OneToOneField(
@@ -317,7 +253,7 @@ class Fund(ImmutableMixin, BaseModel):
     def can_pay(self, amount: Decimal) -> bool:
         if not self.active:
             return False
-        if self.entity.is_world or self.entity.is_system:
+        if self.entity.is_virtual:
             return True
         return self.balance >= amount
 
@@ -337,7 +273,7 @@ class Fund(ImmutableMixin, BaseModel):
 
         Raises ValueError if the fund's entity is not a project.
         """
-        if not self.entity.project:
+        if self.entity.entity_type != EntityType.PROJECT:
             raise ValueError(_("profit_loss() is only defined for project funds."))
 
         from django.db.models import Case, F, Sum, When
@@ -460,15 +396,19 @@ class Stakeholder(ImmutableMixin, BaseModel):
     active = models.BooleanField(_("active"), default=True)
 
     def clean(self) -> None:
-        if not self.parent.project and not self.parent.person:
+        allowed = {EntityType.PERSON, EntityType.PROJECT}
+        if self.parent.entity_type not in allowed:
             raise ValidationError(
                 _("The parent party should be a project or person entity.")
             )
-        if not self.target.project and not self.target.person:
+        if self.target.entity_type not in allowed:
             raise ValidationError(
                 _("The target party should be a project or person entity.")
             )
-        if self.target.project and self.role in ("shareholder", "worker"):
+        if self.target.entity_type == EntityType.PROJECT and self.role in (
+            "shareholder",
+            "worker",
+        ):
             raise ValidationError(
                 _(
                     "The target party (project) can't be assigned as a worker or a shareholder."
@@ -488,36 +428,26 @@ class Stakeholder(ImmutableMixin, BaseModel):
         verbose_name_plural = _("stakeholders")
 
 
-ENTITY_TYPE_ENUM = Enum("Type", "PERSONAL PROJECT SYSTEM WORLD")
-
-
 class Entity(ImmutableMixin, BaseModel):
     _immutable_fields = {
-        "person": {},
-        "project": {},
+        "entity_type": {},
         "user": {},
-        # "fund": {"ALLOW_SET": True},
-        "is_system": {},
-        "is_world": {},
     }
 
-    person = models.OneToOneField(
-        to="Person",
-        on_delete=models.PROTECT,
-        null=True,
-        blank=True,
-        related_name="entity",
-        verbose_name=_("person"),
+    entity_type = models.CharField(
+        _("entity type"),
+        max_length=10,
+        choices=EntityType,
     )
 
-    project = models.OneToOneField(
-        to="Project",
-        on_delete=models.PROTECT,
-        null=True,
-        blank=True,
-        related_name="entity",
-        verbose_name=_("project"),
-    )
+    # Flat metadata
+    name = models.CharField(_("name"), max_length=255, unique=True, blank=True)
+    description = models.TextField(_("description"), blank=True)
+
+    # Project-only metadata (null for non-projects)
+    feasibility_study = models.FileField(_("feasibility study"), null=True, blank=True)
+    start_date = models.DateTimeField(_("start date"), null=True, blank=True)
+    end_date = models.DateTimeField(_("end date"), null=True, blank=True)
 
     user = models.OneToOneField(
         to=User,
@@ -529,37 +459,46 @@ class Entity(ImmutableMixin, BaseModel):
     )
 
     is_internal = models.BooleanField(_("is internal"), default=False)
-
-    is_system = models.BooleanField(_("is system"), default=False)
-    is_world = models.BooleanField(_("is world"), default=False)
-
     is_vendor = models.BooleanField(_("is vendor"), default=False)
     is_client = models.BooleanField(_("is client"), default=False)
     is_worker = models.BooleanField(_("is worker"), default=False)
     is_shareholder = models.BooleanField(_("is shareholder"), default=False)
-
     active = models.BooleanField(_("active"), default=True)
+
+    # ------------------------------------------------------------------ #
+    # Derived properties                                                   #
+    # ------------------------------------------------------------------ #
+
+    @property
+    def is_system(self) -> bool:
+        return self.entity_type == EntityType.SYSTEM
+
+    @property
+    def is_world(self) -> bool:
+        return self.entity_type == EntityType.WORLD
+
+    @property
+    def is_virtual(self) -> bool:
+        return self.entity_type in (EntityType.SYSTEM, EntityType.WORLD)
+
+    @property
+    def is_project(self) -> bool:
+        return self.entity_type == EntityType.PROJECT
+
+    @property
+    def is_person(self) -> bool:
+        return self.entity_type == EntityType.PERSON
 
     @property
     def owner(self):
-        a = self.project or self.person
-        if a:
-            return a
-        if self.is_system:
-            return Virtual(_("System"), "SYSTEM")
-        if self.is_world:
-            return Virtual(_("World"), "WORLD")
+        return self
 
     @property
     def type(self):
-        if self.project:
-            return ENTITY_TYPE_ENUM.PROJECT
-        elif self.person:
-            return ENTITY_TYPE_ENUM.PERSONAL
-        elif self.is_system:
-            return ENTITY_TYPE_ENUM.SYSTEM
-        elif self.is_world:
-            return ENTITY_TYPE_ENUM.WORLD
+        return self.entity_type
+
+    def get_display_name(self):
+        return self.name
 
     def get_vendors(self):
         return self.stakeholders.filter(is_vendor=True, active=True)
@@ -573,49 +512,19 @@ class Entity(ImmutableMixin, BaseModel):
     def get_shareholders(self):
         return self.stakeholders.filter(is_shareholder=True, active=True)
 
-    def get_display_name(self):
-        return self.owner.get_display_name()  # type: ignore
-
-    @property
-    def name(self):
-        return self.get_display_name()
-
-    @property
-    def is_virtual(self):
-        return self.is_world or self.is_system
-
     def get_absolute_url(self):
         return reverse("entity_detail", kwargs={"pk": self.pk})
 
     def __str__(self) -> str:
-        return _("Entity %(owner)s") % {"owner": self.owner}
+        return self.name or _("Entity #%(pk)s") % {"pk": self.pk}
 
     def clean(self) -> None:
-        # 1. Count the types of identities
-        # bool() on a model instance checks if it has a PK/is not None
-        identity_sources = [
-            bool(self.person),
-            bool(self.project),
-            self.is_system,
-            self.is_world,
-        ]
-        active_count = sum(1 for i in identity_sources if i)
+        if not self.entity_type:
+            raise ValidationError(_("Entity type is required."))
 
-        if active_count == 0:
-            raise ValueError(
-                _(
-                    "Entity must have exactly one identity (Person, Project, System, or World). This entity has %(count)s identities: %(sources)s"
-                )
-                % {"count": active_count, "sources": identity_sources}
-            )
-        if active_count > 1:
-            raise ValidationError(
-                _("Entity cannot represent multiple identities simultaneously.")
-            )
-
-        if self.is_system:
+        if self.entity_type == EntityType.SYSTEM:
             self.is_internal = True
-        elif self.is_world:
+        elif self.entity_type == EntityType.WORLD:
             self.is_internal = False
 
         if self.is_virtual:
@@ -625,15 +534,11 @@ class Entity(ImmutableMixin, BaseModel):
             self.is_shareholder = False
 
         is_new = self.pk is None
-        if is_new and self.is_system:
-            # Disallow duplicate
-            exists = Entity.objects.filter(is_system=True).exists()
-            if exists:
+        if is_new and self.entity_type == EntityType.SYSTEM:
+            if Entity.objects.filter(entity_type=EntityType.SYSTEM).exists():
                 raise ValidationError(_("System entity already exists."))
-        if is_new and self.is_world:
-            # Disallow duplicate
-            exists = Entity.objects.filter(is_world=True).exists()
-            if exists:
+        if is_new and self.entity_type == EntityType.WORLD:
+            if Entity.objects.filter(entity_type=EntityType.WORLD).exists():
                 raise ValidationError(_("World entity already exists."))
 
         if getattr(self, "fund", None) is None:
@@ -641,17 +546,15 @@ class Entity(ImmutableMixin, BaseModel):
 
         return super().clean()
 
-    def get_fund(self):
-        return Fund.objects.get_or_create(entity=self)
-
     @classmethod
     def create(
         cls,
-        owner=None,
+        entity_type: EntityType,
+        name="",
+        description="",
         fund=None,
         auth_user=None,
-        is_system=False,
-        is_world=False,
+        # role flags
         is_vendor=False,
         is_client=False,
         is_worker=False,
@@ -659,22 +562,39 @@ class Entity(ImmutableMixin, BaseModel):
         is_internal=False,
         active=True,
         fund_active=True,
+        # project-specific
+        feasibility_study=None,
+        start_date=None,
+        end_date=None,
     ):
         with transaction.atomic():
+            # Resolve entity_type from legacy kwargs or owner type
+
             e = Entity()
-            if isinstance(owner, Person):
-                e.person = owner
-            elif isinstance(owner, Project):
-                e.project = owner
+            e.entity_type = entity_type
+
+            # Canonical names for virtual singletons
+            if entity_type == EntityType.SYSTEM:
+                name = "System"
+            elif entity_type == EntityType.WORLD:
+                name = "World"
+
+            e.name = name
+            e.description = description
             e.user = auth_user
-            e.is_system = is_system
-            e.is_world = is_world
             e.is_client = is_client
             e.is_vendor = is_vendor
             e.is_worker = is_worker
             e.is_shareholder = is_shareholder
             e.is_internal = is_internal
             e.active = False
+
+            if feasibility_study is not None:
+                e.feasibility_study = feasibility_study
+            if start_date is not None:
+                e.start_date = start_date
+            if end_date is not None:
+                e.end_date = end_date
 
             e.save()
             if fund is None:

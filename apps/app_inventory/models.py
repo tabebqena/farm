@@ -9,6 +9,227 @@ from apps.app_base.mixins import AmountCleanMixin
 from apps.app_base.models import BaseModel
 
 
+class ProductLedgerEntry(BaseModel):
+    """
+    Append-only ledger of inventory events per product.
+
+    Every operation that changes a product's quantity or value appends a row
+    here.  Point-in-time state is always:
+
+        SUM(quantity_delta WHERE product=p AND date <= as_of)
+        SUM(value_delta   WHERE product=p AND date <= as_of)
+
+    Never update or delete rows — only append.
+    Duplicate prevention is enforced by the DB-level unique constraint on
+    ``idempotency_key``.  ``get_or_create`` makes every write idempotent.
+    """
+
+    class EntryType(models.TextChoices):
+        PURCHASE = "PURCHASE", _("Purchase")
+        SALE = "SALE", _("Sale")
+        BIRTH = "BIRTH", _("Birth")
+        DEATH = "DEATH", _("Death")
+        CAPITAL_GAIN = "CAPITAL_GAIN", _("Capital Gain")
+        CAPITAL_LOSS = "CAPITAL_LOSS", _("Capital Loss")
+        REVERSAL = "REVERSAL", _("Reversal")
+        ADJUSTMENT = "ADJUSTMENT", _("Adjustment")
+
+    product = models.ForeignKey(
+        "Product",
+        on_delete=models.PROTECT,
+        related_name="ledger_entries",
+        verbose_name=_("product"),
+    )
+    entry_type = models.CharField(
+        _("entry type"), max_length=20, choices=EntryType.choices
+    )
+    date = models.DateField(_("date"), db_index=True)
+    quantity_delta = models.DecimalField(
+        _("quantity delta"), max_digits=10, decimal_places=2
+    )
+    value_delta = models.DecimalField(_("value delta"), max_digits=15, decimal_places=2)
+    # Computed by the caller as  "item_{item.pk}_product_{product.pk}"
+    # or "rev_item_{item.pk}_product_{product.pk}" for reversals.
+    # DB-level unique constraint prevents duplicate entries.
+    idempotency_key = models.CharField(
+        _("idempotency key"), max_length=100, unique=True
+    )
+
+    # ------------------------------------------------------------------
+    # Writing
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def record(cls, invoice, negate: bool = False) -> tuple[int, int]:
+        """
+        Write ledger entries for every product linked to *invoice*.
+
+        Must be called inside a ``db_transaction.atomic()`` block, **after**
+        all InvoiceItems and their Product M2M links are fully committed.
+
+        ``negate=True`` flips the signs and marks entries as REVERSAL — use
+        this when recording the cancellation of a previously recorded invoice
+        (e.g. after ``operation.reverse()``).
+
+        Returns ``(created, skipped)`` counts.
+        """
+        from apps.app_operation.models.operation_type import OperationType
+
+        _MAP = {
+            OperationType.PURCHASE: (cls.EntryType.PURCHASE, 1, 1),
+            OperationType.SALE: (cls.EntryType.SALE, -1, -1),
+            OperationType.BIRTH: (cls.EntryType.BIRTH, 1, 1),
+            OperationType.DEATH: (cls.EntryType.DEATH, -1, -1),
+            OperationType.CAPITAL_GAIN: (cls.EntryType.CAPITAL_GAIN, 0, 1),
+            OperationType.CAPITAL_LOSS: (cls.EntryType.CAPITAL_LOSS, 0, -1),
+        }
+
+        op = invoice.operation
+        mapping = _MAP.get(op.operation_type)
+        if mapping is None:
+            return 0, 0
+
+        entry_type, qty_sign, val_sign = mapping
+
+        if negate:
+            qty_sign = -qty_sign
+            val_sign = -val_sign
+            entry_type = cls.EntryType.REVERSAL
+
+        key_prefix = "rev_" if negate else ""
+        date = op.date
+        created_count = skipped_count = 0
+
+        for item in invoice.items.prefetch_related("products").all():
+            for product in item.products.all():
+                key = f"{key_prefix}item_{item.pk}_product_{product.pk}"
+                _, created = cls.objects.get_or_create(
+                    idempotency_key=key,
+                    defaults={
+                        "product": product,
+                        "entry_type": entry_type,
+                        "date": date,
+                        "quantity_delta": (item.quantity * qty_sign).quantize(
+                            Decimal("0.01")
+                        ),
+                        "value_delta": (item.total_price * val_sign).quantize(
+                            Decimal("0.01")
+                        ),
+                    },
+                )
+                if created:
+                    created_count += 1
+                else:
+                    skipped_count += 1
+
+        return created_count, skipped_count
+
+    @classmethod
+    def record_adjustment_line(cls, line, negate: bool = False) -> tuple[int, int]:
+        """
+        Write a ledger correction for a single InvoiceItemAdjustmentLine.
+
+        Sign convention mirrors the original operation:
+          PURCHASE: qty_sign=+1, val_sign=+1  (positive = inventory gained)
+          SALE:     qty_sign=-1, val_sign=-1  (negative = inventory exited)
+
+        ``negate=True`` flips the signs — used when reversing the parent
+        InvoiceItemAdjustment.
+
+        Idempotency keys:
+          forward:  "adj_line_{line.pk}_product_{product.pk}"
+          reversal: "rev_adj_line_{line.pk}_product_{product.pk}"
+
+        Returns ``(created, skipped)`` counts.  Skips if both deltas are zero.
+        """
+        from apps.app_operation.models.operation_type import OperationType
+
+        qty_delta = line.quantity_delta
+        val_delta = line.value_delta
+
+        if qty_delta == 0 and val_delta == 0:
+            return 0, 0
+
+        op_type = line.adjustment.operation.operation_type
+        if op_type == OperationType.PURCHASE:
+            qty_sign, val_sign = 1, 1
+        elif op_type == OperationType.SALE:
+            qty_sign, val_sign = -1, -1
+        else:
+            return 0, 0
+
+        if negate:
+            qty_sign = -qty_sign
+            val_sign = -val_sign
+
+        key_prefix = "rev_" if negate else ""
+        date = line.adjustment.date
+        entry_type = cls.EntryType.ADJUSTMENT
+
+        # Record against every product linked to the invoice item
+        created_count = skipped_count = 0
+        for product in line.invoice_item.products.all():
+            key = f"{key_prefix}adj_line_{line.pk}_product_{product.pk}"
+            _, created = cls.objects.get_or_create(
+                idempotency_key=key,
+                defaults={
+                    "product": product,
+                    "entry_type": entry_type,
+                    "date": date,
+                    "quantity_delta": (qty_delta * qty_sign).quantize(Decimal("0.01")),
+                    "value_delta": (val_delta * val_sign).quantize(Decimal("0.01")),
+                },
+            )
+            if created:
+                created_count += 1
+            else:
+                skipped_count += 1
+
+        return created_count, skipped_count
+
+    # ------------------------------------------------------------------
+    # Querying
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def state_as_of(cls, product, as_of) -> dict:
+        """Return {"quantity": ..., "value": ...} for *product* up to *as_of*."""
+        result = cls.objects.filter(product=product, date__lte=as_of).aggregate(
+            quantity=Sum("quantity_delta"),
+            value=Sum("value_delta"),
+        )
+        return {
+            "quantity": result["quantity"] or Decimal("0.00"),
+            "value": result["value"] or Decimal("0.00"),
+        }
+
+    @classmethod
+    def portfolio_as_of(cls, entity, as_of):
+        """
+        Return a queryset of dicts — one per product still in stock for *entity*
+        as of *as_of*.  Each dict has ``product_id``, ``quantity``, ``value``.
+        """
+        return (
+            cls.objects.filter(
+                product__product_template__entities=entity, date__lte=as_of
+            )
+            .values("product_id")
+            .annotate(
+                quantity=Sum("quantity_delta"),
+                value=Sum("value_delta"),
+            )
+            .filter(quantity__gt=0)
+            .order_by("product_id")
+        )
+
+    class Meta:
+        verbose_name = _("product ledger entry")
+        verbose_name_plural = _("product ledger entries")
+        indexes = [
+            models.Index(fields=["product", "date"]),
+        ]
+
+
 class ProductTemplate(BaseModel):
     class TrackingMode(models.TextChoices):
         INDIVIDUAL = "INDIVIDUAL", _("Individual (Tag ID)")
@@ -47,6 +268,22 @@ class ProductTemplate(BaseModel):
         blank=True,
     )
 
+    _ALLOWED_OP_TYPES: dict[str, frozenset] = {
+        "ANIMAL": frozenset(
+            {"PURCHASE", "SALE", "BIRTH", "DEATH", "CAPITAL_GAIN", "CAPITAL_LOSS"}
+        ),
+        "FEED": frozenset(
+            {"PURCHASE", "SALE", "CONSUMPTION", "CAPITAL_GAIN", "CAPITAL_LOSS"}
+        ),
+        "MEDICINE": frozenset(
+            {"PURCHASE", "SALE", "CONSUMPTION", "CAPITAL_GAIN", "CAPITAL_LOSS"}
+        ),
+        "PRODUCT": frozenset({"PURCHASE", "SALE", "CAPITAL_GAIN", "CAPITAL_LOSS"}),
+    }
+
+    def accepts_operation(self, op_type: str) -> bool:
+        return op_type in self._ALLOWED_OP_TYPES.get(self.nature, frozenset())
+
     def __str__(self):
         return self.name
 
@@ -83,6 +320,25 @@ class InvoiceItem(AmountCleanMixin, BaseModel):
     def clean_unit_price(self):
         if self.unit_price < 0:
             raise ValidationError(_("Unit price cannot be negative"))
+
+    def clean(self) -> None:
+        try:
+            op_type = self.invoice.operation.operation_type
+        except Exception:
+            return super().clean()
+
+        if not self.product.accepts_operation(op_type):
+            raise ValidationError(
+                _(
+                    "'%(product)s' (%(nature)s) cannot be used in a %(op_type)s operation."
+                )
+                % {
+                    "product": self.product.name,
+                    "nature": self.product.get_nature_display(),
+                    "op_type": op_type,
+                }
+            )
+        return super().clean()
 
     class Meta:
         verbose_name = _("invoice item")
@@ -160,16 +416,31 @@ class Product(AmountCleanMixin, BaseModel):
     def status(self) -> str:
         from apps.app_operation.models.operation_type import OperationType
 
-        types = set(
-            self.invoice_items.values_list(
-                "invoice__operation__operation_type", flat=True
+        STATUS_CHANGING_TYPES = {
+            OperationType.PURCHASE,
+            OperationType.BIRTH,
+            OperationType.DEATH,
+            OperationType.SALE,
+        }
+        TYPE_TO_STATUS = {
+            OperationType.PURCHASE: self.Status.ACTIVE,
+            OperationType.BIRTH: self.Status.ACTIVE,
+            OperationType.DEATH: self.Status.DEAD,
+            OperationType.SALE: self.Status.SOLD,
+        }
+
+        last_op = (
+            self.invoice_items.filter(
+                invoice__operation__operation_type__in=STATUS_CHANGING_TYPES
             )
+            .order_by("-invoice__operation__date", "-invoice__operation__created_at")
+            .values_list("invoice__operation__operation_type", flat=True)
+            .first()
         )
-        if OperationType.DEATH in types:
-            return self.Status.DEAD
-        if OperationType.SALE in types:
-            return self.Status.SOLD
-        return self.Status.ACTIVE
+
+        if last_op is None:
+            return self.Status.ACTIVE
+        return TYPE_TO_STATUS[last_op]
 
     @property
     def current_value(self) -> Decimal:
@@ -193,6 +464,28 @@ class Product(AmountCleanMixin, BaseModel):
         return (
             base + _sum(OperationType.CAPITAL_GAIN) - _sum(OperationType.CAPITAL_LOSS)
         )
+
+    def validate_active(self) -> None:
+        """Raise ValidationError if this product can no longer participate in operations."""
+        status = self.status
+        if status in (self.Status.SOLD, self.Status.DEAD):
+            raise ValidationError(
+                _("Product '%(id)s' has status %(status)s and cannot be involved in further operations.")
+                % {"id": self.unique_id or self.pk, "status": status}
+            )
+
+    def clean(self) -> None:
+        super().clean()  # AmountCleanMixin: unit_price > 0
+        # M2M is unavailable until the object has been persisted.
+        if self.pk is None:
+            return
+        for item in self.invoice_items.select_related("invoice__operation").all():
+            op_type = item.invoice.operation.operation_type
+            if not self.product_template.accepts_operation(op_type):
+                raise ValidationError(
+                    _("Product '%(p)s' is not compatible with operation type %(op)s.")
+                    % {"p": self.product_template.name, "op": op_type}
+                )
 
     class Meta:
         verbose_name = _("product")

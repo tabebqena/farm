@@ -120,7 +120,7 @@ class Operation(
         Call on the proxy class: e.g. PurchaseOperation.resolve_request(pk, request)
         """
         from django.shortcuts import get_object_or_404
-        from apps.app_entity.models import Entity
+        from apps.app_entity.models import Entity, EntityType
 
         url_entity = get_object_or_404(Entity, pk=url_pk)
         source_role = cls._source_role
@@ -128,10 +128,10 @@ class Operation(
 
         world_entity = None
         if source_role == "world" or dest_role == "world":
-            world_entity = Entity.objects.filter(is_world=True).first()
+            world_entity = Entity.objects.filter(entity_type=EntityType.WORLD).first()
         system_entity = None
         if source_role == "system" or dest_role == "system":
-            system_entity = Entity.objects.filter(is_system=True).first()
+            system_entity = Entity.objects.filter(entity_type=EntityType.SYSTEM).first()
 
         secondary_pk = request.POST.get("secondary_entity")
         secondary_entity = (
@@ -286,6 +286,48 @@ class Operation(
                         "Cannot create an operation: no financial period covers this operation's date."
                     )
         return super().save(*args, **kwargs)
+
+    def save_inventory(self, bound_formset, invoice):
+        """
+        Called inside an atomic block after the formset is saved.
+        - create-mode (PURCHASE/BIRTH): create a Product per item, link via M2M.
+        - select-mode (SALE/DEATH/CAPITAL_GAIN/CAPITAL_LOSS): link the chosen Product via M2M.
+        Writes ledger entries once all product↔item links are established.
+        """
+        from apps.app_inventory.models import Product, ProductLedgerEntry
+
+        if type(self).creates_assets:
+            for form in bound_formset.forms:
+                item = form.instance
+                if not item.pk:
+                    continue
+                uid = form.cleaned_data.get("unique_id", "").strip() or None
+                product = Product.objects.create(
+                    product_template=item.product,
+                    quantity=item.quantity,
+                    unit_price=item.unit_price,
+                    unique_id=uid,
+                )
+                product.invoice_items.add(item)
+        else:
+            for form in bound_formset.forms:
+                item = form.instance
+                if not item.pk:
+                    continue
+                selected = form.cleaned_data.get("selected_product")
+                if selected:
+                    selected.validate_active()
+                    selected.invoice_items.add(item)
+
+        ProductLedgerEntry.record(invoice)
+
+    def reverse(self, officer, date=None, reason=None):
+        reversal = super().reverse(officer=officer, date=date, reason=reason)
+        original_invoice = getattr(self, "invoice", None)
+        if original_invoice is not None:
+            from apps.app_inventory.models import ProductLedgerEntry
+            ProductLedgerEntry.record(original_invoice, negate=True)
+        return reversal
 
     def __str__(self):
         return (

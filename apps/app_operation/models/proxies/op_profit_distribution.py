@@ -48,7 +48,7 @@ class ProfitDistributionOperation(Operation):
         return self.destination
 
     def clean_source(self):
-        if not self.source.project:
+        if not self.source.is_project:
             raise ValidationError(
                 "Profit Distribution source must be a Project entity."
             )
@@ -56,6 +56,7 @@ class ProfitDistributionOperation(Operation):
     @classmethod
     def get_related_entities(cls, url_entity, config):
         from apps.app_entity.models import Stakeholder, StakeholderRole
+
         shareholder_relationships = (
             Stakeholder.objects.filter(
                 parent=url_entity, role=StakeholderRole.SHAREHOLDER, active=True
@@ -73,9 +74,7 @@ class ProfitDistributionOperation(Operation):
 
     def clean(self):
         if self.plan_id is None:
-            raise ValidationError(
-                "Profit Distribution requires a Distribution Plan."
-            )
+            raise ValidationError("Profit Distribution requires a Distribution Plan.")
         plan = self.plan
         if not plan.is_profit:
             raise ValidationError(
@@ -88,15 +87,13 @@ class ProfitDistributionOperation(Operation):
             if self.pk:
                 from apps.app_operation.models.operation import Operation
                 from apps.app_operation.models.operation_type import OperationType
-                own = (
-                    Operation.objects.filter(
-                        pk=self.pk,
-                        operation_type=OperationType.PROFIT_DISTRIBUTION,
-                        reversal_of__isnull=True,
-                        reversed_by__isnull=True,
-                    ).values_list("amount", flat=True).first()
-                    or Decimal("0.00")
-                )
+
+                own = Operation.objects.filter(
+                    pk=self.pk,
+                    operation_type=OperationType.PROFIT_DISTRIBUTION,
+                    reversal_of__isnull=True,
+                    reversed_by__isnull=True,
+                ).values_list("amount", flat=True).first() or Decimal("0.00")
                 remaining += own
             if self.amount > remaining:
                 raise ValidationError(
@@ -104,4 +101,3 @@ class ProfitDistributionOperation(Operation):
                     f"{remaining} for this plan."
                 )
         return super().clean()
-

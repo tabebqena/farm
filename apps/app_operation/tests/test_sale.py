@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from apps.app_entity.models import Entity, Person, Project, Stakeholder, StakeholderRole
+from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import CapitalGainOperation, SaleOperation
 from apps.app_transaction.transaction_type import TransactionType
@@ -19,23 +19,22 @@ User = get_user_model()
 
 
 def _make_officer(username="officer"):
-    return User.objects.create_user(username=username, password="testpass", is_staff=True)
+    return User.objects.create_user(
+        username=username, password="testpass", is_staff=True
+    )
 
 
 def _make_person_entity(name):
-    person = Person.create(private_name=name)
+    return Entity.create(EntityType.PERSON, name=name)
     return person.entity
 
 
 def _make_project_entity(name):
-    project = Project(name=name)
-    project.save()
-    return Entity.create(owner=project)
+    return Entity.create(EntityType.PROJECT, name=name)
 
 
 def _make_client_entity(name):
-    person = Person.create(private_name=name, is_client=True)
-    return person.entity
+    return Entity.create(EntityType.PERSON, name=name, is_client=True)
 
 
 def _inject_project(system_entity, dest_entity, amount, officer):
@@ -91,7 +90,7 @@ class SaleCreateTest(TestCase):
     """
 
     def setUp(self):
-        self.system_entity = Entity.create(is_system=True)
+        self.system_entity = Entity.create(EntityType.SYSTEM)
         self.officer = _make_officer()
 
         self.project_entity = _make_project_entity("Test Farm Project")
@@ -330,7 +329,7 @@ class SaleCollectionTest(TestCase):
     """
 
     def setUp(self):
-        self.system_entity = Entity.create(is_system=True)
+        self.system_entity = Entity.create(EntityType.SYSTEM)
         self.officer = _make_officer()
 
         self.project_entity = _make_project_entity("Farm Project")
@@ -476,7 +475,7 @@ class SaleReversalTest(TestCase):
     """
 
     def setUp(self):
-        self.system_entity = Entity.create(is_system=True)
+        self.system_entity = Entity.create(EntityType.SYSTEM)
         self.officer = _make_officer()
 
         self.project_entity = _make_project_entity("Farm Project")
@@ -610,7 +609,7 @@ class SaleBalanceGuardTest(TestCase):
     """
 
     def setUp(self):
-        self.system_entity = Entity.create(is_system=True)
+        self.system_entity = Entity.create(EntityType.SYSTEM)
         self.officer = _make_officer()
 
         self.project_entity = _make_project_entity("Farm Project")

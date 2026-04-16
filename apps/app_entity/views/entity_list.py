@@ -1,7 +1,8 @@
-from django.db.models import Q
 from django.shortcuts import render
 
-from apps.app_entity.models import Entity
+from apps.app_entity.models import Entity, EntityType
+
+_VIRTUAL_TYPES = [EntityType.SYSTEM, EntityType.WORLD]
 
 
 def entity_list_view(request):
@@ -14,13 +15,13 @@ def entity_list_view(request):
 
     # 2. Filter by Type
     if type_f == "person":
-        queryset = queryset.filter(person__isnull=False)
+        queryset = queryset.filter(entity_type=EntityType.PERSON)
     elif type_f == "project":
-        queryset = queryset.filter(project__isnull=False)
+        queryset = queryset.filter(entity_type=EntityType.PROJECT)
     elif type_f == "system_world":
-        queryset = queryset.filter(Q(is_system=True) | Q(is_world=True))
+        queryset = queryset.filter(entity_type__in=_VIRTUAL_TYPES)
     else:
-        queryset = queryset.filter(Q(is_world=False) & Q(is_system=False))
+        queryset = queryset.exclude(entity_type__in=_VIRTUAL_TYPES)
 
     # 3. Filter by Deletion (Assuming is_deleted field exists)
     if del_f == "deleted":
@@ -37,9 +38,7 @@ def entity_list_view(request):
     # 5. Search
     query = request.GET.get("q")
     if query:
-        queryset = queryset.filter(
-            Q(person__private_name__icontains=query) | Q(project__name__icontains=query)
-        )
+        queryset = queryset.filter(name__icontains=query)
 
     context = {
         "entities": queryset,

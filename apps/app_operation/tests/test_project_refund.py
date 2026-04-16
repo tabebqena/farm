@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from apps.app_entity.models import Entity, Person, Project, Stakeholder, StakeholderRole
+from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import (
     CashInjectionOperation,
@@ -18,23 +18,23 @@ User = get_user_model()
 
 
 def _make_officer(username="officer"):
-    return User.objects.create_user(username=username, password="testpass", is_staff=True)
+    return User.objects.create_user(
+        username=username, password="testpass", is_staff=True
+    )
 
 
 def _make_project(name="Test Project"):
-    project = Project(name=name)
-    project.save()
-    return Entity.create(owner=project)
+    return Entity.create(EntityType.PROJECT, name=name)
 
 
 class ProjectRefundCreateTest(TestCase):
     def setUp(self):
-        self.world_entity = Entity.create(is_world=True)
+        self.world_entity = Entity.create(EntityType.WORLD)
         self.officer = _make_officer()
 
         # Shareholder / funder
-        shareholder_person = Person.create(private_name="Shareholder Person")
-        self.shareholder_entity = shareholder_person.entity
+        shareholder_person = Entity.create(EntityType.PERSON, name="Shareholder Person")
+        self.shareholder_entity = shareholder_person
 
         # Project
         self.project_entity = _make_project()
@@ -98,8 +98,8 @@ class ProjectRefundCreateTest(TestCase):
         op.save()
 
         self.assertIsNotNone(op.pk)
-        self.assertIsNotNone(op.source.project)
-        self.assertIsNotNone(op.destination.person)
+        self.assertIsNotNone(op.source)
+        self.assertIsNotNone(op.destination)
 
         transactions = op.get_all_transactions()
         self.assertEqual(transactions.count(), 2)
@@ -145,8 +145,8 @@ class ProjectRefundCreateTest(TestCase):
     # ------------------------------------------------------------------
 
     def test_source_must_be_project_entity(self):
-        other_person = Person.create(private_name="Wrong Source")
-        op = self._make_op(source=other_person.entity)
+        other_person = Entity.create(EntityType.PERSON, name="Wrong Source")
+        op = self._make_op(source=other_person)
         with self.assertRaises(ValidationError):
             op.save()
 
@@ -157,21 +157,21 @@ class ProjectRefundCreateTest(TestCase):
             op.save()
 
     def test_destination_must_be_shareholder_of_source_project(self):
-        non_shareholder = Person.create(private_name="Non Shareholder")
-        self._inject_to(non_shareholder.entity, Decimal("2000.00"))
+        non_shareholder = Entity.create(EntityType.PERSON, name="Non Shareholder")
+        self._inject_to(non_shareholder, Decimal("2000.00"))
         # Fund via project funding so the cap check is also covered
         Stakeholder(
             parent=self.project_entity,
-            target=non_shareholder.entity,
+            target=non_shareholder,
             role=StakeholderRole.SHAREHOLDER,
         ).save()
-        self._fund_project_from(non_shareholder.entity, Decimal("500.00"))
+        self._fund_project_from(non_shareholder, Decimal("500.00"))
         # Now remove the stakeholder relationship
-        sh = self.project_entity.stakeholders.get(target=non_shareholder.entity)
+        sh = self.project_entity.stakeholders.get(target=non_shareholder)
         sh.active = False
         sh.save()
 
-        op = self._make_op(destination=non_shareholder.entity)
+        op = self._make_op(destination=non_shareholder)
         with self.assertRaises(ValidationError):
             op.save()
 
@@ -274,11 +274,11 @@ class ProjectRefundCreateTest(TestCase):
             op.save()
 
     def test_destination_is_immutable(self):
-        other_person = Person.create(private_name="Other Dest Person")
+        other_person = Entity.create(EntityType.PERSON, name="Other Dest Person")
         op = self._make_op()
         op.save()
 
-        op.destination = other_person.entity
+        op.destination = other_person
         with self.assertRaises(ValidationError):
             op.save()
 
@@ -357,11 +357,11 @@ class ProjectRefundCreateTest(TestCase):
 
 class ProjectRefundReversalTest(TestCase):
     def setUp(self):
-        self.world_entity = Entity.create(is_world=True)
+        self.world_entity = Entity.create(EntityType.WORLD)
         self.officer = _make_officer()
 
-        shareholder_person = Person.create(private_name="Shareholder Person")
-        self.shareholder_entity = shareholder_person.entity
+        shareholder_person = Entity.create(EntityType.PERSON, name="Shareholder Person")
+        self.shareholder_entity = shareholder_person
 
         self.project_entity = _make_project()
 

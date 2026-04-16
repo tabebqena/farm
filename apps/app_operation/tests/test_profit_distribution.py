@@ -6,10 +6,13 @@ from django.core.exceptions import ValidationError
 from django.db.models import QuerySet as DjangoQuerySet
 from django.test import TestCase
 
-from apps.app_entity.models import Entity, Person, Project, Stakeholder, StakeholderRole
+from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.period import FinancialPeriod
-from apps.app_operation.models.proxies import CapitalGainOperation, ProfitDistributionOperation
+from apps.app_operation.models.proxies import (
+    CapitalGainOperation,
+    ProfitDistributionOperation,
+)
 from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
@@ -29,14 +32,12 @@ def _make_officer(username):
 
 
 def _make_project_entity(name):
-    project = Project(name=name)
-    project.save()
-    return Entity.create(owner=project)
+    return Entity.create(EntityType.PROJECT, name=name)
 
 
 def _make_shareholder_entity(name):
-    person = Person.create(private_name=name)
-    entity = person.entity
+    person = Entity.create(EntityType.PERSON, name=name)
+    entity = person
     entity.is_shareholder = True
     entity.save()
     return entity
@@ -85,13 +86,15 @@ def _seed_capital_gain(system, destination, amount, officer):
 
 class ProfitDistributionCreateTest(TestCase):
     def setUp(self):
-        self.system = Entity.create(is_system=True)
+        self.system = Entity.create(EntityType.SYSTEM)
         self.officer = _make_officer("officer_pd_create")
         self.project_entity = _make_project_entity("PD Create Project")
         self.shareholder = _make_shareholder_entity("PD Create Shareholder")
         _register_shareholder(self.project_entity, self.shareholder)
 
-        _seed_capital_gain(self.system, self.project_entity, Decimal("2000.00"), self.officer)
+        _seed_capital_gain(
+            self.system, self.project_entity, Decimal("2000.00"), self.officer
+        )
 
         self.period = FinancialPeriod.objects.get(entity=self.project_entity)
         _force_close_period(self.period)
@@ -123,10 +126,14 @@ class ProfitDistributionCreateTest(TestCase):
         transactions = op.get_all_transactions()
         self.assertEqual(transactions.count(), 2)
         self.assertTrue(
-            transactions.filter(type=TransactionType.PROFIT_DISTRIBUTION_ISSUANCE).exists()
+            transactions.filter(
+                type=TransactionType.PROFIT_DISTRIBUTION_ISSUANCE
+            ).exists()
         )
         self.assertTrue(
-            transactions.filter(type=TransactionType.PROFIT_DISTRIBUTION_PAYMENT).exists()
+            transactions.filter(
+                type=TransactionType.PROFIT_DISTRIBUTION_PAYMENT
+            ).exists()
         )
 
     def test_transaction_amounts_match_operation(self):
@@ -192,7 +199,7 @@ class ProfitDistributionCreateTest(TestCase):
     # ------------------------------------------------------------------
 
     def test_source_must_be_project_entity(self):
-        non_project = Person.create(private_name="PD Non-project").entity
+        non_project = Entity.create(EntityType.PROJECT, name="PD Non-project")
         op = self._make_op(source=non_project)
         with self.assertRaises(ValidationError):
             op.save()
@@ -202,7 +209,7 @@ class ProfitDistributionCreateTest(TestCase):
     # ------------------------------------------------------------------
 
     def test_destination_must_be_shareholder(self):
-        non_shareholder = Person.create(private_name="PD Non-SH").entity
+        non_shareholder = Entity.create(EntityType.PERSON, name="PD Non-SH")
         op = self._make_op(destination=non_shareholder)
         with self.assertRaises(ValidationError):
             op.save()
@@ -367,13 +374,15 @@ class ProfitDistributionCreateTest(TestCase):
 
 class ProfitDistributionReversalTest(TestCase):
     def setUp(self):
-        self.system = Entity.create(is_system=True)
+        self.system = Entity.create(EntityType.SYSTEM)
         self.officer = _make_officer("officer_pd_rev")
         self.project_entity = _make_project_entity("PD Reversal Project")
         self.shareholder = _make_shareholder_entity("PD Reversal Shareholder")
         _register_shareholder(self.project_entity, self.shareholder)
 
-        _seed_capital_gain(self.system, self.project_entity, Decimal("2000.00"), self.officer)
+        _seed_capital_gain(
+            self.system, self.project_entity, Decimal("2000.00"), self.officer
+        )
 
         self.period = FinancialPeriod.objects.get(entity=self.project_entity)
         _force_close_period(self.period)

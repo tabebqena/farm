@@ -5,9 +5,12 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from apps.app_entity.models import Entity, Person, Project, Stakeholder, StakeholderRole
+from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
 from apps.app_operation.models.operation_type import OperationType
-from apps.app_operation.models.proxies import CashInjectionOperation, ProjectFundingOperation
+from apps.app_operation.models.proxies import (
+    CashInjectionOperation,
+    ProjectFundingOperation,
+)
 from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
@@ -15,20 +18,18 @@ User = get_user_model()
 
 class ProjectFundingCreateTest(TestCase):
     def setUp(self):
-        self.world_entity = Entity.create(is_world=True)
+        self.world_entity = Entity.create(EntityType.WORLD)
 
         self.officer = User.objects.create_user(
             username="officer", password="testpass", is_staff=True
         )
 
         # Funder: person entity
-        funder_person = Person.create(private_name="Funder Person")
-        self.funder_entity = funder_person.entity
+        funder_person = Entity.create(EntityType.PERSON, name="Funder Person")
+        self.funder_entity = funder_person
 
         # Project entity
-        project = Project(name="Test Project")
-        project.save()
-        self.project_entity = Entity.create(owner=project)
+        self.project_entity = Entity.create(EntityType.PROJECT, name="Test Project")
 
         # Register funder as shareholder of the project
         Stakeholder(
@@ -75,8 +76,8 @@ class ProjectFundingCreateTest(TestCase):
         op.save()
 
         self.assertIsNotNone(op.pk)
-        self.assertIsNotNone(op.source.person)
-        self.assertIsNotNone(op.destination.project)
+        self.assertIsNotNone(op.source)
+        self.assertIsNotNone(op.destination)
 
         transactions = op.get_all_transactions()
         self.assertEqual(transactions.count(), 2)
@@ -122,7 +123,7 @@ class ProjectFundingCreateTest(TestCase):
     # ------------------------------------------------------------------
 
     def test_source_must_be_person_entity(self):
-        non_person = Entity.create(is_world=False, owner=Project.objects.create(name="Another Project"))
+        non_person = Entity.create(EntityType.PROJECT, name="Another Project")
         # Register it as shareholder just to isolate the person check
         Stakeholder(
             parent=self.project_entity,
@@ -134,16 +135,18 @@ class ProjectFundingCreateTest(TestCase):
             op.save()
 
     def test_source_must_be_shareholder_of_destination_project(self):
-        non_shareholder_person = Person.create(private_name="Non Shareholder")
-        self._inject_to(non_shareholder_person.entity, Decimal("1000.00"))
+        non_shareholder_person = Entity.create(
+            EntityType.PERSON, name="Non Shareholder"
+        )
+        self._inject_to(non_shareholder_person, Decimal("1000.00"))
 
-        op = self._make_op(source=non_shareholder_person.entity)
+        op = self._make_op(source=non_shareholder_person)
         with self.assertRaises(ValidationError):
             op.save()
 
     def test_destination_must_be_project_entity(self):
-        other_person = Person.create(private_name="Wrong Destination")
-        op = self._make_op(destination=other_person.entity)
+        other_person = Entity.create(EntityType.PERSON, name="Wrong Destination")
+        op = self._make_op(destination=other_person)
         with self.assertRaises(ValidationError):
             op.save()
 
@@ -224,24 +227,23 @@ class ProjectFundingCreateTest(TestCase):
     # ------------------------------------------------------------------
 
     def test_source_is_immutable(self):
-        other_funder = Person.create(private_name="Other Funder")
+        other_funder = Entity.create(EntityType.PERSON, name="Other Funder")
         Stakeholder(
             parent=self.project_entity,
-            target=other_funder.entity,
+            target=other_funder,
             role=StakeholderRole.SHAREHOLDER,
         ).save()
-        self._inject_to(other_funder.entity, Decimal("1000.00"))
+        self._inject_to(other_funder, Decimal("1000.00"))
 
         op = self._make_op()
         op.save()
 
-        op.source = other_funder.entity
+        op.source = other_funder
         with self.assertRaises(ValidationError):
             op.save()
 
     def test_destination_is_immutable(self):
-        other_project = Project.objects.create(name="Other Project")
-        other_project_entity = Entity.create(owner=other_project)
+        other_project_entity = Entity.create(EntityType.PROJECT, name="Other Project")
 
         op = self._make_op()
         op.save()
@@ -325,18 +327,16 @@ class ProjectFundingCreateTest(TestCase):
 
 class ProjectFundingReversalTest(TestCase):
     def setUp(self):
-        self.world_entity = Entity.create(is_world=True)
+        self.world_entity = Entity.create(EntityType.WORLD)
 
         self.officer = User.objects.create_user(
             username="officer", password="testpass", is_staff=True
         )
 
-        funder_person = Person.create(private_name="Funder Person")
-        self.funder_entity = funder_person.entity
+        funder_person = Entity.create(EntityType.PERSON, name="Funder Person")
+        self.funder_entity = funder_person
 
-        project = Project(name="Test Project")
-        project.save()
-        self.project_entity = Entity.create(owner=project)
+        self.project_entity = Entity.create(EntityType.PROJECT, name="Test Project")
 
         Stakeholder(
             parent=self.project_entity,
