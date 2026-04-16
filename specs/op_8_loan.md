@@ -17,22 +17,27 @@
 **Immutability:** `source`, `destination`, `amount` cannot be changed after save
 
 Tasks:
-- [ ] Verify issuance transaction created correctly (creditor → debtor, type `LOAN_ISSUANCE`)
-- [ ] Verify both entities must be `active=True`
-- [ ] Verify source fund must be `active=True`
-- [ ] Verify amount/officer validations (zero, negative, non-staff, inactive, no-user)
-- [ ] Verify immutability of `source`, `destination`, `amount` after save
-- [ ] Verify repayment view creates transaction in correct direction: `destination.fund → source.fund` (debtor → creditor)
-- [ ] Verify repayment transaction type is `LOAN_REPAYMENT`
-- [ ] Verify `amount_remaining_to_repay` property: `issuance_amount - sum(repayments)`
-- [ ] Verify repayment cannot exceed remaining balance (`amount_remaining_to_repay`)
-- [ ] Verify creditor fund decreases after issuance
-- [ ] Verify debtor fund increases after issuance
-- [ ] Verify debtor fund decreases after repayment
-- [ ] Verify creditor fund increases after repayment
-- [ ] Reversal: only issuance is implicitly reversed; repayments must be cleared manually first
-- [ ] Verify reversal blocked if outstanding repayments exist
-- [ ] Verify reversal marks original as reversed and sets `reversed_by`
-- [ ] Verify cannot reverse an already-reversed operation
+- [x] Verify issuance transaction created correctly (creditor → debtor, type `LOAN_ISSUANCE`)
+- [x] Verify both entities must be `active=True`
+- [x] Verify source fund must be `active=True`
+- [x] Verify amount/officer validations (zero, negative, non-staff, inactive, no-user)
+- [x] Verify immutability of `source`, `destination`, `amount` after save
+- [x] Verify repayment view creates transaction in correct direction: `destination.fund → source.fund` (debtor → creditor)
+- [x] Verify repayment transaction type is `LOAN_REPAYMENT`
+- [x] Verify `amount_remaining_to_repay` property: `issuance_amount - sum(repayments)`
+- [x] Verify repayment cannot exceed remaining balance (`amount_remaining_to_repay`)
+- [x] Verify creditor fund decreases after payment disbursement
+- [x] Verify debtor fund increases after payment disbursement
+- [x] Verify multiple payment disbursements allowed
+- [x] Verify debtor fund decreases after repayment
+- [x] Verify creditor fund increases after repayment
+- [x] Verify multiple repayments accumulate correctly
+- [x] Verify full repayment marks as fully repayed
+- [x] Reversal: only issuance counter-transaction is created (payment disbursements block reversal)
+- [x] Verify reversal blocked when payment disbursements exist
+- [ ] Verify reversal blocked if outstanding repayments exist (debtor → creditor LOAN_REPAYMENT transactions)
+- [x] Verify reversal marks original as reversed and sets `reversed_by`
+- [x] Verify cannot reverse an already-reversed operation
+- [x] Verify cannot reverse a reversal operation
 - [ ] UI: create form works; detail shows outstanding balance and "Record Repayment" button
 - [ ] UI: repayment button shows remaining balance, blocks over-repayment

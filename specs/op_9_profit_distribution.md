@@ -19,18 +19,30 @@
 **Immutability:** `source`, `destination`, `amount` cannot be changed after save
 
 Tasks:
-- [ ] Verify both `PROFIT_DISTRIBUTION_ISSUANCE` and `PROFIT_DISTRIBUTION_PAYMENT` transactions are created on save
-- [ ] Verify transaction fund direction: `project.fund → shareholder.fund` for both
-- [ ] Verify operation is fully settled immediately
-- [ ] Verify all validation rules listed above (including insufficient funds check)
-- [ ] Verify immutability of `source`, `destination`, `amount` after save
-- [ ] Verify `create_payment_transaction()` is blocked after creation
-- [ ] Verify reversal creates counter-transactions: `shareholder.fund → project.fund`
-- [ ] Verify reversal marks original as reversed and sets `reversed_by`
-- [ ] Verify counter-transactions preserve transaction type
-- [ ] Verify cannot reverse an already-reversed operation
-- [ ] Verify cannot reverse a reversal operation
-- [ ] Verify project balance decreases after distribution
-- [ ] Verify project balance restored after reversal
+- [x] Verify both `PROFIT_DISTRIBUTION_ISSUANCE` and `PROFIT_DISTRIBUTION_PAYMENT` transactions are created on save
+- [x] Verify transaction fund direction: `project.fund → shareholder.fund` for both
+- [x] Verify operation is fully settled immediately
+- [x] Verify source must be a Project entity
+- [x] Verify destination must be a shareholder entity
+- [x] Verify plan required
+- [x] Verify plan must be a profit plan (loss plan raises)
+- [x] Verify break-even plan raises
+- [x] Verify amount must not exceed `plan.remaining_distributable`
+- [x] Verify amount cap still enforced after partial distribution
+- [x] Verify insufficient project fund balance raises ValidationError
+- [x] Verify officer validations (non-staff raises)
+- [x] Verify immutability of `source`, `destination`, `amount` after save
+- [x] Verify `create_payment_transaction()` is blocked after creation (one-shot)
+- [x] Verify reversal creates counter-transactions: `shareholder.fund → project.fund`
+- [x] Verify reversal marks original as reversed and sets `reversed_by`
+- [x] Verify reversal is marked as `is_reversal`
+- [x] Verify reversal inherits amount, source, destination from original
+- [x] Verify counter-transactions preserve transaction type
+- [x] Verify project fund restored after reversal
+- [x] Verify reversal restores `remaining_distributable`
+- [x] Verify cannot reverse an already-reversed operation
+- [x] Verify cannot reverse a reversal operation
+- [x] Verify project balance decreases after distribution
+- [x] Verify shareholder balance increases after distribution
 - [ ] UI: create form — source filtered to Project entities, destination filtered to Person entities
 - [ ] UI: operation detail shows both transactions and reversal button

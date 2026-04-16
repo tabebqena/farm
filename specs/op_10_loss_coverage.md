@@ -19,18 +19,28 @@
 **Immutability:** `source`, `destination`, `amount` cannot be changed after save
 
 Tasks:
-- [ ] Verify both `LOSS_COVERAGE_ISSUANCE` and `LOSS_COVERAGE_PAYMENT` transactions are created on save
-- [ ] Verify transaction fund direction: `shareholder.fund → project.fund` for both
-- [ ] Verify operation is fully settled immediately
-- [ ] Verify all validation rules listed above (including insufficient funds check)
-- [ ] Verify immutability of `source`, `destination`, `amount` after save
-- [ ] Verify `create_payment_transaction()` is blocked after creation
-- [ ] Verify reversal creates counter-transactions: `project.fund → shareholder.fund`
-- [ ] Verify reversal marks original as reversed and sets `reversed_by`
-- [ ] Verify counter-transactions preserve transaction type
-- [ ] Verify cannot reverse an already-reversed operation
-- [ ] Verify cannot reverse a reversal operation
-- [ ] Verify shareholder balance decreases after loss coverage
-- [ ] Verify shareholder balance restored after reversal
+- [x] Verify both `LOSS_COVERAGE_ISSUANCE` and `LOSS_COVERAGE_PAYMENT` transactions are created on save
+- [x] Verify transaction fund direction: `shareholder.fund → project.fund` for both
+- [x] Verify operation is fully settled immediately
+- [x] Verify plan required
+- [x] Verify plan must be a loss plan (profit plan raises)
+- [x] Verify break-even plan raises
+- [x] Verify amount must not exceed `plan.remaining_coverable`
+- [x] Verify amount cap still enforced after partial coverage
+- [x] Verify insufficient shareholder fund balance raises ValidationError
+- [x] Verify officer validations (non-staff raises)
+- [x] Verify immutability of `source`, `destination`, `amount` after save
+- [x] Verify `create_payment_transaction()` is blocked after creation (one-shot)
+- [x] Verify reversal creates counter-transactions: `project.fund → shareholder.fund`
+- [x] Verify reversal marks original as reversed and sets `reversed_by`
+- [x] Verify reversal is marked as `is_reversal`
+- [x] Verify reversal inherits amount, source, destination from original
+- [x] Verify counter-transactions preserve transaction type
+- [x] Verify shareholder fund restored after reversal
+- [x] Verify reversal restores `remaining_coverable`
+- [x] Verify cannot reverse an already-reversed operation
+- [x] Verify cannot reverse a reversal operation
+- [x] Verify shareholder balance decreases after loss coverage
+- [x] Verify project balance increases after loss coverage
 - [ ] UI: create form — source filtered to Person entities, destination filtered to Project entities
 - [ ] UI: operation detail shows both transactions and reversal button

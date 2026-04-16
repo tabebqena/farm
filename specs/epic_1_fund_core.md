@@ -7,20 +7,23 @@
 **Goal:** `fund.balance` returns the correct net value of a fund at any point.
 
 Tasks:
-- [ ] Add `balance` property to `Fund` model: sum of `transactions_incoming.amount` minus `transactions_outgoing.amount`, excluding reversed/reversal transactions
-- [ ] Add `balance_as_of(date)` method for historical balance queries
-- [ ] Write unit tests: empty fund = 0, injection increases balance, withdrawal decreases it, reversed tx is excluded
+- [x] Add `balance` property to `Fund` model: sums payment-type transactions in vs out, excluding deleted transactions (implemented as `balance_at(date.today())`)
+- [x] Add `balance_at(dt)` method for historical balance queries (note: implemented as `balance_at`, not `balance_as_of`)
+- [x] Add `assets_at(dt)` method covering cash + receivables + inventory + loans + advances
+- [ ] Write dedicated unit tests: empty fund = 0, injection increases balance, withdrawal decreases it
 
 ---
 
 ### Feature 1.2 — Transaction.clean() Validation
-**Goal:** The `Transaction.clean()` method currently blocks *all* transactions with a wrong check. Fix it.
+**Goal:** ~~The `Transaction.clean()` method currently blocks all transactions with a wrong check. Fix it.~~
+
+**Status: Approach changed.** Validation is now done at the Operation proxy model level (`clean_source`, `clean_destination`, `clean` on each proxy). The `Transaction.clean_type()` method remains a stub (`...`). The `DOCUMENT_TYPE_MAP` approach was abandoned in favour of per-proxy validation.
 
 Tasks:
-- [*] Remove or fix the `DOCUMENT_TYPE_MAP` guard in `Transaction.clean()` — currently raises `ValidationError` for all valid operation types
-- [ ] Expand `DOCUMENT_TYPE_MAP` to include all 14 operation types and their allowed transaction types (use `OperationType.MAP()` as source of truth)
-- [ ] Re-enable `clean_type()` body (currently has an early `return` that skips all validation)
-- [ ] Write a test that saves a `PURCHASE_PAYMENT` transaction on a `PURCHASE` operation — should pass
+- [x] Remove the bad `DOCUMENT_TYPE_MAP` guard in `Transaction.clean()` — done (guard removed, `clean_type` is now a stub)
+- ~~[ ] Expand `DOCUMENT_TYPE_MAP` to include all 14 operation types~~ — cancelled; validation lives in proxy models
+- ~~[ ] Re-enable `clean_type()` body~~ — cancelled; validation lives in proxy models
+- ~~[ ] Write a test that saves a `PURCHASE_PAYMENT` transaction on a `PURCHASE` operation~~ — cancelled; covered by Purchase proxy model tests
 
 ---
 
