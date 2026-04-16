@@ -49,6 +49,7 @@ def record_transaction_payment(request, pk):
         "app_operation/add_payment_form.html",
         {
             "operation": operation,
+            "remaining_balance": operation.amount_remaining_to_settle,
             "date": date,
             "amount": amount_raw,
             "note": note,

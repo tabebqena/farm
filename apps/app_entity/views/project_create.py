@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.db import transaction
 from django.shortcuts import redirect, render
+from django.utils.translation import gettext as _
 
 from apps.app_entity.models import Entity, Project
 
@@ -42,11 +43,15 @@ def project_create_view(request):
 
                 messages.success(
                     request,
-                    f"Project '{project.name}' initialized with Fund ID #{entity.fund.id}",
+                    _("Project '%(name)s' initialized with Fund ID #%(fund_id)s")
+                    % {"name": project.name, "fund_id": entity.fund.id},
                 )
                 return redirect("entity_detail", pk=entity.pk)
 
         except Exception as e:
-            messages.error(request, f"Failed to initialize project: {str(e)}")
+            messages.error(
+                request,
+                _("Failed to initialize project: %(error)s") % {"error": str(e)},
+            )
 
-    return render(request, "app_entity/project_create.html")
+    return render(request, "app_entity/project_form.html")

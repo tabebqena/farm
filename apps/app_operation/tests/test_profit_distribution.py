@@ -7,7 +7,6 @@ from django.db.models import QuerySet as DjangoQuerySet
 from django.test import TestCase
 
 from apps.app_entity.models import Entity, Person, Project, Stakeholder, StakeholderRole
-from apps.app_operation.models.distribution_plan import DistributionPlan
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.period import FinancialPeriod
 from apps.app_operation.models.proxies import CapitalGainOperation, ProfitDistributionOperation
@@ -62,6 +61,14 @@ def _force_close_period(period):
     period.refresh_from_db()
 
 
+def _set_period_amount(period, amount):
+    DjangoQuerySet.update(
+        FinancialPeriod.all_objects.filter(pk=period.pk),
+        amount=amount,
+    )
+    period.refresh_from_db()
+
+
 def _seed_capital_gain(system, destination, amount, officer):
     CapitalGainOperation(
         source=system,
@@ -92,12 +99,7 @@ class ProfitDistributionCreateTest(TestCase):
         _force_close_period(self.period)
         FinancialPeriod(entity=self.project_entity, start_date=TODAY).save()
 
-        self.plan = DistributionPlan(
-            entity=self.project_entity,
-            period=self.period,
-            amount=Decimal("1000.00"),
-        )
-        self.plan.save()
+        _set_period_amount(self.period, Decimal("1000.00"))
 
     def _make_op(self, **kwargs):
         defaults = dict(
@@ -106,7 +108,7 @@ class ProfitDistributionCreateTest(TestCase):
             amount=Decimal("300.00"),
             operation_type=OperationType.PROFIT_DISTRIBUTION,
             date=TODAY,
-            plan=self.plan,
+            plan=self.period,
             officer=self.officer,
         )
         defaults.update(kwargs)
@@ -223,10 +225,7 @@ class ProfitDistributionCreateTest(TestCase):
         loss_period = FinancialPeriod.objects.get(entity=loss_project)
         _force_close_period(loss_period)
         FinancialPeriod(entity=loss_project, start_date=TODAY).save()
-        loss_plan = DistributionPlan(
-            entity=loss_project, period=loss_period, amount=Decimal("-400.00")
-        )
-        loss_plan.save()
+        _set_period_amount(loss_period, Decimal("-400.00"))
 
         op = ProfitDistributionOperation(
             source=loss_project,
@@ -234,7 +233,7 @@ class ProfitDistributionCreateTest(TestCase):
             amount=Decimal("100.00"),
             operation_type=OperationType.PROFIT_DISTRIBUTION,
             date=TODAY,
-            plan=loss_plan,
+            plan=loss_period,
             officer=self.officer,
         )
         with self.assertRaises(ValidationError):
@@ -248,10 +247,7 @@ class ProfitDistributionCreateTest(TestCase):
         be_period = FinancialPeriod.objects.get(entity=be_project)
         _force_close_period(be_period)
         FinancialPeriod(entity=be_project, start_date=TODAY).save()
-        be_plan = DistributionPlan(
-            entity=be_project, period=be_period, amount=Decimal("0.00")
-        )
-        be_plan.save()
+        _set_period_amount(be_period, Decimal("0.00"))
 
         op = ProfitDistributionOperation(
             source=be_project,
@@ -259,7 +255,7 @@ class ProfitDistributionCreateTest(TestCase):
             amount=Decimal("100.00"),
             operation_type=OperationType.PROFIT_DISTRIBUTION,
             date=TODAY,
-            plan=be_plan,
+            plan=be_period,
             officer=self.officer,
         )
         with self.assertRaises(ValidationError):
@@ -298,10 +294,7 @@ class ProfitDistributionCreateTest(TestCase):
         small_period = FinancialPeriod.objects.get(entity=small_project)
         _force_close_period(small_period)
         FinancialPeriod(entity=small_project, start_date=TODAY).save()
-        small_plan = DistributionPlan(
-            entity=small_project, period=small_period, amount=Decimal("500.00")
-        )
-        small_plan.save()
+        _set_period_amount(small_period, Decimal("500.00"))
 
         op = ProfitDistributionOperation(
             source=small_project,
@@ -309,7 +302,7 @@ class ProfitDistributionCreateTest(TestCase):
             amount=Decimal("200.00"),
             operation_type=OperationType.PROFIT_DISTRIBUTION,
             date=TODAY,
-            plan=small_plan,
+            plan=small_period,
             officer=self.officer,
         )
         with self.assertRaises(ValidationError):
@@ -389,12 +382,7 @@ class ProfitDistributionReversalTest(TestCase):
         _force_close_period(self.period)
         FinancialPeriod(entity=self.project_entity, start_date=TODAY).save()
 
-        self.plan = DistributionPlan(
-            entity=self.project_entity,
-            period=self.period,
-            amount=Decimal("1000.00"),
-        )
-        self.plan.save()
+        _set_period_amount(self.period, Decimal("1000.00"))
 
         self.op = ProfitDistributionOperation(
             source=self.project_entity,
@@ -402,7 +390,7 @@ class ProfitDistributionReversalTest(TestCase):
             amount=Decimal("500.00"),
             operation_type=OperationType.PROFIT_DISTRIBUTION,
             date=TODAY,
-            plan=self.plan,
+            plan=self.period,
             officer=self.officer,
         )
         self.op.save()
@@ -482,9 +470,9 @@ class ProfitDistributionReversalTest(TestCase):
         )
 
     def test_reversal_restores_remaining_distributable(self):
-        self.assertEqual(self.plan.remaining_distributable, Decimal("500.00"))
+        self.assertEqual(self.period.remaining_distributable, Decimal("500.00"))
         self.op.reverse(officer=self.officer)
-        self.assertEqual(self.plan.remaining_distributable, Decimal("1000.00"))
+        self.assertEqual(self.period.remaining_distributable, Decimal("1000.00"))
 
     # ------------------------------------------------------------------
     # Constraints

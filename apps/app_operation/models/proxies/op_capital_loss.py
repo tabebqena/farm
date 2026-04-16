@@ -23,6 +23,7 @@ class CapitalLossOperation(Operation):
     _is_one_shot_operation = True
     has_repayment = False
     max_payment_transaction_count = 1
+    has_invoice = True
 
     class Meta:
         proxy = True

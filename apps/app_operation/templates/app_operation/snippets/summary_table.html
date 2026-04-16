@@ -1,18 +1,19 @@
+{% load i18n %}
 <ul class="list-group list-group-flush">
   <li class="list-group-item d-flex justify-content-between">
-    <span>Initial Amount</span>
+    <span>{% trans "Initial Amount" %}</span>
     <span class="fw-bold text-primary">${{ operation.amount }}</span>
   </li>
   <li class="list-group-item">
-    <small class="text-muted d-block">Source (Creditor)</small>
+    <small class="text-muted d-block">{% trans "Source (Creditor)" %}</small>
     <strong>{{ operation.source.name }}</strong>
   </li>
   <li class="list-group-item">
-    <small class="text-muted d-block">Destination (Debtor)</small>
+    <small class="text-muted d-block">{% trans "Destination (Debtor)" %}</small>
     <strong>{{ operation.destination.name }}</strong>
   </li>
   <li class="list-group-item">
-    <small class="text-muted d-block">Officer</small>
+    <small class="text-muted d-block">{% trans "Officer" %}</small>
     <span>{{ operation.officer.name }}</span>
   </li>
 </ul>

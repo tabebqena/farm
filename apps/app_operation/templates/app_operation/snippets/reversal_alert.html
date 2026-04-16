@@ -1,25 +1,26 @@
+{% load i18n %}
 {% if operation.is_reversed %}
   <div class="alert alert-danger shadow-sm d-flex align-items-center mb-4 border-start border-5">
     <i class="bi bi-x-circle-fill fs-1 me-3"></i>
     <div class="flex-grow-1">
-      <h5 class="alert-heading fw-bold mb-1">Operation Voided (Reversed)</h5>
+      <h5 class="alert-heading fw-bold mb-1">{% trans "Operation Voided (Reversed)" %}</h5>
       <p class="mb-0 opacity-75">
-        <i class="bi bi-calendar-event"></i> Reversed on {{ operation.reversed_at|date:'M d, Y' }}
+        <i class="bi bi-calendar-event"></i> {% trans "Reversed on" %} {{ operation.reversed_at|date:'M d, Y' }}
       </p>
     </div>
     {% if operation.reversed_by %}
-      <a href="{% url 'operation_detail_view' operation.reversed_by.pk %}" class="btn btn-outline-danger btn-sm ms-3">View Correction <i class="bi bi-arrow-right"></i></a>
+      <a href="{% url 'operation_detail_view' operation.reversed_by.pk %}" class="btn btn-outline-danger btn-sm ms-3">{% trans "View Correction" %} <i class="bi bi-arrow-right"></i></a>
     {% endif %}
   </div>
 {% elif operation.reversal_of %}
   <div class="alert alert-warning shadow-sm d-flex align-items-center mb-4 border-start border-5">
     <i class="bi bi-arrow-counterclockwise fs-1 me-3"></i>
     <div class="flex-grow-1">
-      <h5 class="alert-heading fw-bold mb-1">Corrective Reversal Entry</h5>
-      <p class="mb-0">This operation was created to neutralize a previous entry.</p>
+      <h5 class="alert-heading fw-bold mb-1">{% trans "Corrective Reversal Entry" %}</h5>
+      <p class="mb-0">{% trans "This operation was created to neutralize a previous entry." %}</p>
     </div>
     {% if operation.reversal_of %}
-      <a href="{% url 'operation_detail_view' operation.reversal_of.pk %}" class="btn btn-outline-dark btn-sm ms-3"><i class="bi bi-eye"></i> View Original Error</a>
+      <a href="{% url 'operation_detail_view' operation.reversal_of.pk %}" class="btn btn-outline-dark btn-sm ms-3"><i class="bi bi-eye"></i> {% trans "View Original Error" %}</a>
     {% endif %}
   </div>
 {% endif %}

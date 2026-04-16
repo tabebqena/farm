@@ -24,6 +24,8 @@ class ExpenseOperation(Operation):
     has_repayment = False
     max_payment_transaction_count = -1
 
+    category_type = "EXPENSE"
+
     class Meta:
         proxy = True
         verbose_name = "Expense"
@@ -47,4 +49,3 @@ class ExpenseOperation(Operation):
     def clean_destination(self):
         if not self.destination.is_world:
             raise ValidationError("Expense destination must be the World entity.")
-

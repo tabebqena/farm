@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load i18n %}
 
 {% block content %}
   <form method="post">
@@ -6,38 +7,38 @@
 
     <div class="row g-3 mb-4 p-3 bg-light rounded border">
       <div class="col-md-4">
-        <label class="small text-muted d-block">Amount</label>
+        <label class="small text-muted d-block">{% trans "Amount" %}</label>
         <span class="h5 mb-0">${{ operation.amount }}</span>
         {% if is_update %}
-          <small class="d-block text-warning"><i class="bi bi-lock-fill"></i> Immutable</small>
+          <small class="d-block text-warning"><i class="bi bi-lock-fill"></i> {% trans "Immutable" %}</small>
         {% endif %}
       </div>
       <div class="col-md-4">
-        <label class="small text-muted d-block">Source</label>
+        <label class="small text-muted d-block">{% trans "Source" %}</label>
         <span class="fw-bold">{{ operation.source.name }}</span>
       </div>
       <div class="col-md-4">
-        <label class="small text-muted d-block">Destination</label>
+        <label class="small text-muted d-block">{% trans "Destination" %}</label>
         <span class="fw-bold">{{ operation.destination.name }}</span>
       </div>
     </div>
 
     <div class="row g-3">
       <div class="col-md-12">
-        <label for="date" class="form-label fw-bold">Operation Date</label>
+        <label for="date" class="form-label fw-bold">{% trans "Operation Date" %}</label>
         <input type="date" name="date" id="date" class="form-control" value="{{ operation.date|date:'Y-m-d' }}" required />
-        <div class="form-text">Changing the date will update all linked ledger entries.</div>
+        <div class="form-text">{% trans "Changing the date will update all linked ledger entries." %}</div>
       </div>
 
       <div class="col-12">
-        <label for="description" class="form-label fw-bold">Description / Notes</label>
+        <label for="description" class="form-label fw-bold">{% trans "Description / Notes" %}</label>
         <textarea name="description" id="description" class="form-control" rows="4">{{ operation.description }}</textarea>
       </div>
     </div>
 
     <div class="mt-4 d-flex justify-content-between">
-      <a href="{% url 'operation_detail_view' operation.pk %}" class="btn btn-outline-secondary">Discard Changes</a>
-      <button type="submit" class="btn btn-primary px-4">Save Metadata Updates</button>
+      <a href="{% url 'operation_detail_view' operation.pk %}" class="btn btn-outline-secondary">{% trans "Discard Changes" %}</a>
+      <button type="submit" class="btn btn-primary px-4">{% trans "Save Metadata Updates" %}</button>
     </div>
   </form>
 {% endblock %}

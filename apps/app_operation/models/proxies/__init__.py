@@ -3,7 +3,9 @@ from typing import Union
 from apps.app_operation.models.operation import Operation
 from apps.app_operation.models.operation_type import OperationType
 
+from .op_birth import BirthOperation
 from .op_capital_gain import CapitalGainOperation
+from .op_death import DeathOperation
 from .op_correction_credit import CorrectionCreditOperation
 from .op_correction_debit import CorrectionDebitOperation
 from .op_capital_loss import CapitalLossOperation
@@ -32,6 +34,8 @@ PROXY_MAP: dict[str, type[Operation]] = {
     OperationType.PURCHASE: PurchaseOperation,
     OperationType.SALE: SaleOperation,
     OperationType.EXPENSE: ExpenseOperation,
+    OperationType.BIRTH: BirthOperation,
+    OperationType.DEATH: DeathOperation,
     OperationType.CAPITAL_GAIN: CapitalGainOperation,
     OperationType.CAPITAL_LOSS: CapitalLossOperation,
     OperationType.CORRECTION_CREDIT: CorrectionCreditOperation,
@@ -75,6 +79,8 @@ __all__ = [
     "PROXY_MAP",
     "get_canonical_type",
     "get_operation_class",
+    "BirthOperation",
+    "DeathOperation",
     "CashInjectionOperation",
     "CashWithdrawalOperation",
     "CapitalGainOperation",

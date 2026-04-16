@@ -1,5 +1,6 @@
 from django import conf
 from django.db import models
+from django.utils.translation import gettext_lazy as _
 
 # TODO use database level constrains for dataintegrity.
 # TODO add finiancial period closing
@@ -14,19 +15,19 @@ class SafeQuerySet(models.QuerySet):
     #     return self.update(deleted_at=timezone.now())
     def update(self, **kwargs):
         raise NotImplementedError(
-            "Direct .update() is blocked. Use individual .save() for validation."
+            _("Direct .update() is blocked. Use individual .save() for validation.")
         )
 
     def bulk_create(self, objs, **kwargs):
         raise NotImplementedError(
-            "Direct .bulk_create() is blocked. Save objects individually."
+            _("Direct .bulk_create() is blocked. Save objects individually.")
         )
 
     def bulk_update(self, objs, fields, **kwargs):
         if conf.settings.DEBUG:
             return super().bulk_update(objs, fields, **kwargs)
         raise NotImplementedError(
-            "Direct .bulk_update() is blocked.  Save objects individually."
+            _("Direct .bulk_update() is blocked. Save objects individually.")
         )
 
     def delete(self):
@@ -34,8 +35,11 @@ class SafeQuerySet(models.QuerySet):
             return super().delete()
 
         raise NotImplementedError(
-            f"Bulk delete is blocked for {self.model.__name__}. "
-            "If this is intended, set 'deletable = True' in the model Meta or class."
+            _(
+                "Bulk delete is blocked for %(model)s. "
+                "If this is intended, set 'deletable = True' in the model Meta or class."
+            )
+            % {"model": self.model.__name__}
         )
 
 

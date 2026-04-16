@@ -1,22 +1,23 @@
 from django.conf import settings
 from django.db import models
+from django.utils.translation import gettext_lazy as _
 
 
 class OperationQuerySet(models.QuerySet):
     def update(self, **kwargs):
         raise NotImplementedError(
-            "Direct .update() is blocked. Use individual .save() for validation."
+            _("Direct .update() is blocked. Use individual .save() for validation.")
         )
 
     def bulk_create(self, objs, **kwargs):
         raise NotImplementedError(
-            "Direct .bulk_create() is blocked. Save objects individually."
+            _("Direct .bulk_create() is blocked. Save objects individually.")
         )
 
     def delete(self):
         if settings.DEBUG:
             return super().delete()
-        raise NotImplementedError("Bulk delete is blocked.")
+        raise NotImplementedError(_("Bulk delete is blocked."))
 
     def cast(self):
         """

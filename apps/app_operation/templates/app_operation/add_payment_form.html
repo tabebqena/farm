@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% load l10n %}
+{% load i18n %}
+{% block content %}
+  <div class="card border-primary shadow-sm">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0">{% trans "Record Payment for" %} {{ operation.operation_type }} #{{ operation.pk }}</h5>
+    </div>
+    <div class="card-body">
+      <div class="mb-4">
+        <label class="text-muted small d-block">{% trans "Operation" %}</label>
+        <span class="fw-bold">{{ operation }}</span>
+      </div>
+
+      <form method="post">
+        {% csrf_token %}
+
+        <div class="mb-3">
+          <label class="form-label fw-bold">{% trans "Maximum Allowed" %}</label>
+          <div class="input-group">
+            <span class="input-group-text">$</span>
+            <input type="text" class="form-control" value="{{ remaining_balance }}" readonly />
+          </div>
+        </div>
+
+        <div class="mb-3 form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="payCompletely" />
+          <label class="form-check-label fw-bold" for="payCompletely">{% trans "Pay Completely" %}</label>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-bold">{% trans "Payment Amount" %}</label>
+          <div class="input-group">
+            <span class="input-group-text">$</span>
+            <input type="number" step="0.01" name="amount" id="amountInput" class="form-control" max="{{ remaining_balance|unlocalize }}" value="{{ amount }}" required />
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-bold">{% trans "Note" %}</label>
+          <textarea name="note" class="form-control">{{ note }}</textarea>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-bold">{% trans "Date" %}</label>
+          <input type="date" name="date" class="form-control" value="{{ date|date:'Y-m-d' }}" required />
+        </div>
+        <button type="submit" class="btn btn-primary w-100">{% trans "Post Payment" %}</button>
+      </form>
+
+      <script>
+        const toggle = document.getElementById('payCompletely')
+        const amountInput = document.getElementById('amountInput')
+        const maxAmount = '{{ remaining_balance|unlocalize }}'
+
+        toggle.addEventListener('change', function () {
+          if (this.checked) {
+            amountInput.value = maxAmount
+            amountInput.readOnly = true
+          } else {
+            amountInput.readOnly = false
+          }
+        })
+      </script>
+    </div>
+  </div>
+{% endblock %}

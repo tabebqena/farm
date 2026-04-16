@@ -23,6 +23,8 @@ class PurchaseOperation(Operation):
     _is_one_shot_operation = False
     has_repayment = False
     max_payment_transaction_count = -1
+    creates_assets = True
+    category_type = "PURCHASE"
 
     class Meta:
         proxy = True
@@ -34,7 +36,9 @@ class PurchaseOperation(Operation):
 
     @property
     def payment_target_fund(self):
-        return self.destination.fund  # clean_destination ensures this is a vendor (receives)
+        return (
+            self.destination.fund
+        )  # clean_destination ensures this is a vendor (receives)
 
     @property
     def project(self):
@@ -51,6 +55,7 @@ class PurchaseOperation(Operation):
     @classmethod
     def get_related_entities(cls, url_entity, config):
         from apps.app_entity.models import Stakeholder, StakeholderRole
+
         relationships = (
             Stakeholder.objects.filter(
                 parent=url_entity, role=StakeholderRole.VENDOR, active=True
@@ -66,9 +71,11 @@ class PurchaseOperation(Operation):
         from apps.app_entity.models import Stakeholder, StakeholderRole
 
         if not Stakeholder.objects.filter(
-            parent=self.source, target=self.destination, role=StakeholderRole.VENDOR, active=True
+            parent=self.source,
+            target=self.destination,
+            role=StakeholderRole.VENDOR,
+            active=True,
         ).exists():
             raise ValidationError(
                 "Purchase destination must be an active vendor of the source project."
             )
-

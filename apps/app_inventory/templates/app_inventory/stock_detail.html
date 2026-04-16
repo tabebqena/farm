@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Stock" %}{% endblock %}
+
+{% block content %}
+  <div class="container mt-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h4 class="mb-0">{% trans "Stock" %}</h4>
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-header fw-bold">{% trans "Products" %}</div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>{% trans "Template" %}</th>
+                <th>{% trans "Nature" %}</th>
+                <th>{% trans "Tag / ID" %}</th>
+                <th class="text-end">{% trans "Qty" %}</th>
+                <th class="text-end">{% trans "Unit Price" %}</th>
+                <th class="text-end">{% trans "Current Value" %}</th>
+                <th>{% trans "Status" %}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for product in products %}
+                <tr>
+                  <td>{{ product.product_template.name }}</td>
+                  <td>{{ product.product_template.get_nature_display }}</td>
+                  <td class="text-muted">{{ product.unique_id|default:"—" }}</td>
+                  <td class="text-end">{{ product.quantity }}</td>
+                  <td class="text-end">{{ product.unit_price }}</td>
+                  <td class="text-end fw-bold">{{ product.current_value }}</td>
+                  <td>
+                    {% with status=product.status %}
+                      {% if status == "ACTIVE" %}
+                        <span class="badge bg-success">{{ product.get_status_display|default:status }}</span>
+                      {% elif status == "SOLD" %}
+                        <span class="badge bg-secondary">{{ product.get_status_display|default:status }}</span>
+                      {% else %}
+                        <span class="badge bg-danger">{{ product.get_status_display|default:status }}</span>
+                      {% endif %}
+                    {% endwith %}
+                  </td>
+                  <td>
+                    <a href="{% url 'product_detail' product.pk %}" class="btn btn-sm btn-outline-primary">
+                      {% trans "View" %}
+                    </a>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="8" class="text-center text-muted py-3">{% trans "No products." %}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+{% endblock %}

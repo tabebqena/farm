@@ -16,10 +16,16 @@
         width: var(--sidebar-width);
         height: 100vh;
         position: fixed;
+        left: 0;
         background: var(--primary-color);
         color: white;
         transition: all 0.3s;
         z-index: 1000;
+    }
+
+    [dir="rtl"] #sidebar {
+        left: auto;
+        right: 0;
     }
 
     #sidebar .nav-link {
@@ -37,11 +43,22 @@
         border-left: 4px solid var(--accent-color);
     }
 
+    [dir="rtl"] #sidebar .nav-link:hover,
+    [dir="rtl"] #sidebar .nav-link.active {
+        border-left: none;
+        border-right: 4px solid var(--accent-color);
+    }
+
     /* Main Content area */
     #main-content {
         margin-left: var(--sidebar-width);
         min-height: 100vh;
         padding: 2rem;
+    }
+
+    [dir="rtl"] #main-content {
+        margin-left: 0;
+        margin-right: var(--sidebar-width);
     }
 
     /* Centralized Card Styles for Create/Edit views */
@@ -122,5 +139,22 @@
 
         #sidebar.active {
             margin-left: 0;
+        }
+    }
+
+    [dir="rtl"] @media (max-width: 768px) {
+        #sidebar {
+            margin-left: auto;
+            margin-right: calc(-1 * var(--sidebar-width));
+        }
+
+        #main-content {
+            margin-left: 0;
+            margin-right: 0;
+        }
+
+        #sidebar.active {
+            margin-left: auto;
+            margin-right: 0;
         }
     }

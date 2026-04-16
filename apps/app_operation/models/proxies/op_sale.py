@@ -24,6 +24,8 @@ class SaleOperation(Operation):
     has_repayment = False
     max_payment_transaction_count = -1
 
+    category_type = "SALE"
+
     class Meta:
         proxy = True
         verbose_name = "Sale"
@@ -34,7 +36,9 @@ class SaleOperation(Operation):
 
     @property
     def payment_target_fund(self):
-        return self.destination.fund  # clean_destination ensures this is a project (collects)
+        return (
+            self.destination.fund
+        )  # clean_destination ensures this is a project (collects)
 
     @property
     def project(self):
@@ -50,7 +54,10 @@ class SaleOperation(Operation):
         from apps.app_entity.models import Stakeholder, StakeholderRole
 
         if not Stakeholder.objects.filter(
-            parent=self.destination, target=self.source, role=StakeholderRole.CLIENT, active=True
+            parent=self.destination,
+            target=self.source,
+            role=StakeholderRole.CLIENT,
+            active=True,
         ).exists():
             raise ValidationError(
                 "Sale source must be an active client of the destination project."
@@ -59,6 +66,7 @@ class SaleOperation(Operation):
     @classmethod
     def get_related_entities(cls, url_entity, config):
         from apps.app_entity.models import Stakeholder, StakeholderRole
+
         relationships = (
             Stakeholder.objects.filter(
                 parent=url_entity, role=StakeholderRole.CLIENT, active=True
@@ -71,4 +79,3 @@ class SaleOperation(Operation):
     def clean_destination(self):
         if not self.destination.project:
             raise ValidationError("Sale destination must be a Project entity.")
-

@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.translation import gettext as _
 
 from apps.app_entity.models import ContactInfo, Entity
 
@@ -30,11 +31,16 @@ def add_contact_info_view(request, entity_id):
 
             messages.success(
                 request,
-                f"Success: Added {label} {contact_type} for {entity.get_display_name()}",
+                _("Success: Added %(label)s %(contact_type)s for %(entity)s")
+                % {
+                    "label": label,
+                    "contact_type": contact_type,
+                    "entity": entity.get_display_name(),
+                },
             )
             return redirect("entity_detail", pk=entity.id)
         except Exception as e:
-            messages.error(request, f"Error: {str(e)}")
+            messages.error(request, _("Error: %(error)s") % {"error": str(e)})
 
     context = {
         "entity": entity,

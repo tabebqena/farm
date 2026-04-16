@@ -16,6 +16,7 @@
          * Core logic to sync UI states based on payment rules
          */
         function syncPayment() {
+            if (!totalInput) return;
             const total = parseFloat(totalInput.value) || 0;
             const isPartialChecked = partialToggle?.checked;
 
@@ -52,6 +53,7 @@
          * Validates that paid amount does not exceed total
          */
         function validateAmount() {
+            if (!totalInput) return;
             const total = parseFloat(totalInput.value) || 0;
             const paid = parseFloat(paidInput.value) || 0;
 

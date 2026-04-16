@@ -18,3 +18,5 @@ class OperationType(models.TextChoices):
     WORKER_ADVANCE = "WORKER_ADVANCE", "WORKER_ADVANCE"
     CORRECTION_CREDIT = "CORRECTION_CREDIT", "Correction Credit"
     CORRECTION_DEBIT = "CORRECTION_DEBIT", "Correction Debit"
+    BIRTH = "BIRTH", "Birth"
+    DEATH = "DEATH", "Death"

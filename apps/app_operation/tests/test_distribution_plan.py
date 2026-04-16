@@ -7,16 +7,15 @@ from django.db.models import QuerySet as DjangoQuerySet
 from django.test import TestCase
 
 from apps.app_entity.models import Entity, Person, Project, Stakeholder, StakeholderRole
-from apps.app_operation.models.distribution_plan import DistributionPlan, ShareholderAllocation
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.period import FinancialPeriod
 from apps.app_operation.models.proxies import (
     CapitalGainOperation,
-    CapitalLossOperation,
     CashInjectionOperation,
     LossCoverageOperation,
     ProfitDistributionOperation,
 )
+from apps.app_operation.models.share_allocation import ShareholderAllocation
 
 User = get_user_model()
 
@@ -72,6 +71,15 @@ def _force_close_period(period):
     period.refresh_from_db()
 
 
+def _set_period_amount(period, amount):
+    """Set amount on a period, bypassing immutability for test setup."""
+    DjangoQuerySet.update(
+        FinancialPeriod.all_objects.filter(pk=period.pk),
+        amount=amount,
+    )
+    period.refresh_from_db()
+
+
 def _seed_capital_gain(system, destination, amount, officer):
     CapitalGainOperation(
         source=system,
@@ -95,11 +103,11 @@ def _seed_cash_injection(world, destination, amount, officer):
 
 
 # ---------------------------------------------------------------------------
-# DistributionPlan — properties
+# FinancialPeriod — P&L properties
 # ---------------------------------------------------------------------------
 
 
-class DistributionPlanPropertiesTest(TestCase):
+class PeriodProfitLossPropertiesTest(TestCase):
     def setUp(self):
         self.world = Entity.create(is_world=True)
         self.system = Entity.create(is_system=True)
@@ -109,24 +117,23 @@ class DistributionPlanPropertiesTest(TestCase):
         _register_shareholder(self.project_entity, self.shareholder)
 
         # Seed project with enough balance for ProfitDistribution operations
-        _seed_capital_gain(self.system, self.project_entity, Decimal("2000.00"), self.officer)
+        _seed_capital_gain(
+            self.system, self.project_entity, Decimal("2000.00"), self.officer
+        )
         # Seed shareholder for LossCoverage operations
-        _seed_cash_injection(self.world, self.shareholder, Decimal("2000.00"), self.officer)
+        _seed_cash_injection(
+            self.world, self.shareholder, Decimal("2000.00"), self.officer
+        )
 
-        # Close the auto-created period so plans can be created against it
+        # Close the auto-created period so amount can be set against it
         self.period = FinancialPeriod.objects.get(entity=self.project_entity)
         _force_close_period(self.period)
         # Open a new period so the entity remains active for new operations
         FinancialPeriod(entity=self.project_entity, start_date=TODAY).save()
 
     def _make_plan(self, amount):
-        plan = DistributionPlan(
-            entity=self.project_entity,
-            period=self.period,
-            amount=amount,
-        )
-        plan.save()
-        return plan
+        _set_period_amount(self.period, amount)
+        return self.period
 
     # --- is_profit / is_loss ---
 
@@ -261,14 +268,14 @@ class DistributionPlanPropertiesTest(TestCase):
     def test_allocations_balanced_true_when_sum_is_100(self):
         plan = self._make_plan(Decimal("1000.00"))
         ShareholderAllocation(
-            plan=plan, shareholder=self.shareholder, percent=Decimal("100.000")
+            period=plan, shareholder=self.shareholder, percent=Decimal("100.000")
         ).save()
         self.assertTrue(plan.allocations_balanced)
 
     def test_allocations_balanced_false_when_sum_not_100(self):
         plan = self._make_plan(Decimal("1000.00"))
         ShareholderAllocation(
-            plan=plan, shareholder=self.shareholder, percent=Decimal("60.000")
+            period=plan, shareholder=self.shareholder, percent=Decimal("60.000")
         ).save()
         self.assertFalse(plan.allocations_balanced)
 
@@ -276,27 +283,13 @@ class DistributionPlanPropertiesTest(TestCase):
         plan = self._make_plan(Decimal("1000.00"))
         self.assertFalse(plan.allocations_balanced)
 
-    # --- __str__ ---
-
-    def test_str_profit_plan(self):
-        plan = self._make_plan(Decimal("500.00"))
-        self.assertIn("Profit", str(plan))
-
-    def test_str_loss_plan(self):
-        plan = self._make_plan(Decimal("-200.00"))
-        self.assertIn("Loss", str(plan))
-
-    def test_str_break_even_plan(self):
-        plan = self._make_plan(Decimal("0.00"))
-        self.assertIn("Break-even", str(plan))
-
 
 # ---------------------------------------------------------------------------
-# DistributionPlan — clean() validation
+# FinancialPeriod — amount validation
 # ---------------------------------------------------------------------------
 
 
-class DistributionPlanValidationTest(TestCase):
+class PeriodAmountValidationTest(TestCase):
     def setUp(self):
         self.world = Entity.create(is_world=True)
         self.system = Entity.create(is_system=True)
@@ -310,62 +303,35 @@ class DistributionPlanValidationTest(TestCase):
     def test_entity_must_be_a_project(self):
         person = Person.create(private_name="Non-project person")
         non_project = person.entity
-        open_period = FinancialPeriod.objects.get(entity=non_project)
-        _force_close_period(open_period)
+        non_project_period = FinancialPeriod.objects.get(entity=non_project)
+        _force_close_period(non_project_period)
 
-        plan = DistributionPlan(
-            entity=non_project,
-            period=open_period,
-            amount=Decimal("100.00"),
-        )
+        non_project_period.amount = Decimal("100.00")
         with self.assertRaises(ValidationError):
-            plan.save()
-
-    def test_period_must_belong_to_the_same_entity(self):
-        other_project = _make_project_entity("Other Project")
-        other_period = FinancialPeriod.objects.get(entity=other_project)
-        _force_close_period(other_period)
-
-        plan = DistributionPlan(
-            entity=self.project_entity,
-            period=other_period,  # belongs to different project entity
-            amount=Decimal("100.00"),
-        )
-        with self.assertRaises(ValidationError):
-            plan.save()
+            non_project_period.save()
 
     def test_period_must_be_closed(self):
-        # The new open period (created after force-close) is not closed
-        open_period = FinancialPeriod.objects.get(entity=self.project_entity, end_date__isnull=True)
-        plan = DistributionPlan(
-            entity=self.project_entity,
-            period=open_period,
-            amount=Decimal("100.00"),
+        open_period = FinancialPeriod.objects.get(
+            entity=self.project_entity, end_date__isnull=True
         )
+        open_period.amount = Decimal("100.00")
         with self.assertRaises(ValidationError):
-            plan.save()
+            open_period.save()
 
-    def test_unique_constraint_per_entity_and_period(self):
-        DistributionPlan(
-            entity=self.project_entity,
-            period=self.period,
-            amount=Decimal("100.00"),
-        ).save()
-        duplicate = DistributionPlan(
-            entity=self.project_entity,
-            period=self.period,
-            amount=Decimal("200.00"),
-        )
-        with self.assertRaises(Exception):  # IntegrityError or ValidationError
-            duplicate.save()
+    def test_amount_can_only_be_set_once(self):
+        self.period.amount = Decimal("100.00")
+        self.period.save()
+        self.period.amount = Decimal("200.00")
+        with self.assertRaises(ValidationError):
+            self.period.save()
 
 
 # ---------------------------------------------------------------------------
-# DistributionPlan — immutability
+# FinancialPeriod — amount immutability
 # ---------------------------------------------------------------------------
 
 
-class DistributionPlanImmutabilityTest(TestCase):
+class PeriodAmountImmutabilityTest(TestCase):
     def setUp(self):
         self.system = Entity.create(is_system=True)
         self.officer = _make_officer("officer_imm")
@@ -375,107 +341,13 @@ class DistributionPlanImmutabilityTest(TestCase):
         _force_close_period(self.period)
         FinancialPeriod(entity=self.project_entity, start_date=TODAY).save()
 
-        self.plan = DistributionPlan(
-            entity=self.project_entity,
-            period=self.period,
-            amount=Decimal("500.00"),
-        )
-        self.plan.save()
+        self.period.amount = Decimal("500.00")
+        self.period.save()
 
     def test_amount_is_immutable(self):
-        self.plan.amount = Decimal("9999.00")
+        self.period.amount = Decimal("9999.00")
         with self.assertRaises(ValidationError):
-            self.plan.save()
-
-    def test_entity_is_immutable(self):
-        other_project = _make_project_entity("Other Imm Project")
-        self.plan.entity = other_project
-        with self.assertRaises(ValidationError):
-            self.plan.save()
-
-    def test_period_is_immutable(self):
-        other_project = _make_project_entity("Imm Period Project")
-        other_period = FinancialPeriod.objects.get(entity=other_project)
-        _force_close_period(other_period)
-
-        self.plan.period = other_period
-        with self.assertRaises(ValidationError):
-            self.plan.save()
-
-
-# ---------------------------------------------------------------------------
-# DistributionPlan — calculate_amount
-# ---------------------------------------------------------------------------
-
-
-class DistributionPlanCalculateAmountTest(TestCase):
-    def setUp(self):
-        self.world = Entity.create(is_world=True)
-        self.system = Entity.create(is_system=True)
-        self.officer = _make_officer("officer_calc")
-        self.project_entity = _make_project_entity("Calc Project")
-
-        self.period = FinancialPeriod.objects.get(entity=self.project_entity)
-
-    def _close_period(self):
-        _force_close_period(self.period)
-        FinancialPeriod(entity=self.project_entity, start_date=TODAY).save()
-
-    def test_no_operations_returns_zero(self):
-        self._close_period()
-        result = DistributionPlan.calculate_amount(self.project_entity, self.period)
-        self.assertEqual(result, Decimal("0.00"))
-
-    def test_capital_gain_counts_as_income(self):
-        _seed_capital_gain(self.system, self.project_entity, Decimal("1000.00"), self.officer)
-        self._close_period()
-        result = DistributionPlan.calculate_amount(self.project_entity, self.period)
-        self.assertEqual(result, Decimal("1000.00"))
-
-    def test_capital_loss_counts_as_cost(self):
-        # Seed balance so the loss can be recorded
-        _seed_capital_gain(self.system, self.project_entity, Decimal("1000.00"), self.officer)
-        CapitalLossOperation(
-            source=self.project_entity,
-            destination=self.system,
-            amount=Decimal("300.00"),
-            operation_type=OperationType.CAPITAL_LOSS,
-            date=TODAY,
-            officer=self.officer,
-        ).save()
-        self._close_period()
-        result = DistributionPlan.calculate_amount(self.project_entity, self.period)
-        self.assertEqual(result, Decimal("700.00"))
-
-    def test_pure_loss_returns_negative_amount(self):
-        # Only a loss, no income
-        CapitalLossOperation(
-            source=self.project_entity,
-            destination=self.system,
-            amount=Decimal("400.00"),
-            operation_type=OperationType.CAPITAL_LOSS,
-            date=TODAY,
-            officer=self.officer,
-        ).save()
-        self._close_period()
-        result = DistributionPlan.calculate_amount(self.project_entity, self.period)
-        self.assertEqual(result, Decimal("-400.00"))
-
-    def test_operations_from_other_periods_are_excluded(self):
-        other_project = _make_project_entity("Other Calc Project")
-        other_period = FinancialPeriod.objects.get(entity=other_project)
-        # Add a capital gain for OTHER project's period — must not affect this project
-        _seed_capital_gain(self.system, other_project, Decimal("500.00"), self.officer)
-        self._close_period()
-        result = DistributionPlan.calculate_amount(self.project_entity, self.period)
-        self.assertEqual(result, Decimal("0.00"))
-
-    def test_multiple_income_operations_are_summed(self):
-        _seed_capital_gain(self.system, self.project_entity, Decimal("600.00"), self.officer)
-        _seed_capital_gain(self.system, self.project_entity, Decimal("400.00"), self.officer)
-        self._close_period()
-        result = DistributionPlan.calculate_amount(self.project_entity, self.period)
-        self.assertEqual(result, Decimal("1000.00"))
+            self.period.save()
 
 
 # ---------------------------------------------------------------------------
@@ -494,16 +366,11 @@ class ShareholderAllocationTest(TestCase):
         _force_close_period(self.period)
         FinancialPeriod(entity=self.project_entity, start_date=TODAY).save()
 
-        self.plan = DistributionPlan(
-            entity=self.project_entity,
-            period=self.period,
-            amount=Decimal("1000.00"),
-        )
-        self.plan.save()
+        _set_period_amount(self.period, Decimal("1000.00"))
 
     def _make_allocation(self, percent, **kwargs):
         defaults = dict(
-            plan=self.plan,
+            period=self.period,
             shareholder=self.shareholder,
             percent=percent,
         )
@@ -514,7 +381,7 @@ class ShareholderAllocationTest(TestCase):
 
     # --- instructional_amount ---
 
-    def test_instructional_amount_is_percent_of_plan_amount(self):
+    def test_instructional_amount_is_percent_of_period_amount(self):
         alloc = self._make_allocation(Decimal("30.000"))
         self.assertEqual(alloc.instructional_amount, Decimal("300.00"))
 
@@ -527,9 +394,11 @@ class ShareholderAllocationTest(TestCase):
 
     def test_non_shareholder_entity_raises_validation_error(self):
         non_shareholder_person = Person.create(private_name="Non Shareholder")
-        non_shareholder = non_shareholder_person.entity  # is_shareholder=False by default
+        non_shareholder = (
+            non_shareholder_person.entity
+        )  # is_shareholder=False by default
         alloc = ShareholderAllocation(
-            plan=self.plan,
+            period=self.period,
             shareholder=non_shareholder,
             percent=Decimal("50.000"),
         )
@@ -538,7 +407,7 @@ class ShareholderAllocationTest(TestCase):
 
     def test_negative_percent_raises_validation_error(self):
         alloc = ShareholderAllocation(
-            plan=self.plan,
+            period=self.period,
             shareholder=self.shareholder,
             percent=Decimal("-10.000"),
         )
@@ -551,10 +420,10 @@ class ShareholderAllocationTest(TestCase):
 
     # --- unique constraint ---
 
-    def test_unique_constraint_per_plan_and_shareholder(self):
+    def test_unique_constraint_per_period_and_shareholder(self):
         self._make_allocation(Decimal("50.000"))
         duplicate = ShareholderAllocation(
-            plan=self.plan,
+            period=self.period,
             shareholder=self.shareholder,
             percent=Decimal("50.000"),
         )
@@ -563,11 +432,11 @@ class ShareholderAllocationTest(TestCase):
 
     # --- multiple allocations ---
 
-    def test_two_shareholders_can_have_allocations_in_same_plan(self):
+    def test_two_shareholders_can_have_allocations_in_same_period(self):
         second_shareholder = _make_shareholder_entity("Alloc Shareholder B")
         self._make_allocation(Decimal("60.000"))
         alloc2 = ShareholderAllocation(
-            plan=self.plan,
+            period=self.period,
             shareholder=second_shareholder,
             percent=Decimal("40.000"),
         )
@@ -590,18 +459,15 @@ class ProfitDistributionOperationTest(TestCase):
         _register_shareholder(self.project_entity, self.shareholder)
 
         # Seed project balance
-        _seed_capital_gain(self.system, self.project_entity, Decimal("2000.00"), self.officer)
+        _seed_capital_gain(
+            self.system, self.project_entity, Decimal("2000.00"), self.officer
+        )
 
         self.period = FinancialPeriod.objects.get(entity=self.project_entity)
         _force_close_period(self.period)
         FinancialPeriod(entity=self.project_entity, start_date=TODAY).save()
 
-        self.plan = DistributionPlan(
-            entity=self.project_entity,
-            period=self.period,
-            amount=Decimal("1000.00"),
-        )
-        self.plan.save()
+        _set_period_amount(self.period, Decimal("1000.00"))
 
     def _make_op(self, **kwargs):
         defaults = dict(
@@ -610,7 +476,7 @@ class ProfitDistributionOperationTest(TestCase):
             amount=Decimal("200.00"),
             operation_type=OperationType.PROFIT_DISTRIBUTION,
             date=TODAY,
-            plan=self.plan,
+            plan=self.period,
             officer=self.officer,
         )
         defaults.update(kwargs)
@@ -643,13 +509,7 @@ class ProfitDistributionOperationTest(TestCase):
         loss_period = FinancialPeriod.objects.get(entity=loss_project)
         _force_close_period(loss_period)
         FinancialPeriod(entity=loss_project, start_date=TODAY).save()
-
-        loss_plan = DistributionPlan(
-            entity=loss_project,
-            period=loss_period,
-            amount=Decimal("-500.00"),
-        )
-        loss_plan.save()
+        _set_period_amount(loss_period, Decimal("-500.00"))
 
         shareholder = _make_shareholder_entity("PD Loss Shareholder")
         _register_shareholder(loss_project, shareholder)
@@ -660,7 +520,7 @@ class ProfitDistributionOperationTest(TestCase):
             amount=Decimal("100.00"),
             operation_type=OperationType.PROFIT_DISTRIBUTION,
             date=TODAY,
-            plan=loss_plan,
+            plan=loss_period,
             officer=self.officer,
         )
         with self.assertRaises(ValidationError):
@@ -668,15 +528,13 @@ class ProfitDistributionOperationTest(TestCase):
 
     def test_raises_when_plan_is_break_even(self):
         break_even_project = _make_project_entity("BreakEven PD Project")
-        _seed_capital_gain(self.system, break_even_project, Decimal("1000.00"), self.officer)
+        _seed_capital_gain(
+            self.system, break_even_project, Decimal("1000.00"), self.officer
+        )
         be_period = FinancialPeriod.objects.get(entity=break_even_project)
         _force_close_period(be_period)
         FinancialPeriod(entity=break_even_project, start_date=TODAY).save()
-
-        be_plan = DistributionPlan(
-            entity=break_even_project, period=be_period, amount=Decimal("0.00")
-        )
-        be_plan.save()
+        _set_period_amount(be_period, Decimal("0.00"))
 
         shareholder = _make_shareholder_entity("PD BE Shareholder")
         _register_shareholder(break_even_project, shareholder)
@@ -687,7 +545,7 @@ class ProfitDistributionOperationTest(TestCase):
             amount=Decimal("100.00"),
             operation_type=OperationType.PROFIT_DISTRIBUTION,
             date=TODAY,
-            plan=be_plan,
+            plan=be_period,
             officer=self.officer,
         )
         with self.assertRaises(ValidationError):
@@ -696,7 +554,7 @@ class ProfitDistributionOperationTest(TestCase):
     # --- amount cap ---
 
     def test_raises_when_amount_exceeds_plan(self):
-        op = self._make_op(amount=Decimal("1001.00"))  # plan.amount = 1000
+        op = self._make_op(amount=Decimal("1001.00"))  # period.amount = 1000
         with self.assertRaises(ValidationError):
             op.save()
 
@@ -727,9 +585,9 @@ class ProfitDistributionOperationTest(TestCase):
     def test_reversing_distribution_restores_remaining_distributable(self):
         op = self._make_op(amount=Decimal("500.00"))
         op.save()
-        self.assertEqual(self.plan.remaining_distributable, Decimal("500.00"))
+        self.assertEqual(self.period.remaining_distributable, Decimal("500.00"))
         op.reverse(officer=self.officer)
-        self.assertEqual(self.plan.remaining_distributable, Decimal("1000.00"))
+        self.assertEqual(self.period.remaining_distributable, Decimal("1000.00"))
 
 
 # ---------------------------------------------------------------------------
@@ -747,18 +605,15 @@ class LossCoverageOperationTest(TestCase):
         _register_shareholder(self.project_entity, self.shareholder)
 
         # Seed shareholder balance so coverage payments succeed
-        _seed_cash_injection(self.world, self.shareholder, Decimal("2000.00"), self.officer)
+        _seed_cash_injection(
+            self.world, self.shareholder, Decimal("2000.00"), self.officer
+        )
 
         self.period = FinancialPeriod.objects.get(entity=self.project_entity)
         _force_close_period(self.period)
         FinancialPeriod(entity=self.project_entity, start_date=TODAY).save()
 
-        self.plan = DistributionPlan(
-            entity=self.project_entity,
-            period=self.period,
-            amount=Decimal("-1000.00"),
-        )
-        self.plan.save()
+        _set_period_amount(self.period, Decimal("-1000.00"))
 
     def _make_op(self, **kwargs):
         defaults = dict(
@@ -767,7 +622,7 @@ class LossCoverageOperationTest(TestCase):
             amount=Decimal("200.00"),
             operation_type=OperationType.LOSS_COVERAGE,
             date=TODAY,
-            plan=self.plan,
+            plan=self.period,
             officer=self.officer,
         )
         defaults.update(kwargs)
@@ -796,15 +651,13 @@ class LossCoverageOperationTest(TestCase):
 
     def test_raises_when_plan_is_a_profit(self):
         profit_project = _make_project_entity("Profit LC Project")
-        _seed_capital_gain(self.system, profit_project, Decimal("1000.00"), self.officer)
+        _seed_capital_gain(
+            self.system, profit_project, Decimal("1000.00"), self.officer
+        )
         profit_period = FinancialPeriod.objects.get(entity=profit_project)
         _force_close_period(profit_period)
         FinancialPeriod(entity=profit_project, start_date=TODAY).save()
-
-        profit_plan = DistributionPlan(
-            entity=profit_project, period=profit_period, amount=Decimal("500.00")
-        )
-        profit_plan.save()
+        _set_period_amount(profit_period, Decimal("500.00"))
 
         shareholder = _make_shareholder_entity("LC Profit Shareholder")
         _register_shareholder(profit_project, shareholder)
@@ -816,7 +669,7 @@ class LossCoverageOperationTest(TestCase):
             amount=Decimal("100.00"),
             operation_type=OperationType.LOSS_COVERAGE,
             date=TODAY,
-            plan=profit_plan,
+            plan=profit_period,
             officer=self.officer,
         )
         with self.assertRaises(ValidationError):
@@ -825,7 +678,9 @@ class LossCoverageOperationTest(TestCase):
     # --- amount cap ---
 
     def test_raises_when_amount_exceeds_plan_loss(self):
-        op = self._make_op(amount=Decimal("1001.00"))  # plan.amount = -1000 → coverable = 1000
+        op = self._make_op(
+            amount=Decimal("1001.00")
+        )  # period.amount = -1000 → coverable = 1000
         with self.assertRaises(ValidationError):
             op.save()
 
@@ -846,6 +701,6 @@ class LossCoverageOperationTest(TestCase):
     def test_reversing_coverage_restores_remaining_coverable(self):
         op = self._make_op(amount=Decimal("500.00"))
         op.save()
-        self.assertEqual(self.plan.remaining_coverable, Decimal("500.00"))
+        self.assertEqual(self.period.remaining_coverable, Decimal("500.00"))
         op.reverse(officer=self.officer)
-        self.assertEqual(self.plan.remaining_coverable, Decimal("1000.00"))
+        self.assertEqual(self.period.remaining_coverable, Decimal("1000.00"))

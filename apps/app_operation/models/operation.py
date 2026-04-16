@@ -76,11 +76,11 @@ class Operation(
         related_name="operations",
     )
     plan = models.ForeignKey(
-        "app_operation.DistributionPlan",
+        "app_operation.FinancialPeriod",
         on_delete=models.PROTECT,
         null=True,
         blank=True,
-        related_name="operations",
+        related_name="plan_operations",
     )
 
     objects = OperationManager()
@@ -100,6 +100,8 @@ class Operation(
     has_invoice: bool = False
     theme_color: str = "danger"
     theme_icon: str = "bi-box-arrow-up-right"
+    creates_assets = False
+    category_type = None
 
     class Meta:
         verbose_name = "Operation"
@@ -191,9 +193,11 @@ class Operation(
 
         entity = self.period_entity
         if entity:
-            return FinancialPeriod.objects.filter(entity=entity).filter(
-                Q(end_date__isnull=True) | Q(end_date__gte=today_date.today())
-            ).first()
+            return (
+                FinancialPeriod.objects.filter(entity=entity)
+                .filter(Q(end_date__isnull=True) | Q(end_date__gte=today_date.today()))
+                .first()
+            )
         return None
 
     @property
@@ -268,12 +272,14 @@ class Operation(
 
                 from .period import FinancialPeriod
 
-                self.period = FinancialPeriod.objects.filter(
-                    entity=entity,
-                    start_date__lte=self.date,
-                ).filter(
-                    Q(end_date__isnull=True) | Q(end_date__gt=self.date)
-                ).first()
+                self.period = (
+                    FinancialPeriod.objects.filter(
+                        entity=entity,
+                        start_date__lte=self.date,
+                    )
+                    .filter(Q(end_date__isnull=True) | Q(end_date__gt=self.date))
+                    .first()
+                )
                 if self.period is None:
                     raise ValidationError(
                         "Cannot create an operation: no financial period covers this operation's date."

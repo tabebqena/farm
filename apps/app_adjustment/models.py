@@ -2,6 +2,7 @@ from typing import List
 
 from django.db import models
 from django.forms import ValidationError
+from django.utils.translation import gettext_lazy as _
 
 from apps.app_adjustment._effect import AdjustmentEffect
 from apps.app_base.mixins import (
@@ -21,23 +22,27 @@ class AdjustmentType(models.TextChoices):
     # ==========================
 
     # Reductions in what WE owe the Vendor
-    PURCHASE_RETURN = "PUR_RET", "Purchase: Return to Vendor (Credit)"
-    PURCHASE_DISCOUNT = "PUR_DISC", "Purchase: Post-Invoice Discount (Credit)"
-    PURCHASE_OVERCHARGE = "PUR_OVER", "Purchase: Price Overcharge Correction (Credit)"
-    PURCHASE_SHORTAGE = "PUR_SHORT", "Purchase: Quantity Shortage (Credit)"
-    PURCHASE_DAMAGE = "PUR_DAM", "Purchase: Damage Allowance (Credit)"
+    PURCHASE_RETURN = "PUR_RET", _("Purchase: Return to Vendor (Credit)")
+    PURCHASE_DISCOUNT = "PUR_DISC", _("Purchase: Post-Invoice Discount (Credit)")
+    PURCHASE_OVERCHARGE = "PUR_OVER", _(
+        "Purchase: Price Overcharge Correction (Credit)"
+    )
+    PURCHASE_SHORTAGE = "PUR_SHORT", _("Purchase: Quantity Shortage (Credit)")
+    PURCHASE_DAMAGE = "PUR_DAM", _("Purchase: Damage Allowance (Credit)")
     PURCHASE_GENERAL_REDUCTION = (
         "PUR_G_RED",
-        "Purchase: Reduction of the amount of the purchase by a not mentioned cause",
+        _("Purchase: Reduction of the amount of the purchase by a not mentioned cause"),
     )
 
     # Increases in what WE owe the Vendor
-    PURCHASE_UNDERCHARGE = "PUR_UNDER", "Purchase: Price Undercharge Correction (Debit)"
-    PURCHASE_TAX_ADDITION = "PUR_TAX", "Purchase: Tax Undercharge (Debit)"
-    PURCHASE_FREIGHT = "PUR_FREIGHT", "Purchase: Unbilled Freight (Debit)"
+    PURCHASE_UNDERCHARGE = "PUR_UNDER", _(
+        "Purchase: Price Undercharge Correction (Debit)"
+    )
+    PURCHASE_TAX_ADDITION = "PUR_TAX", _("Purchase: Tax Undercharge (Debit)")
+    PURCHASE_FREIGHT = "PUR_FREIGHT", _("Purchase: Unbilled Freight (Debit)")
     PURCHASE_GENERAL_INCREASE = (
         "PUR_G_INC",
-        "Purchase: Increase of the amount of the purchase by a not mentioned cause",
+        _("Purchase: Increase of the amount of the purchase by a not mentioned cause"),
     )
 
     # ==========================
@@ -45,24 +50,24 @@ class AdjustmentType(models.TextChoices):
     # ==========================
 
     # Reductions in what the CLIENT owes us
-    SALE_RETURN = "SALE_RET", "Sale: Return from Client (Credit)"
-    SALE_DISCOUNT = "SALE_DISC", "Sale: Post-Invoice Discount (Credit)"
-    SALE_OVERCHARGE = "SALE_OVER", "Sale: Price Overcharge Correction (Credit)"
-    SALE_SHORTAGE = "SALE_SHORT", "Sale: Quantity Shortage (Credit)"
-    SALE_DAMAGE = "SALE_DAM", "Sale: Damage Allowance (Credit)"
-    SALE_WRITE_OFF = "SALE_WRITE", "Sale: Bad Debt Write-off (Credit)"
+    SALE_RETURN = "SALE_RET", _("Sale: Return from Client (Credit)")
+    SALE_DISCOUNT = "SALE_DISC", _("Sale: Post-Invoice Discount (Credit)")
+    SALE_OVERCHARGE = "SALE_OVER", _("Sale: Price Overcharge Correction (Credit)")
+    SALE_SHORTAGE = "SALE_SHORT", _("Sale: Quantity Shortage (Credit)")
+    SALE_DAMAGE = "SALE_DAM", _("Sale: Damage Allowance (Credit)")
+    SALE_WRITE_OFF = "SALE_WRITE", _("Sale: Bad Debt Write-off (Credit)")
     SALE_GENERAL_REDUCTION = (
         "SALE_G_RED",
-        "Sale: Reduction of the amount of the sale by a not mentioned cause",
+        _("Sale: Reduction of the amount of the sale by a not mentioned cause"),
     )
 
     # Increases in what the CLIENT owes us
-    SALE_UNDERCHARGE = "SALE_UNDER", "Sale: Price Undercharge Correction (Debit)"
-    SALE_TAX_ADDITION = "SALE_TAX", "Sale: Tax Undercharge (Debit)"
-    SALE_LATE_FEE = "SALE_FEE", "Sale: Late Payment Penalty (Debit)"
+    SALE_UNDERCHARGE = "SALE_UNDER", _("Sale: Price Undercharge Correction (Debit)")
+    SALE_TAX_ADDITION = "SALE_TAX", _("Sale: Tax Undercharge (Debit)")
+    SALE_LATE_FEE = "SALE_FEE", _("Sale: Late Payment Penalty (Debit)")
     SALE_GENERAL_INCREASE = (
         "SALE_G_INC",
-        "Sale: Increase of the amount of the sale by a not mentioned cause",
+        _("Sale: Increase of the amount of the sale by a not mentioned cause"),
     )
 
     # ==========================
@@ -116,19 +121,22 @@ class Adjustment(
         "app_operation.Operation",
         on_delete=models.PROTECT,
         related_name="adjustments",
+        verbose_name=_("operation"),
     )
-    type = models.CharField(max_length=20, choices=AdjustmentType.choices)
-    amount = models.DecimalField(max_digits=20, decimal_places=2)
+    type = models.CharField(_("type"), max_length=20, choices=AdjustmentType.choices)
+    amount = models.DecimalField(_("amount"), max_digits=20, decimal_places=2)
     effect = models.CharField(
+        _("effect"),
         max_length=10,
         choices=AdjustmentEffect.choices,
     )
-    reason = models.TextField(blank=True)
-    date = models.DateField()
+    reason = models.TextField(_("reason"), blank=True)
+    date = models.DateField(_("date"))
     officer = models.ForeignKey(
         "app_entity.Entity",
         on_delete=models.PROTECT,
         related_name="adjustments_supervised",
+        verbose_name=_("officer"),
     )
 
     # We create another transaction in the same direction, but with
@@ -144,10 +152,16 @@ class Adjustment(
 
     @property
     def _issuance_transaction_type(self):
+        if self.effect == AdjustmentEffect.INCREASE:
+            return {
+                OperationType.PURCHASE: TransactionType.PURCHASE_ADJUSTMENT_INCREASE,
+                OperationType.SALE: TransactionType.SALE_ADJUSTMENT_INCREASE,
+                OperationType.EXPENSE: TransactionType.EXPENSE_ADJUSTMENT_INCREASE,
+            }.get(self.operation.operation_type)
         return {
-            OperationType.PURCHASE: TransactionType.PURCHASE_ADJUSTMENT,
-            OperationType.SALE: TransactionType.SALE_ADJUSTMENT,
-            OperationType.EXPENSE: TransactionType.EXPENSE_ADJUSTMENT,
+            OperationType.PURCHASE: TransactionType.PURCHASE_ADJUSTMENT_DECREASE,
+            OperationType.SALE: TransactionType.SALE_ADJUSTMENT_DECREASE,
+            OperationType.EXPENSE: TransactionType.EXPENSE_ADJUSTMENT_DECREASE,
         }.get(self.operation.operation_type)
 
     def clean(self):
@@ -156,19 +170,15 @@ class Adjustment(
             OperationType.SALE,
             OperationType.EXPENSE,
         ):
-            raise ValidationError("This operation cannot be adjusted.")
+            raise ValidationError(_("This operation cannot be adjusted."))
         if AdjustmentType.is_general(self.type) and not self.reason:
-            raise ValidationError("Reason is required in general adjustment types.")
-
-        return super().clean()
-
-    def save(self, *args, **kwargs):
-        # 2. Automatically set the effect before validation/save
+            raise ValidationError(_("Reason is required in general adjustment types."))
+        # Automatically set the effect before validation/save
         if AdjustmentType.is_reduction(self.type):
             self.effect = AdjustmentEffect.DECREASE
         else:
             self.effect = AdjustmentEffect.INCREASE
-        return super().save(*args, **kwargs)
+        return super().clean()
 
     @property
     def _reversable_transaction_types(self) -> List[TransactionType]:
@@ -177,3 +187,7 @@ class Adjustment(
     @property
     def _implicit_reversable_transaction_types(self):
         return [self._issuance_transaction_type]  # type: ignore
+
+    class Meta:
+        verbose_name = _("adjustment")
+        verbose_name_plural = _("adjustments")

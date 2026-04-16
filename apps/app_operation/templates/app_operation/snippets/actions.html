@@ -1,6 +1,7 @@
+{% load i18n %}
 <div class="col-md-4">
   <div class="card shadow-sm mb-4">
-    <div class="card-header bg-light fw-bold">Operation Summary</div>
+    <div class="card-header bg-light fw-bold">{% trans "Operation Summary" %}</div>
     {% include 'app_operation/snippets/summary_table.html' %}
   </div>
 
@@ -8,9 +9,9 @@
     {% if operation.max_payment_transaction_count < 0 %}
       <div class="card border-success shadow-sm mb-4">
         <div class="card-body">
-          <h6 class="text-success fw-bold">Record Payment</h6>
-          <p class="small text-muted">Record a payment transaction.</p>
-          <a href="{% url 'record_transaction_payment' operation.pk %}" class="btn btn-success w-100"><i class="bi bi-cash-coin me-1"></i> Record Payment</a>
+          <h6 class="text-success fw-bold">{% trans "Record Payment" %}</h6>
+          <p class="small text-muted">{% trans "Record a payment transaction." %}</p>
+          <a href="{% url 'record_transaction_payment' operation.pk %}" class="btn btn-success w-100"><i class="bi bi-cash-coin me-1"></i> {% trans "Record Payment" %}</a>
         </div>
       </div>
     {% endif %}
@@ -19,17 +20,17 @@
       <div class="card border-success shadow-sm mb-4">
         <div class="card-body">
           <h6 class="text-success fw-bold">{{ operation.repayment_label }}</h6>
-          <p class="small text-muted">Add a repayment transaction to reduce the outstanding balance of this operation.</p>
-          <a href="{% url 'record_transaction_repayment' operation.pk %}" class="btn btn-success w-100"><i class="bi bi-cash-coin me-1"></i> Record Repayment</a>
+          <p class="small text-muted">{% trans "Add a repayment transaction to reduce the outstanding balance of this operation." %}</p>
+          <a href="{% url 'record_transaction_repayment' operation.pk %}" class="btn btn-success w-100"><i class="bi bi-cash-coin me-1"></i> {% trans "Record Repayment" %}</a>
         </div>
       </div>
     {% endif %}
 
     <div class="card border-warning shadow-sm">
       <div class="card-body">
-        <h6>Correction</h6>
-        <p class="small text-muted">Void this entire operation and all its linked transactions.</p>
-        <a href="{% url 'operation_reverse_view' operation.pk %}" class="btn btn-sm btn-outline-danger">Reverse Operation</a>
+        <h6>{% trans "Correction" %}</h6>
+        <p class="small text-muted">{% trans "Void this entire operation and all its linked transactions." %}</p>
+        <a href="{% url 'operation_reverse_view' operation.pk %}" class="btn btn-sm btn-outline-danger">{% trans "Reverse Operation" %}</a>
       </div>
     </div>
   {% endif %}

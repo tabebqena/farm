@@ -1,5 +1,6 @@
 {% if formset %}
   <div class="col-12">
+    {{ formset.management_form }}
     <div class="d-flex justify-content-between align-items-center mb-2">
       <label class="form-label fw-bold mb-0">Items</label>
       <button type="button" class="btn btn-sm btn-outline-{{ theme_color }}" id="add-item-row">
@@ -8,40 +9,63 @@
       </button>
     </div>
 
-    <div class="table-responsive border rounded">
-      {{ formset.management_form }}
-      <table class="table table-hover align-middle mb-0" id="items-table">
+    <div class="border rounded">
+      <table class="table table-hover align-middle mb-0 table-sm" id="items-table">
         <thead class="table-light">
           <tr>
-            <th>Product Name</th>
-            <th style="width: 120px">Qty</th>
-            <th style="width: 150px">Unit Price</th>
-            <th style="width: 150px">Total</th>
-            <th style="width: 50px"></th>
+            <th>Product</th>
+            <th style="width: 70px">Qty</th>
+            <th style="width: 110px">Unit Price</th>
+            <th style="width: 90px">Total</th>
+            <th style="width: 36px"></th>
           </tr>
         </thead>
         <tbody id="item-formset-body">
           {% for item_form in formset %}
             <tr class="item-row">
               <td>
-                {% for field in item_form.hidden_fields %}
-                  {{ field }}
-                {% endfor %}
-                <input type="text" name="{{ item_form.product_name.html_name }}" class="form-control form-control-sm" placeholder="Item name" required />
+                {% for field in item_form.hidden_fields %}{{ field }}{% endfor %}
+                {{ item_form.product }}
+                {% if item_form.description %}
+                  <div class="mt-1">{{ item_form.description }}</div>
+                {% endif %}
               </td>
               <td>
-                <input type="number" name="{{ item_form.quantity.html_name }}" class="form-control form-control-sm qty-input" step="0.01" value="1" required />
+                <input type="number"
+                       name="{{ item_form.quantity.html_name }}"
+                       class="form-control form-control-sm qty-input"
+                       step="0.01"
+                       value="{{ item_form.quantity.value|default:'1' }}"
+                       required />
               </td>
               <td>
-                <input type="number" name="{{ item_form.unit_price.html_name }}" class="form-control form-control-sm price-input" step="0.01" placeholder="0.00" required />
+                <input type="number"
+                       name="{{ item_form.unit_price.html_name }}"
+                       class="form-control form-control-sm price-input"
+                       step="0.01"
+                       value="{{ item_form.unit_price.value|default:'' }}"
+                       placeholder="0.00"
+                       required />
               </td>
-              <td class="row-total fw-bold text-muted">$ 0.00</td>
+              <td class="row-total fw-bold text-muted small">0.00</td>
               <td class="text-center">
-                <button type="button" class="btn btn-link text-danger p-0 remove-row"><i class="bi bi-trash"></i></button>
+                {% if item_form.DELETE %}
+                  <div style="display:none">{{ item_form.DELETE }}</div>
+                {% endif %}
+                <button type="button" class="btn btn-link text-danger p-0 remove-row">
+                  <i class="bi bi-trash"></i>
+                </button>
               </td>
             </tr>
           {% endfor %}
         </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="3" class="text-end fw-bold pe-2 small">Grand Total</td>
+            <td id="grand-total" class="fw-bold small">$ 0.00</td>
+            <td></td>
+          </tr>
+        </tfoot>
       </table>
     </div>
   </div>

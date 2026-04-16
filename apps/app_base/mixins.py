@@ -7,6 +7,7 @@ from django.db import transaction as db_transaction
 from django.db.models import Q, Sum
 from django.forms import ValidationError
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 
 if typing.TYPE_CHECKING:
     from apps.app_transaction.transaction_type import TransactionType
@@ -56,7 +57,10 @@ class ImmutableMixin(BaseModelMixin):
                 if old_val == new_val:
                     continue
                 if not allow_set or not (old_val in null_values):
-                    raise ValidationError(f"You can't edit this field {field_name}")
+                    raise ValidationError(
+                        _("You can't edit this field %(field_name)s")
+                        % {"field_name": field_name}
+                    )
         return super().save(*args, **kwargs)
 
 
@@ -70,7 +74,9 @@ class AmountCleanMixin(BaseModelMixin):
             self, self._amount_name
         )  # don't add default, let the code to fail if the var name is incorrect
         if amount <= 0:
-            raise ValidationError(f"Amount should be positive, got {amount}")
+            raise ValidationError(
+                _("Amount should be positive, got %(amount)s") % {"amount": amount}
+            )
         return super().clean()
 
 
@@ -80,14 +86,15 @@ class OfficerMixin(BaseModelMixin):
 
         if not self.officer.type == ENTITY_TYPE_ENUM.PERSONAL:
             raise ValidationError(
-                f"Officier should be of type `PERSONAL` entity. not {self.officer.type}"
+                _("Officer should be of type `PERSONAL` entity, not %(type)s")
+                % {"type": self.officer.type}
             )
         if not self.officer.user:
-            raise ValidationError("Officer should have assciated user account.")
+            raise ValidationError(_("Officer should have associated user account."))
         if not self.officer.user.is_staff:
-            raise ValidationError("Officer should be staff person.")
+            raise ValidationError(_("Officer should be staff person."))
         if not self.officer.active:
-            raise ValidationError("Officer should be `active`")
+            raise ValidationError(_("Officer should be `active`"))
         return super().clean()
 
 
@@ -101,7 +108,8 @@ class AdjustableMixin(BaseModelMixin):
     def effective_amount(self):
         if not hasattr(self, self._amount_field_name):
             raise AttributeError(
-                f"{self.__class__.__name__} must define amount filed {self._amount_field_name}."
+                _("%(class)s must define amount field %(field)s.")
+                % {"class": self.__class__.__name__, "field": self._amount_field_name}
             )
         base_val = getattr(self, self._amount_field_name, Decimal("0.00"))
         adjustments_mgr = getattr(self, self._adjustments_related_name, None)
@@ -131,14 +139,14 @@ class SourceFundMixin(BaseModelMixin):
     def _validate_payment_source_fund_exists(self):
         try:
             if not self.payment_source_fund:
-                raise ValidationError("Payment source fund is not existing.")
+                raise ValidationError(_("Payment source fund is not existing."))
         except Exception:
-            raise ValidationError("Payment source fund could not be resolved.")
+            raise ValidationError(_("Payment source fund could not be resolved."))
         fund = self.payment_source_fund
         if not fund.entity.active:
-            raise ValidationError("The Payment source entity should be active.")
+            raise ValidationError(_("The Payment source entity should be active."))
         if not fund.active:
-            raise ValidationError("The payment source fund is not active.")
+            raise ValidationError(_("The payment source fund is not active."))
 
     def clean(self) -> None:
         self._validate_payment_source_fund_exists()
@@ -153,12 +161,12 @@ class TargetFundMixin(BaseModelMixin):
     def _validate_payment_target_fund_exists(self):
         try:
             if not self.payment_target_fund:
-                raise ValidationError("Payment target fund is not existing.")
+                raise ValidationError(_("Payment target fund is not existing."))
         except Exception:
-            raise ValidationError("Payment target fund could not be resolved.")
+            raise ValidationError(_("Payment target fund could not be resolved."))
         fund = self.payment_target_fund
         if not fund.entity.active:
-            raise ValidationError("The Payment target entity should be active.")
+            raise ValidationError(_("The Payment target entity should be active."))
 
     def clean(self) -> None:
         self._validate_payment_target_fund_exists()
@@ -201,7 +209,7 @@ class LinkedIssuanceTransactionMixin(
         )
         if existing.exists():
             raise ValidationError(
-                "An issuance transaction already exists for this operation."
+                _("An issuance transaction already exists for this operation.")
             )
         from apps.app_transaction.models import Transaction
 
@@ -214,7 +222,8 @@ class LinkedIssuanceTransactionMixin(
                 amount=self.amount,
                 officer=officer or self.officer,
                 description=description
-                or f"Issuance transaction for ({self.__class__}) ({self.pk})",
+                or _("Issuance transaction for (%(class)s) (%(pk)s)")
+                % {"class": self.__class__.__name__, "pk": self.pk},
                 note=note,
                 date=date or timezone.now(),
             )
@@ -234,7 +243,7 @@ class LinkedIssuanceTransactionMixin(
                 else:
                     if self._has_issuance_transaction:
                         kwargs.setdefault("tasks", []).append(
-                            (self.create_issuance_transaction, (), {})
+                            (self.create_issuance_transaction, (), {"date": self.date})
                         )
                         # self.create_issuance_transaction()
             return super().save(*args, **kwargs)
@@ -317,11 +326,15 @@ class LinkedPaymentTransactionMixin(
     def validate_settlement_amount(self, amount_to_pay: Decimal):
         # Todo use calculate repayments in the methods
         if amount_to_pay <= 0:
-            raise ValidationError("The amount should be more than 0")
+            raise ValidationError(_("The amount should be more than 0"))
         if amount_to_pay > self.amount_remaining_to_settle:
             # We allow a small margin for rounding or explicitly block overpayment
             raise ValidationError(
-                f"The payed amount {amount_to_pay} exceeds the remaining: {self.amount_remaining_to_settle}"
+                _("The paid amount %(amount)s exceeds the remaining: %(remaining)s")
+                % {
+                    "amount": amount_to_pay,
+                    "remaining": self.amount_remaining_to_settle,
+                }
             )
         return True
 
@@ -351,8 +364,10 @@ class LinkedPaymentTransactionMixin(
             fund = self.payment_source_fund
             if not fund.can_pay(amount):
                 raise ValidationError(
-                    f"Insufficient funds: fund balance ({fund.balance}) "
-                    f"is less than the payment amount ({amount})."
+                    _(
+                        "Insufficient funds: fund balance (%(balance)s) is less than the payment amount (%(amount)s)."
+                    )
+                    % {"balance": fund.balance, "amount": amount}
                 )
 
         if self._is_one_shot_operation:
@@ -361,11 +376,14 @@ class LinkedPaymentTransactionMixin(
             )
             if existing.exists():
                 raise ValidationError(
-                    "One-shot operations can only have a single payment transaction."
+                    _("One-shot operations can only have a single payment transaction.")
                 )
             if amount != self.amount:
                 raise ValidationError(
-                    f"Payment amount {amount} must match the operation amount {self.amount}."
+                    _(
+                        "Payment amount %(amount)s must match the operation amount %(op_amount)s."
+                    )
+                    % {"amount": amount, "op_amount": self.amount}
                 )
 
         self.validate_settlement_amount(amount)
@@ -378,7 +396,8 @@ class LinkedPaymentTransactionMixin(
                 amount=amount,
                 officer=officer or self.officer,
                 description=description
-                or f"Payment transaction for ({self.__class__}) ({self.pk})",
+                or _("Payment transaction for (%(class)s) (%(pk)s)")
+                % {"class": self.__class__.__name__, "pk": self.pk},
                 note=note,
                 date=date or timezone.now(),
             )
@@ -400,7 +419,9 @@ class LinkedPaymentTransactionMixin(
                     if self._is_one_shot_operation:
                         if not self._has_single_payment_transaction:
                             raise ValidationError(
-                                "This record can't act as a one-shot operation record"
+                                _(
+                                    "This record can't act as a one-shot operation record"
+                                )
                             )
                         kwargs.setdefault("tasks", []).append(
                             (
@@ -410,7 +431,10 @@ class LinkedPaymentTransactionMixin(
                                     "amount": self.amount,
                                     "officer": self.officer,
                                     "date": self.date or timezone.now(),
-                                    "description": f"One shot payment transactiof for ({self.__class__}) ({self.pk})",
+                                    "description": _(
+                                        "One shot payment transaction for (%(class)s) (%(pk)s)"
+                                    )
+                                    % {"class": self.__class__.__name__, "pk": self.pk},
                                 },
                             )
                         )
@@ -427,49 +451,43 @@ class LinkedRePaymentTransactionMixin(
     _tx_amount_field_name = "amount"
 
     @property
+    def total_repayable_amount(self):
+        if hasattr(self, "effective_amount"):
+            return self.effective_amount
+        return getattr(self, self._amount_field_name, Decimal("0.00"))
+
+    @property
     def amount_repayed(self):
-        # valid transactions returns all transactions
-        # except: the reversed, the reversals & the deleted ones.
-        # So, the reversed transactions are exclused from the start.
-        # No need for another guard.
         valid_txs = self.get_undeleted_transactions()
         if not valid_txs:
             return Decimal("0")
-        # Filter the valid transaction & get the payment only transactions
+
         valid_txs = valid_txs.filter(type=self._repayment_transaction_type)
-        # We define 'settlement' as money moving toward the Receiver
-        # from the Payer as defined in the document.
         to_source = valid_txs.filter(target=self.payment_source_fund).aggregate(
             total=Sum(self._tx_amount_field_name)
         )["total"] or Decimal("0.00")
-
         return to_source
 
     @property
     def amount_remaining_to_repay(self):
-        return (
-            getattr(self, self._amount_field_name, Decimal("0.00"))
-            - self.amount_repayed
-        )
+        return self.total_repayable_amount - self.amount_repayed
 
     @property
     def is_fully_repayed(self) -> bool:
-        # Precision check: useful when dealing with floating point math / Decimals
-        return self.amount_repayed >= getattr(self, self._amount_field_name)
+        return self.amount_repayed >= self.total_repayable_amount
 
     @property
-    def is_overpayed_settled(self) -> bool:
-        # Precision check: useful when dealing with floating point math / Decimals
-        return self.amount_repayed >= getattr(self, self._amount_field_name)
+    def is_overpaid_repayed(self) -> bool:
+        return self.amount_repayed > self.total_repayable_amount
 
     def validate_repayement_amount(self, amount_to_pay: Decimal):
-        # Todo use calculate repayments in the methods
         if amount_to_pay <= 0:
-            raise ValidationError("The amount should be more than 0")
+            raise ValidationError(_("The amount should be more than 0"))
         if amount_to_pay > self.amount_remaining_to_repay:
             # We allow a small margin for rounding or explicitly block overpayment
             raise ValidationError(
-                f"The payed amount {amount_to_pay} exceeds the remaining: {self.amount_remaining_to_repay}"
+                _("The paid amount %(amount)s exceeds the remaining: %(remaining)s")
+                % {"amount": amount_to_pay, "remaining": self.amount_remaining_to_repay}
             )
         return True
 
@@ -494,7 +512,8 @@ class LinkedRePaymentTransactionMixin(
                 amount=amount,
                 officer=officer or self.officer,
                 description=description
-                or f"RePayment transaction for ({self.__class__}) ({self.pk})",
+                or _("RePayment transaction for (%(class)s) (%(pk)s)")
+                % {"class": self.__class__.__name__, "pk": self.pk},
                 note=note,
                 date=date or timezone.now(),
             )

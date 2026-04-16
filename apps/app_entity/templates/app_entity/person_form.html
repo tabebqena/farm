@@ -1,88 +1,89 @@
 {% extends 'base.html' %}
+{% load i18n %}
 
 {% block content %}
 <div class="card form-card shadow-sm border-0">
     <form method="post">
         {% csrf_token %}
         <div class="card-header bg-white py-3">
-            <h5 class="mb-0 fw-bold">Manage Entity: {{ person.name }}</h5>
+            <h5 class="mb-0 fw-bold">{% trans "Manage Entity:" %} {{ person.name }}</h5>
         </div>
-        
+
         <div class="card-body p-4">
             <div class="mb-4">
-                <label class="form-label fw-bold">Private Name</label>
+                <label class="form-label fw-bold">{% trans "Private Name" %}</label>
                 <input type="text" name="private_name" class="form-control" value="{{ person.private_name }}">
             </div>
 
             <hr>
 
-            <h6 class="text-muted fw-bold small text-uppercase mb-3">Business Roles</h6>
+            <h6 class="text-muted fw-bold small text-uppercase mb-3">{% trans "Business Roles" %}</h6>
             <div class="row g-3 mb-4">
                 <div class="col-md-3">
                     <div class="form-check form-switch">
                         <input class="form-check-input" type="checkbox" name="is_vendor" id="v" {% if entity.is_vendor %}checked{% endif %}>
-                        <label class="form-check-label" for="v">Vendor</label>
+                        <label class="form-check-label" for="v">{% trans "Vendor" %}</label>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="form-check form-switch">
                         <input class="form-check-input" type="checkbox" name="is_client" id="c" {% if entity.is_client %}checked{% endif %}>
-                        <label class="form-check-label" for="c">Client</label>
+                        <label class="form-check-label" for="c">{% trans "Client" %}</label>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="form-check form-switch">
                         <input class="form-check-input" type="checkbox" name="is_worker" id="w" {% if entity.is_worker %}checked{% endif %}>
-                        <label class="form-check-label" for="w">Worker</label>
+                        <label class="form-check-label" for="w">{% trans "Worker" %}</label>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="form-check form-switch">
                         <input class="form-check-input" type="checkbox" name="is_shareholder" id="s" {% if entity.is_shareholder %}checked{% endif %}>
-                        <label class="form-check-label" for="s">Shareholder</label>
+                        <label class="form-check-label" for="s">{% trans "Shareholder" %}</label>
                     </div>
                 </div>
             </div>
 
-            <h6 class="text-muted fw-bold small text-uppercase mb-3">Operations & Permissions</h6>
+            <h6 class="text-muted fw-bold small text-uppercase mb-3">{% trans "Operations & Permissions" %}</h6>
             <div class="row g-3 mb-4 p-3 bg-light rounded">
                 <div class="col-md-4">
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" name="is_internal" id="int" {% if entity.is_internal %}checked{% endif %}>
-                        <label class="form-check-label fw-bold" for="int">Internal Entity</label>
+                        <label class="form-check-label fw-bold" for="int">{% trans "Internal Entity" %}</label>
                     </div>
                 </div>
                 <div class="col-md-4">
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" name="fund_active" id="pay" {% if entity.fund.active %}checked{% endif %}>
-                        <label class="form-check-label fw-bold" for="pay">Payment Enabled</label>
+                        <label class="form-check-label fw-bold" for="pay">{% trans "Payment Enabled" %}</label>
                     </div>
                 </div>
                 <div class="col-md-4">
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" name="active" id="act" {% if entity.active %}checked{% endif %}>
-                        <label class="form-check-label fw-bold text-success" for="act">Active</label>
+                        <label class="form-check-label fw-bold text-success" for="act">{% trans "Active" %}</label>
                     </div>
                 </div>
             </div>
 
-            <h6 class="text-muted fw-bold small text-uppercase mb-3">System Constants (Read-Only)</h6>
+            <h6 class="text-muted fw-bold small text-uppercase mb-3">{% trans "System Constants (Read-Only)" %}</h6>
             <div class="d-flex gap-4 mb-4">
                 <div class="form-check">
                     <input class="form-check-input" type="checkbox" disabled {% if entity.is_system %}checked{% endif %}>
-                    <label class="form-check-label">System Identity</label>
+                    <label class="form-check-label">{% trans "System Identity" %}</label>
                 </div>
                 <div class="form-check">
                     <input class="form-check-input" type="checkbox" disabled {% if entity.is_world %}checked{% endif %}>
-                    <label class="form-check-label">World Identity</label>
+                    <label class="form-check-label">{% trans "World Identity" %}</label>
                 </div>
             </div>
 
             <div class="d-flex justify-content-end gap-2">
                 {% if entity %}
-                <a href="{% url 'entity_detail' entity.pk %}" class="btn btn-outline-secondary">Discard Changes</a>
+                <a href="{% url 'entity_detail' entity.pk %}" class="btn btn-outline-secondary">{% trans "Discard Changes" %}</a>
                 {% endif %}
-                <button type="submit" class="btn btn-primary px-5">Save All Changes</button>
+                <button type="submit" class="btn btn-primary px-5">{% trans "Save All Changes" %}</button>
             </div>
         </div>
     </form>

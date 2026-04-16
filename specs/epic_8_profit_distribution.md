@@ -16,7 +16,7 @@ Period closes
       ▼
 DistributionPlan.calculate_amount(entity, period)
       │
-      ├─ amount > 0  (profit) ──► ProfitDistributionOperation(s)
+      ├─  > 0  (profit) ──► ProfitDistributionOperation(s)
       │                              project.fund → shareholder.fund
       │                              capped at plan.remaining_distributable
       │
@@ -25,7 +25,7 @@ DistributionPlan.calculate_amount(entity, period)
       │                              capped at plan.remaining_coverable
       │
       └─ amount == 0 (break-even) ──► no operations allowed
-```
+```amount
 
 ### ShareholderAllocation (advisory)
 

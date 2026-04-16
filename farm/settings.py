@@ -44,11 +44,13 @@ INSTALLED_APPS = [
     "apps.app_transaction",
     "apps.app_operation",
     "apps.app_adjustment",
+    "apps.app_inventory",
 ]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.locale.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -113,7 +115,18 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
 
-LANGUAGE_CODE = "en-us"
+LANGUAGE_CODE = "en"
+
+from django.utils.translation import gettext_lazy as _
+
+LANGUAGES = [
+    ("en", _("English")),
+    ("ar", _("Arabic")),
+]
+
+LOCALE_PATHS = [
+    BASE_DIR / "locale",
+]
 
 TIME_ZONE = "UTC"
 
@@ -148,7 +161,7 @@ MESSAGE_TAGS = {
 
 
 LOGIN_URL = "login"  # Name of your login URL pattern
-LOGIN_REDIRECT_URL = ""  # Where to go after success
+LOGIN_REDIRECT_URL = "entity_list"  # Where to go after success
 # Where to send users after they log out
 LOGOUT_REDIRECT_URL = "login"
 

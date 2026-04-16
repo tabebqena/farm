@@ -1,4 +1,4 @@
-from .category.category_bilk_create import category_bulk_create_view
+from .category.category_bulk_create import category_bulk_create_view
 from .category.category_create import category_create_view
 from .category.category_detail import category_detail_view
 from .category.category_edit import category_edit_view

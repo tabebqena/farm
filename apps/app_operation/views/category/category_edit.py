@@ -1,14 +1,10 @@
-import json
 from decimal import Decimal
 
 from django.contrib import messages
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 
-from apps.app_operation.models import (
-    FinancialCategory,
-    default_categories,
-)
+from apps.app_operation.models import FinancialCategory
 
 
 def category_edit_view(request, pk):
@@ -18,7 +14,6 @@ def category_edit_view(request, pk):
 
     if request.method == "POST":
         name = request.POST.get("name", "").strip()
-        c_type = request.POST.get("category_type", "EXPENSE")
         desc = request.POST.get("description", "")
         raw_limit = request.POST.get("max_limit", "0.00")
         is_active = request.POST.get("active") == "on"
@@ -37,9 +32,8 @@ def category_edit_view(request, pk):
 
         try:
             with transaction.atomic():
-                # 3. Update the instance
+                # 3. Update the instance — category_type is immutable
                 category.name = name
-                category.category_type = c_type
                 category.description = desc
                 category.max_limit = Decimal(raw_limit)
                 category.is_active = is_active
@@ -53,12 +47,9 @@ def category_edit_view(request, pk):
 
     return render(
         request,
-        "app_operation/category/category_form.html",
+        "app_operation/category/category_edit_form.html",
         {
             "category": category,
             "parent": parent,
-            "is_edit": True,
-            "default_categories": default_categories,
-            "default_categories_json": json.dumps(default_categories),
         },
     )

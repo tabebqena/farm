@@ -1,28 +1,29 @@
 {% extends 'base.html' %}
+{% load i18n %}
 
 {% block content %}
   <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
-      <h2>Operation History: {{ entity_person.name }}</h2>
+      <h2>{% trans "Operation History:" %} <a href="{% url 'entity_detail' entity_person.pk %}">{{ entity_person.name }}</a></h2>
       <div class="dropdown">
-        <button class="btn btn-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">New Operation</button>
+        <button class="btn btn-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">{% trans "New Operation" %}</button>
         <ul class="dropdown-menu">
           {% if entity_person.is_shareholder %}
             <li>
-              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'cash-injection' %}">Cash Injection</a>
+              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'cash-injection' %}">{% trans "Cash Injection" %}</a>
             </li>
             <li>
-              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'cash-withdrawal' %}">Cash Withdrawal</a>
+              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'cash-withdrawal' %}">{% trans "Cash Withdrawal" %}</a>
             </li>
             <li>
               <hr class="dropdown-divider" />
             </li>
             <li>
-              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'project-funding' %}">Project Funding</a>
+              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'project-funding' %}">{% trans "Project Funding" %}</a>
             </li>
 
             <li>
-              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'project-refunding' %}">Project ReFunding</a>
+              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'project-refunding' %}">{% trans "Project ReFunding" %}</a>
             </li>
 
             <li>
@@ -30,41 +31,41 @@
             </li>
 
             <li>
-              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'loss-coverage' %}">Loss Coverage</a>
+              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'loss-coverage' %}">{% trans "Loss Coverage" %}</a>
             </li>
           {% endif %}
           {% if entity_person.project %}
             <li>
-              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'purchase' %}">Purchase</a>
+              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'purchase' %}">{% trans "Purchase" %}</a>
             </li>
             <li>
-              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'sale' %}">Sale</a>
+              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'sale' %}">{% trans "Sale" %}</a>
             </li>
             <li>
-              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'expense' %}">expense</a>
+              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'expense' %}">{% trans "Expense" %}</a>
             </li>
 
             <li>
               <hr class="dropdown-divider" />
             </li>
             <li>
-              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'capital-gain' %}">Capital Gain</a>
+              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'capital-gain' %}">{% trans "Capital Gain" %}</a>
             </li>
             <li>
-              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'capital-loss' %}">Capital Loss</a>
+              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'capital-loss' %}">{% trans "Capital Loss" %}</a>
             </li>
             <li>
               <hr class="dropdown-divider" />
             </li>
             <li>
-              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'worker-advance' %}">Worker Advance</a>
+              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'worker-advance' %}">{% trans "Worker Advance" %}</a>
             </li>
           {% endif %}
           <li>
             <hr class="dropdown-divider" />
           </li>
           <li>
-            <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'loan' %}">Loan</a>
+            <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'loan' %}">{% trans "Loan" %}</a>
           </li>
           <li>
             {% comment %} <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'loan-repayment' %}">Loan Repayment</a> {% endcomment %}
@@ -74,7 +75,7 @@
             <hr class="dropdown-divider" />
           </li>
           <li>
-            <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'internal-transfer' %}">Internal Transfer</a>
+            <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'internal-transfer' %}">{% trans "Internal Transfer" %}</a>
           </li>
         </ul>
       </div>
@@ -85,13 +86,13 @@
         <table class="table table-hover align-middle mb-0">
           <thead class="table-light">
             <tr>
-              <th>Date</th>
-              <th>Type</th>
-              <th>Direction</th>
-              <th>Counterparty</th>
-              <th class="text-end">Amount</th>
-              <th class="text-center">Status</th>
-              <th>Actions</th>
+              <th>{% trans "Date" %}</th>
+              <th>{% trans "Type" %}</th>
+              <th>{% trans "Direction" %}</th>
+              <th>{% trans "Counterparty" %}</th>
+              <th class="text-end">{% trans "Amount" %}</th>
+              <th class="text-center">{% trans "Status" %}</th>
+              <th>{% trans "Actions" %}</th>
             </tr>
           </thead>
           <tbody>
@@ -114,9 +115,9 @@
                 </td>
                 <td>
                   {% if op.destination == entity_person %}
-                    <small class="text-muted">From:</small> {{ op.source.name }}
+                    <small class="text-muted">{% trans "From:" %}</small> {{ op.source.name }}
                   {% else %}
-                    <small class="text-muted">To:</small> {{ op.destination.name }}
+                    <small class="text-muted">{% trans "To:" %}</small> {{ op.destination.name }}
                   {% endif %}
                 </td>
                 <td class="text-end fw-bold">
@@ -128,25 +129,25 @@
                 </td>
                 <td class="text-center">
                   {% if op.is_reversed %}
-                    <span class="badge rounded-pill bg-danger">Reversed</span>
+                    <span class="badge rounded-pill bg-danger">{% trans "Reversed" %}</span>
                   {% elif op.is_reversal %}
-                    <span class="badge rounded-pill bg-danger">Reversal</span>
+                    <span class="badge rounded-pill bg-danger">{% trans "Reversal" %}</span>
                   {% else %}
-                    <span class="badge rounded-pill bg-success">Active</span>
+                    <span class="badge rounded-pill bg-success">{% trans "Active" %}</span>
                   {% endif %}
                 </td>
                 <td>
                   <div class="btn-group">
-                    <a href="{% url 'operation_detail_view' op.pk %}" class="btn btn-sm btn-outline-primary">View</a>
+                    <a href="{% url 'operation_detail_view' op.pk %}" class="btn btn-sm btn-outline-primary">{% trans "View" %}</a>
                     {% if not op.is_reversed and not op.is_reversal %}
-                      <a href="{% url 'operation_update_view' op.pk %}" class="btn btn-sm btn-outline-secondary">Edit</a>
+                      <a href="{% url 'operation_update_view' op.pk %}" class="btn btn-sm btn-outline-secondary">{% trans "Edit" %}</a>
                     {% endif %}
                   </div>
                 </td>
               </tr>
             {% empty %}
               <tr>
-                <td colspan="7" class="text-center py-5 text-muted">No operations found for this person.</td>
+                <td colspan="7" class="text-center py-5 text-muted">{% trans "No operations found for this person." %}</td>
               </tr>
             {% endfor %}
           </tbody>

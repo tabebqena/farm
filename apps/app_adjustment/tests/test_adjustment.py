@@ -175,7 +175,7 @@ class AdjustmentTransactionTest(TestCase):
 
         txs = adj.get_all_transactions()
         self.assertEqual(txs.count(), 1)
-        self.assertTrue(txs.filter(type=TransactionType.PURCHASE_ADJUSTMENT).exists())
+        self.assertTrue(txs.filter(type=TransactionType.PURCHASE_ADJUSTMENT_DECREASE).exists())
 
     def test_sale_adjustment_creates_sale_adjustment_transaction(self):
         op = _make_sale_op(self.client_entity, self.project_entity, self.officer)
@@ -183,7 +183,7 @@ class AdjustmentTransactionTest(TestCase):
 
         txs = adj.get_all_transactions()
         self.assertEqual(txs.count(), 1)
-        self.assertTrue(txs.filter(type=TransactionType.SALE_ADJUSTMENT).exists())
+        self.assertTrue(txs.filter(type=TransactionType.SALE_ADJUSTMENT_DECREASE).exists())
 
     def test_expense_adjustment_creates_expense_adjustment_transaction(self):
         op = _make_expense_op(self.project_entity, self.world_entity, self.officer)
@@ -191,7 +191,7 @@ class AdjustmentTransactionTest(TestCase):
 
         txs = adj.get_all_transactions()
         self.assertEqual(txs.count(), 1)
-        self.assertTrue(txs.filter(type=TransactionType.EXPENSE_ADJUSTMENT).exists())
+        self.assertTrue(txs.filter(type=TransactionType.EXPENSE_ADJUSTMENT_DECREASE).exists())
 
     def test_adjustment_transaction_source_and_target_match_operation_funds(self):
         """Transaction direction must mirror the operation's source/target funds."""

@@ -1,47 +1,48 @@
 {% extends 'base.html' %}
+{% load i18n %}
 
 {% block content %}
 <div class="card form-card shadow-sm border-0">
     <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
         <h5 class="mb-0 fw-bold text-primary">
-            {% if is_edit %}Edit Project: {{ project.name }}{% else %}Initialize New Project{% endif %}
+            {% if is_edit %}{% trans "Edit Project:" %} {{ project.name }}{% else %}{% trans "Initialize New Project" %}{% endif %}
         </h5>
         {% if is_edit %}
-        <span class="badge bg-light text-muted border">Entity #{{ entity.id }}</span>
+        <span class="badge bg-light text-muted border">{% trans "Entity #" %}{{ entity.id }}</span>
         {% endif %}
     </div>
-    
+
     <div class="card-body p-4">
         <form method="post">
             {% csrf_token %}
 
-            <h6 class="text-uppercase text-muted small fw-bold mb-3">Project Identity</h6>
+            <h6 class="text-uppercase text-muted small fw-bold mb-3">{% trans "Project Identity" %}</h6>
             <div class="row g-3 mb-4">
                 <div class="col-12">
-                    <label class="form-label fw-semibold">Project Name</label>
-                    <input type="text" name="name" class="form-control" 
+                    <label class="form-label fw-semibold">{% trans "Project Name" %}</label>
+                    <input type="text" name="name" class="form-control"
                            value="{{ project.name|default:'' }}" placeholder="e.g. Q1 Infrastructure Expansion" required>
                 </div>
                 <div class="col-12">
-                    <label class="form-label fw-semibold">Description / Scope</label>
+                    <label class="form-label fw-semibold">{% trans "Description / Scope" %}</label>
                     <textarea name="description" class="form-control" rows="3">{{ project.description }}</textarea>
                 </div>
             </div>
 
             <hr class="my-4">
 
-            <h6 class="text-uppercase text-muted small fw-bold mb-3">Entity Configuration</h6>
+            <h6 class="text-uppercase text-muted small fw-bold mb-3">{% trans "Entity Configuration" %}</h6>
             <div class="row g-3 p-3 bg-light rounded border mb-4">
                 <div class="col-md-6">
                     <div class="form-check form-switch">
                         <input class="form-check-input" type="checkbox" name="is_client" id="f_client" {% if entity.is_client %}checked{% endif %}>
-                        <label class="form-check-label" for="f_client">Act as Client (Can receive invoices)</label>
+                        <label class="form-check-label" for="f_client">{% trans "Act as Client (Can receive invoices)" %}</label>
                     </div>
                 </div>
                 <div class="col-md-6">
                     <div class="form-check form-switch">
                         <input class="form-check-input" type="checkbox" name="is_vendor" id="f_vendor" {% if entity.is_vendor %}checked{% endif %}>
-                        <label class="form-check-label" for="f_vendor">Act as Vendor (Can charge expenses)</label>
+                        <label class="form-check-label" for="f_vendor">{% trans "Act as Vendor (Can charge expenses)" %}</label>
                     </div>
                 </div>
             </div>
@@ -49,26 +50,26 @@
             <div class="row g-3 mb-4">
                 <div class="col-md-4">
                     <div class="form-check">
-                        <input class="form-check-input" type="checkbox" name="is_internal" id="f_internal" 
+                        <input class="form-check-input" type="checkbox" name="is_internal" id="f_internal"
                                {% if entity.is_internal or not is_edit %}checked{% endif %}>
-                        <label class="form-check-label fw-bold" for="f_internal">Internal Project</label>
-                        <small class="d-block text-muted">Owned by our organization.</small>
+                        <label class="form-check-label fw-bold" for="f_internal">{% trans "Internal Project" %}</label>
+                        <small class="d-block text-muted">{% trans "Owned by our organization." %}</small>
                     </div>
                 </div>
                 <div class="col-md-4">
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" name="fund_active" id="f_pay"
                                {% if entity.fund.active or not is_edit %}checked{% endif %}>
-                        <label class="form-check-label fw-bold" for="f_pay">Enable Payments</label>
-                        <small class="d-block text-muted">Allow fund transfers from this project.</small>
+                        <label class="form-check-label fw-bold" for="f_pay">{% trans "Enable Payments" %}</label>
+                        <small class="d-block text-muted">{% trans "Allow fund transfers from this project." %}</small>
                     </div>
                 </div>
                 <div class="col-md-4">
                     <div class="form-check">
-                        <input class="form-check-input" type="checkbox" name="active" id="f_active" 
+                        <input class="form-check-input" type="checkbox" name="active" id="f_active"
                                {% if not is_edit or entity.active %}checked{% endif %}>
-                        <label class="form-check-label fw-bold text-success" for="f_active">Active</label>
-                        <small class="d-block text-muted">Current operational status.</small>
+                        <label class="form-check-label fw-bold text-success" for="f_active">{% trans "Active" %}</label>
+                        <small class="d-block text-muted">{% trans "Current operational status." %}</small>
                     </div>
                 </div>
             </div>
@@ -77,20 +78,20 @@
             <div class="d-flex gap-4 mb-4 opacity-50">
                 <div class="form-check">
                     <input class="form-check-input" type="checkbox" disabled {% if entity.is_system %}checked{% endif %}>
-                    <label class="form-check-label small">System Entity</label>
+                    <label class="form-check-label small">{% trans "System Entity" %}</label>
                 </div>
                 <div class="form-check">
                     <input class="form-check-input" type="checkbox" disabled {% if entity.is_world %}checked{% endif %}>
-                    <label class="form-check-label small">World Entity</label>
+                    <label class="form-check-label small">{% trans "World Entity" %}</label>
                 </div>
             </div>
             {% endif %}
 
             <div class="d-flex gap-2 justify-content-end border-top pt-4">
-                <a href="{% if is_edit %}{% url 'entity_detail' entity.pk %}{% else %}{% url 'entity_list' %}{% endif %}" 
-                   class="btn btn-light px-4">Cancel</a>
+                <a href="{% if is_edit %}{% url 'entity_detail' entity.pk %}{% else %}{% url 'entity_list' %}{% endif %}"
+                   class="btn btn-light px-4">{% trans "Cancel" %}</a>
                 <button type="submit" class="btn btn-primary px-5 fw-bold shadow-sm">
-                    {% if is_edit %}Save Changes{% else %}Create Project{% endif %}
+                    {% if is_edit %}{% trans "Save Changes" %}{% else %}{% trans "Create Project" %}{% endif %}
                 </button>
             </div>
         </form>

@@ -23,9 +23,13 @@ class TransactionType(models.TextChoices):
         "PURCHASE_PAYMENT",
         "PURCHASE_PAYMENT",
     )
-    PURCHASE_ADJUSTMENT = (
-        "PURCHASE_ADJUSTMENT",
-        "PURCHASE_ADJUSTMENT",
+    PURCHASE_ADJUSTMENT_INCREASE = (
+        "PURCHASE_ADJUSTMENT_INCREASE",
+        "PURCHASE_ADJUSTMENT_INCREASE",
+    )
+    PURCHASE_ADJUSTMENT_DECREASE = (
+        "PURCHASE_ADJUSTMENT_DECREASE",
+        "PURCHASE_ADJUSTMENT_DECREASE",
     )
     # The return is a subtype of adjustement, so I will comment.
     # PURCHASE_RETURN = ("PURCHASE_RETURN", "PURCHASE_RETURN")
@@ -39,9 +43,13 @@ class TransactionType(models.TextChoices):
         "SALE_COLLECTION",
         "SALE_COLLECTION",
     )
-    SALE_ADJUSTMENT = (
-        "SALE_ADJUSTMENT",
-        "SALE_ADJUSTMENT",
+    SALE_ADJUSTMENT_INCREASE = (
+        "SALE_ADJUSTMENT_INCREASE",
+        "SALE_ADJUSTMENT_INCREASE",
+    )
+    SALE_ADJUSTMENT_DECREASE = (
+        "SALE_ADJUSTMENT_DECREASE",
+        "SALE_ADJUSTMENT_DECREASE",
     )
     # Expense
     EXPENSE_ISSUANCE = (
@@ -52,9 +60,13 @@ class TransactionType(models.TextChoices):
         "EXPENSE_PAYMENT",
         "EXPENSE_PAYMENT",
     )
-    EXPENSE_ADJUSTMENT = (
-        "EXPENSE_ADJUSTMENT",
-        "EXPENSE_ADJUSTMENT",
+    EXPENSE_ADJUSTMENT_INCREASE = (
+        "EXPENSE_ADJUSTMENT_INCREASE",
+        "EXPENSE_ADJUSTMENT_INCREASE",
+    )
+    EXPENSE_ADJUSTMENT_DECREASE = (
+        "EXPENSE_ADJUSTMENT_DECREASE",
+        "EXPENSE_ADJUSTMENT_DECREASE",
     )
 
     # --- Workers (Strict 1:1 Pairs) ---
@@ -197,6 +209,24 @@ class TransactionType(models.TextChoices):
     #     "DEBT_SETTLEMENT_BY_LENDER",
     # )
 
+    # --- Birth / Death (asset creation & removal, no cash flow) ---
+    BIRTH_ISSUANCE = (
+        "BIRTH_ISSUANCE",
+        "BIRTH_ISSUANCE",
+    )
+    BIRTH_PAYMENT = (
+        "BIRTH_PAYMENT",
+        "BIRTH_PAYMENT",
+    )
+    DEATH_ISSUANCE = (
+        "DEATH_ISSUANCE",
+        "DEATH_ISSUANCE",
+    )
+    DEATH_PAYMENT = (
+        "DEATH_PAYMENT",
+        "DEATH_PAYMENT",
+    )
+
     # --- Corrections ---
     CORRECTION_CREDIT_ISSUANCE = (
         "CORRECTION_CREDIT_ISSUANCE",
@@ -248,6 +278,8 @@ class TransactionType(models.TextChoices):
                 cls.INTERNAL_TRANSFER_PAYMENT,
                 cls.CORRECTION_CREDIT_PAYMENT,
                 cls.CORRECTION_DEBIT_PAYMENT,
+                cls.BIRTH_PAYMENT,
+                cls.DEATH_PAYMENT,
             ]
         )
 
@@ -257,8 +289,14 @@ class TransactionType(models.TextChoices):
         return frozenset(
             [
                 cls.PURCHASE_ISSUANCE,
+                cls.PURCHASE_ADJUSTMENT_INCREASE,
+                cls.PURCHASE_ADJUSTMENT_DECREASE,
                 cls.SALE_ISSUANCE,
+                cls.SALE_ADJUSTMENT_INCREASE,
+                cls.SALE_ADJUSTMENT_DECREASE,
                 cls.EXPENSE_ISSUANCE,
+                cls.EXPENSE_ADJUSTMENT_INCREASE,
+                cls.EXPENSE_ADJUSTMENT_DECREASE,
                 cls.WORKER_ADVANCE_ISSUANCE,
                 cls.CASH_INJECTION_ISSUANCE,
                 cls.CAPITAL_WITHDRAWAL_ISSUANCE,
@@ -272,5 +310,7 @@ class TransactionType(models.TextChoices):
                 cls.INTERNAL_TRANSFER_ISSUANCE,
                 cls.CORRECTION_CREDIT_ISSUANCE,
                 cls.CORRECTION_DEBIT_ISSUANCE,
+                cls.BIRTH_ISSUANCE,
+                cls.DEATH_ISSUANCE,
             ]
         )

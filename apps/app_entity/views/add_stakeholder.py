@@ -1,4 +1,5 @@
 from django.contrib import messages
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.app_entity.models import Entity, Stakeholder
@@ -6,7 +7,16 @@ from apps.app_entity.models import Entity, Stakeholder
 
 def add_stakeholder_base(request, parent_entity_id, role_type):
     # Rule 1: Host must be internal
-    parent = get_object_or_404(Entity, pk=parent_entity_id, is_internal=True)
+    try:
+        parent_project = get_object_or_404(
+            Entity, pk=parent_entity_id, is_internal=True
+        )
+    except Http404 as e:
+        messages.error(
+            request,
+            f"No project match the supplied query pk{parent_entity_id} is_internal:{True}",
+        )
+        raise e
 
     if request.method == "POST":
         target_id = request.POST.get("target_entity")
@@ -27,14 +37,14 @@ def add_stakeholder_base(request, parent_entity_id, role_type):
             messages.error(request, f"Configuration Error: {error_msg}")
         else:
             Stakeholder.objects.get_or_create(
-                parent=parent,
+                parent=parent_project,
                 target=target_entity,
                 role=role_type,
             )
             messages.success(
                 request, f"Successfully added {role_type}: {target_entity}"
             )
-            return redirect("entity_detail", pk=parent.id)
+            return redirect("entity_detail", pk=parent_project.id)
 
     # Filter available entities based on the role requirements
     if role_type == "worker":
@@ -47,13 +57,13 @@ def add_stakeholder_base(request, parent_entity_id, role_type):
         available = Entity.objects.filter(is_client=True, active=True)
 
     # Exclude the host itself
-    available = available.exclude(id=parent.id)
+    available = available.exclude(id=parent_project.id)
 
     return render(
         request,
         "app_entity/stakeholder_form.html",
         {
-            "project_entity": parent,
+            "project_entity": parent_project,
             "entities": available,
             "role_type": role_type,
             "role_name": role_type.capitalize(),

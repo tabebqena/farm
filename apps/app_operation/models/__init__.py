@@ -1,10 +1,11 @@
 from .category import FinancialCategory, default_categories
-from .distribution_plan import DistributionPlan, ShareholderAllocation
 from .operation import Operation
 from .operation_type import OperationType
 from .period import FinancialPeriod
 from .proxies import (
     PROXY_MAP,
+    BirthOperation,
+    DeathOperation,
     CapitalGainOperation,
     CapitalLossOperation,
     CashInjectionOperation,
@@ -21,6 +22,7 @@ from .proxies import (
     WorkerAdvanceOperation,
     get_operation_class,
 )
+from .share_allocation import ShareholderAllocation
 
 __all__ = [
     "OperationType",
@@ -28,10 +30,11 @@ __all__ = [
     "FinancialCategory",
     "default_categories",
     "FinancialPeriod",
-    "DistributionPlan",
     "ShareholderAllocation",
     "get_operation_class",
     "PROXY_MAP",
+    "BirthOperation",
+    "DeathOperation",
     "CashInjectionOperation",
     "CashWithdrawalOperation",
     "ProjectFundingOperation",

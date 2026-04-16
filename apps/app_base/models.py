@@ -7,6 +7,7 @@ from django.db import transaction as db_transaction
 from django.db.models.expressions import DatabaseDefault
 from django.forms import ValidationError
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 
 if typing.TYPE_CHECKING:
     from apps.app_transaction.transaction_type import TransactionType
@@ -25,11 +26,15 @@ from .mixins import HasRelatedTransactions
 # -----------------------------
 class BaseModel(models.Model):
     id: models.BigAutoField
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    deleted_at = models.DateTimeField(null=True, blank=True, default=None)
+    created_at = models.DateTimeField(_("created at"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("updated at"), auto_now=True)
+    deleted_at = models.DateTimeField(
+        _("deleted at"), null=True, blank=True, default=None
+    )
 
-    deletable = models.BooleanField(blank=False, null=False, default=False)
+    deletable = models.BooleanField(
+        _("deletable"), blank=False, null=False, default=False
+    )
 
     all_objects = DefaultManager  # Default manager
     objects = ActiveManager()  # Custom manager for non-deleted items
@@ -52,7 +57,10 @@ class BaseModel(models.Model):
                 # Block if user is not a superuser
                 if not (user and user.is_superuser):
                     raise PermissionDenied(
-                        f"Permission Denied: Only superusers can modify the 'deletable' status of {self.__class__.__name__}."
+                        _(
+                            "Permission Denied: Only superusers can modify the 'deletable' status of %(class_name)s."
+                        )
+                        % {"class_name": self.__class__.__name__}
                     )
 
         super().__setattr__(name, value)
@@ -110,7 +118,7 @@ class BaseModel(models.Model):
         if conf.settings.DEBUG:
             return super().delete(*args, **kwargs)
         if not self.deletable:
-            raise RuntimeError(f"Deletion is strictly blocked for this object")
+            raise RuntimeError(_("Deletion is strictly blocked for this object"))
         from crum import get_current_user
 
         user = get_current_user()
@@ -129,6 +137,7 @@ class ReversableModel(HasRelatedTransactions, BaseModel):
         null=True,
         blank=True,
         related_name="reversed_by",
+        verbose_name=_("reversal of"),
     )
 
     @property
@@ -149,21 +158,27 @@ class ReversableModel(HasRelatedTransactions, BaseModel):
 
     def _validate_requires_not_reversed(self):
         if self.is_reversed:
-            raise ValidationError(f"This invoice is reversed by {self.reversed_by}.")
+            raise ValidationError(
+                _("This invoice is reversed by %(reversed_by)s.")
+                % {"reversed_by": self.reversed_by}
+            )
 
     def _validate_requires_not_reversal(self):
         if self.is_reversal:
-            raise ValidationError("This invoice is a reversal.")
+            raise ValidationError(_("This invoice is a reversal."))
 
     def _validate_can_be_reversed(self):
         if self.reversal_of is not None:
             raise ValidationError(
-                f"You can't reverse this record as it is a reversal of {self.reversal_of}."
+                _(
+                    "You can't reverse this record as it is a reversal of %(reversal_of)s."
+                )
+                % {"reversal_of": self.reversal_of}
             )
 
         if getattr(self, "reversed_by", None) is not None:
             # TODO: correct the error msg
-            raise ValidationError("The transaction is already reversed.")
+            raise ValidationError(_("The transaction is already reversed."))
 
     def _get_reverse_kwargs(self, **overwrite):
         fields = self._meta.concrete_fields
@@ -223,8 +238,10 @@ class ReversableModel(HasRelatedTransactions, BaseModel):
         all_txs = self.get_all_transactions()
         if self._requires_transaction_reversal(all_txs):
             raise ValidationError(
-                "You can't reverse this object as it has non-reversed transactions"
-                "To continue, you should manually reverse all the related transactions"
+                _(
+                    "You can't reverse this object as it has non-reversed transactions. "
+                    "To continue, you should manually reverse all the related transactions."
+                )
             )
 
         if hasattr(self, "adjustments"):
@@ -234,8 +251,9 @@ class ReversableModel(HasRelatedTransactions, BaseModel):
             ).all()
             if len(adjs) > 0:
                 raise ValidationError(
-                    "You can't reverse this object as it has non-reversed adjustments"
-                    " To continue, you should manually reverse all of them"
+                    _(
+                        "You can't reverse this object as it has non-reversed adjustments. To continue, you should manually reverse all of them."
+                    )
                 )
         for tx in all_txs.filter(type__in=self._reversable_transaction_types).all():
             if not tx.is_reversal and not tx.is_reversed:
@@ -243,7 +261,9 @@ class ReversableModel(HasRelatedTransactions, BaseModel):
         kwargs = self._get_reverse_kwargs(
             officer=officer,
             date=date or timezone.now(),
-            description=reason or f"reversal of {self.__class__} ({self.pk})",
+            description=reason
+            or _("reversal of %(model)s (%(pk)s)")
+            % {"model": self.__class__.__name__, "pk": self.pk},
         )
         # We clone the object and link it back via reversal_of
         with db_transaction.atomic():

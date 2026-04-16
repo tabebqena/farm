@@ -1,23 +1,24 @@
 {% extends 'base.html' %}
+{% load i18n %}
 
 {% block content %}
   <div class="card border-success shadow-sm">
     <div class="card-header bg-success text-white">
-      <h5 class="mb-0">Repay {{ operation.operation_type }} #{{ operation.pk }}</h5>
+      <h5 class="mb-0">{% trans "Repay" %} {{ operation.operation_type }} #{{ operation.pk }}</h5>
     </div>
     <div class="card-body">
       <div class="mb-4">
-        <label class="text-muted small d-block">Creditor</label>
+        <label class="text-muted small d-block">{% trans "Creditor" %}</label>
         <span class="fw-bold">{{ operation.source.name }}</span>
 
-        <label class="text-muted small d-block mt-2">Remaining Balance</label>
+        <label class="text-muted small d-block mt-2">{% trans "Remaining Balance" %}</label>
         <span class="h4 text-success">${{ remaining_balance }}</span>
       </div>
 
       <form method="post">
         {% csrf_token %}
         <div class="mb-3">
-          <label class="form-label fw-bold">Repayment Amount</label>
+          <label class="form-label fw-bold">{% trans "Repayment Amount" %}</label>
           <div class="input-group">
             <span class="input-group-text">$</span>
             <input type="number" step="0.01" name="amount" class="form-control" max="{{ remaining_balance }}" value="{{ amount }}" required />
@@ -25,14 +26,14 @@
         </div>
 
         <div class="mb-3">
-          <label class="form-label fw-bold">Note</label>
+          <label class="form-label fw-bold">{% trans "Note" %}</label>
           <textarea name="note" class="form-control">{{ note }}</textarea>
         </div>
         <div class="mb-3">
-          <label class="form-label fw-bold">Date</label>
+          <label class="form-label fw-bold">{% trans "Date" %}</label>
           <input type="date" name="date" class="form-control" value="{{ date|date:'Y-m-d' }}" required />
         </div>
-        <button type="submit" class="btn btn-success w-100">Post Repayment</button>
+        <button type="submit" class="btn btn-success w-100">{% trans "Post Repayment" %}</button>
       </form>
     </div>
   </div>

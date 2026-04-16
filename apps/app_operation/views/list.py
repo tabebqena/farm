@@ -8,13 +8,13 @@ from apps.app_operation.models.operation import Operation
 def operation_list_view(request, person_pk):
     # 1. Resolve the Person
     # Now it can be project also
-    # entity_person = get_object_or_404(
-    #     Entity, pk=person_pk, is_internal=True, person__isnull=False
-    # )
+    entity_person = Entity.objects.get(pk=person_pk)
+    print(entity_person)
+
     entity_person = get_object_or_404(
         Entity,
         pk=person_pk,
-        is_internal=True,
+        # is_internal=True,
         # person__isnull=False
     )
 

@@ -1,0 +1,2123 @@
+# Arabic translation for the farm project.
+# Copyright (C) 2026
+# This file is distributed under the same license as the farm project.
+#
+msgid ""
+msgstr ""
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-04-16 09:09+0000\n"
+"Language: ar\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=6; plural=n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 "
+"&& n%100<=10 ? 3 : n%100>=11 && n%100<=99 ? 4 : 5;\n"
+
+#: apps/app_adjustment/_effect.py:6
+msgid "Increase Original Amount"
+msgstr "زيادة المبلغ الأصلي"
+
+#: apps/app_adjustment/_effect.py:7
+msgid "Decrease Original Amount"
+msgstr "تخفيض المبلغ الأصلي"
+
+#: apps/app_adjustment/models.py:25
+msgid "Purchase: Return to Vendor (Credit)"
+msgstr "شراء: إرجاع إلى المورد (دائن)"
+
+#: apps/app_adjustment/models.py:26
+msgid "Purchase: Post-Invoice Discount (Credit)"
+msgstr "شراء: خصم بعد الفاتورة (دائن)"
+
+#: apps/app_adjustment/models.py:28
+msgid "Purchase: Price Overcharge Correction (Credit)"
+msgstr "شراء: تصحيح زيادة السعر (دائن)"
+
+#: apps/app_adjustment/models.py:30
+msgid "Purchase: Quantity Shortage (Credit)"
+msgstr "شراء: نقص في الكمية (دائن)"
+
+#: apps/app_adjustment/models.py:31
+msgid "Purchase: Damage Allowance (Credit)"
+msgstr "شراء: مخصص تلف (دائن)"
+
+#: apps/app_adjustment/models.py:34
+msgid ""
+"Purchase: Reduction of the amount of the purchase by a not mentioned cause"
+msgstr "شراء: تخفيض مبلغ الشراء لسبب غير مذكور"
+
+#: apps/app_adjustment/models.py:39
+msgid "Purchase: Price Undercharge Correction (Debit)"
+msgstr "شراء: تصحيح نقص السعر (مدين)"
+
+#: apps/app_adjustment/models.py:41
+msgid "Purchase: Tax Undercharge (Debit)"
+msgstr "شراء: نقص في الضريبة (مدين)"
+
+#: apps/app_adjustment/models.py:42
+msgid "Purchase: Unbilled Freight (Debit)"
+msgstr "شراء: شحن غير مفوتر (مدين)"
+
+#: apps/app_adjustment/models.py:45
+msgid ""
+"Purchase: Increase of the amount of the purchase by a not mentioned cause"
+msgstr "شراء: زيادة مبلغ الشراء لسبب غير مذكور"
+
+#: apps/app_adjustment/models.py:53
+msgid "Sale: Return from Client (Credit)"
+msgstr "بيع: إرجاع من العميل (دائن)"
+
+#: apps/app_adjustment/models.py:54
+msgid "Sale: Post-Invoice Discount (Credit)"
+msgstr "بيع: خصم بعد الفاتورة (دائن)"
+
+#: apps/app_adjustment/models.py:55
+msgid "Sale: Price Overcharge Correction (Credit)"
+msgstr "بيع: تصحيح زيادة السعر (دائن)"
+
+#: apps/app_adjustment/models.py:56
+msgid "Sale: Quantity Shortage (Credit)"
+msgstr "بيع: نقص في الكمية (دائن)"
+
+#: apps/app_adjustment/models.py:57
+msgid "Sale: Damage Allowance (Credit)"
+msgstr "بيع: مخصص تلف (دائن)"
+
+#: apps/app_adjustment/models.py:58
+msgid "Sale: Bad Debt Write-off (Credit)"
+msgstr "بيع: شطب ديون معدومة (دائن)"
+
+#: apps/app_adjustment/models.py:61
+msgid "Sale: Reduction of the amount of the sale by a not mentioned cause"
+msgstr "بيع: تخفيض مبلغ البيع لسبب غير مذكور"
+
+#: apps/app_adjustment/models.py:65
+msgid "Sale: Price Undercharge Correction (Debit)"
+msgstr "بيع: تصحيح نقص السعر (مدين)"
+
+#: apps/app_adjustment/models.py:66
+msgid "Sale: Tax Undercharge (Debit)"
+msgstr "بيع: نقص في الضريبة (مدين)"
+
+#: apps/app_adjustment/models.py:67
+msgid "Sale: Late Payment Penalty (Debit)"
+msgstr "بيع: غرامة تأخير السداد (مدين)"
+
+#: apps/app_adjustment/models.py:70
+msgid "Sale: Increase of the amount of the sale by a not mentioned cause"
+msgstr "بيع: زيادة مبلغ البيع لسبب غير مذكور"
+
+#: apps/app_adjustment/models.py:124 apps/app_inventory/models.py:100
+msgid "operation"
+msgstr "عملية"
+
+#: apps/app_adjustment/models.py:126
+msgid "type"
+msgstr "نوع"
+
+#: apps/app_adjustment/models.py:127
+msgid "amount"
+msgstr "مبلغ"
+
+#: apps/app_adjustment/models.py:129
+msgid "effect"
+msgstr "تأثير"
+
+#: apps/app_adjustment/models.py:133
+msgid "reason"
+msgstr "سبب"
+
+#: apps/app_adjustment/models.py:134
+msgid "date"
+msgstr "تاريخ"
+
+#: apps/app_adjustment/models.py:139
+msgid "officer"
+msgstr "مسؤول"
+
+#: apps/app_adjustment/models.py:173
+msgid "This operation cannot be adjusted."
+msgstr "لا يمكن تسوية هذه العملية."
+
+#: apps/app_adjustment/models.py:175
+msgid "Reason is required in general adjustment types."
+msgstr "السبب مطلوب في أنواع التسوية العامة."
+
+#: apps/app_adjustment/models.py:192
+msgid "adjustment"
+msgstr "تسوية"
+
+#: apps/app_adjustment/models.py:193
+msgid "adjustments"
+msgstr "تسويات"
+
+#: apps/app_base/managers.py:18 apps/app_operation/models/managers.py:9
+msgid "Direct .update() is blocked. Use individual .save() for validation."
+msgstr ""
+"التعديل المباشر عبر .update() محظور. استخدم .save() لكل كائن على حدة للتحقق "
+"من البيانات."
+
+#: apps/app_base/managers.py:23 apps/app_operation/models/managers.py:14
+msgid "Direct .bulk_create() is blocked. Save objects individually."
+msgstr "الإضافة الجماعية عبر .bulk_create() محظورة. احفظ الكائنات بشكل فردي."
+
+#: apps/app_base/managers.py:30
+msgid "Direct .bulk_update() is blocked. Save objects individually."
+msgstr "التعديل الجماعي عبر .bulk_update() محظور. احفظ الكائنات بشكل فردي."
+
+#: apps/app_base/managers.py:39
+#, python-format
+msgid ""
+"Bulk delete is blocked for %(model)s. If this is intended, set 'deletable = "
+"True' in the model Meta or class."
+msgstr ""
+"الحذف الجماعي محظور لـ %(model)s. إذا كان هذا مقصودًا، قم بتعيين 'deletable = "
+"True' في Meta النموذج أو الكلاس."
+
+#: apps/app_base/mixins.py:61
+#, python-format
+msgid "You can't edit this field %(field_name)s"
+msgstr "لا يمكنك تعديل هذا الحقل %(field_name)s"
+
+#: apps/app_base/mixins.py:78
+#, python-format
+msgid "Amount should be positive, got %(amount)s"
+msgstr "يجب أن يكون المبلغ موجباً، القيمة الحالية %(amount)s"
+
+#: apps/app_base/mixins.py:89
+#, python-format
+msgid "Officer should be of type `PERSONAL` entity, not %(type)s"
+msgstr "يجب أن يكون المسؤول كياناً من نوع `شخصي` وليس %(type)s"
+
+#: apps/app_base/mixins.py:93
+msgid "Officer should have associated user account."
+msgstr "يجب أن يكون للمسؤول حساب مستخدم مرتبط."
+
+#: apps/app_base/mixins.py:95
+msgid "Officer should be staff person."
+msgstr "يجب أن يكون المسؤول من طاقم العمل."
+
+#: apps/app_base/mixins.py:97
+msgid "Officer should be `active`"
+msgstr "يجب أن يكون المسؤول `نشطاً`"
+
+#: apps/app_base/mixins.py:111
+#, python-format
+msgid "%(class)s must define amount field %(field)s."
+msgstr "يجب أن يحدد الكلاس %(class)s حقل المبلغ %(field)s."
+
+#: apps/app_base/mixins.py:142
+msgid "Payment source fund is not existing."
+msgstr "صندوق الدفع المصدر غير موجود."
+
+#: apps/app_base/mixins.py:144
+msgid "Payment source fund could not be resolved."
+msgstr "تعذر حل صندوق الدفع المصدر."
+
+#: apps/app_base/mixins.py:147
+msgid "The Payment source entity should be active."
+msgstr "يجب أن يكون كيان مصدر الدفع نشطًا."
+
+#: apps/app_base/mixins.py:149
+msgid "The payment source fund is not active."
+msgstr "صندوق الدفع المصدر غير نشط."
+
+#: apps/app_base/mixins.py:164
+msgid "Payment target fund is not existing."
+msgstr "صندوق الدفع المستهدف غير موجود."
+
+#: apps/app_base/mixins.py:166
+msgid "Payment target fund could not be resolved."
+msgstr "تعذر حل صندوق الدفع المستهدف."
+
+#: apps/app_base/mixins.py:169
+msgid "The Payment target entity should be active."
+msgstr "يجب أن يكون كيان الدفع المستهدف نشطًا."
+
+#: apps/app_base/mixins.py:212
+msgid "An issuance transaction already exists for this operation."
+msgstr "توجد بالفعل معاملة إصدار لهذه العملية."
+
+#: apps/app_base/mixins.py:225
+#, python-format
+msgid "Issuance transaction for (%(class)s) (%(pk)s)"
+msgstr "معاملة إصدار لـ (%(class)s) (%(pk)s)"
+
+#: apps/app_base/mixins.py:329 apps/app_base/mixins.py:485
+msgid "The amount should be more than 0"
+msgstr "يجب أن يكون المبلغ أكبر من 0"
+
+#: apps/app_base/mixins.py:333 apps/app_base/mixins.py:489
+#, python-format
+msgid "The paid amount %(amount)s exceeds the remaining: %(remaining)s"
+msgstr "المبلغ المدفوع %(amount)s يتجاوز المتبقي: %(remaining)s"
+
+#: apps/app_base/mixins.py:368
+#, python-format
+msgid ""
+"Insufficient funds: fund balance (%(balance)s) is less than the payment "
+"amount (%(amount)s)."
+msgstr ""
+"أموال غير كافية: رصيد الصندوق (%(balance)s) أقل من مبلغ الدفع (%(amount)s)."
+
+#: apps/app_base/mixins.py:379
+msgid "One-shot operations can only have a single payment transaction."
+msgstr "العمليات ذات الدفعة الواحدة يمكن أن تحتوي على معاملة دفع واحدة فقط."
+
+#: apps/app_base/mixins.py:384
+#, python-format
+msgid ""
+"Payment amount %(amount)s must match the operation amount %(op_amount)s."
+msgstr "يجب أن يتطابق مبلغ الدفع %(amount)s مع مبلغ العملية %(op_amount)s."
+
+#: apps/app_base/mixins.py:399
+#, python-format
+msgid "Payment transaction for (%(class)s) (%(pk)s)"
+msgstr "معاملة دفع لـ (%(class)s) (%(pk)s)"
+
+#: apps/app_base/mixins.py:423
+msgid "This record can't act as a one-shot operation record"
+msgstr "لا يمكن لهذا السجل أن يعمل كسجل عملية دفعة واحدة"
+
+#: apps/app_base/mixins.py:435
+#, python-format
+msgid "One shot payment transaction for (%(class)s) (%(pk)s)"
+msgstr "معاملة دفع دفعة واحدة لـ (%(class)s) (%(pk)s)"
+
+#: apps/app_base/mixins.py:515
+#, python-format
+msgid "RePayment transaction for (%(class)s) (%(pk)s)"
+msgstr "معاملة سداد لـ (%(class)s) (%(pk)s)"
+
+#: apps/app_base/models.py:29
+msgid "created at"
+msgstr "أنشئ في"
+
+#: apps/app_base/models.py:30
+msgid "updated at"
+msgstr "حدث في"
+
+#: apps/app_base/models.py:32
+msgid "deleted at"
+msgstr "حذف في"
+
+#: apps/app_base/models.py:36
+msgid "deletable"
+msgstr "قابل للحذف"
+
+#: apps/app_base/models.py:61
+#, python-format
+msgid ""
+"Permission Denied: Only superusers can modify the 'deletable' status of "
+"%(class_name)s."
+msgstr ""
+"تم رفض الإذن: يمكن للمشرفين فقط تعديل حالة 'قابل للحذف' لـ %(class_name)s."
+
+#: apps/app_base/models.py:121
+msgid "Deletion is strictly blocked for this object"
+msgstr "الحذف محظور تماماً لهذا الكائن"
+
+#: apps/app_base/models.py:140
+msgid "reversal of"
+msgstr "عكس لـ"
+
+#: apps/app_base/models.py:162
+#, python-format
+msgid "This invoice is reversed by %(reversed_by)s."
+msgstr "هذه الفاتورة معكوسة بواسطة %(reversed_by)s."
+
+#: apps/app_base/models.py:168
+msgid "This invoice is a reversal."
+msgstr "هذه الفاتورة عبارة عن عملية عكسية."
+
+#: apps/app_base/models.py:174
+#, python-format
+msgid "You can't reverse this record as it is a reversal of %(reversal_of)s."
+msgstr "لا يمكنك عكس هذا السجل لأنه سجل عكسي لـ %(reversal_of)s."
+
+#: apps/app_base/models.py:181
+msgid "The transaction is already reversed."
+msgstr "المعاملة معكوسة بالفعل."
+
+#: apps/app_base/models.py:242
+msgid ""
+"You can't reverse this object as it has non-reversed transactions. To "
+"continue, you should manually reverse all the related transactions."
+msgstr ""
+"لا يمكنك عكس هذا الكائن لأنه يحتوي على معاملات غير معكوسة. للمتابعة، يجب "
+"عليك عكس جميع المعاملات المرتبطة يدوياً."
+
+#: apps/app_base/models.py:255
+msgid ""
+"You can't reverse this object as it has non-reversed adjustments. To "
+"continue, you should manually reverse all of them."
+msgstr ""
+"لا يمكنك عكس هذا الكائن لأنه يحتوي على تسويات غير معكوسة. للمتابعة، يجب عليك "
+"عكسها جميعاً يدوياً."
+
+#: apps/app_base/models.py:265
+#, python-format
+msgid "reversal of %(model)s (%(pk)s)"
+msgstr "عكس لـ %(model)s (%(pk)s)"
+
+#: apps/app_base/templates/registration/login.html:10
+msgid "Login"
+msgstr "تسجيل الدخول"
+
+#: apps/app_base/templates/registration/login.html:13
+msgid "Your username and password didn't match."
+msgstr "اسم المستخدم أو كلمة المرور غير صحيحة."
+
+#: apps/app_base/templates/registration/login.html:18
+msgid "Username"
+msgstr "اسم المستخدم"
+
+#: apps/app_base/templates/registration/login.html:22
+msgid "Password"
+msgstr "كلمة المرور"
+
+#: apps/app_base/templates/registration/login.html:25
+msgid "Sign In"
+msgstr "تسجيل الدخول"
+
+#: apps/app_entity/models.py:35
+msgid "Phone"
+msgstr "هاتف"
+
+#: apps/app_entity/models.py:36
+msgid "Email"
+msgstr "بريد إلكتروني"
+
+#: apps/app_entity/models.py:37
+msgid "Address"
+msgstr "عنوان"
+
+#: apps/app_entity/models.py:38
+msgid "Website"
+msgstr "موقع إلكتروني"
+
+#: apps/app_entity/models.py:42
+msgid "Work"
+msgstr "عمل"
+
+#: apps/app_entity/models.py:43
+msgid "Personal"
+msgstr "شخصي"
+
+#: apps/app_entity/models.py:44
+msgid "Home"
+msgstr "منزل"
+
+#: apps/app_entity/models.py:51 apps/app_entity/models.py:135
+#: apps/app_entity/models.py:687
+msgid "entity"
+msgstr "كيان"
+
+#: apps/app_entity/models.py:53
+msgid "contact type"
+msgstr "نوع الاتصال"
+
+#: apps/app_entity/models.py:54
+msgid "value"
+msgstr "قيمة"
+
+#: apps/app_entity/models.py:55
+msgid "label"
+msgstr "تسمية"
+
+#: apps/app_entity/models.py:56
+msgid "is primary"
+msgstr "أساسي"
+
+#: apps/app_entity/models.py:59
+#, python-format
+msgid "%(label)s: %(value)s"
+msgstr "%(label)s: %(value)s"
+
+#: apps/app_entity/models.py:65 apps/app_entity/models.py:66
+msgid "contact info"
+msgstr "معلومات الاتصال"
+
+#: apps/app_entity/models.py:71
+msgid "private name"
+msgstr "اسم خاص"
+
+#: apps/app_entity/models.py:73
+msgid "private description"
+msgstr "وصف خاص"
+
+#: apps/app_entity/models.py:99 apps/app_entity/models.py:510
+msgid "person"
+msgstr "شخص"
+
+#: apps/app_entity/models.py:100
+msgid "people"
+msgstr "أشخاص"
+
+#: apps/app_entity/models.py:105 apps/app_inventory/models.py:24
+msgid "name"
+msgstr "اسم"
+
+#: apps/app_entity/models.py:108 apps/app_inventory/models.py:73
+#: apps/app_inventory/models.py:102
+msgid "description"
+msgstr "وصف"
+
+#: apps/app_entity/models.py:110
+msgid "feasibility study"
+msgstr "دراسة جدوى"
+
+#: apps/app_entity/models.py:112
+msgid "the project start date"
+msgstr "تاريخ بدء المشروع"
+
+#: apps/app_entity/models.py:114
+msgid "end date"
+msgstr "تاريخ الانتهاء"
+
+#: apps/app_entity/models.py:123 apps/app_entity/models.py:519
+msgid "project"
+msgstr "مشروع"
+
+#: apps/app_entity/models.py:124
+msgid "projects"
+msgstr "مشاريع"
+
+#: apps/app_entity/models.py:137 apps/app_entity/models.py:460
+#: apps/app_entity/models.py:541
+msgid "active"
+msgstr "نشط"
+
+#: apps/app_entity/models.py:341
+msgid "profit_loss() is only defined for project funds."
+msgstr "حساب الربح والخسارة معرف فقط لصناديق المشاريع."
+
+#: apps/app_entity/models.py:432
+msgid "fund"
+msgstr "صندوق"
+
+#: apps/app_entity/models.py:433
+msgid "funds"
+msgstr "صناديق"
+
+#: apps/app_entity/models.py:437
+#: apps/app_entity/templates/app_entity/entity_list.html:141
+#: apps/app_entity/templates/app_entity/person_form.html:37
+msgid "Worker"
+msgstr "عامل"
+
+#: apps/app_entity/models.py:438
+#: apps/app_entity/templates/app_entity/entity_list.html:138
+#: apps/app_entity/templates/app_entity/person_form.html:31
+msgid "Client"
+msgstr "عميل"
+
+#: apps/app_entity/models.py:439
+#: apps/app_entity/templates/app_entity/entity_list.html:135
+#: apps/app_entity/templates/app_entity/person_form.html:25
+msgid "Vendor"
+msgstr "مورد"
+
+#: apps/app_entity/models.py:440
+#: apps/app_entity/templates/app_entity/entity_list.html:144
+#: apps/app_entity/templates/app_entity/person_form.html:43
+msgid "Shareholder"
+msgstr "مساهم"
+
+#: apps/app_entity/models.py:450
+msgid "parent"
+msgstr "الأب"
+
+#: apps/app_entity/models.py:456
+msgid "target"
+msgstr "المستهدف"
+
+#: apps/app_entity/models.py:458
+msgid "role"
+msgstr "دور"
+
+#: apps/app_entity/models.py:459 apps/app_inventory/models.py:157
+msgid "notes"
+msgstr "ملاحظات"
+
+#: apps/app_entity/models.py:465
+msgid "The parent party should be a project or person entity."
+msgstr "يجب أن يكون الطرف الأب كيان مشروع أو شخص."
+
+#: apps/app_entity/models.py:469
+msgid "The target party should be a project or person entity."
+msgstr "يجب أن يكون الطرف المستهدف كيان مشروع أو شخص."
+
+#: apps/app_entity/models.py:474
+msgid ""
+"The target party (project) can't be assigned as a worker or a shareholder."
+msgstr "لا يمكن تعيين الطرف المستهدف (المشروع) كعامل أو مساهم."
+
+#: apps/app_entity/models.py:480
+#, python-format
+msgid "%(target)s as %(role)s in %(parent)s"
+msgstr "%(target)s كـ %(role)s في %(parent)s"
+
+#: apps/app_entity/models.py:487
+msgid "stakeholder"
+msgstr "صاحب مصلحة"
+
+#: apps/app_entity/models.py:488
+msgid "stakeholders"
+msgstr "أصحاب مصلحة"
+
+#: apps/app_entity/models.py:528
+msgid "user"
+msgstr "مستخدم"
+
+#: apps/app_entity/models.py:531
+msgid "is internal"
+msgstr "داخلي"
+
+#: apps/app_entity/models.py:533
+msgid "is system"
+msgstr "نظام"
+
+#: apps/app_entity/models.py:534
+msgid "is world"
+msgstr "عالم"
+
+#: apps/app_entity/models.py:536
+msgid "is vendor"
+msgstr "مورد"
+
+#: apps/app_entity/models.py:537
+msgid "is client"
+msgstr "عميل"
+
+#: apps/app_entity/models.py:538
+msgid "is worker"
+msgstr "عامل"
+
+#: apps/app_entity/models.py:539
+msgid "is shareholder"
+msgstr "مساهم"
+
+#: apps/app_entity/models.py:549
+#: apps/app_entity/templates/app_entity/entity_list.html:127
+msgid "System"
+msgstr "النظام"
+
+#: apps/app_entity/models.py:551
+#: apps/app_entity/templates/app_entity/entity_list.html:128
+msgid "World"
+msgstr "العالم"
+
+#: apps/app_entity/models.py:591
+#, python-format
+msgid "Entity %(owner)s"
+msgstr "كيان %(owner)s"
+
+#: apps/app_entity/models.py:607
+#, python-format
+msgid ""
+"Entity must have exactly one identity (Person, Project, System, or World). "
+"This entity has %(count)s identities: %(sources)s"
+msgstr ""
+"يجب أن يكون للكيان هوية واحدة فقط (شخص، مشروع، نظام، أو عالم). هذا الكيان له "
+"%(count)s هويات: %(sources)s"
+
+#: apps/app_entity/models.py:613
+msgid "Entity cannot represent multiple identities simultaneously."
+msgstr "لا يمكن للكيان تمثيل هويات متعددة في وقت واحد."
+
+#: apps/app_entity/models.py:632
+msgid "System entity already exists."
+msgstr "كيان النظام موجود بالفعل."
+
+#: apps/app_entity/models.py:637
+msgid "World entity already exists."
+msgstr "كيان العالم موجود بالفعل."
+
+#: apps/app_entity/models.py:688 apps/app_inventory/models.py:46
+msgid "entities"
+msgstr "كيانات"
+
+#: apps/app_entity/templates/app_entity/contact_form.html:12
+msgid "Edit Contact Detail"
+msgstr "تعديل تفاصيل الاتصال"
+
+#: apps/app_entity/templates/app_entity/contact_form.html:12
+msgid "New Contact Detail"
+msgstr "تفاصيل اتصال جديدة"
+
+#: apps/app_entity/templates/app_entity/contact_form.html:14
+msgid "For:"
+msgstr "لـ:"
+
+#: apps/app_entity/templates/app_entity/contact_form.html:26
+msgid "Contact Type"
+msgstr "نوع الاتصال"
+
+#: apps/app_entity/templates/app_entity/contact_form.html:29
+msgid "Type cannot be changed after creation."
+msgstr "لا يمكن تغيير النوع بعد الإنشاء."
+
+#: apps/app_entity/templates/app_entity/contact_form.html:45
+msgid "Label"
+msgstr "التسمية"
+
+#: apps/app_entity/templates/app_entity/contact_form.html:56
+msgid "Value"
+msgstr "القيمة"
+
+#: apps/app_entity/templates/app_entity/contact_form.html:58
+msgid "Enter detail..."
+msgstr "أدخل التفاصيل..."
+
+#: apps/app_entity/templates/app_entity/contact_form.html:67
+msgid "Set as Primary Contact"
+msgstr "تعيين كجهة اتصال أساسية"
+
+#: apps/app_entity/templates/app_entity/contact_form.html:69
+msgid "Primary contacts are prioritized in headers."
+msgstr "جهات الاتصال الأساسية تُعطى الأولوية في الترويسة."
+
+#: apps/app_entity/templates/app_entity/contact_form.html:74
+msgid "Update Contact"
+msgstr "تحديث الاتصال"
+
+#: apps/app_entity/templates/app_entity/contact_form.html:74
+msgid "Save Contact"
+msgstr "حفظ الاتصال"
+
+#: apps/app_entity/templates/app_entity/contact_form.html:76
+#: apps/app_entity/templates/app_entity/project_form.html:92
+#: apps/app_entity/templates/app_entity/stakeholder_form.html:63
+#: apps/app_inventory/templates/app_inventory/product_template_form.html:60
+#: apps/app_inventory/templates/app_inventory/product_template_toggle_form.html:59
+#: apps/app_operation/templates/app_operation/category/category_bulk_form.html:57
+#: apps/app_operation/templates/app_operation/generic_form.html:34
+msgid "Cancel"
+msgstr "إلغاء"
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:4
+msgid "Entity:"
+msgstr "الكيان:"
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:10
+#: apps/app_operation/templates/app_operation/category/category_detail.html:9
+#: apps/app_operation/templates/app_operation/category/category_edit_form.html:8
+#: apps/app_operation/templates/app_operation/category/category_form.html:18
+msgid "Entities"
+msgstr "الكيانات"
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:23
+#: apps/app_entity/templates/app_entity/entity_detail.html:32
+msgid "This project has no"
+msgstr "هذا المشروع لا يحتوي على"
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:23
+msgid "Product Templates"
+msgstr "نماذج المنتجات"
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:23
+msgid "configured."
+msgstr "مُضبوطة."
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:24
+msgid "Set up product templates."
+msgstr "قم بإعداد نماذج المنتجات."
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:32
+msgid "Financial Categories"
+msgstr "الفئات المالية"
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:32
+msgid "defined."
+msgstr "محددة."
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:33
+msgid "Add a category now."
+msgstr "أضف فئة الآن."
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:48
+#: apps/app_entity/templates/app_entity/entity_detail.html:88
+#: apps/app_entity/templates/app_entity/person_form.html:65
+#: apps/app_entity/templates/app_entity/project_form.html:71
+#: apps/app_inventory/models.py:142
+#: apps/app_operation/templates/app_operation/category/category_detail.html:76
+#: apps/app_operation/templates/app_operation/category/category_edit_form.html:67
+#: apps/app_operation/templates/app_operation/operation_list.html:137
+msgid "Active"
+msgstr "نشط"
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:50
+#: apps/app_entity/templates/app_entity/entity_detail.html:90
+#: apps/app_operation/templates/app_operation/category/category_detail.html:78
+msgid "Inactive"
+msgstr "غير نشط"
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:53
+#: apps/app_entity/templates/app_entity/entity_detail.html:85
+#: apps/app_entity/templates/app_entity/entity_list.html:99
+msgid "Internal"
+msgstr "داخلي"
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:55
+msgid "External"
+msgstr "خارجي"
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:62
+#: apps/app_operation/templates/app_operation/snippets/address_bar.html:8
+#: apps/app_operation/templates/app_operation/snippets/address_bar.html:11
+msgid "Operations"
+msgstr "العمليات"
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:95
+msgid "Current Fund Balance"
+msgstr "رصيد الصندوق الحالي"
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:98
+msgid "Fund is locked for payments"
+msgstr "الصندوق مغلق للمدفوعات"
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:106
+msgid "Contact Information"
+msgstr "معلومات الاتصال"
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:107
+msgid "+ Add New"
+msgstr "+ إضافة جديد"
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:128
+msgid "PRIMARY"
+msgstr "أساسي"
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:148
+msgid "Stakeholders"
+msgstr "أصحاب المصلحة"
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:153
+msgid "Memberships"
+msgstr "العضويات"
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:157
+msgid "Ledger History"
+msgstr "سجل المعاملات"
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:167
+msgid "Project Team & Stakeholders"
+msgstr "فريق المشروع وأصحاب المصلحة"
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:170
+msgid "Add Stakeholder"
+msgstr "إضافة صاحب مصلحة"
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:173
+msgid "Add Worker"
+msgstr "إضافة عامل"
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:176
+msgid "Add Vendor"
+msgstr "إضافة مورد"
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:179
+msgid "Add Client"
+msgstr "إضافة عميل"
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:182
+msgid "Add Shareholder"
+msgstr "إضافة مساهم"
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:206
+msgid "No stakeholders assigned to this project yet."
+msgstr "لم يتم تعيين أصحاب مصلحة لهذا المشروع بعد."
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:206
+#: apps/app_entity/templates/app_entity/entity_detail.html:270
+msgid "Add one now."
+msgstr "أضف واحداً الآن."
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:229
+msgid "Joined"
+msgstr "انضم"
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:234
+msgid "This person is not currently assigned to any projects."
+msgstr "هذا الشخص غير مُعيَّن لأي مشروع حالياً."
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:240
+msgid "Transaction history integration coming soon..."
+msgstr "قريباً: تكامل سجل المعاملات..."
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:249
+msgid "Operational Categories (Sub-Ledgers)"
+msgstr "الفئات التشغيلية (سجلات فرعية)"
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:250
+msgid "+ Add Category"
+msgstr "+ إضافة فئة"
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:251
+msgid "++ Bulk Create"
+msgstr "++ إنشاء مجموعة"
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:262
+msgid "Limit:"
+msgstr "الحد:"
+
+#: apps/app_entity/templates/app_entity/entity_detail.html:270
+msgid "No expense categories defined for this entity."
+msgstr "لا توجد فئات مصروفات محددة لهذا الكيان."
+
+#: apps/app_entity/templates/app_entity/entity_list.html:4
+msgid "Entity Registry"
+msgstr "سجل الكيانات"
+
+#: apps/app_entity/templates/app_entity/entity_list.html:9
+msgid "Financial Entities"
+msgstr "الكيانات المالية"
+
+#: apps/app_entity/templates/app_entity/entity_list.html:10
+msgid "Manage all Persons, Projects, and Categories in one ledger."
+msgstr "إدارة جميع الأشخاص والمشاريع والفئات في دفتر واحد."
+
+#: apps/app_entity/templates/app_entity/entity_list.html:13
+msgid "Create New"
+msgstr "إنشاء جديد"
+
+#: apps/app_entity/templates/app_entity/entity_list.html:16
+#: apps/app_entity/templates/app_entity/entity_list.html:125
+msgid "Person"
+msgstr "شخص"
+
+#: apps/app_entity/templates/app_entity/entity_list.html:19
+#: apps/app_entity/templates/app_entity/entity_list.html:126
+msgid "Project"
+msgstr "مشروع"
+
+#: apps/app_entity/templates/app_entity/entity_list.html:35
+msgid "Search entities..."
+msgstr "ابحث عن الكيانات..."
+
+#: apps/app_entity/templates/app_entity/entity_list.html:43
+msgid "Advanced Filters"
+msgstr "فلاتر متقدمة"
+
+#: apps/app_entity/templates/app_entity/entity_list.html:49
+msgid "Entity Type"
+msgstr "نوع الكيان"
+
+#: apps/app_entity/templates/app_entity/entity_list.html:51
+msgid "All Types"
+msgstr "جميع الأنواع"
+
+#: apps/app_entity/templates/app_entity/entity_list.html:52
+msgid "People"
+msgstr "أشخاص"
+
+#: apps/app_entity/templates/app_entity/entity_list.html:53
+msgid "Projects"
+msgstr "مشاريع"
+
+#: apps/app_entity/templates/app_entity/entity_list.html:54
+msgid "System & World"
+msgstr "النظام والعالم"
+
+#: apps/app_entity/templates/app_entity/entity_list.html:59
+msgid "Deletion Status"
+msgstr "حالة الحذف"
+
+#: apps/app_entity/templates/app_entity/entity_list.html:61
+msgid "All (Del & Undel)"
+msgstr "الكل (محذوف وغير محذوف)"
+
+#: apps/app_entity/templates/app_entity/entity_list.html:62
+msgid "Deleted Only"
+msgstr "المحذوفة فقط"
+
+#: apps/app_entity/templates/app_entity/entity_list.html:63
+msgid "Undeleted Only"
+msgstr "غير المحذوفة فقط"
+
+#: apps/app_entity/templates/app_entity/entity_list.html:68
+msgid "Activation Status"
+msgstr "حالة التفعيل"
+
+#: apps/app_entity/templates/app_entity/entity_list.html:70
+msgid "All (Act & Inact)"
+msgstr "الكل (نشط وغير نشط)"
+
+#: apps/app_entity/templates/app_entity/entity_list.html:71
+msgid "Active Only"
+msgstr "النشطة فقط"
+
+#: apps/app_entity/templates/app_entity/entity_list.html:72
+msgid "Inactive Only"
+msgstr "غير النشطة فقط"
+
+#: apps/app_entity/templates/app_entity/entity_list.html:77
+msgid "Apply Filters"
+msgstr "تطبيق الفلاتر"
+
+#: apps/app_entity/templates/app_entity/entity_list.html:78
+msgid "Reset to Defaults"
+msgstr "إعادة الضبط"
+
+#: apps/app_entity/templates/app_entity/entity_list.html:95
+msgid "Entity Name"
+msgstr "اسم الكيان"
+
+#: apps/app_entity/templates/app_entity/entity_list.html:96
+msgid "Identity Type"
+msgstr "نوع الهوية"
+
+#: apps/app_entity/templates/app_entity/entity_list.html:97
+msgid "Roles"
+msgstr "الأدوار"
+
+#: apps/app_entity/templates/app_entity/entity_list.html:98
+msgid "Fund Status"
+msgstr "حالة الصندوق"
+
+#: apps/app_entity/templates/app_entity/entity_list.html:100
+#: apps/app_operation/templates/app_operation/operation_list.html:96
+msgid "Actions"
+msgstr "إجراءات"
+
+#: apps/app_entity/templates/app_entity/entity_list.html:147
+msgid "No Roles"
+msgstr "لا أدوار"
+
+#: apps/app_entity/templates/app_entity/entity_list.html:157
+msgid "Ready"
+msgstr "جاهز"
+
+#: apps/app_entity/templates/app_entity/entity_list.html:159
+msgid "View Only"
+msgstr "عرض فقط"
+
+#: apps/app_entity/templates/app_entity/entity_list.html:162
+msgid "Missing Fund"
+msgstr "صندوق مفقود"
+
+#: apps/app_entity/templates/app_entity/entity_list.html:187
+msgid "No entities found. Create your first one to start ledgering."
+msgstr "لا توجد كيانات. أنشئ أولك لبدء تسجيل الدفاتر."
+
+#: apps/app_entity/templates/app_entity/person_form.html:9
+msgid "Manage Entity:"
+msgstr "إدارة الكيان:"
+
+#: apps/app_entity/templates/app_entity/person_form.html:14
+msgid "Private Name"
+msgstr "الاسم الخاص"
+
+#: apps/app_entity/templates/app_entity/person_form.html:20
+msgid "Business Roles"
+msgstr "الأدوار التجارية"
+
+#: apps/app_entity/templates/app_entity/person_form.html:48
+msgid "Operations & Permissions"
+msgstr "العمليات والصلاحيات"
+
+#: apps/app_entity/templates/app_entity/person_form.html:53
+msgid "Internal Entity"
+msgstr "كيان داخلي"
+
+#: apps/app_entity/templates/app_entity/person_form.html:59
+msgid "Payment Enabled"
+msgstr "الدفع مفعّل"
+
+#: apps/app_entity/templates/app_entity/person_form.html:70
+msgid "System Constants (Read-Only)"
+msgstr "ثوابت النظام (للقراءة فقط)"
+
+#: apps/app_entity/templates/app_entity/person_form.html:74
+msgid "System Identity"
+msgstr "هوية النظام"
+
+#: apps/app_entity/templates/app_entity/person_form.html:78
+msgid "World Identity"
+msgstr "هوية العالم"
+
+#: apps/app_entity/templates/app_entity/person_form.html:84
+#: apps/app_operation/templates/app_operation/generic_edit_form.html:40
+msgid "Discard Changes"
+msgstr "تجاهل التغييرات"
+
+#: apps/app_entity/templates/app_entity/person_form.html:86
+msgid "Save All Changes"
+msgstr "حفظ جميع التغييرات"
+
+#: apps/app_entity/templates/app_entity/project_form.html:8
+msgid "Edit Project:"
+msgstr "تعديل المشروع:"
+
+#: apps/app_entity/templates/app_entity/project_form.html:8
+msgid "Initialize New Project"
+msgstr "تهيئة مشروع جديد"
+
+#: apps/app_entity/templates/app_entity/project_form.html:11
+msgid "Entity #"
+msgstr "كيان #"
+
+#: apps/app_entity/templates/app_entity/project_form.html:19
+msgid "Project Identity"
+msgstr "هوية المشروع"
+
+#: apps/app_entity/templates/app_entity/project_form.html:22
+msgid "Project Name"
+msgstr "اسم المشروع"
+
+#: apps/app_entity/templates/app_entity/project_form.html:27
+msgid "Description / Scope"
+msgstr "الوصف / النطاق"
+
+#: apps/app_entity/templates/app_entity/project_form.html:34
+msgid "Entity Configuration"
+msgstr "إعدادات الكيان"
+
+#: apps/app_entity/templates/app_entity/project_form.html:39
+msgid "Act as Client (Can receive invoices)"
+msgstr "يعمل كعميل (يمكنه استلام الفواتير)"
+
+#: apps/app_entity/templates/app_entity/project_form.html:45
+msgid "Act as Vendor (Can charge expenses)"
+msgstr "يعمل كمورد (يمكنه تحميل المصروفات)"
+
+#: apps/app_entity/templates/app_entity/project_form.html:55
+msgid "Internal Project"
+msgstr "مشروع داخلي"
+
+#: apps/app_entity/templates/app_entity/project_form.html:56
+msgid "Owned by our organization."
+msgstr "مملوك لمنظمتنا."
+
+#: apps/app_entity/templates/app_entity/project_form.html:63
+msgid "Enable Payments"
+msgstr "تفعيل المدفوعات"
+
+#: apps/app_entity/templates/app_entity/project_form.html:64
+msgid "Allow fund transfers from this project."
+msgstr "السماح بتحويل الأموال من هذا المشروع."
+
+#: apps/app_entity/templates/app_entity/project_form.html:72
+msgid "Current operational status."
+msgstr "الحالة التشغيلية الحالية."
+
+#: apps/app_entity/templates/app_entity/project_form.html:81
+msgid "System Entity"
+msgstr "كيان النظام"
+
+#: apps/app_entity/templates/app_entity/project_form.html:85
+msgid "World Entity"
+msgstr "كيان العالم"
+
+#: apps/app_entity/templates/app_entity/project_form.html:94
+#: apps/app_entity/templates/app_entity/stakeholder_form.html:60
+#: apps/app_operation/templates/app_operation/category/category_edit_form.html:83
+msgid "Save Changes"
+msgstr "حفظ التغييرات"
+
+#: apps/app_entity/templates/app_entity/project_form.html:94
+msgid "Create Project"
+msgstr "إنشاء مشروع"
+
+#: apps/app_entity/templates/app_entity/stakeholder_form.html:10
+msgid "Modify Assignment"
+msgstr "تعديل التعيين"
+
+#: apps/app_entity/templates/app_entity/stakeholder_form.html:10
+msgid "Add"
+msgstr "إضافة"
+
+#: apps/app_entity/templates/app_entity/stakeholder_form.html:12
+msgid "Parent:"
+msgstr "الأب:"
+
+#: apps/app_entity/templates/app_entity/stakeholder_form.html:22
+msgid "Target Entity"
+msgstr "الكيان المستهدف"
+
+#: apps/app_entity/templates/app_entity/stakeholder_form.html:26
+msgid "Assigned Role"
+msgstr "الدور المُعيَّن"
+
+#: apps/app_entity/templates/app_entity/stakeholder_form.html:31
+msgid "Identity and Role are immutable."
+msgstr "الهوية والدور غير قابلين للتغيير."
+
+#: apps/app_entity/templates/app_entity/stakeholder_form.html:36
+msgid "Select Eligible"
+msgstr "اختر المؤهل"
+
+#: apps/app_entity/templates/app_entity/stakeholder_form.html:38
+msgid "Choose from active entities..."
+msgstr "اختر من الكيانات النشطة..."
+
+#: apps/app_entity/templates/app_entity/stakeholder_form.html:47
+msgid "Role Notes / Scope"
+msgstr "ملاحظات الدور / النطاق"
+
+#: apps/app_entity/templates/app_entity/stakeholder_form.html:48
+msgid "Describe the specific involvement..."
+msgstr "صف طبيعة المشاركة المحددة..."
+
+#: apps/app_entity/templates/app_entity/stakeholder_form.html:54
+msgid "Active Stakeholder"
+msgstr "صاحب مصلحة نشط"
+
+#: apps/app_entity/templates/app_entity/stakeholder_form.html:55
+msgid "Inactive stakeholders are hidden from current project workflows."
+msgstr "أصحاب المصلحة غير النشطين مخفيون من سير عمل المشروع الحالي."
+
+#: apps/app_entity/templates/app_entity/stakeholder_form.html:60
+msgid "Confirm Assignment"
+msgstr "تأكيد التعيين"
+
+#: apps/app_entity/views/add_contact_info.py:34
+#, python-format
+msgid "Success: Added %(label)s %(contact_type)s for %(entity)s"
+msgstr "تمت إضافة %(label)s %(contact_type)s لـ %(entity)s بنجاح"
+
+#: apps/app_entity/views/add_contact_info.py:43
+#, python-format
+msgid "Error: %(error)s"
+msgstr "خطأ: %(error)s"
+
+#: apps/app_entity/views/project_create.py:46
+#, python-format
+msgid "Project '%(name)s' initialized with Fund ID #%(fund_id)s"
+msgstr "تم إنشاء المشروع '%(name)s' برقم صندوق #%(fund_id)s"
+
+#: apps/app_entity/views/project_create.py:54
+#, python-format
+msgid "Failed to initialize project: %(error)s"
+msgstr "فشل في تهيئة المشروع: %(error)s"
+
+#: apps/app_inventory/models.py:14
+msgid "Individual (Tag ID)"
+msgstr "فردي (رقم العلامة)"
+
+#: apps/app_inventory/models.py:15
+msgid "Batch/Group"
+msgstr "دفعة/مجموعة"
+
+#: apps/app_inventory/models.py:16
+msgid "Quantity (Weight/Volume)"
+msgstr "كمية (وزن/حجم)"
+
+#: apps/app_inventory/models.py:19
+msgid "Livestock Asset"
+msgstr "أصل حيواني"
+
+#: apps/app_inventory/models.py:20
+msgid "Consumable"
+msgstr "مستهلكات"
+
+#: apps/app_inventory/models.py:21
+msgid "Biological"
+msgstr "بيولوجي"
+
+#: apps/app_inventory/models.py:22
+msgid "Production Output"
+msgstr "مخرجات الإنتاج"
+
+#: apps/app_inventory/models.py:25
+msgid "name (Arabic)"
+msgstr "الاسم (بالعربية)"
+
+#: apps/app_inventory/models.py:27
+msgid "nature"
+msgstr "طبيعة"
+
+#: apps/app_inventory/models.py:30
+msgid "default unit"
+msgstr "الوحدة الافتراضية"
+
+#: apps/app_inventory/models.py:33
+msgid "requires individual tag"
+msgstr "يتطلب علامة فردية"
+
+#: apps/app_inventory/models.py:37
+msgid "tracking mode"
+msgstr "وضع التتبع"
+
+#: apps/app_inventory/models.py:54 apps/app_inventory/models.py:147
+msgid "product template"
+msgstr "نموذج منتج"
+
+#: apps/app_inventory/models.py:55
+msgid "product templates"
+msgstr "نماذج منتجات"
+
+#: apps/app_inventory/models.py:65 apps/app_inventory/models.py:134
+msgid "invoice"
+msgstr "فاتورة"
+
+#: apps/app_inventory/models.py:71 apps/app_inventory/models.py:198
+msgid "product"
+msgstr "منتج"
+
+#: apps/app_inventory/models.py:75 apps/app_inventory/models.py:155
+msgid "quantity"
+msgstr "كمية"
+
+#: apps/app_inventory/models.py:77 apps/app_inventory/models.py:156
+msgid "unit price"
+msgstr "سعر الوحدة"
+
+#: apps/app_inventory/models.py:85
+msgid "Unit price cannot be negative"
+msgstr "سعر الوحدة لا يمكن أن يكون سالباً"
+
+#: apps/app_inventory/models.py:88
+msgid "invoice item"
+msgstr "عنصر فاتورة"
+
+#: apps/app_inventory/models.py:89 apps/app_inventory/models.py:150
+msgid "invoice items"
+msgstr "عناصر فاتورة"
+
+#: apps/app_inventory/models.py:128
+#, python-format
+msgid "This operation type %(op_type)s is not allowed to have invoice"
+msgstr "نوع العملية %(op_type)s غير مسموح له بامتلاك فاتورة"
+
+#: apps/app_inventory/models.py:135
+msgid "invoices"
+msgstr "فواتير"
+
+#: apps/app_inventory/models.py:143
+msgid "Sold"
+msgstr "مباع"
+
+#: apps/app_inventory/models.py:144
+msgid "Dead"
+msgstr "نافق"
+
+#: apps/app_inventory/models.py:153
+msgid "unique id"
+msgstr "معرف فريد"
+
+#: apps/app_inventory/models.py:199
+msgid "products"
+msgstr "منتجات"
+
+#: apps/app_inventory/templates/app_inventory/invoice_detail.html:8
+#: apps/app_inventory/templates/app_inventory/product_detail.html:76
+msgid "Invoice"
+msgstr "فاتورة"
+
+#: apps/app_inventory/templates/app_inventory/invoice_detail.html:10
+msgid "Back to Operation"
+msgstr "العودة إلى العملية"
+
+#: apps/app_inventory/templates/app_inventory/invoice_detail.html:19
+#: apps/app_inventory/templates/app_inventory/product_detail.html:21
+msgid "Details"
+msgstr "تفاصيل"
+
+#: apps/app_inventory/templates/app_inventory/invoice_detail.html:22
+#: apps/app_operation/templates/app_operation/add_payment_form.html:11
+msgid "Operation"
+msgstr "عملية"
+
+#: apps/app_inventory/templates/app_inventory/invoice_detail.html:29
+#: apps/app_inventory/templates/app_inventory/product_detail.html:77
+msgid "Operation type"
+msgstr "نوع العملية"
+
+#: apps/app_inventory/templates/app_inventory/invoice_detail.html:32
+#: apps/app_inventory/templates/app_inventory/product_detail.html:78
+#: apps/app_operation/templates/app_operation/add_payment_form.html:44
+#: apps/app_operation/templates/app_operation/add_repayment_form.html:33
+#: apps/app_operation/templates/app_operation/operation_list.html:90
+msgid "Date"
+msgstr "تاريخ"
+
+#: apps/app_inventory/templates/app_inventory/invoice_detail.html:36
+#: apps/app_inventory/templates/app_inventory/product_detail.html:59
+msgid "Notes"
+msgstr "ملاحظات"
+
+#: apps/app_inventory/templates/app_inventory/invoice_detail.html:47
+#: apps/app_inventory/templates/app_inventory/product_detail.html:70
+#: apps/app_operation/templates/app_operation/operation_detail.html:21
+msgid "Invoice Items"
+msgstr "عناصر الفاتورة"
+
+#: apps/app_inventory/templates/app_inventory/invoice_detail.html:53
+#: apps/app_inventory/templates/app_inventory/product_detail.html:4
+#: apps/app_inventory/templates/app_inventory/product_detail.html:10
+#: apps/app_operation/templates/app_operation/operation_detail.html:27
+msgid "Product"
+msgstr "منتج"
+
+#: apps/app_inventory/templates/app_inventory/invoice_detail.html:54
+#: apps/app_operation/templates/app_operation/operation_detail.html:28
+msgid "Description"
+msgstr "وصف"
+
+#: apps/app_inventory/templates/app_inventory/invoice_detail.html:55
+#: apps/app_inventory/templates/app_inventory/product_detail.html:79
+#: apps/app_inventory/templates/app_inventory/stock_detail.html:23
+#: apps/app_operation/templates/app_operation/operation_detail.html:29
+msgid "Qty"
+msgstr "الكمية"
+
+#: apps/app_inventory/templates/app_inventory/invoice_detail.html:56
+#: apps/app_inventory/templates/app_inventory/product_detail.html:80
+#: apps/app_inventory/templates/app_inventory/stock_detail.html:24
+#: apps/app_operation/templates/app_operation/operation_detail.html:30
+msgid "Unit Price"
+msgstr "سعر الوحدة"
+
+#: apps/app_inventory/templates/app_inventory/invoice_detail.html:57
+#: apps/app_inventory/templates/app_inventory/invoice_detail.html:77
+#: apps/app_inventory/templates/app_inventory/product_detail.html:81
+#: apps/app_operation/templates/app_operation/operation_detail.html:31
+#: apps/app_operation/templates/app_operation/operation_detail.html:49
+msgid "Total"
+msgstr "الإجمالي"
+
+#: apps/app_inventory/templates/app_inventory/invoice_detail.html:71
+#: apps/app_operation/templates/app_operation/operation_detail.html:44
+msgid "No items."
+msgstr "لا توجد عناصر."
+
+#: apps/app_inventory/templates/app_inventory/product_detail.html:12
+msgid "Back to Stock"
+msgstr "العودة إلى المخزون"
+
+#: apps/app_inventory/templates/app_inventory/product_detail.html:24
+#: apps/app_inventory/templates/app_inventory/stock_detail.html:20
+msgid "Template"
+msgstr "النموذج"
+
+#: apps/app_inventory/templates/app_inventory/product_detail.html:27
+#: apps/app_inventory/templates/app_inventory/product_template_form.html:21
+#: apps/app_inventory/templates/app_inventory/stock_detail.html:21
+msgid "Nature"
+msgstr "طبيعة"
+
+#: apps/app_inventory/templates/app_inventory/product_detail.html:30
+msgid "Tracking mode"
+msgstr "وضع التتبع"
+
+#: apps/app_inventory/templates/app_inventory/product_detail.html:33
+#: apps/app_inventory/templates/app_inventory/stock_detail.html:22
+msgid "Tag / ID"
+msgstr "العلامة / المعرف"
+
+#: apps/app_inventory/templates/app_inventory/product_detail.html:36
+msgid "Quantity"
+msgstr "كمية"
+
+#: apps/app_inventory/templates/app_inventory/product_detail.html:39
+msgid "Unit price"
+msgstr "سعر الوحدة"
+
+#: apps/app_inventory/templates/app_inventory/product_detail.html:42
+msgid "Current value"
+msgstr "القيمة الحالية"
+
+#: apps/app_inventory/templates/app_inventory/product_detail.html:45
+#: apps/app_inventory/templates/app_inventory/stock_detail.html:26
+#: apps/app_operation/templates/app_operation/operation_list.html:95
+#: apps/app_operation/templates/app_operation/snippets/transactions_table.html:10
+msgid "Status"
+msgstr "الحالة"
+
+#: apps/app_inventory/templates/app_inventory/product_detail.html:98
+msgid "No invoice items."
+msgstr "لا توجد عناصر فاتورة."
+
+#: apps/app_inventory/templates/app_inventory/product_template_form.html:7
+#: apps/app_inventory/templates/app_inventory/product_template_form.html:61
+msgid "Create Product Template"
+msgstr "إنشاء نموذج منتج"
+
+#: apps/app_inventory/templates/app_inventory/product_template_form.html:14
+msgid "Product Definition"
+msgstr "تعريف المنتج"
+
+#: apps/app_inventory/templates/app_inventory/product_template_form.html:17
+msgid "Template Name"
+msgstr "اسم النموذج"
+
+#: apps/app_inventory/templates/app_inventory/product_template_form.html:18
+msgid "e.g. Dairy Cattle, Starter Feed"
+msgstr "مثال: أبقار حلوب، علف مبدئي"
+
+#: apps/app_inventory/templates/app_inventory/product_template_form.html:24
+msgid "Select Nature"
+msgstr "اختر الطبيعة"
+
+#: apps/app_inventory/templates/app_inventory/product_template_form.html:32
+msgid "Tracking Mode"
+msgstr "وضع التتبع"
+
+#: apps/app_inventory/templates/app_inventory/product_template_form.html:34
+msgid "Select Mode"
+msgstr "اختر الوضع"
+
+#: apps/app_inventory/templates/app_inventory/product_template_form.html:41
+msgid "Default Unit"
+msgstr "الوحدة الافتراضية"
+
+#: apps/app_inventory/templates/app_inventory/product_template_form.html:42
+msgid "e.g. Head, Kg, Liter"
+msgstr "مثال: رأس، كيلو، لتر"
+
+#: apps/app_inventory/templates/app_inventory/product_template_form.html:48
+msgid "Configuration"
+msgstr "الإعدادات"
+
+#: apps/app_inventory/templates/app_inventory/product_template_form.html:53
+msgid "Requires Individual Tagging"
+msgstr "يتطلب علامة فردية"
+
+#: apps/app_inventory/templates/app_inventory/product_template_form.html:54
+msgid ""
+"If enabled, every item in this product template must have a unique "
+"identifier (e.g., ear tag)."
+msgstr ""
+"إذا تم التفعيل، يجب أن يحمل كل عنصر في هذا النموذج معرفاً فريداً (مثال: رقم "
+"الأذن)."
+
+#: apps/app_inventory/templates/app_inventory/product_template_toggle_form.html:8
+msgid "Manage Product Templates"
+msgstr "إدارة نماذج المنتجات"
+
+#: apps/app_inventory/templates/app_inventory/product_template_toggle_form.html:18
+msgid ""
+"Select the product template that this project is authorized to manage or "
+"trade."
+msgstr "اختر نموذج المنتج الذي يحق لهذا المشروع إدارته أو تداوله."
+
+#: apps/app_inventory/templates/app_inventory/product_template_toggle_form.html:61
+msgid "Save Assignments"
+msgstr "حفظ التعيينات"
+
+#: apps/app_inventory/templates/app_inventory/stock_detail.html:4
+#: apps/app_inventory/templates/app_inventory/stock_detail.html:10
+msgid "Stock"
+msgstr "المخزون"
+
+#: apps/app_inventory/templates/app_inventory/stock_detail.html:14
+msgid "Products"
+msgstr "منتجات"
+
+#: apps/app_inventory/templates/app_inventory/stock_detail.html:25
+msgid "Current Value"
+msgstr "القيمة الحالية"
+
+#: apps/app_inventory/templates/app_inventory/stock_detail.html:52
+#: apps/app_operation/templates/app_operation/operation_list.html:142
+msgid "View"
+msgstr "عرض"
+
+#: apps/app_inventory/templates/app_inventory/stock_detail.html:58
+msgid "No products."
+msgstr "لا توجد منتجات."
+
+#: apps/app_inventory/views.py:63
+#, python-format
+msgid "Products updated successfully for %(ent)s."
+msgstr "تم تحديث المنتجات بنجاح لـ %(ent)s."
+
+#: apps/app_inventory/views.py:70 apps/app_inventory/views.py:120
+#: apps/app_operation/views/create.py:182
+#, python-format
+msgid "Transaction Error: %(error)s"
+msgstr "خطأ في المعاملة: %(error)s"
+
+#: apps/app_inventory/views.py:113
+#, python-format
+msgid "Product template '%(name)s' created successfully."
+msgstr "تم إنشاء نموذج المنتج '%(name)s' بنجاح."
+
+#: apps/app_operation/models/managers.py:20
+msgid "Bulk delete is blocked."
+msgstr "الحذف الجماعي محظور."
+
+#: apps/app_operation/templates/app_operation/add_payment_form.html:7
+msgid "Record Payment for"
+msgstr "تسجيل دفعة لـ"
+
+#: apps/app_operation/templates/app_operation/add_payment_form.html:19
+msgid "Maximum Allowed"
+msgstr "الحد الأقصى المسموح"
+
+#: apps/app_operation/templates/app_operation/add_payment_form.html:28
+msgid "Pay Completely"
+msgstr "الدفع الكامل"
+
+#: apps/app_operation/templates/app_operation/add_payment_form.html:32
+msgid "Payment Amount"
+msgstr "مبلغ الدفعة"
+
+#: apps/app_operation/templates/app_operation/add_payment_form.html:40
+#: apps/app_operation/templates/app_operation/add_repayment_form.html:29
+msgid "Note"
+msgstr "ملاحظة"
+
+#: apps/app_operation/templates/app_operation/add_payment_form.html:47
+msgid "Post Payment"
+msgstr "ترحيل الدفعة"
+
+#: apps/app_operation/templates/app_operation/add_repayment_form.html:7
+msgid "Repay"
+msgstr "سداد"
+
+#: apps/app_operation/templates/app_operation/add_repayment_form.html:11
+msgid "Creditor"
+msgstr "الدائن"
+
+#: apps/app_operation/templates/app_operation/add_repayment_form.html:14
+msgid "Remaining Balance"
+msgstr "الرصيد المتبقي"
+
+#: apps/app_operation/templates/app_operation/add_repayment_form.html:21
+msgid "Repayment Amount"
+msgstr "مبلغ السداد"
+
+#: apps/app_operation/templates/app_operation/add_repayment_form.html:36
+msgid "Post Repayment"
+msgstr "ترحيل السداد"
+
+#: apps/app_operation/templates/app_operation/category/category_bulk_form.html:9
+msgid "Bulk Add Categories"
+msgstr "إضافة فئات بالجملة"
+
+#: apps/app_operation/templates/app_operation/category/category_bulk_form.html:20
+msgid "Suggested Livestock Categories"
+msgstr "الفئات المقترحة للمواشي"
+
+#: apps/app_operation/templates/app_operation/category/category_bulk_form.html:21
+msgid "Showing only items not yet added to"
+msgstr "عرض العناصر غير المضافة بعد إلى"
+
+#: apps/app_operation/templates/app_operation/category/category_bulk_form.html:25
+msgid "Select All"
+msgstr "تحديد الكل"
+
+#: apps/app_operation/templates/app_operation/category/category_bulk_form.html:47
+msgid "All suggested categories have already been added!"
+msgstr "جميع الفئات المقترحة تمت إضافتها بالفعل!"
+
+#: apps/app_operation/templates/app_operation/category/category_bulk_form.html:48
+msgid "Return to Project"
+msgstr "العودة إلى المشروع"
+
+#: apps/app_operation/templates/app_operation/category/category_bulk_form.html:55
+msgid "0 items selected"
+msgstr "0 عناصر محددة"
+
+#: apps/app_operation/templates/app_operation/category/category_bulk_form.html:59
+msgid "Add Selected Categories"
+msgstr "إضافة الفئات المحددة"
+
+#: apps/app_operation/templates/app_operation/category/category_detail.html:26
+#: apps/app_operation/templates/app_operation/operation_list.html:144
+msgid "Edit"
+msgstr "تعديل"
+
+#: apps/app_operation/templates/app_operation/category/category_detail.html:36
+msgid "BUDGET USAGE"
+msgstr "استخدام الميزانية"
+
+#: apps/app_operation/templates/app_operation/category/category_detail.html:49
+msgid "Spent"
+msgstr "المُنفَق"
+
+#: apps/app_operation/templates/app_operation/category/category_detail.html:55
+msgid "Limit"
+msgstr "الحد"
+
+#: apps/app_operation/templates/app_operation/category/category_detail.html:81
+msgid "Status for new transactions"
+msgstr "الحالة للمعاملات الجديدة"
+
+#: apps/app_operation/templates/app_operation/category/category_edit_form.html:10
+msgid "Edit Category"
+msgstr "تعديل الفئة"
+
+#: apps/app_operation/templates/app_operation/category/category_edit_form.html:20
+msgid "Edit Financial Category"
+msgstr "تعديل الفئة المالية"
+
+#: apps/app_operation/templates/app_operation/category/category_edit_form.html:31
+#: apps/app_operation/templates/app_operation/category/category_form.html:41
+msgid "Target Project"
+msgstr "المشروع المستهدف"
+
+#: apps/app_operation/templates/app_operation/category/category_edit_form.html:38
+#: apps/app_operation/templates/app_operation/category/category_form.html:72
+msgid "Category Name"
+msgstr "اسم الفئة"
+
+#: apps/app_operation/templates/app_operation/category/category_edit_form.html:44
+#: apps/app_operation/templates/app_operation/category/category_form.html:76
+msgid "Transaction Type"
+msgstr "نوع المعاملة"
+
+#: apps/app_operation/templates/app_operation/category/category_edit_form.html:49
+msgid "Transaction type cannot be changed after creation."
+msgstr "لا يمكن تغيير نوع المعاملة بعد الإنشاء."
+
+#: apps/app_operation/templates/app_operation/category/category_edit_form.html:53
+#: apps/app_operation/templates/app_operation/category/category_form.html:85
+msgid "Budget Limit ($)"
+msgstr "حد الميزانية ($)"
+
+#: apps/app_operation/templates/app_operation/category/category_edit_form.html:59
+#: apps/app_operation/templates/app_operation/category/category_form.html:90
+msgid "Set to 0.00 for unlimited."
+msgstr "اضبط على 0.00 للسماح بغير محدود."
+
+#: apps/app_operation/templates/app_operation/category/category_edit_form.html:68
+msgid "Inactive categories cannot receive new operations."
+msgstr "الفئات غير النشطة لا تقبل عمليات جديدة."
+
+#: apps/app_operation/templates/app_operation/category/category_edit_form.html:73
+#: apps/app_operation/templates/app_operation/category/category_form.html:94
+msgid "Description & Usage Notes"
+msgstr "الوصف وملاحظات الاستخدام"
+
+#: apps/app_operation/templates/app_operation/category/category_edit_form.html:80
+#: apps/app_operation/templates/app_operation/category/category_form.html:101
+msgid "Back to Project"
+msgstr "العودة إلى المشروع"
+
+#: apps/app_operation/templates/app_operation/category/category_form.html:20
+msgid "New Category"
+msgstr "فئة جديدة"
+
+#: apps/app_operation/templates/app_operation/category/category_form.html:30
+msgid "Define Financial Category"
+msgstr "تحديد الفئة المالية"
+
+#: apps/app_operation/templates/app_operation/category/category_form.html:49
+msgid "USE A PRESET TEMPLATE"
+msgstr "استخدم نموذجاً جاهزاً"
+
+#: apps/app_operation/templates/app_operation/category/category_form.html:56
+msgid "Search or browse livestock templates..."
+msgstr "ابحث في نماذج المواشي أو تصفحها..."
+
+#: apps/app_operation/templates/app_operation/category/category_form.html:63
+msgid ""
+"Picking a template automatically sets the transaction type and descriptive "
+"memo."
+msgstr "اختيار نموذج يضبط نوع المعاملة والوصف تلقائياً."
+
+#: apps/app_operation/templates/app_operation/category/category_form.html:78
+msgid "Expense (Services/Utility)"
+msgstr "مصروف (خدمات/مرافق)"
+
+#: apps/app_operation/templates/app_operation/category/category_form.html:79
+msgid "Purchase (Stock/Assets)"
+msgstr "شراء (مخزون/أصول)"
+
+#: apps/app_operation/templates/app_operation/category/category_form.html:80
+msgid "Sale (Revenue/Products)"
+msgstr "بيع (إيرادات/منتجات)"
+
+#: apps/app_operation/templates/app_operation/category/category_form.html:95
+msgid "Describe what this category tracks..."
+msgstr "صف ما تتتبعه هذه الفئة..."
+
+#: apps/app_operation/templates/app_operation/category/category_form.html:104
+msgid "Create Category"
+msgstr "إنشاء فئة"
+
+#: apps/app_operation/templates/app_operation/generic_edit_form.html:10
+#: apps/app_operation/templates/app_operation/operation_list.html:94
+#: apps/app_operation/templates/app_operation/snippets/transactions_table.html:9
+msgid "Amount"
+msgstr "المبلغ"
+
+#: apps/app_operation/templates/app_operation/generic_edit_form.html:13
+msgid "Immutable"
+msgstr "ثابت"
+
+#: apps/app_operation/templates/app_operation/generic_edit_form.html:17
+msgid "Source"
+msgstr "المصدر"
+
+#: apps/app_operation/templates/app_operation/generic_edit_form.html:21
+msgid "Destination"
+msgstr "الوجهة"
+
+#: apps/app_operation/templates/app_operation/generic_edit_form.html:28
+msgid "Operation Date"
+msgstr "تاريخ العملية"
+
+#: apps/app_operation/templates/app_operation/generic_edit_form.html:30
+msgid "Changing the date will update all linked ledger entries."
+msgstr "تغيير التاريخ سيحدث جميع قيود الدفتر المرتبطة."
+
+#: apps/app_operation/templates/app_operation/generic_edit_form.html:34
+#: apps/app_operation/templates/app_operation/operation_detail.html:62
+msgid "Description / Notes"
+msgstr "الوصف / الملاحظات"
+
+#: apps/app_operation/templates/app_operation/generic_edit_form.html:41
+msgid "Save Metadata Updates"
+msgstr "حفظ تحديثات البيانات الوصفية"
+
+#: apps/app_operation/templates/app_operation/generic_form.html:12
+msgid "New"
+msgstr "جديد"
+
+#: apps/app_operation/templates/app_operation/generic_form.html:14
+msgid "Financial Entry"
+msgstr "قيد مالي"
+
+#: apps/app_operation/templates/app_operation/generic_form.html:35
+msgid "Record"
+msgstr "تسجيل"
+
+#: apps/app_operation/templates/app_operation/operation_list.html:7
+msgid "Operation History:"
+msgstr "سجل العمليات:"
+
+#: apps/app_operation/templates/app_operation/operation_list.html:9
+msgid "New Operation"
+msgstr "عملية جديدة"
+
+#: apps/app_operation/templates/app_operation/operation_list.html:13
+msgid "Cash Injection"
+msgstr "ضخ نقدي"
+
+#: apps/app_operation/templates/app_operation/operation_list.html:16
+msgid "Cash Withdrawal"
+msgstr "سحب نقدي"
+
+#: apps/app_operation/templates/app_operation/operation_list.html:22
+msgid "Project Funding"
+msgstr "تمويل مشروع"
+
+#: apps/app_operation/templates/app_operation/operation_list.html:26
+msgid "Project ReFunding"
+msgstr "إعادة تمويل مشروع"
+
+#: apps/app_operation/templates/app_operation/operation_list.html:34
+msgid "Loss Coverage"
+msgstr "تغطية خسارة"
+
+#: apps/app_operation/templates/app_operation/operation_list.html:39
+msgid "Purchase"
+msgstr "شراء"
+
+#: apps/app_operation/templates/app_operation/operation_list.html:42
+msgid "Sale"
+msgstr "بيع"
+
+#: apps/app_operation/templates/app_operation/operation_list.html:45
+msgid "Expense"
+msgstr "مصروف"
+
+#: apps/app_operation/templates/app_operation/operation_list.html:52
+msgid "Capital Gain"
+msgstr "مكسب رأسمالي"
+
+#: apps/app_operation/templates/app_operation/operation_list.html:55
+msgid "Capital Loss"
+msgstr "خسارة رأسمالية"
+
+#: apps/app_operation/templates/app_operation/operation_list.html:61
+msgid "Worker Advance"
+msgstr "سلفة عامل"
+
+#: apps/app_operation/templates/app_operation/operation_list.html:68
+msgid "Loan"
+msgstr "قرض"
+
+#: apps/app_operation/templates/app_operation/operation_list.html:79
+msgid "Internal Transfer"
+msgstr "تحويل داخلي"
+
+#: apps/app_operation/templates/app_operation/operation_list.html:91
+msgid "Type"
+msgstr "النوع"
+
+#: apps/app_operation/templates/app_operation/operation_list.html:92
+msgid "Direction"
+msgstr "الاتجاه"
+
+#: apps/app_operation/templates/app_operation/operation_list.html:93
+msgid "Counterparty"
+msgstr "الطرف المقابل"
+
+#: apps/app_operation/templates/app_operation/operation_list.html:119
+msgid "From:"
+msgstr "من:"
+
+#: apps/app_operation/templates/app_operation/operation_list.html:121
+msgid "To:"
+msgstr "إلى:"
+
+#: apps/app_operation/templates/app_operation/operation_list.html:133
+msgid "Reversed"
+msgstr "معكوس"
+
+#: apps/app_operation/templates/app_operation/operation_list.html:135
+msgid "Reversal"
+msgstr "عملية عكسية"
+
+#: apps/app_operation/templates/app_operation/operation_list.html:151
+msgid "No operations found for this person."
+msgstr "لا توجد عمليات لهذا الشخص."
+
+#: apps/app_operation/templates/app_operation/reverse_form.html:11
+#: apps/app_operation/templates/app_operation/snippets/address_bar.html:4
+msgid "Voucher #"
+msgstr "سند #"
+
+#: apps/app_operation/templates/app_operation/reverse_form.html:13
+#: apps/app_operation/templates/app_operation/snippets/actions.html:33
+msgid "Reverse Operation"
+msgstr "عكس العملية"
+
+#: apps/app_operation/templates/app_operation/reverse_form.html:19
+msgid "Reverse"
+msgstr "عكس"
+
+#: apps/app_operation/templates/app_operation/reverse_form.html:24
+msgid "Critical Action"
+msgstr "إجراء حرج"
+
+#: apps/app_operation/templates/app_operation/reverse_form.html:29
+msgid "Original Amount:"
+msgstr "المبلغ الأصلي:"
+
+#: apps/app_operation/templates/app_operation/reverse_form.html:32
+msgid "Original Date:"
+msgstr "التاريخ الأصلي:"
+
+#: apps/app_operation/templates/app_operation/reverse_form.html:36
+msgid "Mirror Effect"
+msgstr "أثر معاكس"
+
+#: apps/app_operation/templates/app_operation/reverse_form.html:50
+msgid "Reversal Reason"
+msgstr "سبب العكس"
+
+#: apps/app_operation/templates/app_operation/reverse_form.html:52
+msgid "Choose a standard reason"
+msgstr "اختر سبباً معياريًا"
+
+#: apps/app_operation/templates/app_operation/reverse_form.html:53
+msgid "Data Entry Error"
+msgstr "خطأ في إدخال البيانات"
+
+#: apps/app_operation/templates/app_operation/reverse_form.html:54
+msgid "Incorrect Amount"
+msgstr "مبلغ غير صحيح"
+
+#: apps/app_operation/templates/app_operation/reverse_form.html:55
+msgid "Duplicate Transaction"
+msgstr "معاملة مكررة"
+
+#: apps/app_operation/templates/app_operation/reverse_form.html:56
+msgid "Wrong Entity Selected"
+msgstr "تم اختيار كيان خاطئ"
+
+#: apps/app_operation/templates/app_operation/reverse_form.html:57
+msgid "Client/Person Request"
+msgstr "طلب عميل/شخص"
+
+#: apps/app_operation/templates/app_operation/reverse_form.html:59
+msgid "Provide a detailed explanation for the audit trail..."
+msgstr "قدّم شرحاً مفصلاً لمسار التدقيق..."
+
+#: apps/app_operation/templates/app_operation/reverse_form.html:63
+msgid "Execute Counter-Voucher"
+msgstr "تنفيذ سند مقابل"
+
+#: apps/app_operation/templates/app_operation/reverse_form.html:64
+msgid "Keep Original & Go Back"
+msgstr "الإبقاء على الأصلي والعودة"
+
+#: apps/app_operation/templates/app_operation/reverse_form.html:69
+msgid "Logged as:"
+msgstr "مسجَّل باسم:"
+
+#: apps/app_operation/templates/app_operation/snippets/actions.html:4
+msgid "Operation Summary"
+msgstr "ملخص العملية"
+
+#: apps/app_operation/templates/app_operation/snippets/actions.html:12
+#: apps/app_operation/templates/app_operation/snippets/actions.html:14
+msgid "Record Payment"
+msgstr "تسجيل دفعة"
+
+#: apps/app_operation/templates/app_operation/snippets/actions.html:13
+msgid "Record a payment transaction."
+msgstr "تسجيل معاملة دفع."
+
+#: apps/app_operation/templates/app_operation/snippets/actions.html:23
+msgid ""
+"Add a repayment transaction to reduce the outstanding balance of this "
+"operation."
+msgstr "أضف معاملة سداد لتخفيض الرصيد المستحق لهذه العملية."
+
+#: apps/app_operation/templates/app_operation/snippets/actions.html:24
+msgid "Record Repayment"
+msgstr "تسجيل سداد"
+
+#: apps/app_operation/templates/app_operation/snippets/actions.html:31
+msgid "Correction"
+msgstr "تصحيح"
+
+#: apps/app_operation/templates/app_operation/snippets/actions.html:32
+msgid "Void this entire operation and all its linked transactions."
+msgstr "إلغاء هذه العملية بالكامل وجميع معاملاتها المرتبطة."
+
+#: apps/app_operation/templates/app_operation/snippets/address_bar.html:4
+msgid "Date:"
+msgstr "التاريخ:"
+
+#: apps/app_operation/templates/app_operation/snippets/address_bar.html:14
+msgid "Print"
+msgstr "طباعة"
+
+#: apps/app_operation/templates/app_operation/snippets/reversal_alert.html:6
+msgid "Operation Voided (Reversed)"
+msgstr "العملية ملغاة (معكوسة)"
+
+#: apps/app_operation/templates/app_operation/snippets/reversal_alert.html:8
+msgid "Reversed on"
+msgstr "عُكست في"
+
+#: apps/app_operation/templates/app_operation/snippets/reversal_alert.html:12
+msgid "View Correction"
+msgstr "عرض التصحيح"
+
+#: apps/app_operation/templates/app_operation/snippets/reversal_alert.html:19
+msgid "Corrective Reversal Entry"
+msgstr "قيد عكسي تصحيحي"
+
+#: apps/app_operation/templates/app_operation/snippets/reversal_alert.html:20
+msgid "This operation was created to neutralize a previous entry."
+msgstr "هذه العملية أُنشئت لتحييد قيد سابق."
+
+#: apps/app_operation/templates/app_operation/snippets/reversal_alert.html:23
+msgid "View Original Error"
+msgstr "عرض الخطأ الأصلي"
+
+#: apps/app_operation/templates/app_operation/snippets/summary_table.html:4
+msgid "Initial Amount"
+msgstr "المبلغ الأولي"
+
+#: apps/app_operation/templates/app_operation/snippets/summary_table.html:8
+msgid "Source (Creditor)"
+msgstr "المصدر (الدائن)"
+
+#: apps/app_operation/templates/app_operation/snippets/summary_table.html:12
+msgid "Destination (Debtor)"
+msgstr "الوجهة (المدين)"
+
+#: apps/app_operation/templates/app_operation/snippets/summary_table.html:16
+msgid "Officer"
+msgstr "المسؤول"
+
+#: apps/app_operation/templates/app_operation/snippets/transactions_table.html:2
+msgid "Operational Ledger"
+msgstr "دفتر العمليات"
+
+#: apps/app_operation/templates/app_operation/snippets/transactions_table.html:7
+msgid "Transaction Detail"
+msgstr "تفاصيل المعاملة"
+
+#: apps/app_operation/templates/app_operation/snippets/transactions_table.html:8
+msgid "Account Flow"
+msgstr "تدفق الحساب"
+
+#: apps/app_operation/templates/app_operation/snippets/transactions_table.html:19
+msgid "Reversal Entry"
+msgstr "قيد عكسي"
+
+#: apps/app_operation/templates/app_operation/snippets/transactions_table.html:21
+msgid "Original (Voided)"
+msgstr "الأصلي (مُلغى)"
+
+#: apps/app_operation/templates/app_operation/snippets/transactions_table.html:23
+msgid "Repayment"
+msgstr "سداد"
+
+#: apps/app_operation/templates/app_operation/snippets/transactions_table.html:25
+msgid "Cash Payment"
+msgstr "دفعة نقدية"
+
+#: apps/app_operation/templates/app_operation/snippets/transactions_table.html:27
+msgid "Issuance"
+msgstr "إصدار"
+
+#: apps/app_operation/templates/app_operation/snippets/transactions_table.html:58
+msgid "REVERSAL"
+msgstr "عكس"
+
+#: apps/app_operation/templates/app_operation/snippets/transactions_table.html:60
+msgid "VOIDED"
+msgstr "ملغى"
+
+#: apps/app_operation/templates/app_operation/snippets/transactions_table.html:62
+msgid "RECOVERY"
+msgstr "استرداد"
+
+#: apps/app_operation/templates/app_operation/snippets/transactions_table.html:64
+msgid "REPAYMENT"
+msgstr "سداد"
+
+#: apps/app_operation/templates/app_operation/snippets/transactions_table.html:66
+msgid "PAYMENT"
+msgstr "دفعة"
+
+#: apps/app_operation/templates/app_operation/snippets/transactions_table.html:68
+msgid "ISSUANCE"
+msgstr "إصدار"
+
+#: apps/app_operation/templates/app_operation/snippets/transactions_table.html:74
+msgid "No transactions found for this operation."
+msgstr "لا توجد معاملات لهذه العملية."
+
+#: apps/app_operation/views/create.py:65
+#, python-format
+msgid "Unsupported operation %(op_type)s"
+msgstr "عملية غير مدعومة %(op_type)s"
+
+#: apps/app_operation/views/create.py:97
+msgid "Please check the items table for errors."
+msgstr "يرجى التحقق من جدول العناصر لوجود أخطاء."
+
+#: apps/app_operation/views/create.py:133
+#, python-format
+msgid "Error: paid amount %(paid)s is more than the total %(total)s"
+msgstr "خطأ: المبلغ المدفوع %(paid)s أكبر من الإجمالي %(total)s"
+
+#: apps/app_operation/views/create.py:143
+#, python-format
+msgid "You can't pay less than %(amount)s for this operation."
+msgstr "لا يمكنك دفع أقل من %(amount)s لهذه العملية."
+
+#: apps/app_operation/views/create.py:153
+#, python-format
+msgid "Instant payment for the operation %(op_type)s %(pk)s"
+msgstr "دفع فوري للعملية %(op_type)s رقم %(pk)s"
+
+#: apps/app_operation/views/create.py:175
+#, python-format
+msgid "%(label)s recorded successfully."
+msgstr "تم تسجيل %(label)s بنجاح."
+
+#: farm/settings.py:123
+msgid "English"
+msgstr "الإنجليزية"
+
+#: farm/settings.py:124
+msgid "Arabic"
+msgstr "العربية"
+
+#: templates/base.html:55
+msgid "Sign Out"
+msgstr "تسجيل الخروج"
