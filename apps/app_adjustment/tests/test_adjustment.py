@@ -26,11 +26,9 @@ User = get_user_model()
 
 
 def _make_officer(username="officer"):
-    user = User.objects.create_user(
+    return User.objects.create_user(
         username=username, password="testpass", is_staff=True
     )
-    person = Person.create(private_name=f"Officer {username}", auth_user=user)
-    return person.entity
 
 
 def _make_project_entity(name):
@@ -76,7 +74,7 @@ def _make_client_stakeholder(project_entity, client_entity, active=True):
     return sh
 
 
-def _inject_project(system_entity, dest_entity, amount, officer_entity):
+def _inject_project(system_entity, dest_entity, amount, officer_user):
     CapitalGainOperation(
         source=system_entity,
         destination=dest_entity,
@@ -84,11 +82,13 @@ def _inject_project(system_entity, dest_entity, amount, officer_entity):
         operation_type=OperationType.CAPITAL_GAIN,
         date=date.today(),
         description="Seed balance",
-        officer=officer_entity,
+        officer=officer_user,
     ).save()
 
 
-def _make_purchase_op(project_entity, vendor_entity, officer_entity, amount=Decimal("1000.00")):
+def _make_purchase_op(
+    project_entity, vendor_entity, officer_user, amount=Decimal("1000.00")
+):
     op = PurchaseOperation(
         source=project_entity,
         destination=vendor_entity,
@@ -96,13 +96,15 @@ def _make_purchase_op(project_entity, vendor_entity, officer_entity, amount=Deci
         operation_type=OperationType.PURCHASE,
         date=date.today(),
         description="Test purchase",
-        officer=officer_entity,
+        officer=officer_user,
     )
     op.save()
     return op
 
 
-def _make_sale_op(client_entity, project_entity, officer_entity, amount=Decimal("1000.00")):
+def _make_sale_op(
+    client_entity, project_entity, officer_user, amount=Decimal("1000.00")
+):
     op = SaleOperation(
         source=client_entity,
         destination=project_entity,
@@ -110,13 +112,15 @@ def _make_sale_op(client_entity, project_entity, officer_entity, amount=Decimal(
         operation_type=OperationType.SALE,
         date=date.today(),
         description="Test sale",
-        officer=officer_entity,
+        officer=officer_user,
     )
     op.save()
     return op
 
 
-def _make_expense_op(project_entity, world_entity, officer_entity, amount=Decimal("1000.00")):
+def _make_expense_op(
+    project_entity, world_entity, officer_user, amount=Decimal("1000.00")
+):
     op = ExpenseOperation(
         source=project_entity,
         destination=world_entity,
@@ -124,7 +128,7 @@ def _make_expense_op(project_entity, world_entity, officer_entity, amount=Decima
         operation_type=OperationType.EXPENSE,
         date=date.today(),
         description="Test expense",
-        officer=officer_entity,
+        officer=officer_user,
     )
     op.save()
     return op
@@ -160,14 +164,18 @@ class AdjustmentTransactionTest(TestCase):
         self.officer = _make_officer()
 
         self.project_entity = _make_project_entity("Test Farm Project")
-        _inject_project(self.system_entity, self.project_entity, Decimal("5000.00"), self.officer)
+        _inject_project(
+            self.system_entity, self.project_entity, Decimal("5000.00"), self.officer
+        )
 
         self.vendor_entity = _make_vendor_entity("Vendor Ltd")
         _make_vendor_stakeholder(self.project_entity, self.vendor_entity)
 
         self.client_entity = _make_client_entity("Client Co")
         _make_client_stakeholder(self.project_entity, self.client_entity)
-        _inject_project(self.system_entity, self.client_entity, Decimal("5000.00"), self.officer)
+        _inject_project(
+            self.system_entity, self.client_entity, Decimal("5000.00"), self.officer
+        )
 
     def test_purchase_adjustment_creates_purchase_adjustment_transaction(self):
         op = _make_purchase_op(self.project_entity, self.vendor_entity, self.officer)
@@ -175,7 +183,9 @@ class AdjustmentTransactionTest(TestCase):
 
         txs = adj.get_all_transactions()
         self.assertEqual(txs.count(), 1)
-        self.assertTrue(txs.filter(type=TransactionType.PURCHASE_ADJUSTMENT_DECREASE).exists())
+        self.assertTrue(
+            txs.filter(type=TransactionType.PURCHASE_ADJUSTMENT_DECREASE).exists()
+        )
 
     def test_sale_adjustment_creates_sale_adjustment_transaction(self):
         op = _make_sale_op(self.client_entity, self.project_entity, self.officer)
@@ -183,7 +193,9 @@ class AdjustmentTransactionTest(TestCase):
 
         txs = adj.get_all_transactions()
         self.assertEqual(txs.count(), 1)
-        self.assertTrue(txs.filter(type=TransactionType.SALE_ADJUSTMENT_DECREASE).exists())
+        self.assertTrue(
+            txs.filter(type=TransactionType.SALE_ADJUSTMENT_DECREASE).exists()
+        )
 
     def test_expense_adjustment_creates_expense_adjustment_transaction(self):
         op = _make_expense_op(self.project_entity, self.world_entity, self.officer)
@@ -191,7 +203,9 @@ class AdjustmentTransactionTest(TestCase):
 
         txs = adj.get_all_transactions()
         self.assertEqual(txs.count(), 1)
-        self.assertTrue(txs.filter(type=TransactionType.EXPENSE_ADJUSTMENT_DECREASE).exists())
+        self.assertTrue(
+            txs.filter(type=TransactionType.EXPENSE_ADJUSTMENT_DECREASE).exists()
+        )
 
     def test_adjustment_transaction_source_and_target_match_operation_funds(self):
         """Transaction direction must mirror the operation's source/target funds."""
@@ -204,7 +218,9 @@ class AdjustmentTransactionTest(TestCase):
 
     def test_adjustment_transaction_amount_matches_adjustment(self):
         op = _make_purchase_op(self.project_entity, self.vendor_entity, self.officer)
-        adj = _make_adjustment(op, AdjustmentType.PURCHASE_RETURN, self.officer, amount=Decimal("250.00"))
+        adj = _make_adjustment(
+            op, AdjustmentType.PURCHASE_RETURN, self.officer, amount=Decimal("250.00")
+        )
 
         tx = adj.get_all_transactions().get()
         self.assertEqual(tx.amount, Decimal("250.00"))
@@ -226,12 +242,16 @@ class AdjustmentEffectAutoSetTest(TestCase):
         self.officer = _make_officer()
 
         self.project_entity = _make_project_entity("Test Farm")
-        _inject_project(self.system_entity, self.project_entity, Decimal("5000.00"), self.officer)
+        _inject_project(
+            self.system_entity, self.project_entity, Decimal("5000.00"), self.officer
+        )
 
         self.vendor_entity = _make_vendor_entity("Vendor Ltd")
         _make_vendor_stakeholder(self.project_entity, self.vendor_entity)
 
-        self.op = _make_purchase_op(self.project_entity, self.vendor_entity, self.officer)
+        self.op = _make_purchase_op(
+            self.project_entity, self.vendor_entity, self.officer
+        )
 
     def _adj(self, adj_type, reason=""):
         return _make_adjustment(self.op, adj_type, self.officer, reason=reason)
@@ -265,11 +285,15 @@ class AdjustmentEffectAutoSetTest(TestCase):
         self.assertEqual(adj.effect, AdjustmentEffect.INCREASE)
 
     def test_general_reduction_sets_decrease(self):
-        adj = self._adj(AdjustmentType.PURCHASE_GENERAL_REDUCTION, reason="Typo in invoice")
+        adj = self._adj(
+            AdjustmentType.PURCHASE_GENERAL_REDUCTION, reason="Typo in invoice"
+        )
         self.assertEqual(adj.effect, AdjustmentEffect.DECREASE)
 
     def test_general_increase_sets_increase(self):
-        adj = self._adj(AdjustmentType.PURCHASE_GENERAL_INCREASE, reason="Missed line item")
+        adj = self._adj(
+            AdjustmentType.PURCHASE_GENERAL_INCREASE, reason="Missed line item"
+        )
         self.assertEqual(adj.effect, AdjustmentEffect.INCREASE)
 
 
@@ -293,12 +317,16 @@ class AdjustmentValidationTest(TestCase):
         self.officer = _make_officer()
 
         self.project_entity = _make_project_entity("Test Farm")
-        _inject_project(self.system_entity, self.project_entity, Decimal("5000.00"), self.officer)
+        _inject_project(
+            self.system_entity, self.project_entity, Decimal("5000.00"), self.officer
+        )
 
         self.vendor_entity = _make_vendor_entity("Vendor Ltd")
         _make_vendor_stakeholder(self.project_entity, self.vendor_entity)
 
-        self.op = _make_purchase_op(self.project_entity, self.vendor_entity, self.officer)
+        self.op = _make_purchase_op(
+            self.project_entity, self.vendor_entity, self.officer
+        )
 
     def _adj(self, **kwargs):
         defaults = dict(
@@ -363,7 +391,9 @@ class AdjustmentValidationTest(TestCase):
             self._adj(type=AdjustmentType.PURCHASE_GENERAL_INCREASE, reason="")
 
     def test_general_reduction_with_reason_saves_ok(self):
-        adj = self._adj(type=AdjustmentType.PURCHASE_GENERAL_REDUCTION, reason="Miscounted items")
+        adj = self._adj(
+            type=AdjustmentType.PURCHASE_GENERAL_REDUCTION, reason="Miscounted items"
+        )
         self.assertIsNotNone(adj.pk)
 
     def test_non_general_type_without_reason_saves_ok(self):
@@ -386,21 +416,15 @@ class AdjustmentValidationTest(TestCase):
     # Officer validation (OfficerMixin)
     # ------------------------------------------------------------------
 
-    def test_officer_must_have_auth_user(self):
-        no_user_person = Person.create(private_name="No User")
-        with self.assertRaises(ValidationError):
-            self._adj(officer=no_user_person.entity)
-
     def test_officer_user_must_be_staff(self):
         non_staff_user = User.objects.create_user(
             username="non_staff", password="x", is_staff=False
         )
-        non_staff_person = Person.create(private_name="Non Staff", auth_user=non_staff_user)
         with self.assertRaises(ValidationError):
-            self._adj(officer=non_staff_person.entity)
+            self._adj(officer=non_staff_user)
 
     def test_officer_must_be_active(self):
-        self.officer.active = False
+        self.officer.is_active = False
         self.officer.save()
         with self.assertRaises(ValidationError):
             self._adj()
@@ -422,13 +446,19 @@ class AdjustmentImmutabilityTest(TestCase):
         self.officer = _make_officer()
 
         self.project_entity = _make_project_entity("Test Farm")
-        _inject_project(self.system_entity, self.project_entity, Decimal("5000.00"), self.officer)
+        _inject_project(
+            self.system_entity, self.project_entity, Decimal("5000.00"), self.officer
+        )
 
         self.vendor_entity = _make_vendor_entity("Vendor Ltd")
         _make_vendor_stakeholder(self.project_entity, self.vendor_entity)
 
-        self.op = _make_purchase_op(self.project_entity, self.vendor_entity, self.officer)
-        self.adj = _make_adjustment(self.op, AdjustmentType.PURCHASE_RETURN, self.officer)
+        self.op = _make_purchase_op(
+            self.project_entity, self.vendor_entity, self.officer
+        )
+        self.adj = _make_adjustment(
+            self.op, AdjustmentType.PURCHASE_RETURN, self.officer
+        )
 
     def test_operation_is_immutable_after_save(self):
         vendor2 = _make_vendor_entity("Second Vendor")
@@ -474,17 +504,24 @@ class AdjustmentEffectiveAmountTest(TestCase):
         self.officer = _make_officer()
 
         self.project_entity = _make_project_entity("Test Farm")
-        _inject_project(self.system_entity, self.project_entity, Decimal("5000.00"), self.officer)
+        _inject_project(
+            self.system_entity, self.project_entity, Decimal("5000.00"), self.officer
+        )
 
         self.vendor_entity = _make_vendor_entity("Vendor Ltd")
         _make_vendor_stakeholder(self.project_entity, self.vendor_entity)
 
         self.op = _make_purchase_op(
-            self.project_entity, self.vendor_entity, self.officer, amount=Decimal("1000.00")
+            self.project_entity,
+            self.vendor_entity,
+            self.officer,
+            amount=Decimal("1000.00"),
         )
 
     def _adj(self, adj_type, amount, reason=""):
-        return _make_adjustment(self.op, adj_type, self.officer, amount=amount, reason=reason)
+        return _make_adjustment(
+            self.op, adj_type, self.officer, amount=amount, reason=reason
+        )
 
     def test_no_adjustments_returns_base_amount(self):
         self.op.refresh_from_db()
@@ -503,8 +540,8 @@ class AdjustmentEffectiveAmountTest(TestCase):
         self.assertEqual(self.op.effective_amount, Decimal("1200.00"))
 
     def test_mixed_adjustments_combine_correctly(self):
-        self._adj(AdjustmentType.PURCHASE_RETURN, Decimal("100.00"))       # -100
-        self._adj(AdjustmentType.PURCHASE_UNDERCHARGE, Decimal("50.00"))   # +50
+        self._adj(AdjustmentType.PURCHASE_RETURN, Decimal("100.00"))  # -100
+        self._adj(AdjustmentType.PURCHASE_UNDERCHARGE, Decimal("50.00"))  # +50
 
         self.op.refresh_from_db()
         self.assertEqual(self.op.effective_amount, Decimal("950.00"))
@@ -544,13 +581,19 @@ class AdjustmentReversalTest(TestCase):
         self.officer = _make_officer()
 
         self.project_entity = _make_project_entity("Test Farm")
-        _inject_project(self.system_entity, self.project_entity, Decimal("5000.00"), self.officer)
+        _inject_project(
+            self.system_entity, self.project_entity, Decimal("5000.00"), self.officer
+        )
 
         self.vendor_entity = _make_vendor_entity("Vendor Ltd")
         _make_vendor_stakeholder(self.project_entity, self.vendor_entity)
 
-        self.op = _make_purchase_op(self.project_entity, self.vendor_entity, self.officer)
-        self.adj = _make_adjustment(self.op, AdjustmentType.PURCHASE_RETURN, self.officer)
+        self.op = _make_purchase_op(
+            self.project_entity, self.vendor_entity, self.officer
+        )
+        self.adj = _make_adjustment(
+            self.op, AdjustmentType.PURCHASE_RETURN, self.officer
+        )
 
     def test_reverse_returns_new_adjustment_instance(self):
         reversal = self.adj.reverse(officer=self.officer)

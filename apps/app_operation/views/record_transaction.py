@@ -7,7 +7,6 @@ from django.http import HttpResponseBadRequest, HttpResponseNotFound
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
-from apps.app_entity.models import Entity
 from apps.app_operation.models.operation import Operation
 from apps.app_operation.models.proxies import PROXY_MAP
 from apps.app_transaction.models import Transaction
@@ -29,7 +28,7 @@ def record_transaction_payment(request, pk):
             return redirect("operation_detail_view", pk=operation.pk)
 
         try:
-            officer = get_object_or_404(Entity, user=request.user)
+            officer = request.user
             operation.create_payment_transaction(
                 amount=amount,
                 officer=officer,
@@ -97,7 +96,7 @@ def record_transaction_repayment(request, pk):
             )
         else:
             try:
-                officer = get_object_or_404(Entity, user=request.user)
+                officer = request.user
                 transaction_type = data["repayment_transaction_type"]
 
                 with db_transaction.atomic():

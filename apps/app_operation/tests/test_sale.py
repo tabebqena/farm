@@ -19,11 +19,7 @@ User = get_user_model()
 
 
 def _make_officer(username="officer"):
-    user = User.objects.create_user(
-        username=username, password="testpass", is_staff=True
-    )
-    person = Person.create(private_name=f"Officer {username}", auth_user=user)
-    return person.entity
+    return User.objects.create_user(username=username, password="testpass", is_staff=True)
 
 
 def _make_person_entity(name):
@@ -42,7 +38,7 @@ def _make_client_entity(name):
     return person.entity
 
 
-def _inject_project(system_entity, dest_entity, amount, officer_entity):
+def _inject_project(system_entity, dest_entity, amount, officer):
     """Seed a Project entity's fund via CapitalGain."""
     CapitalGainOperation(
         source=system_entity,
@@ -51,11 +47,11 @@ def _inject_project(system_entity, dest_entity, amount, officer_entity):
         operation_type=OperationType.CAPITAL_GAIN,
         date=date.today(),
         description="Seed project balance",
-        officer=officer_entity,
+        officer=officer,
     ).save()
 
 
-def _seed_client_fund(system_entity, client_entity, amount, officer_entity):
+def _seed_client_fund(system_entity, client_entity, amount, officer):
     """Seed a Client entity's fund via CapitalGain so collections can deduct from it."""
     CapitalGainOperation(
         source=system_entity,
@@ -64,7 +60,7 @@ def _seed_client_fund(system_entity, client_entity, amount, officer_entity):
         operation_type=OperationType.CAPITAL_GAIN,
         date=date.today(),
         description="Seed client balance",
-        officer=officer_entity,
+        officer=officer,
     ).save()
 
 
@@ -96,7 +92,7 @@ class SaleCreateTest(TestCase):
 
     def setUp(self):
         self.system_entity = Entity.create(is_system=True)
-        self.officer_entity = _make_officer()
+        self.officer = _make_officer()
 
         self.project_entity = _make_project_entity("Test Farm Project")
 
@@ -105,7 +101,7 @@ class SaleCreateTest(TestCase):
             self.system_entity,
             self.client_entity,
             Decimal("5000.00"),
-            self.officer_entity,
+            self.officer,
         )
         _make_client_stakeholder(self.project_entity, self.client_entity)
 
@@ -117,7 +113,7 @@ class SaleCreateTest(TestCase):
             operation_type=OperationType.SALE,
             date=date.today(),
             description="Test sale",
-            officer=self.officer_entity,
+            officer=self.officer,
         )
         defaults.update(kwargs)
         return SaleOperation(**defaults)
@@ -270,31 +266,17 @@ class SaleCreateTest(TestCase):
     # Officer validation
     # ------------------------------------------------------------------
 
-    def test_officer_must_be_a_person_entity(self):
-        op = self._make_op(officer=self.system_entity)
-        with self.assertRaises(ValidationError):
-            op.save()
-
-    def test_officer_must_have_auth_user(self):
-        no_user_person = Person.create(private_name="No User Officer")
-        op = self._make_op(officer=no_user_person.entity)
-        with self.assertRaises(ValidationError):
-            op.save()
-
     def test_officer_user_must_be_staff(self):
         non_staff_user = User.objects.create_user(
             username="non_staff", password="testpass", is_staff=False
         )
-        non_staff_person = Person.create(
-            private_name="Non Staff Officer", auth_user=non_staff_user
-        )
-        op = self._make_op(officer=non_staff_person.entity)
+        op = self._make_op(officer=non_staff_user)
         with self.assertRaises(ValidationError):
             op.save()
 
     def test_officer_must_be_active(self):
-        self.officer_entity.active = False
-        self.officer_entity.save()
+        self.officer.is_active = False
+        self.officer.save()
 
         op = self._make_op()
         with self.assertRaises(ValidationError):
@@ -349,7 +331,7 @@ class SaleCollectionTest(TestCase):
 
     def setUp(self):
         self.system_entity = Entity.create(is_system=True)
-        self.officer_entity = _make_officer()
+        self.officer = _make_officer()
 
         self.project_entity = _make_project_entity("Farm Project")
 
@@ -358,7 +340,7 @@ class SaleCollectionTest(TestCase):
             self.system_entity,
             self.client_entity,
             Decimal("5000.00"),
-            self.officer_entity,
+            self.officer,
         )
         _make_client_stakeholder(self.project_entity, self.client_entity)
 
@@ -369,14 +351,14 @@ class SaleCollectionTest(TestCase):
             operation_type=OperationType.SALE,
             date=date.today(),
             description="Test sale",
-            officer=self.officer_entity,
+            officer=self.officer,
         )
         self.op.save()
 
     def _collect(self, amount):
         self.op.create_payment_transaction(
             amount=amount,
-            officer=self.officer_entity,
+            officer=self.officer,
             date=date.today(),
         )
 
@@ -495,7 +477,7 @@ class SaleReversalTest(TestCase):
 
     def setUp(self):
         self.system_entity = Entity.create(is_system=True)
-        self.officer_entity = _make_officer()
+        self.officer = _make_officer()
 
         self.project_entity = _make_project_entity("Farm Project")
 
@@ -504,7 +486,7 @@ class SaleReversalTest(TestCase):
             self.system_entity,
             self.client_entity,
             Decimal("5000.00"),
-            self.officer_entity,
+            self.officer,
         )
         _make_client_stakeholder(self.project_entity, self.client_entity)
 
@@ -515,7 +497,7 @@ class SaleReversalTest(TestCase):
             operation_type=OperationType.SALE,
             date=date.today(),
             description="Test sale",
-            officer=self.officer_entity,
+            officer=self.officer,
         )
         self.op.save()
 
@@ -524,26 +506,26 @@ class SaleReversalTest(TestCase):
     # ------------------------------------------------------------------
 
     def test_reverse_creates_reversal_operation(self):
-        reversal = self.op.reverse(officer=self.officer_entity)
+        reversal = self.op.reverse(officer=self.officer)
 
         self.assertIsNotNone(reversal.pk)
         self.assertEqual(reversal.reversal_of, self.op)
 
     def test_reverse_marks_original_as_reversed(self):
-        reversal = self.op.reverse(officer=self.officer_entity)
+        reversal = self.op.reverse(officer=self.officer)
 
         self.op.refresh_from_db()
         self.assertTrue(self.op.is_reversed)
         self.assertEqual(self.op.reversed_by, reversal)
 
     def test_reversal_is_marked_as_reversal(self):
-        reversal = self.op.reverse(officer=self.officer_entity)
+        reversal = self.op.reverse(officer=self.officer)
 
         self.assertTrue(reversal.is_reversal)
         self.assertFalse(reversal.is_reversed)
 
     def test_reverse_inherits_amount_source_destination(self):
-        reversal = self.op.reverse(officer=self.officer_entity)
+        reversal = self.op.reverse(officer=self.officer)
 
         self.assertEqual(reversal.amount, self.op.amount)
         self.assertEqual(reversal.source, self.op.source)
@@ -551,7 +533,7 @@ class SaleReversalTest(TestCase):
 
     def test_reverse_creates_counter_transaction_for_issuance(self):
         """Only the SALE_ISSUANCE is implicitly reversed (not one-shot operation)."""
-        self.op.reverse(officer=self.officer_entity)
+        self.op.reverse(officer=self.officer)
 
         all_txs = self.op.get_all_transactions()
         # 1 original SALE_ISSUANCE + 1 counter-SALE_ISSUANCE
@@ -561,7 +543,7 @@ class SaleReversalTest(TestCase):
         self.assertEqual(counter_txs.count(), 1)
 
     def test_reverse_counter_transaction_flips_funds(self):
-        self.op.reverse(officer=self.officer_entity)
+        self.op.reverse(officer=self.officer)
 
         original_tx = self.op.get_all_transactions().get(reversal_of__isnull=True)
         counter_tx = original_tx.reversed_by
@@ -575,7 +557,7 @@ class SaleReversalTest(TestCase):
         project_balance_before = self.project_entity.fund.balance
         client_balance_before = self.client_entity.fund.balance
 
-        self.op.reverse(officer=self.officer_entity)
+        self.op.reverse(officer=self.officer)
 
         self.project_entity.fund.refresh_from_db()
         self.client_entity.fund.refresh_from_db()
@@ -589,29 +571,29 @@ class SaleReversalTest(TestCase):
     def test_reversal_blocked_when_collection_exists(self):
         self.op.create_payment_transaction(
             amount=Decimal("500.00"),
-            officer=self.officer_entity,
+            officer=self.officer,
             date=date.today(),
         )
 
         with self.assertRaises(ValidationError):
-            self.op.reverse(officer=self.officer_entity)
+            self.op.reverse(officer=self.officer)
 
     # ------------------------------------------------------------------
     # Constraints
     # ------------------------------------------------------------------
 
     def test_cannot_reverse_already_reversed_operation(self):
-        self.op.reverse(officer=self.officer_entity)
+        self.op.reverse(officer=self.officer)
         self.op.refresh_from_db()
 
         with self.assertRaises(ValidationError):
-            self.op.reverse(officer=self.officer_entity)
+            self.op.reverse(officer=self.officer)
 
     def test_cannot_reverse_a_reversal(self):
-        reversal = self.op.reverse(officer=self.officer_entity)
+        reversal = self.op.reverse(officer=self.officer)
 
         with self.assertRaises(ValidationError):
-            reversal.reverse(officer=self.officer_entity)
+            reversal.reverse(officer=self.officer)
 
 
 # ---------------------------------------------------------------------------
@@ -629,7 +611,7 @@ class SaleBalanceGuardTest(TestCase):
 
     def setUp(self):
         self.system_entity = Entity.create(is_system=True)
-        self.officer_entity = _make_officer()
+        self.officer = _make_officer()
 
         self.project_entity = _make_project_entity("Farm Project")
 
@@ -641,7 +623,7 @@ class SaleBalanceGuardTest(TestCase):
             self.system_entity,
             self.client_entity,
             Decimal("200.00"),
-            self.officer_entity,
+            self.officer,
         )
         _make_client_stakeholder(self.project_entity, self.client_entity)
 
@@ -652,7 +634,7 @@ class SaleBalanceGuardTest(TestCase):
             operation_type=OperationType.SALE,
             date=date.today(),
             description="Test sale",
-            officer=self.officer_entity,
+            officer=self.officer,
         )
         self.op.save()
 
@@ -667,7 +649,7 @@ class SaleBalanceGuardTest(TestCase):
         with self.assertRaises(ValidationError):
             self.op.create_payment_transaction(
                 amount=Decimal("600.00"),
-                officer=self.officer_entity,
+                officer=self.officer,
                 date=date.today(),
             )
 
@@ -675,7 +657,7 @@ class SaleBalanceGuardTest(TestCase):
         """Partial collection that fits within the available fund balance is allowed."""
         self.op.create_payment_transaction(
             amount=Decimal("150.00"),
-            officer=self.officer_entity,
+            officer=self.officer,
             date=date.today(),
         )
         self.client_entity.fund.refresh_from_db()

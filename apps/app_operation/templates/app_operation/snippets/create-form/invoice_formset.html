@@ -1,22 +1,23 @@
+{% load i18n %}
 {% if formset %}
   <div class="col-12">
     {{ formset.management_form }}
     <div class="d-flex justify-content-between align-items-center mb-2">
-      <label class="form-label fw-bold mb-0">Items</label>
+      <label class="form-label fw-bold mb-0">{% trans "Items" %}</label>
       <button type="button" class="btn btn-sm btn-outline-{{ theme_color }}" id="add-item-row">
         <i class="bi bi-plus-lg"></i>
-        Add Item
+        {% trans "Add Item" %}
       </button>
     </div>
 
-    <div class="border rounded">
+    <div class="border rounded table-responsive">
       <table class="table table-hover align-middle mb-0 table-sm" id="items-table">
         <thead class="table-light">
           <tr>
-            <th>Product</th>
-            <th style="width: 70px">Qty</th>
-            <th style="width: 110px">Unit Price</th>
-            <th style="width: 90px">Total</th>
+            <th>{% trans "Product" %}</th>
+            <th style="width: 70px">{% trans "Qty" %}</th>
+            <th style="width: 110px">{% trans "Unit Price" %}</th>
+            <th style="width: 90px">{% trans "Total" %}</th>
             <th style="width: 36px"></th>
           </tr>
         </thead>
@@ -61,7 +62,7 @@
         </tbody>
         <tfoot>
           <tr>
-            <td colspan="3" class="text-end fw-bold pe-2 small">Grand Total</td>
+            <td colspan="3" class="text-end fw-bold pe-2 small">{% trans "Grand Total" %}</td>
             <td id="grand-total" class="fw-bold small">$ 0.00</td>
             <td></td>
           </tr>

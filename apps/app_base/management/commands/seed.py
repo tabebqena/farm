@@ -79,20 +79,14 @@ class Command(BaseCommand):
         self._create_officer()
 
     def _create_officer(self):
-        from apps.app_entity.models import Entity, Person
-
-        if User.objects.filter(username="Officer").exists():
-            self.stdout.write("User 'Officer' already exists, skipping.")
+        if User.objects.filter(username="officer").exists():
+            self.stdout.write("User 'officer' already exists, skipping.")
             return
 
-        user = User.objects.create_user(  # type: ignore[attr-defined]
-            username="Officer", password="123456", email="", is_staff=True
+        User.objects.create_user(
+            username="officer", password="123456", email="", is_staff=True
         )
-        person = Person.objects.create(private_name="Officer")
-        Entity.create(owner=person, auth_user=user, active=True, fund_active=True)
-        self.stdout.write(
-            self.style.SUCCESS("Created Officer: user (is_staff), person & entity.")
-        )
+        self.stdout.write(self.style.SUCCESS("Created officer user (is_staff=True)."))
 
     def _create_world_entity(self):
         from apps.app_entity.models import Entity

@@ -1,5 +1,6 @@
 from typing import List
 
+from django.conf import settings
 from django.db import models
 from django.forms import ValidationError
 from django.utils.translation import gettext_lazy as _
@@ -129,11 +130,12 @@ class Adjustment(
         _("effect"),
         max_length=10,
         choices=AdjustmentEffect.choices,
+        blank=True,
     )
     reason = models.TextField(_("reason"), blank=True)
     date = models.DateField(_("date"))
     officer = models.ForeignKey(
-        "app_entity.Entity",
+        settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name="adjustments_supervised",
         verbose_name=_("officer"),

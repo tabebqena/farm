@@ -22,10 +22,6 @@ class CashInjectionCreateTest(TestCase):
         self.officer_user = User.objects.create_user(
             username="officer", password="testpass", is_staff=True
         )
-        officer_person = Person.create(
-            private_name="Officer Person", auth_user=self.officer_user
-        )
-        self.officer_entity = officer_person.entity
 
         # Receiver: person entity (has person, no project)
         receiver_person = Person.create(private_name="Receiver Person")
@@ -39,7 +35,7 @@ class CashInjectionCreateTest(TestCase):
             operation_type=OperationType.CASH_INJECTION,
             date=date.today(),
             description="Test cash injection",
-            officer=self.officer_entity,
+            officer=self.officer_user,
         )
         defaults.update(kwargs)
         return CashInjectionOperation(**defaults)
@@ -61,15 +57,11 @@ class CashInjectionCreateTest(TestCase):
         self.assertEqual(transactions.count(), 2)
 
         self.assertTrue(
-            transactions.filter(
-                type=TransactionType.CASH_INJECTION_ISSUANCE
-            ).exists(),
+            transactions.filter(type=TransactionType.CASH_INJECTION_ISSUANCE).exists(),
             "Issuance transaction should be created",
         )
         self.assertTrue(
-            transactions.filter(
-                type=TransactionType.CASH_INJECTION_PAYMENT
-            ).exists(),
+            transactions.filter(type=TransactionType.CASH_INJECTION_PAYMENT).exists(),
             "Payment transaction should be created",
         )
 
@@ -166,31 +158,17 @@ class CashInjectionCreateTest(TestCase):
     # Officer validation
     # ------------------------------------------------------------------
 
-    def test_officer_must_be_personal_entity(self):
-        op = self._make_op(officer=self.world_entity)
-        with self.assertRaises(ValidationError):
-            op.save()
-
-    def test_officer_must_have_user(self):
-        no_user_person = Person.create(private_name="No User Officer")
-        op = self._make_op(officer=no_user_person.entity)
-        with self.assertRaises(ValidationError):
-            op.save()
-
     def test_officer_user_must_be_staff(self):
         non_staff_user = User.objects.create_user(
             username="non_staff", password="testpass", is_staff=False
         )
-        non_staff_person = Person.create(
-            private_name="Non Staff Officer", auth_user=non_staff_user
-        )
-        op = self._make_op(officer=non_staff_person.entity)
+        op = self._make_op(officer=non_staff_user)
         with self.assertRaises(ValidationError):
             op.save()
 
     def test_officer_must_be_active(self):
-        self.officer_entity.active = False
-        self.officer_entity.save()
+        self.officer_user.is_active = False
+        self.officer_user.save()
 
         op = self._make_op()
         with self.assertRaises(ValidationError):
@@ -237,7 +215,7 @@ class CashInjectionCreateTest(TestCase):
         with self.assertRaises(ValidationError):
             op.create_payment_transaction(
                 amount=op.amount,
-                officer=self.officer_entity,
+                officer=self.officer_user,
                 date=date.today(),
             )
 
@@ -278,10 +256,6 @@ class CashInjectionReversalTest(TestCase):
         self.officer_user = User.objects.create_user(
             username="officer", password="testpass", is_staff=True
         )
-        officer_person = Person.create(
-            private_name="Officer Person", auth_user=self.officer_user
-        )
-        self.officer_entity = officer_person.entity
 
         receiver_person = Person.create(private_name="Receiver Person")
         self.receiver_entity = receiver_person.entity
@@ -293,7 +267,7 @@ class CashInjectionReversalTest(TestCase):
             operation_type=OperationType.CASH_INJECTION,
             date=date.today(),
             description="Test cash injection",
-            officer=self.officer_entity,
+            officer=self.officer_user,
         )
         self.op.save()
 
@@ -302,33 +276,33 @@ class CashInjectionReversalTest(TestCase):
     # ------------------------------------------------------------------
 
     def test_reverse_creates_reversal_operation(self):
-        reversal = self.op.reverse(officer=self.officer_entity)
+        reversal = self.op.reverse(officer=self.officer_user)
 
         self.assertIsNotNone(reversal.pk)
         self.assertEqual(reversal.reversal_of, self.op)
 
     def test_reverse_marks_original_as_reversed(self):
-        reversal = self.op.reverse(officer=self.officer_entity)
+        reversal = self.op.reverse(officer=self.officer_user)
 
         self.op.refresh_from_db()
         self.assertTrue(self.op.is_reversed)
         self.assertEqual(self.op.reversed_by, reversal)
 
     def test_reversal_is_reversal(self):
-        reversal = self.op.reverse(officer=self.officer_entity)
+        reversal = self.op.reverse(officer=self.officer_user)
 
         self.assertTrue(reversal.is_reversal)
         self.assertFalse(reversal.is_reversed)
 
     def test_reverse_inherits_amount_source_destination(self):
-        reversal = self.op.reverse(officer=self.officer_entity)
+        reversal = self.op.reverse(officer=self.officer_user)
 
         self.assertEqual(reversal.amount, self.op.amount)
         self.assertEqual(reversal.source, self.op.source)
         self.assertEqual(reversal.destination, self.op.destination)
 
     def test_reverse_creates_counter_transactions(self):
-        reversal = self.op.reverse(officer=self.officer_entity)
+        reversal = self.op.reverse(officer=self.officer_user)
 
         # Counter-transactions are linked to the original op (same content_type + object_id),
         # not to the reversal op. The reversal op's save() skips transaction creation.
@@ -342,7 +316,7 @@ class CashInjectionReversalTest(TestCase):
         self.assertEqual(reversed_txs.count(), 2)
 
     def test_reverse_counter_transactions_flip_funds(self):
-        self.op.reverse(officer=self.officer_entity)
+        self.op.reverse(officer=self.officer_user)
 
         original_txs = self.op.get_all_transactions().filter(reversal_of__isnull=True)
         for tx in original_txs:
@@ -352,7 +326,7 @@ class CashInjectionReversalTest(TestCase):
             self.assertEqual(counter.amount, tx.amount)
 
     def test_reverse_counter_transactions_preserve_type(self):
-        self.op.reverse(officer=self.officer_entity)
+        self.op.reverse(officer=self.officer_user)
 
         original_txs = self.op.get_all_transactions().filter(reversal_of__isnull=True)
         for tx in original_txs:
@@ -363,17 +337,17 @@ class CashInjectionReversalTest(TestCase):
     # ------------------------------------------------------------------
 
     def test_cannot_reverse_already_reversed_operation(self):
-        self.op.reverse(officer=self.officer_entity)
+        self.op.reverse(officer=self.officer_user)
         self.op.refresh_from_db()
 
         with self.assertRaises(ValidationError):
-            self.op.reverse(officer=self.officer_entity)
+            self.op.reverse(officer=self.officer_user)
 
     def test_cannot_reverse_a_reversal(self):
-        reversal = self.op.reverse(officer=self.officer_entity)
+        reversal = self.op.reverse(officer=self.officer_user)
 
         with self.assertRaises(ValidationError):
-            reversal.reverse(officer=self.officer_entity)
+            reversal.reverse(officer=self.officer_user)
 
     # ------------------------------------------------------------------
     # Balance
@@ -382,7 +356,7 @@ class CashInjectionReversalTest(TestCase):
     def test_receiver_balance_restored_to_zero_after_reversal(self):
         # setUp already saved the operation, so balance is already 1000 here.
         balance_after_injection = self.receiver_entity.fund.balance
-        self.op.reverse(officer=self.officer_entity)
+        self.op.reverse(officer=self.officer_user)
 
         self.assertEqual(
             self.receiver_entity.fund.balance,

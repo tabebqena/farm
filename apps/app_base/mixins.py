@@ -82,19 +82,10 @@ class AmountCleanMixin(BaseModelMixin):
 
 class OfficerMixin(BaseModelMixin):
     def clean(self):
-        from apps.app_entity.models import ENTITY_TYPE_ENUM
-
-        if not self.officer.type == ENTITY_TYPE_ENUM.PERSONAL:
-            raise ValidationError(
-                _("Officer should be of type `PERSONAL` entity, not %(type)s")
-                % {"type": self.officer.type}
-            )
-        if not self.officer.user:
-            raise ValidationError(_("Officer should have associated user account."))
-        if not self.officer.user.is_staff:
-            raise ValidationError(_("Officer should be staff person."))
-        if not self.officer.active:
-            raise ValidationError(_("Officer should be `active`"))
+        if not self.officer.is_staff:
+            raise ValidationError(_("Officer should be a staff user."))
+        if not self.officer.is_active:
+            raise ValidationError(_("Officer should be an active user."))
         return super().clean()
 
 

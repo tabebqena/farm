@@ -1,13 +1,15 @@
 {% extends 'base.html' %}
 {% load i18n %}
 
-{% block title %}{% trans "Entity:" %} {{ entity.name }}{% endblock %}
+{% block title %}
+  {% trans 'Entity:' %} {{ entity.name }}
+{% endblock %}
 
 {% block content %}
   <nav aria-label="breadcrumb" class="mb-4">
     <ol class="breadcrumb">
       <li class="breadcrumb-item">
-        <a href="{% url 'entity_list' %}">{% trans "Entities" %}</a>
+        <a href="{% url 'entity_list' %}">{% trans 'Entities' %}</a>
       </li>
       <li class="breadcrumb-item active">{{ entity.name }}</li>
     </ol>
@@ -20,8 +22,8 @@
           <div class="alert alert-warning d-flex align-items-center" role="alert">
             <i class="bi bi-exclamation-triangle-fill me-2 flex-shrink-0"></i>
             <div>
-              {% trans "This project has no" %} <strong>{% trans "Product Templates" %}</strong> {% trans "configured." %}
-              <a href="{% url 'entity_product_templates_setup' entity.pk %}" class="alert-link">{% trans "Set up product templates." %}</a>
+              {% trans 'This project has no' %} <strong>{% trans 'Product Templates' %}</strong> {% trans 'configured.' %}
+              <a href="{% url 'entity_product_templates_setup' entity.pk %}" class="alert-link">{% trans 'Set up product templates.' %}</a>
             </div>
           </div>
         {% endif %}
@@ -29,8 +31,8 @@
           <div class="alert alert-warning d-flex align-items-center" role="alert">
             <i class="bi bi-exclamation-triangle-fill me-2 flex-shrink-0"></i>
             <div>
-              {% trans "This project has no" %} <strong>{% trans "Financial Categories" %}</strong> {% trans "defined." %}
-              <a href="{% url 'category_create' entity.pk %}" class="alert-link">{% trans "Add a category now." %}</a>
+              {% trans 'This project has no' %} <strong>{% trans 'Financial Categories' %}</strong> {% trans 'defined.' %}
+              <a href="{% url 'category_create' entity.pk %}" class="alert-link">{% trans 'Add a category now.' %}</a>
             </div>
           </div>
         {% endif %}
@@ -39,27 +41,27 @@
   {% endif %}
 
   <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4 pb-3 border-bottom">
       <span class="flex-grow-1">
         <div class="d-flex align-items-center">
           <h2 class="fw-bold mb-0 me-3">{{ entity.get_display_name }}</h2>
 
           {% if entity.active %}
-            <span class="badge bg-success-subtle text-success border border-success-subtle">{% trans "Active" %}</span>
+            <span class="badge bg-success-subtle text-success border border-success-subtle">{% trans 'Active' %}</span>
           {% else %}
-            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">{% trans "Inactive" %}</span>
+            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">{% trans 'Inactive' %}</span>
           {% endif %}
           {% if entity.is_internal %}
-            <span class="ms-2 badge bg-primary">{% trans "Internal" %}</span>
+            <span class="ms-2 badge bg-primary">{% trans 'Internal' %}</span>
           {% else %}
-            <span class="ms-2 badge bg-danger">{% trans "External" %}</span>
+            <span class="ms-2 badge bg-danger">{% trans 'External' %}</span>
           {% endif %}
         </div>
         <p class="text-muted mt-1 mb-0">{{ entity.owner.description|default:'No description provided.' }}</p>
       </span>
       <span class="d-flex align-items-center">
         {% include 'app_entity/snippets/entity_edit_link.html' with edit_label='Edit' %}
-        <span class="ms-2 gap-2"><a class="btn-primary btn button-primary" href="{% url 'operation_list_view' entity.pk %}"><i class="bi bi-clock-history me-2"></i>{% trans "Operations" %}</a></span>
+        <span class="ms-2 gap-2"><a class="btn-primary btn button-primary" href="{% url 'operation_list_view' entity.pk %}"><i class="bi bi-clock-history me-2"></i>{% trans 'Operations' %}</a></span>
       </span>
     </div>
   </div>
@@ -82,20 +84,20 @@
 
           <div class="d-flex justify-content-center gap-2 mb-4">
             {% if entity.is_internal %}
-              <span class="badge bg-primary">{% trans "Internal" %}</span>
+              <span class="badge bg-primary">{% trans 'Internal' %}</span>
             {% endif %}
             {% if entity.active %}
-              <span class="badge bg-success">{% trans "Active" %}</span>
+              <span class="badge bg-success">{% trans 'Active' %}</span>
             {% else %}
-              <span class="badge bg-danger">{% trans "Inactive" %}</span>
+              <span class="badge bg-danger">{% trans 'Inactive' %}</span>
             {% endif %}
           </div>
 
           <div class="bg-light rounded p-3 text-start">
-            <label class="small text-muted text-uppercase fw-bold">{% trans "Current Fund Balance" %}</label>
+            <label class="small text-muted text-uppercase fw-bold">{% trans 'Current Fund Balance' %}</label>
             <h2 class="mb-0 fw-bold text-dark">{{ entity.fund.currency|default:'$' }} {{ entity.fund.balance|default:'0.00' }}</h2>
             {% if not entity.fund.active %}
-              <small class="text-danger"><i class="bi bi-lock-fill"></i> {% trans "Fund is locked for payments" %}</small>
+              <small class="text-danger"><i class="bi bi-lock-fill"></i> {% trans 'Fund is locked for payments' %}</small>
             {% endif %}
           </div>
         </div>
@@ -103,8 +105,8 @@
       {% if entity.project or entity.person %}
         <div class="card border-0 shadow-sm">
           <div class="card-header bg-white fw-bold py-3 d-flex justify-content-between align-items-center mb-2">
-            <h6 class="fw-bold text-uppercase small text-muted">{% trans "Contact Information" %}</h6>
-            <a href="{% url 'add_contact_info' entity.id %}" class="btn btn-sm btn-link text-decoration-none">{% trans "+ Add New" %}</a>
+            <h6 class="fw-bold text-uppercase small text-muted">{% trans 'Contact Information' %}</h6>
+            <a href="{% url 'add_contact_info' entity.id %}" class="btn btn-sm btn-link text-decoration-none">{% trans '+ Add New' %}</a>
           </div>
           <div class="card-body">
             <div class="list-group list-group-flush">
@@ -125,7 +127,7 @@
                     <div class="d-flex align-items-center">
                       <span class="fw-bold text-dark me-2">{{ contact.value }}</span>
                       {% if contact.is_primary %}
-                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size: 0.65rem;">{% trans "PRIMARY" %}</span>
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size: 0.65rem;">{% trans 'PRIMARY' %}</span>
                       {% endif %}
                     </div>
                     <small class="text-muted text-uppercase ls-1" style="font-size: 0.7rem;">{{ contact.get_label_display }}</small>
@@ -145,17 +147,14 @@
           <ul class="nav nav-tabs card-header-tabs" id="entityTab" role="tablist">
             {% if entity.project %}
               <li class="nav-item">
-                <button class="nav-link active fw-bold" data-bs-toggle="tab" data-bs-target="#stakeholders">{% trans "Stakeholders" %}</button>
+                <button class="nav-link active fw-bold" data-bs-toggle="tab" data-bs-target="#stakeholders">{% trans 'Stakeholders' %}</button>
               </li>
             {% endif %}
             {% if entity.person %}
               <li class="nav-item">
-                <button class="nav-link fw-bold" data-bs-toggle="tab" data-bs-target="#memberships">{% trans "Memberships" %}</button>
+                <button class="nav-link fw-bold" data-bs-toggle="tab" data-bs-target="#memberships">{% trans 'Memberships' %}</button>
               </li>
             {% endif %}
-            <li class="nav-item">
-              <button class="nav-link fw-bold" data-bs-toggle="tab" data-bs-target="#history">{% trans "Ledger History" %}</button>
-            </li>
           </ul>
         </div>
         <div class="card-body p-4">
@@ -164,22 +163,22 @@
               <div class="tab-pane fade show active" id="stakeholders">
                 <div class="card border-0 shadow-sm mt-4">
                   <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0 fw-bold text-uppercase small text-muted">{% trans "Project Team & Stakeholders" %}</h6>
+                    <h6 class="mb-0 fw-bold text-uppercase small text-muted">{% trans 'Project Team & Stakeholders' %}</h6>
                     {% if entity.is_internal and entity.project %}
                       <div class="dropdown">
-                        <button class="btn btn-sm btn-dark dropdown-toggle" type="button" data-bs-toggle="dropdown"><i class="bi bi-plus-circle me-1"></i> {% trans "Add Stakeholder" %}</button>
+                        <button class="btn btn-sm btn-dark dropdown-toggle" type="button" data-bs-toggle="dropdown"><i class="bi bi-plus-circle me-1"></i> {% trans 'Add Stakeholder' %}</button>
                         <ul class="dropdown-menu dropdown-menu-end shadow border-0">
                           <li>
-                            <a class="dropdown-item" href="{% url 'add_worker' entity.id %}"><i class="bi bi-person me-2"></i>{% trans "Add Worker" %}</a>
+                            <a class="dropdown-item" href="{% url 'add_worker' entity.id %}"><i class="bi bi-person me-2"></i>{% trans 'Add Worker' %}</a>
                           </li>
                           <li>
-                            <a class="dropdown-item" href="{% url 'add_vendor' entity.id %}"><i class="bi bi-shop me-2"></i>{% trans "Add Vendor" %}</a>
+                            <a class="dropdown-item" href="{% url 'add_vendor' entity.id %}"><i class="bi bi-shop me-2"></i>{% trans 'Add Vendor' %}</a>
                           </li>
                           <li>
-                            <a class="dropdown-item" href="{% url 'add_client' entity.id %}"><i class="bi bi-briefcase me-2"></i>{% trans "Add Client" %}</a>
+                            <a class="dropdown-item" href="{% url 'add_client' entity.id %}"><i class="bi bi-briefcase me-2"></i>{% trans 'Add Client' %}</a>
                           </li>
                           <li>
-                            <a class="dropdown-item" href="{% url 'add_shareholder' entity.id %}"><i class="bi bi-pie-chart me-2"></i>{% trans "Add Shareholder" %}</a>
+                            <a class="dropdown-item" href="{% url 'add_shareholder' entity.id %}"><i class="bi bi-pie-chart me-2"></i>{% trans 'Add Shareholder' %}</a>
                           </li>
                         </ul>
                       </div>
@@ -203,7 +202,7 @@
                         <div class="alert alert-warning d-flex align-items-center mb-0" role="alert">
                           <i class="bi bi-exclamation-triangle-fill me-2"></i>
                           <div>
-                            {% trans "No stakeholders assigned to this project yet." %} <a href="{% url 'add_shareholder' entity.id %}" class="alert-link">{% trans "Add one now." %}</a>
+                            {% trans 'No stakeholders assigned to this project yet.' %} <a href="{% url 'add_shareholder' entity.id %}" class="alert-link">{% trans 'Add one now.' %}</a>
                           </div>
                         </div>
                       </div>
@@ -226,29 +225,29 @@
                       <span class="badge bg-light text-muted border small">{{ sh.get_role_display }}</span>
                     </div>
                     <div class="text-end">
-                      <span class="small text-muted d-block">{% trans "Joined" %}</span>
+                      <span class="small text-muted d-block">{% trans 'Joined' %}</span>
                       <span class="small fw-medium">{{ membership.created_at|date:'M Y' }}</span>
                     </div>
                   </div>
                 {% empty %}
-                  <div class="p-4 text-center text-muted small">{% trans "This person is not currently assigned to any projects." %}</div>
+                  <div class="p-4 text-center text-muted small">
+                    {% trans 'This person is not currently assigned to any projects.' %}
+                  </div>
                 {% endfor %}
               </div>
             {% endif %}
-
-            <div class="tab-pane fade" id="history">
-              <p class="text-muted">{% trans "Transaction history integration coming soon..." %}</p>
-            </div>
           </div>
         </div>
       </div>
     </div>
 
     {% if entity.project or entity.person %}
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="fw-bold">{% trans "Operational Categories (Sub-Ledgers)" %}</h5>
-        <a href="{% url 'category_create' entity.id %}" class="btn btn-sm btn-primary">{% trans "+ Add Category" %}</a>
-        <a href="{% url 'category_bulk_create' entity.id %}" class="btn btn-sm btn-secondary">{% trans "++ Bulk Create" %}</a>
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <h5 class="fw-bold mb-0">{% trans 'Operational Categories (Sub-Ledgers)' %}</h5>
+        <div class="d-flex gap-2">
+          <a href="{% url 'category_create' entity.id %}" class="btn btn-sm btn-primary">{% trans '+ Add Category' %}</a>
+          <a href="{% url 'category_bulk_create' entity.id %}" class="btn btn-sm btn-secondary">{% trans '++ Bulk Create' %}</a>
+        </div>
       </div>
       <div class="list-group shadow-sm">
         {% for cat in entity.categories.all %}
@@ -259,7 +258,7 @@
             </div>
             <div class="text-end">
               <div class="fw-bold">{{ cat.balance }}</div>
-              <small class="text-muted">{% trans "Limit:" %} {{ cat.max_limit }}</small>
+              <small class="text-muted">{% trans 'Limit:' %} {{ cat.max_limit }}</small>
             </div>
           </a>
         {% empty %}
@@ -267,7 +266,7 @@
             <div class="alert alert-warning d-flex align-items-center mb-0" role="alert">
               <i class="bi bi-exclamation-triangle-fill me-2"></i>
               <div>
-                {% trans "No expense categories defined for this entity." %} <a href="{% url 'category_create' entity.id %}" class="alert-link">{% trans "Add one now." %}</a>
+                {% trans 'No expense categories defined for this entity.' %} <a href="{% url 'category_create' entity.id %}" class="alert-link">{% trans 'Add one now.' %}</a>
               </div>
             </div>
           </div>

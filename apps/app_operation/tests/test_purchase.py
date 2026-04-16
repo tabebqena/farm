@@ -19,11 +19,9 @@ User = get_user_model()
 
 
 def _make_officer(username="officer"):
-    user = User.objects.create_user(
+    return User.objects.create_user(
         username=username, password="testpass", is_staff=True
     )
-    person = Person.create(private_name=f"Officer {username}", auth_user=user)
-    return person.entity
 
 
 def _make_person_entity(name):
@@ -42,7 +40,7 @@ def _make_vendor_entity(name):
     return person.entity
 
 
-def _inject_project(system_entity, dest_entity, amount, officer_entity):
+def _inject_project(system_entity, dest_entity, amount, officer_user):
     """Seed a Project entity's fund via CapitalGain."""
     CapitalGainOperation(
         source=system_entity,
@@ -51,7 +49,7 @@ def _inject_project(system_entity, dest_entity, amount, officer_entity):
         operation_type=OperationType.CAPITAL_GAIN,
         date=date.today(),
         description="Seed project balance",
-        officer=officer_entity,
+        officer=officer_user,
     ).save()
 
 
@@ -83,14 +81,14 @@ class PurchaseCreateTest(TestCase):
 
     def setUp(self):
         self.system_entity = Entity.create(is_system=True)
-        self.officer_entity = _make_officer()
+        self.officer_user = _make_officer()
 
         self.project_entity = _make_project_entity("Test Farm Project")
         _inject_project(
             self.system_entity,
             self.project_entity,
             Decimal("5000.00"),
-            self.officer_entity,
+            self.officer_user,
         )
 
         self.vendor_entity = _make_vendor_entity("Agri Supplies Ltd")
@@ -104,7 +102,7 @@ class PurchaseCreateTest(TestCase):
             operation_type=OperationType.PURCHASE,
             date=date.today(),
             description="Test purchase",
-            officer=self.officer_entity,
+            officer=self.officer_user,
         )
         defaults.update(kwargs)
         return PurchaseOperation(**defaults)
@@ -248,31 +246,18 @@ class PurchaseCreateTest(TestCase):
     # Officer validation
     # ------------------------------------------------------------------
 
-    def test_officer_must_be_a_person_entity(self):
-        op = self._make_op(officer=self.system_entity)
-        with self.assertRaises(ValidationError):
-            op.save()
-
-    def test_officer_must_have_auth_user(self):
-        no_user_person = Person.create(private_name="No User Officer")
-        op = self._make_op(officer=no_user_person.entity)
-        with self.assertRaises(ValidationError):
-            op.save()
-
     def test_officer_user_must_be_staff(self):
         non_staff_user = User.objects.create_user(
             username="non_staff", password="testpass", is_staff=False
         )
-        non_staff_person = Person.create(
-            private_name="Non Staff Officer", auth_user=non_staff_user
-        )
-        op = self._make_op(officer=non_staff_person.entity)
+
+        op = self._make_op(officer=non_staff_user)
         with self.assertRaises(ValidationError):
             op.save()
 
     def test_officer_must_be_active(self):
-        self.officer_entity.active = False
-        self.officer_entity.save()
+        self.officer_user.is_active = False
+        self.officer_user.save()
 
         op = self._make_op()
         with self.assertRaises(ValidationError):
@@ -326,14 +311,14 @@ class PurchasePaymentTest(TestCase):
 
     def setUp(self):
         self.system_entity = Entity.create(is_system=True)
-        self.officer_entity = _make_officer()
+        self.officer_user = _make_officer()
 
         self.project_entity = _make_project_entity("Farm Project")
         _inject_project(
             self.system_entity,
             self.project_entity,
             Decimal("5000.00"),
-            self.officer_entity,
+            self.officer_user,
         )
 
         self.vendor_entity = _make_vendor_entity("Agri Supplies Ltd")
@@ -346,14 +331,14 @@ class PurchasePaymentTest(TestCase):
             operation_type=OperationType.PURCHASE,
             date=date.today(),
             description="Test purchase",
-            officer=self.officer_entity,
+            officer=self.officer_user,
         )
         self.op.save()
 
     def _pay(self, amount):
         self.op.create_payment_transaction(
             amount=amount,
-            officer=self.officer_entity,
+            officer=self.officer_user,
             date=date.today(),
         )
 
@@ -478,12 +463,12 @@ class PurchasePaymentTest(TestCase):
             operation_type=OperationType.PURCHASE,
             date=date.today(),
             description="Drain purchase",
-            officer=self.officer_entity,
+            officer=self.officer_user,
         )
         drain_op.save()
         drain_op.create_payment_transaction(
             amount=Decimal("4000.00"),
-            officer=self.officer_entity,
+            officer=self.officer_user,
             date=date.today(),
         )
         # Project fund now has 5000 - 4000 = 1000, but self.op still has 1000 unsettled.
@@ -509,14 +494,14 @@ class PurchaseReversalTest(TestCase):
 
     def setUp(self):
         self.system_entity = Entity.create(is_system=True)
-        self.officer_entity = _make_officer()
+        self.officer_user = _make_officer()
 
         self.project_entity = _make_project_entity("Farm Project")
         _inject_project(
             self.system_entity,
             self.project_entity,
             Decimal("5000.00"),
-            self.officer_entity,
+            self.officer_user,
         )
 
         self.vendor_entity = _make_vendor_entity("Agri Supplies Ltd")
@@ -529,7 +514,7 @@ class PurchaseReversalTest(TestCase):
             operation_type=OperationType.PURCHASE,
             date=date.today(),
             description="Test purchase",
-            officer=self.officer_entity,
+            officer=self.officer_user,
         )
         self.op.save()
 
@@ -538,26 +523,26 @@ class PurchaseReversalTest(TestCase):
     # ------------------------------------------------------------------
 
     def test_reverse_creates_reversal_operation(self):
-        reversal = self.op.reverse(officer=self.officer_entity)
+        reversal = self.op.reverse(officer=self.officer_user)
 
         self.assertIsNotNone(reversal.pk)
         self.assertEqual(reversal.reversal_of, self.op)
 
     def test_reverse_marks_original_as_reversed(self):
-        reversal = self.op.reverse(officer=self.officer_entity)
+        reversal = self.op.reverse(officer=self.officer_user)
 
         self.op.refresh_from_db()
         self.assertTrue(self.op.is_reversed)
         self.assertEqual(self.op.reversed_by, reversal)
 
     def test_reversal_is_marked_as_reversal(self):
-        reversal = self.op.reverse(officer=self.officer_entity)
+        reversal = self.op.reverse(officer=self.officer_user)
 
         self.assertTrue(reversal.is_reversal)
         self.assertFalse(reversal.is_reversed)
 
     def test_reverse_inherits_amount_source_destination(self):
-        reversal = self.op.reverse(officer=self.officer_entity)
+        reversal = self.op.reverse(officer=self.officer_user)
 
         self.assertEqual(reversal.amount, self.op.amount)
         self.assertEqual(reversal.source, self.op.source)
@@ -565,7 +550,7 @@ class PurchaseReversalTest(TestCase):
 
     def test_reverse_creates_counter_transaction_for_issuance(self):
         """Only the PURCHASE_ISSUANCE is implicitly reversed (not one-shot operation)."""
-        self.op.reverse(officer=self.officer_entity)
+        self.op.reverse(officer=self.officer_user)
 
         all_txs = self.op.get_all_transactions()
         # 1 original PURCHASE_ISSUANCE + 1 counter-PURCHASE_ISSUANCE
@@ -575,7 +560,7 @@ class PurchaseReversalTest(TestCase):
         self.assertEqual(counter_txs.count(), 1)
 
     def test_reverse_counter_transaction_flips_funds(self):
-        self.op.reverse(officer=self.officer_entity)
+        self.op.reverse(officer=self.officer_user)
 
         original_tx = self.op.get_all_transactions().get(reversal_of__isnull=True)
         counter_tx = original_tx.reversed_by
@@ -588,7 +573,7 @@ class PurchaseReversalTest(TestCase):
         """Issuance is non-cash; reversing it leaves the project fund balance untouched."""
         balance_before_reversal = self.project_entity.fund.balance
 
-        self.op.reverse(officer=self.officer_entity)
+        self.op.reverse(officer=self.officer_user)
 
         self.project_entity.fund.refresh_from_db()
         self.assertEqual(self.project_entity.fund.balance, balance_before_reversal)
@@ -600,26 +585,26 @@ class PurchaseReversalTest(TestCase):
     def test_reversal_blocked_when_payment_exists(self):
         self.op.create_payment_transaction(
             amount=Decimal("500.00"),
-            officer=self.officer_entity,
+            officer=self.officer_user,
             date=date.today(),
         )
 
         with self.assertRaises(ValidationError):
-            self.op.reverse(officer=self.officer_entity)
+            self.op.reverse(officer=self.officer_user)
 
     # ------------------------------------------------------------------
     # Constraints
     # ------------------------------------------------------------------
 
     def test_cannot_reverse_already_reversed_operation(self):
-        self.op.reverse(officer=self.officer_entity)
+        self.op.reverse(officer=self.officer_user)
         self.op.refresh_from_db()
 
         with self.assertRaises(ValidationError):
-            self.op.reverse(officer=self.officer_entity)
+            self.op.reverse(officer=self.officer_user)
 
     def test_cannot_reverse_a_reversal(self):
-        reversal = self.op.reverse(officer=self.officer_entity)
+        reversal = self.op.reverse(officer=self.officer_user)
 
         with self.assertRaises(ValidationError):
-            reversal.reverse(officer=self.officer_entity)
+            reversal.reverse(officer=self.officer_user)

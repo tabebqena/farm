@@ -2,6 +2,7 @@ import logging
 from datetime import date as today_date
 from typing import List
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q, Sum
@@ -64,7 +65,7 @@ class Operation(
     date = models.DateField(default=today_date.today)
     description = models.TextField(blank=True)
     officer = models.ForeignKey(
-        "app_entity.Entity",
+        settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name="operations_supervised",
     )

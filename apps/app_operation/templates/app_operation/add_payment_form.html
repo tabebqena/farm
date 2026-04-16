@@ -2,6 +2,8 @@
 {% load l10n %}
 {% load i18n %}
 {% block content %}
+  <div class="row justify-content-center">
+  <div class="col-12 col-sm-10 col-md-7 col-lg-5">
   <div class="card border-primary shadow-sm">
     <div class="card-header bg-primary text-white">
       <h5 class="mb-0">{% trans "Record Payment for" %} {{ operation.operation_type }} #{{ operation.pk }}</h5>
@@ -62,5 +64,7 @@
         })
       </script>
     </div>
+  </div>
+  </div>
   </div>
 {% endblock %}

@@ -23,9 +23,7 @@ User = get_user_model()
 
 
 def _make_officer(username="officer"):
-    user = User.objects.create_user(username=username, password="testpass", is_staff=True)
-    person = Person.create(private_name=f"Officer {username}", auth_user=user)
-    return person.entity
+    return User.objects.create_user(username=username, password="testpass", is_staff=True)
 
 
 def _make_person_entity(name):
@@ -39,7 +37,7 @@ def _make_project_entity(name):
     return Entity.create(owner=project)
 
 
-def _inject_person(world_entity, dest_entity, amount, officer_entity):
+def _inject_person(world_entity, dest_entity, amount, officer):
     """Seed a Person entity's fund via CashInjection."""
     CashInjectionOperation(
         source=world_entity,
@@ -48,11 +46,11 @@ def _inject_person(world_entity, dest_entity, amount, officer_entity):
         operation_type=OperationType.CASH_INJECTION,
         date=date.today(),
         description="Seed balance",
-        officer=officer_entity,
+        officer=officer,
     ).save()
 
 
-def _inject_project(system_entity, dest_entity, amount, officer_entity):
+def _inject_project(system_entity, dest_entity, amount, officer):
     """Seed a Project entity's fund via CapitalGain."""
     CapitalGainOperation(
         source=system_entity,
@@ -61,7 +59,7 @@ def _inject_project(system_entity, dest_entity, amount, officer_entity):
         operation_type=OperationType.CAPITAL_GAIN,
         date=date.today(),
         description="Seed project balance",
-        officer=officer_entity,
+        officer=officer,
     ).save()
 
 
@@ -86,10 +84,10 @@ class WorkerAdvanceCreateTest(TestCase):
 
     def setUp(self):
         self.system_entity = Entity.create(is_system=True)
-        self.officer_entity = _make_officer()
+        self.officer = _make_officer()
 
         self.project_entity = _make_project_entity("Test Farm Project")
-        _inject_project(self.system_entity, self.project_entity, Decimal("5000.00"), self.officer_entity)
+        _inject_project(self.system_entity, self.project_entity, Decimal("5000.00"), self.officer)
 
         self.worker_entity = _make_person_entity("Ali Worker")
         _make_worker_stakeholder(self.project_entity, self.worker_entity)
@@ -102,7 +100,7 @@ class WorkerAdvanceCreateTest(TestCase):
             operation_type=OperationType.WORKER_ADVANCE,
             date=date.today(),
             description="Test worker advance",
-            officer=self.officer_entity,
+            officer=self.officer,
         )
         defaults.update(kwargs)
         return WorkerAdvanceOperation(**defaults)
@@ -188,7 +186,7 @@ class WorkerAdvanceCreateTest(TestCase):
         with self.assertRaises(ValidationError):
             op.create_payment_transaction(
                 amount=op.amount,
-                officer=self.officer_entity,
+                officer=self.officer,
                 date=date.today(),
             )
 
@@ -283,31 +281,17 @@ class WorkerAdvanceCreateTest(TestCase):
     # Officer validation
     # ------------------------------------------------------------------
 
-    def test_officer_must_be_a_person_entity(self):
-        op = self._make_op(officer=self.system_entity)
-        with self.assertRaises(ValidationError):
-            op.save()
-
-    def test_officer_must_have_auth_user(self):
-        no_user_person = Person.create(private_name="No User Officer")
-        op = self._make_op(officer=no_user_person.entity)
-        with self.assertRaises(ValidationError):
-            op.save()
-
     def test_officer_user_must_be_staff(self):
         non_staff_user = User.objects.create_user(
             username="non_staff", password="testpass", is_staff=False
         )
-        non_staff_person = Person.create(
-            private_name="Non Staff Officer", auth_user=non_staff_user
-        )
-        op = self._make_op(officer=non_staff_person.entity)
+        op = self._make_op(officer=non_staff_user)
         with self.assertRaises(ValidationError):
             op.save()
 
     def test_officer_must_be_active(self):
-        self.officer_entity.active = False
-        self.officer_entity.save()
+        self.officer.is_active = False
+        self.officer.save()
 
         op = self._make_op()
         with self.assertRaises(ValidationError):
@@ -369,10 +353,10 @@ class WorkerAdvanceRepaymentTest(TestCase):
 
     def setUp(self):
         self.system_entity = Entity.create(is_system=True)
-        self.officer_entity = _make_officer()
+        self.officer = _make_officer()
 
         self.project_entity = _make_project_entity("Farm Project")
-        _inject_project(self.system_entity, self.project_entity, Decimal("5000.00"), self.officer_entity)
+        _inject_project(self.system_entity, self.project_entity, Decimal("5000.00"), self.officer)
 
         self.worker_entity = _make_person_entity("Ali Worker")
         _make_worker_stakeholder(self.project_entity, self.worker_entity)
@@ -384,14 +368,14 @@ class WorkerAdvanceRepaymentTest(TestCase):
             operation_type=OperationType.WORKER_ADVANCE,
             date=date.today(),
             description="Test worker advance",
-            officer=self.officer_entity,
+            officer=self.officer,
         )
         self.op.save()
 
     def _repay(self, amount):
         self.op.create_repayment_transaction(
             amount=amount,
-            officer=self.officer_entity,
+            officer=self.officer,
             date=date.today(),
         )
 
@@ -480,10 +464,10 @@ class WorkerAdvanceReversalTest(TestCase):
 
     def setUp(self):
         self.system_entity = Entity.create(is_system=True)
-        self.officer_entity = _make_officer()
+        self.officer = _make_officer()
 
         self.project_entity = _make_project_entity("Farm Project")
-        _inject_project(self.system_entity, self.project_entity, Decimal("5000.00"), self.officer_entity)
+        _inject_project(self.system_entity, self.project_entity, Decimal("5000.00"), self.officer)
 
         self.worker_entity = _make_person_entity("Ali Worker")
         _make_worker_stakeholder(self.project_entity, self.worker_entity)
@@ -495,7 +479,7 @@ class WorkerAdvanceReversalTest(TestCase):
             operation_type=OperationType.WORKER_ADVANCE,
             date=date.today(),
             description="Test worker advance",
-            officer=self.officer_entity,
+            officer=self.officer,
         )
         self.op.save()
 
@@ -504,33 +488,33 @@ class WorkerAdvanceReversalTest(TestCase):
     # ------------------------------------------------------------------
 
     def test_reverse_creates_reversal_operation(self):
-        reversal = self.op.reverse(officer=self.officer_entity)
+        reversal = self.op.reverse(officer=self.officer)
 
         self.assertIsNotNone(reversal.pk)
         self.assertEqual(reversal.reversal_of, self.op)
 
     def test_reverse_marks_original_as_reversed(self):
-        reversal = self.op.reverse(officer=self.officer_entity)
+        reversal = self.op.reverse(officer=self.officer)
 
         self.op.refresh_from_db()
         self.assertTrue(self.op.is_reversed)
         self.assertEqual(self.op.reversed_by, reversal)
 
     def test_reversal_is_marked_as_reversal(self):
-        reversal = self.op.reverse(officer=self.officer_entity)
+        reversal = self.op.reverse(officer=self.officer)
 
         self.assertTrue(reversal.is_reversal)
         self.assertFalse(reversal.is_reversed)
 
     def test_reverse_inherits_amount_source_destination(self):
-        reversal = self.op.reverse(officer=self.officer_entity)
+        reversal = self.op.reverse(officer=self.officer)
 
         self.assertEqual(reversal.amount, self.op.amount)
         self.assertEqual(reversal.source, self.op.source)
         self.assertEqual(reversal.destination, self.op.destination)
 
     def test_reverse_creates_counter_transactions_for_both_issuance_and_payment(self):
-        self.op.reverse(officer=self.officer_entity)
+        self.op.reverse(officer=self.officer)
 
         all_txs = self.op.get_all_transactions()
         # 2 original (issuance + payment) + 2 counter-transactions
@@ -540,7 +524,7 @@ class WorkerAdvanceReversalTest(TestCase):
         self.assertEqual(counter_txs.count(), 2)
 
     def test_reverse_counter_transactions_flip_funds(self):
-        self.op.reverse(officer=self.officer_entity)
+        self.op.reverse(officer=self.officer)
 
         original_txs = self.op.get_all_transactions().filter(reversal_of__isnull=True)
         for tx in original_txs:
@@ -551,7 +535,7 @@ class WorkerAdvanceReversalTest(TestCase):
 
     def test_project_fund_restored_after_reversal(self):
         balance_after_advance = self.project_entity.fund.balance
-        self.op.reverse(officer=self.officer_entity)
+        self.op.reverse(officer=self.officer)
 
         self.assertEqual(
             self.project_entity.fund.balance,
@@ -560,7 +544,7 @@ class WorkerAdvanceReversalTest(TestCase):
 
     def test_worker_fund_restored_after_reversal(self):
         balance_after_advance = self.worker_entity.fund.balance
-        self.op.reverse(officer=self.officer_entity)
+        self.op.reverse(officer=self.officer)
 
         self.assertEqual(
             self.worker_entity.fund.balance,
@@ -574,26 +558,26 @@ class WorkerAdvanceReversalTest(TestCase):
     def test_reversal_blocked_when_repayment_exists(self):
         self.op.create_repayment_transaction(
             amount=Decimal("500.00"),
-            officer=self.officer_entity,
+            officer=self.officer,
             date=date.today(),
         )
 
         with self.assertRaises(ValidationError):
-            self.op.reverse(officer=self.officer_entity)
+            self.op.reverse(officer=self.officer)
 
     # ------------------------------------------------------------------
     # Constraints
     # ------------------------------------------------------------------
 
     def test_cannot_reverse_already_reversed_operation(self):
-        self.op.reverse(officer=self.officer_entity)
+        self.op.reverse(officer=self.officer)
         self.op.refresh_from_db()
 
         with self.assertRaises(ValidationError):
-            self.op.reverse(officer=self.officer_entity)
+            self.op.reverse(officer=self.officer)
 
     def test_cannot_reverse_a_reversal(self):
-        reversal = self.op.reverse(officer=self.officer_entity)
+        reversal = self.op.reverse(officer=self.officer)
 
         with self.assertRaises(ValidationError):
-            reversal.reverse(officer=self.officer_entity)
+            reversal.reverse(officer=self.officer)

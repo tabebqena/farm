@@ -9,7 +9,6 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.utils.translation import gettext as _
 
-from apps.app_entity.models import Entity
 from apps.app_inventory.forms import InvoiceItemCreateFormSet, InvoiceItemSelectFormSet
 from apps.app_inventory.models import Invoice, Product
 from apps.app_operation.models import FinancialCategory
@@ -68,7 +67,7 @@ def operation_create_factory(request, op_type, pk):
     data = proxy_cls.resolve_request(pk, request)
     has_invoice = data.get("has_invoice", False)
 
-    officer = get_object_or_404(Entity, user=request.user)
+    officer = request.user
 
     amount = Decimal("0.00")
     date = timezone.now().date()

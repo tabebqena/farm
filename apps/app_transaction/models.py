@@ -1,6 +1,8 @@
 import typing
 from decimal import Decimal
 
+from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
@@ -15,7 +17,9 @@ from apps.app_base.models import BaseModel
 from apps.app_transaction.transaction_type import TransactionType
 
 if typing.TYPE_CHECKING:
-    from apps.app_entity.models import Entity, Fund
+    from django.contrib.auth.base_user import AbstractBaseUser
+
+    from apps.app_entity.models import Fund
 # TODO use database level constrains for dataintegrity.
 # TODO add finiancial period closing
 # TODO : "Financial Statement" method
@@ -74,7 +78,7 @@ class Transaction(AmountCleanMixin, ImmutableMixin, BaseModel):
     document = GenericForeignKey("content_type", "object_id")
 
     officer = models.ForeignKey(
-        "app_entity.Entity",
+        settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name="transactions_supervised",
     )
@@ -111,7 +115,7 @@ class Transaction(AmountCleanMixin, ImmutableMixin, BaseModel):
         document,
         type: TransactionType,
         amount: Decimal,
-        officer: "Entity",
+        officer: "AbstractBaseUser",
         description="",
         note="",
         date=None,

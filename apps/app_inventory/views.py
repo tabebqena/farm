@@ -47,9 +47,7 @@ def project_product_templates_setup(request, entity_pk):
     except Http404 as e:
         messages.error(request, "Target entity not found")
         raise
-    try:
-        get_object_or_404(Entity, user=request.user)
-    except Exception as e:
+    if not request.user.is_staff:
         messages.error(request, "The current user is not an officer")
 
     if request.method == "POST":
@@ -90,7 +88,8 @@ def create_product_template(request):
     Checks for an 'officer' entity linked to the current user and wraps
     creation in an atomic transaction.
     """
-    get_object_or_404(Entity, user=request.user)
+    if not request.user.is_staff:
+        raise Http404("Not an officer")
 
     if request.method == "POST":
         name = request.POST.get("name", "").strip()

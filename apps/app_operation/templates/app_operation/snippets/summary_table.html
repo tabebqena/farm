@@ -14,6 +14,6 @@
   </li>
   <li class="list-group-item">
     <small class="text-muted d-block">{% trans "Officer" %}</small>
-    <span>{{ operation.officer.name }}</span>
+    <span>{{ operation.officer.get_full_name|default:operation.officer.username }}</span>
   </li>
 </ul>

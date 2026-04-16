@@ -31,9 +31,7 @@ LAST_MONTH = TODAY - timedelta(days=30)
 
 
 def _make_officer(username="officer_dp"):
-    user = User.objects.create_user(username=username, password="x", is_staff=True)
-    person = Person.create(private_name=f"Officer {username}", auth_user=user)
-    return person.entity
+    return User.objects.create_user(username=username, password="x", is_staff=True)
 
 
 def _make_project_entity(name="Test Project"):

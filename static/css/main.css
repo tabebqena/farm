@@ -1,160 +1,191 @@
-    :root {
-        --sidebar-width: 260px;
-        --primary-color: #2c3e50;
-        --accent-color: #3498db;
-        --bg-light: #f8f9fa;
-    }
+/* ================================================================
+   Variables
+   ================================================================ */
+:root {
+    --primary-color:  #2c3e50;
+    --accent-color:   #3498db;
+    --bg-light:       #f4f6f8;
+    --topnav-height:  54px;
+}
 
-    body {
-        font-family: 'Inter', sans-serif;
-        background-color: var(--bg-light);
-        overflow-x: hidden;
-    }
 
-    /* Sidebar Styling */
-    #sidebar {
-        width: var(--sidebar-width);
-        height: 100vh;
-        position: fixed;
-        left: 0;
-        background: var(--primary-color);
-        color: white;
-        transition: all 0.3s;
-        z-index: 1000;
-    }
+/* ================================================================
+   Global
+   ================================================================ */
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-light);
+    overflow-x: hidden;
+}
 
-    [dir="rtl"] #sidebar {
-        left: auto;
-        right: 0;
-    }
 
-    #sidebar .nav-link {
-        color: rgba(255, 255, 255, 0.7);
-        padding: 12px 20px;
-        border-radius: 0;
-        display: flex;
-        align-items: center;
-    }
+/* ================================================================
+   Top Navigation Bar
+   ================================================================ */
+#topnav {
+    background: var(--primary-color);
+    color: #fff;
+    height: var(--topnav-height);
+    position: sticky;
+    top: 0;
+    z-index: 1030;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
 
-    #sidebar .nav-link:hover,
-    #sidebar .nav-link.active {
-        color: white;
-        background: rgba(255, 255, 255, 0.1);
-        border-left: 4px solid var(--accent-color);
-    }
+/* Brand */
+#topnav .navbar-brand {
+    color: #fff;
+}
+#topnav .navbar-brand:hover {
+    color: rgba(255, 255, 255, 0.85);
+}
 
-    [dir="rtl"] #sidebar .nav-link:hover,
-    [dir="rtl"] #sidebar .nav-link.active {
-        border-left: none;
-        border-right: 4px solid var(--accent-color);
-    }
+.topnav-subtitle {
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: rgba(255, 255, 255, 0.5);
+    line-height: 1;
+    align-self: flex-end;
+    padding-bottom: 1px;
+}
 
-    /* Main Content area */
+/* Nav links */
+#topnav .navbar-nav .nav-link {
+    color: rgba(255, 255, 255, 0.75);
+    padding: 0.4rem 0.75rem;
+    border-radius: 6px;
+    transition: background 0.15s, color 0.15s;
+}
+#topnav .navbar-nav .nav-link:hover,
+#topnav .navbar-nav .nav-link.active {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+/* Hamburger toggler icon colour */
+#topnav .navbar-toggler-icon {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba(255,255,255,0.8)' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+}
+
+/* Language buttons */
+.btn-lang {
+    padding: 0.2rem 0.55rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.4;
+    color: rgba(255, 255, 255, 0.7);
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 4px;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.btn-lang:hover {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.6);
+    background: rgba(255, 255, 255, 0.1);
+}
+.btn-lang.active {
+    color: var(--primary-color);
+    background: #fff;
+    border-color: #fff;
+}
+
+/* Collapsed navbar (mobile) padding fix */
+@media (max-width: 767.98px) {
+    #topnav {
+        height: auto;   /* expands when open */
+    }
+    #navContent {
+        padding-bottom: 0.75rem;
+    }
+    #navContent .d-flex.gap-2 {
+        justify-content: flex-start;
+    }
+}
+
+
+/* ================================================================
+   Main Content
+   ================================================================ */
+#main-content {
+    min-height: calc(100vh - var(--topnav-height));
+    padding: 1.5rem;
+}
+
+@media (min-width: 768px) {
     #main-content {
-        margin-left: var(--sidebar-width);
-        min-height: 100vh;
         padding: 2rem;
     }
+}
 
-    [dir="rtl"] #main-content {
-        margin-left: 0;
-        margin-right: var(--sidebar-width);
-    }
 
-    /* Centralized Card Styles for Create/Edit views */
-    .form-card {
-        max-width: 800px;
-        margin: auto;
-        border: none;
-        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.05);
-    }
+/* ================================================================
+   Cards
+   ================================================================ */
 
-    /* Utility for Dashboard Stats */
-    .stat-card {
-        border-radius: 12px;
-        border: none;
-        transition: transform 0.2s;
-    }
+/* Form/Create/Edit card — centred, capped width */
+.form-card {
+    max-width: 800px;
+    margin: auto;
+    border: none;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.05);
+}
 
-    .stat-card:hover {
-        transform: translateY(-5px);
-    }
+/* Dashboard stat cards */
+.stat-card {
+    border-radius: 12px;
+    border: none;
+    transition: transform 0.2s;
+}
+.stat-card:hover {
+    transform: translateY(-4px);
+}
 
-    /* Allow dropdowns to overflow table containers */
-    .table-responsive {
-        overflow: visible !important;
-    }
+/* Cards must not clip dropdowns */
+.card {
+    overflow: visible !important;
+}
 
-    /* Ensure the card doesn't clip the dropdown */
-    .card {
-        overflow: visible !important;
-    }
 
-    /* Ensure the dropdown appears above all other table elements */
-    .dropdown-menu {
-        z-index: 1060;
-        /* Higher than standard sticky headers */
-    }
+/* ================================================================
+   Tables
+   ================================================================ */
+.table-responsive {
+    overflow: visible !important;
+}
 
-    .message-container {
-        pointer-events: none;
-        /* Allows clicking things 'under' the container area */
-    }
+.dropdown-menu {
+    z-index: 1060;
+}
 
-    .alert {
-        pointer-events: auto;
-        /* Re-enables clicking the alert/close button */
-        backdrop-filter: blur(10px);
-        background-color: rgba(255, 255, 255, 0.95);
-        /* Semi-transparent */
-    }
 
-    .ls-wide {
-        letter-spacing: 0.05em;
-    }
+/* ================================================================
+   Flash Messages
+   ================================================================ */
+.message-container {
+    pointer-events: none;
+}
+.alert {
+    pointer-events: auto;
+    backdrop-filter: blur(10px);
+    background-color: rgba(255, 255, 255, 0.96);
+}
 
-    .avatar-circle {
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 0.9rem;
-        text-transform: uppercase;
-    }
 
-    .ls-1 {
-        letter-spacing: 1px;
-    }
+/* ================================================================
+   Utilities
+   ================================================================ */
+.ls-wide { letter-spacing: 0.05em; }
+.ls-1    { letter-spacing: 1px; }
 
-    @media (max-width: 768px) {
-        #sidebar {
-            margin-left: calc(-1 * var(--sidebar-width));
-        }
-
-        #main-content {
-            margin-left: 0;
-        }
-
-        #sidebar.active {
-            margin-left: 0;
-        }
-    }
-
-    [dir="rtl"] @media (max-width: 768px) {
-        #sidebar {
-            margin-left: auto;
-            margin-right: calc(-1 * var(--sidebar-width));
-        }
-
-        #main-content {
-            margin-left: 0;
-            margin-right: 0;
-        }
-
-        #sidebar.active {
-            margin-left: auto;
-            margin-right: 0;
-        }
-    }
+.avatar-circle {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+}

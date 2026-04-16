@@ -4,7 +4,6 @@ from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
-from apps.app_entity.models import Entity
 from apps.app_operation.models.operation import Operation
 from apps.app_operation.models.proxies import PROXY_MAP
 
@@ -28,7 +27,7 @@ def operation_reverse_view(request, pk):
         messages.warning(request, "Unsupported operation type.")
         return redirect("operation_detail_view", pk=operation.pk)
 
-    officer = get_object_or_404(Entity, user=request.user)
+    officer = request.user
 
     if request.method == "POST":
         reason = request.POST.get("reversal_reason")

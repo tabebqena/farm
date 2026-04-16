@@ -2,6 +2,8 @@
 {% load i18n %}
 
 {% block content %}
+  <div class="row justify-content-center">
+  <div class="col-12 col-sm-10 col-md-7 col-lg-5">
   <div class="card border-success shadow-sm">
     <div class="card-header bg-success text-white">
       <h5 class="mb-0">{% trans "Repay" %} {{ operation.operation_type }} #{{ operation.pk }}</h5>
@@ -36,5 +38,7 @@
         <button type="submit" class="btn btn-success w-100">{% trans "Post Repayment" %}</button>
       </form>
     </div>
+  </div>
+  </div>
   </div>
 {% endblock %}

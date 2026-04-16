@@ -26,9 +26,7 @@ NEXT_MONTH = TODAY + timedelta(days=30)
 
 
 def _make_officer():
-    user = User.objects.create_user(username="officer_fp", password="x", is_staff=True)
-    person = Person.create(private_name="Officer FP", auth_user=user)
-    return person.entity
+    return User.objects.create_user(username="officer_fp", password="x", is_staff=True)
 
 
 def _make_person_entity(name="Receiver"):
