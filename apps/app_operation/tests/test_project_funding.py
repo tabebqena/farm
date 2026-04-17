@@ -25,7 +25,9 @@ class ProjectFundingCreateTest(TestCase):
         )
 
         # Funder: person entity
-        funder_person = Entity.create(EntityType.PERSON, name="Funder Person")
+        funder_person = Entity.create(
+            EntityType.PERSON, name="Funder Person", is_shareholder=True
+        )
         self.funder_entity = funder_person
 
         # Project entity
@@ -333,7 +335,9 @@ class ProjectFundingReversalTest(TestCase):
             username="officer", password="testpass", is_staff=True
         )
 
-        funder_person = Entity.create(EntityType.PERSON, name="Funder Person")
+        funder_person = Entity.create(
+            EntityType.PERSON, name="Funder Person", is_shareholder=True
+        )
         self.funder_entity = funder_person
 
         self.project_entity = Entity.create(EntityType.PROJECT, name="Test Project")

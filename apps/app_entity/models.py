@@ -180,6 +180,7 @@ class Entity(ImmutableMixin, BaseModel):
     def is_person(self) -> bool:
         return self.entity_type == EntityType.PERSON
 
+    # TODO remove
     @property
     def owner(self):
         return self
@@ -287,6 +288,7 @@ class Entity(ImmutableMixin, BaseModel):
             e.save()
             return e
 
+    # TODO remove
     @property
     def fund(self):
         return self
@@ -329,157 +331,97 @@ class Entity(ImmutableMixin, BaseModel):
             "total"
         ] or Decimal("0.00")
 
-    def assets_at(self, dt: typing.Any) -> Decimal:
-        """
-        Monetary assets of the fund as of dt:
-        Cash Balance + Trade Receivables + Inventory + Loans Receivable + Worker Advances Receivable.
-        """
-        from apps.app_transaction.transaction_type import TransactionType
+    def _tx_sum_excluding_reversed(
+        self, direction: str, types: typing.Iterable[str], dt: typing.Any
+    ) -> Decimal:
+        """Helper to sum transactions excluding those reversed before dt."""
+        from django.db.models import Q, Sum
 
-        # 1. Cash on hand
-        cash = self.balance_at(dt)
+        from apps.app_transaction.models import Transaction
 
-        # 2. Trade Receivables (Sales issued but not yet collected)
-        sales_issued = self._tx_sum(
-            "incoming",
-            [TransactionType.SALE_ISSUANCE, TransactionType.SALE_ADJUSTMENT_INCREASE],
-            dt,
+        filters = dict(
+            deleted_at__isnull=True,
+            type__in=types,
+            date__date__lte=dt,
         )
-        sales_issuance_decreased = self._tx_sum(
-            "incoming", [TransactionType.SALE_ADJUSTMENT_DECREASE], dt
-        )
-        net_sales_issuance = sales_issued - sales_issuance_decreased
+        if direction == "incoming":
+            filters["target"] = self  # type: ignore
+        else:
+            filters["source"] = self  # type: ignore
 
-        # Collections move money from issuance to cash balance
-        sales_collected = self._tx_sum(
-            "incoming", [TransactionType.SALE_COLLECTION], dt
-        )
-        trade_receivable = net_sales_issuance - sales_collected
+        return Transaction.objects.filter(**filters).filter(
+            Q(reversed_by__isnull=True) | Q(reversed_by__date__date__gt=dt)
+        ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
 
-        # 3. Inventory Value (Purchases issued but not yet sold)
-        # We treat the issuance of a purchase as "Stock In" and sale as "Stock Out"
-        purchases_issued = self._tx_sum(
-            "outgoing",
-            [
-                TransactionType.PURCHASE_ISSUANCE,
-                TransactionType.PURCHASE_ADJUSTMENT_INCREASE,
-            ],
-            dt,
-        )
-        purchases_issuance_decreased = self._tx_sum(
-            "outgoing", [TransactionType.PURCHASE_ADJUSTMENT_DECREASE], dt
-        )
-        net_purchases_issuance = purchases_issued - purchases_issuance_decreased
+    def payables_at(self, dt) -> Decimal:
+        from apps.app_transaction.transaction_type import TransactionType as T
 
-        # Inventory is what was bought minus what was sold (at cost/issuance value)
-        # Note: In this system, we use the sale issuance amount as the inventory reduction.
-        inventory_value = net_purchases_issuance - net_sales_issuance
-
-        # 4. Loans we gave to others (Receivable)
-        # Note: LOAN_ISSUANCE is a memo, LOAN_PAYMENT is the actual debt creation
-        loaned = self._tx_sum("outgoing", [TransactionType.LOAN_PAYMENT], dt)
-        recovered = self._tx_sum("incoming", [TransactionType.LOAN_REPAYMENT], dt)
-        loans_receivable = loaned - recovered
-
-        # 5. Advances we paid to workers (Receivable)
-        advances_paid = self._tx_sum(
-            "outgoing", [TransactionType.WORKER_ADVANCE_PAYMENT], dt
-        )
-        advances_recovered = self._tx_sum(
-            "incoming", [TransactionType.WORKER_ADVANCE_REPAYMENT], dt
-        )
-        advances_receivable = advances_paid - advances_recovered
-
+        increase_as_source = [
+            T.PURCHASE_ISSUANCE,
+            T.PURCHASE_ADJUSTMENT_INCREASE,
+            T.SALE_ISSUANCE,
+            T.SALE_ADJUSTMENT_INCREASE,
+            T.EXPENSE_ISSUANCE,
+            T.EXPENSE_ADJUSTMENT_INCREASE,
+            T.PROFIT_DISTRIBUTION_ISSUANCE,
+            T.PROJECT_REFUND_ISSUANCE,
+        ]
+        decrease_as_source = [
+            T.PURCHASE_PAYMENT,
+            T.SALE_COLLECTION,
+            T.EXPENSE_PAYMENT,
+            T.WORKER_ADVANCE_REPAYMENT,
+            T.LOAN_REPAYMENT,
+            T.PROFIT_DISTRIBUTION_PAYMENT,
+            T.PROJECT_REFUND_PAYMENT,
+        ]
+        increase_as_target = [T.WORKER_ADVANCE_PAYMENT, T.LOAN_PAYMENT]
+        decrease_as_target = [
+            T.PURCHASE_ADJUSTMENT_DECREASE,
+            T.SALE_ADJUSTMENT_DECREASE,
+            T.EXPENSE_ADJUSTMENT_DECREASE,
+        ]
         return (
-            cash
-            + trade_receivable
-            + inventory_value
-            + loans_receivable
-            + advances_receivable
+            self._tx_sum_excluding_reversed("outgoing", increase_as_source, dt)
+            - self._tx_sum_excluding_reversed("outgoing", decrease_as_source, dt)
+            + self._tx_sum_excluding_reversed("incoming", increase_as_target, dt)
+            - self._tx_sum_excluding_reversed("incoming", decrease_as_target, dt)
         )
 
-    def liabilities_at(self, dt: typing.Any) -> Decimal:
-        """
-        Monetary liabilities of the fund as of dt:
-        Trade Payables + Loans Payable + Worker Advances Payable + Distributions Payable.
-        """
-        from apps.app_transaction.transaction_type import TransactionType
+    def receivables_at(self, dt) -> Decimal:
+        from apps.app_transaction.transaction_type import TransactionType as T
 
-        # 1. Trade Payables (Purchases & Expenses)
-        purchases_issued = self._tx_sum(
-            "outgoing",
-            [
-                TransactionType.PURCHASE_ISSUANCE,
-                TransactionType.PURCHASE_ADJUSTMENT_INCREASE,
-                TransactionType.EXPENSE_ISSUANCE,
-                TransactionType.EXPENSE_ADJUSTMENT_INCREASE,
-            ],
-            dt,
+        increase_as_source = [T.WORKER_ADVANCE_PAYMENT, T.LOAN_PAYMENT]
+        decrease_as_source = [
+            T.PURCHASE_ADJUSTMENT_DECREASE,
+            T.SALE_ADJUSTMENT_DECREASE,
+            T.EXPENSE_ADJUSTMENT_DECREASE,
+        ]
+        increase_as_target = [
+            T.PURCHASE_ISSUANCE,
+            T.PURCHASE_ADJUSTMENT_INCREASE,
+            T.SALE_ISSUANCE,
+            T.SALE_ADJUSTMENT_INCREASE,
+            T.EXPENSE_ISSUANCE,
+            T.EXPENSE_ADJUSTMENT_INCREASE,
+            T.PROFIT_DISTRIBUTION_ISSUANCE,
+            T.PROJECT_REFUND_ISSUANCE,
+        ]
+        decrease_as_target = [
+            T.PURCHASE_PAYMENT,
+            T.SALE_COLLECTION,
+            T.EXPENSE_PAYMENT,
+            T.WORKER_ADVANCE_REPAYMENT,
+            T.LOAN_REPAYMENT,
+            T.PROFIT_DISTRIBUTION_PAYMENT,
+            T.PROJECT_REFUND_PAYMENT,
+        ]
+        return (
+            self._tx_sum_excluding_reversed("outgoing", increase_as_source, dt)
+            - self._tx_sum_excluding_reversed("outgoing", decrease_as_source, dt)
+            + self._tx_sum_excluding_reversed("incoming", increase_as_target, dt)
+            - self._tx_sum_excluding_reversed("incoming", decrease_as_target, dt)
         )
-        purchases_decreased = self._tx_sum(
-            "outgoing",
-            [
-                TransactionType.PURCHASE_ADJUSTMENT_DECREASE,
-                TransactionType.EXPENSE_ADJUSTMENT_DECREASE,
-            ],
-            dt,
-        )
-        purchases_paid = self._tx_sum(
-            "outgoing",
-            [TransactionType.PURCHASE_PAYMENT, TransactionType.EXPENSE_PAYMENT],
-            dt,
-        )
-        trade_payable = purchases_issued - purchases_decreased - purchases_paid
-
-        # 2. Loans we received from others (Payable)
-        borrowed = self._tx_sum("incoming", [TransactionType.LOAN_PAYMENT], dt)
-        repaid = self._tx_sum("outgoing", [TransactionType.LOAN_REPAYMENT], dt)
-        loans_payable = borrowed - repaid
-
-        # 3. Advances we received as worker (Payable)
-        advances_received = self._tx_sum(
-            "incoming", [TransactionType.WORKER_ADVANCE_PAYMENT], dt
-        )
-        advances_repaid = self._tx_sum(
-            "outgoing", [TransactionType.WORKER_ADVANCE_REPAYMENT], dt
-        )
-        advances_payable = advances_received - advances_repaid
-
-        # 4. Profit Distributions Payable
-        dist_issued = self._tx_sum(
-            "outgoing", [TransactionType.PROFIT_DISTRIBUTION_ISSUANCE], dt
-        )
-        dist_paid = self._tx_sum(
-            "outgoing", [TransactionType.PROFIT_DISTRIBUTION_PAYMENT], dt
-        )
-        distributions_payable = dist_issued - dist_paid
-
-        return trade_payable + loans_payable + advances_payable + distributions_payable
-
-    @property
-    def balance(self) -> Decimal:
-        from datetime import date
-
-        return self.balance_at(date.today())
-
-    @property
-    def assets(self) -> Decimal:
-        from datetime import date
-
-        return self.assets_at(date.today())
-
-    @property
-    def liabilities(self) -> Decimal:
-        from datetime import date
-
-        return self.liabilities_at(date.today())
-
-    def can_pay(self, amount: Decimal) -> bool:
-        if not self.active:
-            return False
-        if self.is_virtual:
-            return True
-        return self.balance >= amount
 
     def profit_loss(self, period: typing.Optional["FinancialPeriod"] = None) -> Decimal:
         """
@@ -497,13 +439,14 @@ class Entity(ImmutableMixin, BaseModel):
 
         Raises ValueError if the fund's entity is not a project.
         """
+        from apps.app_transaction.transaction_type import TransactionType
+
         if self.entity_type != EntityType.PROJECT:
             raise ValueError(_("profit_loss() is only defined for project funds."))
 
         from django.db.models import Case, F, Sum, When
 
         from apps.app_transaction.models import Transaction
-        from apps.app_transaction.transaction_type import TransactionType
 
         fund = self
         # Include both originals and their reversals so that cross-period reversals
@@ -587,6 +530,49 @@ class Entity(ImmutableMixin, BaseModel):
         )
 
         return income - costs
+
+    @property
+    def balance(self) -> Decimal:
+        from datetime import date
+
+        return self.balance_at(date.today())
+
+    @property
+    def payables(self) -> Decimal:
+        from datetime import date
+
+        return self.payables_at(date.today())
+
+    @property
+    def receivables(self) -> Decimal:
+        from datetime import date
+
+        return self.receivables_at(date.today())
+
+    @property
+    def non_cash_assets(self) -> Decimal:
+        from datetime import date
+
+        return self.non_cash_assets_at(date.today())
+
+    @property
+    def assets(self) -> Decimal:
+        from datetime import date
+
+        return self.balance_at(date.today()) + self.non_cash_assets_at(date.today())
+
+    @property
+    def liabilities(self) -> Decimal:
+        from datetime import date
+
+        return self.liabilities_at(date.today())
+
+    def can_pay(self, amount: Decimal) -> bool:
+        if not self.active:
+            return False
+        if self.is_virtual:
+            return True
+        return self.balance >= amount
 
     def save(self, *args, **kwargs):
         is_new = self.pk is None

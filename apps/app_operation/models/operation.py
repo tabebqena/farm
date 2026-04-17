@@ -316,16 +316,22 @@ class Operation(
                     continue
                 selected = form.cleaned_data.get("selected_product")
                 if selected:
-                    selected.validate_active()
+                    is_reversal = getattr(self, "reversal_of_id", None) is not None
+                    selected.validate_active(allow_reversal=is_reversal)
                     selected.invoice_items.add(item)
 
-        ProductLedgerEntry.record(self)
+        if self.operation_type not in (OperationType.PURCHASE, OperationType.SALE):
+            ProductLedgerEntry.record(self)
 
     def reverse(self, officer, date=None, reason=None):
         reversal = super().reverse(officer=officer, date=date, reason=reason)
         if type(self).has_invoice:
-            from apps.app_inventory.models import ProductLedgerEntry
-            ProductLedgerEntry.record(self, negate=True)
+            if self.operation_type in (OperationType.PURCHASE, OperationType.SALE):
+                for movement in self.inventory_movements.prefetch_related("lines").all():
+                    movement.reverse(officer=officer, date=date)
+            else:
+                from apps.app_inventory.models import ProductLedgerEntry
+                ProductLedgerEntry.record(self, negate=True)
         return reversal
 
     def __str__(self):

@@ -3,7 +3,6 @@ import typing
 from decimal import Decimal
 
 from django.conf import settings
-from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
@@ -114,13 +113,22 @@ class Transaction(AmountCleanMixin, ImmutableMixin, BaseModel):
         source: "Entity",
         target: "Entity",
         document,
-        type: TransactionType,
+        tx_type: TransactionType,
         amount: Decimal,
         officer: "AbstractBaseUser",
         description="",
         note="",
         date=None,
     ):
+        violation = tx_type.get_entity_type_violation(source, target)
+        if violation:
+            raise ValidationError(
+                f"Transaction type '{tx_type}' has invalid entity types: {violation}."
+            )
+        if not tx_type.is_allowed_operation_type(document):
+            raise ValidationError(
+                f"Transaction type '{tx_type}' is not allowed for operation '{type(document).__name__}'."
+            )
         resolved_date = date or timezone.now()
         if isinstance(resolved_date, datetime.date) and not isinstance(
             resolved_date, datetime.datetime
@@ -131,7 +139,7 @@ class Transaction(AmountCleanMixin, ImmutableMixin, BaseModel):
         return Transaction.objects.create(
             source=source,
             target=target,
-            type=type,
+            type=tx_type,
             document=document,
             amount=Decimal(str(amount)) if not isinstance(amount, Decimal) else amount,
             officer=officer or document.officer,

@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 
+from apps.app_entity.models import EntityType
 from apps.app_operation.models.operation import Operation
 from apps.app_transaction.transaction_type import TransactionType
 
@@ -43,7 +44,7 @@ class LossCoverageOperation(Operation):
 
         return (
             Entity.objects.filter(
-                project__isnull=False,
+                entity_type=EntityType.PROJECT,
                 stakeholders__target=url_entity,
                 stakeholders__active=True,
                 stakeholders__role=StakeholderRole.SHAREHOLDER,

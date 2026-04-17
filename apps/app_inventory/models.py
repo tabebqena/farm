@@ -1,11 +1,14 @@
+from datetime import date as today_date
 from decimal import Decimal
 
+from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator
 from django.db import models
 from django.db.models import DecimalField, ExpressionWrapper, F, Sum
-from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 
-from apps.app_base.mixins import AmountCleanMixin
+from apps.app_base.mixins import AmountCleanMixin, ImmutableMixin, OfficerMixin
 from apps.app_base.models import BaseModel
 
 
@@ -177,6 +180,69 @@ class ProductLedgerEntry(BaseModel):
                     "date": date,
                     "quantity_delta": (qty_delta * qty_sign).quantize(Decimal("0.01")),
                     "value_delta": (val_delta * val_sign).quantize(Decimal("0.01")),
+                },
+            )
+            if created:
+                created_count += 1
+            else:
+                skipped_count += 1
+
+        return created_count, skipped_count
+
+    @classmethod
+    def record_movement_line(cls, line, negate: bool = False) -> tuple[int, int]:
+        """
+        Write ledger entries for one InventoryMovementLine.
+
+        Direction is implicit from the parent operation type:
+          PURCHASE → qty_sign=+1, val_sign=+1, entry_type=PURCHASE
+          SALE     → qty_sign=-1, val_sign=-1, entry_type=SALE
+          negate=True flips the signs and marks entry_type as REVERSAL.
+
+        Idempotency keys use the *original* line pk so a line can only be
+        reversed once:
+          forward : "movement_line_{line.pk}_product_{product.pk}"
+          reversal: "rev_movement_line_{line.reversal_of_id}_product_{product.pk}"
+
+        Value = line.quantity × invoice_item.unit_price (proportional slice).
+        """
+        from apps.app_operation.models.operation_type import OperationType
+
+        op_type = line.movement.operation.operation_type
+        if op_type == OperationType.PURCHASE:
+            qty_sign, val_sign = 1, 1
+            entry_type = cls.EntryType.PURCHASE
+        elif op_type == OperationType.SALE:
+            qty_sign, val_sign = -1, -1
+            entry_type = cls.EntryType.SALE
+        else:
+            return 0, 0
+
+        if negate:
+            qty_sign = -qty_sign
+            val_sign = -val_sign
+            entry_type = cls.EntryType.REVERSAL
+
+        source_pk = line.reversal_of_id if negate else line.pk
+        key_prefix = "rev_" if negate else ""
+        date = line.movement.date
+        item = line.invoice_item
+
+        created_count = skipped_count = 0
+        for product in item.products.all():
+            key = f"{key_prefix}movement_line_{source_pk}_product_{product.pk}"
+            _, created = cls.objects.get_or_create(
+                idempotency_key=key,
+                defaults={
+                    "product": product,
+                    "entry_type": entry_type,
+                    "date": date,
+                    "quantity_delta": (line.quantity * qty_sign).quantize(
+                        Decimal("0.01")
+                    ),
+                    "value_delta": (
+                        line.quantity * item.unit_price * val_sign
+                    ).quantize(Decimal("0.01")),
                 },
             )
             if created:
@@ -418,14 +484,29 @@ class Product(AmountCleanMixin, BaseModel):
             base + _sum(OperationType.CAPITAL_GAIN) - _sum(OperationType.CAPITAL_LOSS)
         )
 
-    def validate_active(self) -> None:
-        """Raise ValidationError if this product can no longer participate in operations."""
+    def validate_active(
+        self, allow_reversal: bool = False, allow_adjustment: bool = False
+    ) -> None:
+        """
+        Raise ValidationError if product can't participate in operations.
+        SOLD/DEAD products are forbidden in normal operations, but allowed in:
+        - Reversals (allow_reversal=True): undoing a sale or death
+        - Adjustments (allow_adjustment=True): correcting records
+        - Movement lines: implicitly allowed if parent operation allows it
+        """
         status = self.status
-        if status in (self.Status.SOLD, self.Status.DEAD):
-            raise ValidationError(
-                _("Product '%(id)s' has status %(status)s and cannot be involved in further operations.")
-                % {"id": self.unique_id or self.pk, "status": status}
+        if status not in (self.Status.SOLD, self.Status.DEAD):
+            return
+
+        if allow_reversal or allow_adjustment:
+            return
+
+        raise ValidationError(
+            _(
+                "Product '%(id)s' has status %(status)s and cannot be used in new operations."
             )
+            % {"id": self.unique_id or self.pk, "status": status}
+        )
 
     def clean(self) -> None:
         super().clean()  # AmountCleanMixin: unit_price > 0
@@ -443,3 +524,169 @@ class Product(AmountCleanMixin, BaseModel):
     class Meta:
         verbose_name = _("product")
         verbose_name_plural = _("products")
+
+
+class InventoryMovement(ImmutableMixin, OfficerMixin, BaseModel):
+    """
+    Header record for a physical delivery or dispatch batch.
+    Linked to a PURCHASE or SALE operation.  Financial obligations are
+    recorded on the operation; this model tracks only the physical movement.
+    """
+
+    _immutable_fields = {"operation": {}}
+
+    operation = models.ForeignKey(
+        "app_operation.Operation",
+        on_delete=models.PROTECT,
+        related_name="inventory_movements",
+        verbose_name=_("operation"),
+    )
+    date = models.DateField(_("date"), default=today_date.today)
+    officer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="inventory_movements_supervised",
+        verbose_name=_("officer"),
+    )
+    notes = models.TextField(_("notes"), blank=True)
+
+    def clean(self):
+        from apps.app_operation.models.operation_type import OperationType
+
+        if self.operation.operation_type not in (
+            OperationType.PURCHASE,
+            OperationType.SALE,
+        ):
+            raise ValidationError(
+                _("InventoryMovement is only allowed for PURCHASE or SALE operations.")
+            )
+        super().clean()
+
+    def reverse(self, officer, date=None):
+        """Reverse every non-yet-reversed line in this movement."""
+        reversal_movement = InventoryMovement.objects.create(
+            operation=self.operation,
+            date=date or today_date.today(),
+            officer=officer,
+            notes=_("Reversal of movement %(pk)s") % {"pk": self.pk},
+        )
+        for line in self.lines.all():
+            if not InventoryMovementLine.objects.filter(reversal_of=line).exists():
+                line.reverse(officer=officer, date=date, movement=reversal_movement)
+        return reversal_movement
+
+    def __str__(self):
+        return f"InventoryMovement {self.pk} — {self.operation}"
+
+    class Meta:
+        verbose_name = _("inventory movement")
+        verbose_name_plural = _("inventory movements")
+        ordering = ["-date", "-created_at"]
+
+
+class InventoryMovementLine(ImmutableMixin, BaseModel):
+    """
+    One line in an InventoryMovement.  Records the quantity of a specific
+    InvoiceItem that was physically received or dispatched.
+
+    Direction is implicit from the parent operation type (PURCHASE=inbound,
+    SALE=outbound).  Reversal lines are linked via reversal_of; they write
+    negating ProductLedgerEntry rows on save.
+    """
+
+    _immutable_fields = {"movement": {}, "invoice_item": {}, "quantity": {}}
+
+    movement = models.ForeignKey(
+        InventoryMovement,
+        on_delete=models.PROTECT,
+        related_name="lines",
+        verbose_name=_("movement"),
+    )
+    invoice_item = models.ForeignKey(
+        InvoiceItem,
+        on_delete=models.PROTECT,
+        related_name="movement_lines",
+        verbose_name=_("invoice item"),
+    )
+    quantity = models.DecimalField(
+        _("quantity"),
+        max_digits=10,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal("0.01"))],
+    )
+    reversal_of = models.OneToOneField(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="reversed_by",
+        verbose_name=_("reversal of"),
+    )
+
+    def clean(self):
+        if self.invoice_item.operation_id != self.movement.operation_id:
+            raise ValidationError(
+                _("Invoice item does not belong to this movement's operation.")
+            )
+        if self.reversal_of_id is None:
+            already_moved = InventoryMovementLine.objects.filter(
+                invoice_item=self.invoice_item,
+                reversal_of__isnull=True,
+            ).exclude(pk=self.pk).aggregate(total=Sum("quantity"))["total"] or Decimal(
+                "0"
+            )
+            if already_moved + self.quantity > self.invoice_item.quantity:
+                raise ValidationError(
+                    _(
+                        "Total moved quantity (%(moved)s) would exceed the invoice item "
+                        "quantity (%(max)s)."
+                    )
+                    % {
+                        "moved": already_moved + self.quantity,
+                        "max": self.invoice_item.quantity,
+                    }
+                )
+
+        # Validate products can be moved (SOLD/DEAD allowed for reversals/returns)
+        is_reversal = self.reversal_of_id is not None
+        for product in self.invoice_item.products.all():
+            product.validate_active(allow_reversal=is_reversal)
+
+        super().clean()
+
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if is_new:
+            negate = self.reversal_of_id is not None
+            ProductLedgerEntry.record_movement_line(self, negate=negate)
+
+    def reverse(self, officer, date=None, movement=None):
+        """
+        Create a reversal line (and its movement header if not supplied).
+        Writes negating ProductLedgerEntry rows automatically via save().
+        """
+        if InventoryMovementLine.objects.filter(reversal_of=self).exists():
+            raise ValidationError(
+                _("Movement line %(pk)s has already been reversed.") % {"pk": self.pk}
+            )
+        if movement is None:
+            movement = InventoryMovement.objects.create(
+                operation=self.movement.operation,
+                date=date or today_date.today(),
+                officer=officer,
+                notes=_("Reversal of movement line %(pk)s") % {"pk": self.pk},
+            )
+        return InventoryMovementLine.objects.create(
+            movement=movement,
+            invoice_item=self.invoice_item,
+            quantity=self.quantity,
+            reversal_of=self,
+        )
+
+    def __str__(self):
+        return f"MovementLine {self.pk} — {self.invoice_item} qty={self.quantity}"
+
+    class Meta:
+        verbose_name = _("inventory movement line")
+        verbose_name_plural = _("inventory movement lines")

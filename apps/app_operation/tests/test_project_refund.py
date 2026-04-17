@@ -33,7 +33,9 @@ class ProjectRefundCreateTest(TestCase):
         self.officer = _make_officer()
 
         # Shareholder / funder
-        shareholder_person = Entity.create(EntityType.PERSON, name="Shareholder Person")
+        shareholder_person = Entity.create(
+            EntityType.PERSON, name="Shareholder Person", is_shareholder=True
+        )
         self.shareholder_entity = shareholder_person
 
         # Project
@@ -157,7 +159,10 @@ class ProjectRefundCreateTest(TestCase):
             op.save()
 
     def test_destination_must_be_shareholder_of_source_project(self):
-        non_shareholder = Entity.create(EntityType.PERSON, name="Non Shareholder")
+        # Person that is  ashreholder but not registered in this project
+        non_shareholder = Entity.create(
+            EntityType.PERSON, name="Non Shareholder", is_shareholder=True
+        )
         self._inject_to(non_shareholder, Decimal("2000.00"))
         # Fund via project funding so the cap check is also covered
         Stakeholder(
@@ -360,7 +365,9 @@ class ProjectRefundReversalTest(TestCase):
         self.world_entity = Entity.create(EntityType.WORLD)
         self.officer = _make_officer()
 
-        shareholder_person = Entity.create(EntityType.PERSON, name="Shareholder Person")
+        shareholder_person = Entity.create(
+            EntityType.PERSON, name="Shareholder Person", is_shareholder=True
+        )
         self.shareholder_entity = shareholder_person
 
         self.project_entity = _make_project()

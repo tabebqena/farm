@@ -2,11 +2,11 @@ from decimal import Decimal
 from typing import List
 
 from django.conf import settings
-from django.db import models, transaction as db_transaction
+from django.db import models
+from django.db import transaction as db_transaction
 from django.forms import ValidationError
 from django.utils.translation import gettext_lazy as _
 
-from apps.app_adjustment._effect import AdjustmentEffect
 from apps.app_adjustment._item_type import InvoiceItemAdjustmentType
 from apps.app_base.mixins import (
     AmountCleanMixin,
@@ -76,8 +76,18 @@ class AdjustmentType(models.TextChoices):
     # ==========================
     # INVOICE ITEM CORRECTIONS
     # ==========================
-    PURCHASE_ITEM_CORRECTION = "PUR_ITEM", _("Purchase: Invoice Item Correction")
-    SALE_ITEM_CORRECTION = "SALE_ITEM", _("Sale: Invoice Item Correction")
+    PURCHASE_ITEM_CORRECTION_INCREASE = "PUR_ITEM_INC", _(
+        "Purchase: Invoice Item Correction (Increase)"
+    )
+    PURCHASE_ITEM_CORRECTION_DECREASE = "PUR_ITEM_DEC", _(
+        "Purchase: Invoice Item Correction (Decrease)"
+    )
+    SALE_ITEM_CORRECTION_INCREASE = "SALE_ITEM_INC", _(
+        "Sale: Invoice Item Correction (Increase)"
+    )
+    SALE_ITEM_CORRECTION_DECREASE = "SALE_ITEM_DEC", _(
+        "Sale: Invoice Item Correction (Decrease)"
+    )
 
     # ==========================
     # PROPERTIES
@@ -85,8 +95,10 @@ class AdjustmentType(models.TextChoices):
     @classmethod
     def is_item_correction(cls, tp):
         return tp in (
-            AdjustmentType.PURCHASE_ITEM_CORRECTION,
-            AdjustmentType.SALE_ITEM_CORRECTION,
+            AdjustmentType.PURCHASE_ITEM_CORRECTION_INCREASE,
+            AdjustmentType.PURCHASE_ITEM_CORRECTION_DECREASE,
+            AdjustmentType.SALE_ITEM_CORRECTION_INCREASE,
+            AdjustmentType.SALE_ITEM_CORRECTION_DECREASE,
         )
 
     @classmethod
@@ -100,13 +112,12 @@ class AdjustmentType(models.TextChoices):
 
     @classmethod
     def is_reduction(cls, tp):
-        """Returns True if this type subtracts from the balance.
+        """Returns True if this type flows in the reversed direction (target pays source).
 
-        Item-correction types are excluded — their effect is determined at
-        runtime by the sign of the net delta in InvoiceItemAdjustment.finalize().
+        Direction encodes the effect: reduction types flip source↔target relative to
+        the parent operation so that source always pays target — consistent with all
+        other operation types.
         """
-        if cls.is_item_correction(tp):
-            return False
         return tp in (
             AdjustmentType.PURCHASE_RETURN,
             AdjustmentType.PURCHASE_DISCOUNT,
@@ -121,6 +132,8 @@ class AdjustmentType(models.TextChoices):
             AdjustmentType.SALE_WRITE_OFF,
             AdjustmentType.PURCHASE_GENERAL_REDUCTION,
             AdjustmentType.SALE_GENERAL_REDUCTION,
+            AdjustmentType.PURCHASE_ITEM_CORRECTION_DECREASE,
+            AdjustmentType.SALE_ITEM_CORRECTION_DECREASE,
         )
 
 
@@ -136,7 +149,6 @@ class Adjustment(
         "operation": {},
         "type": {},
         "amount": {},
-        "effect": {},
     }
     _amount_name = "amount"
     operation = models.ForeignKey(
@@ -147,12 +159,6 @@ class Adjustment(
     )
     type = models.CharField(_("type"), max_length=20, choices=AdjustmentType.choices)
     amount = models.DecimalField(_("amount"), max_digits=20, decimal_places=2)
-    effect = models.CharField(
-        _("effect"),
-        max_length=10,
-        choices=AdjustmentEffect.choices,
-        blank=True,
-    )
     reason = models.TextField(_("reason"), blank=True)
     date = models.DateField(_("date"))
     officer = models.ForeignKey(
@@ -162,29 +168,33 @@ class Adjustment(
         verbose_name=_("officer"),
     )
 
-    # We create another transaction in the same direction, but with
-    # a modifierv effect.
-    # So, the payment source & target fund are the same of the original operation.
+    # Direction determines the effect: reduction types flow in the reversed direction
+    # (operation's target pays operation's source), increases flow normally.
+    # Source always pays target — consistent with all other operation types.
     @property
     def payment_source_fund(self):
+        if AdjustmentType.is_reduction(self.type):
+            return self.operation.payment_target_fund
         return self.operation.payment_source_fund
 
     @property
     def payment_target_fund(self):
+        if AdjustmentType.is_reduction(self.type):
+            return self.operation.payment_source_fund
         return self.operation.payment_target_fund
 
     @property
     def _issuance_transaction_type(self):
-        if self.effect == AdjustmentEffect.INCREASE:
+        if AdjustmentType.is_reduction(self.type):
             return {
-                OperationType.PURCHASE: TransactionType.PURCHASE_ADJUSTMENT_INCREASE,
-                OperationType.SALE: TransactionType.SALE_ADJUSTMENT_INCREASE,
-                OperationType.EXPENSE: TransactionType.EXPENSE_ADJUSTMENT_INCREASE,
+                OperationType.PURCHASE: TransactionType.PURCHASE_ADJUSTMENT_DECREASE,
+                OperationType.SALE: TransactionType.SALE_ADJUSTMENT_DECREASE,
+                OperationType.EXPENSE: TransactionType.EXPENSE_ADJUSTMENT_DECREASE,
             }.get(self.operation.operation_type)
         return {
-            OperationType.PURCHASE: TransactionType.PURCHASE_ADJUSTMENT_DECREASE,
-            OperationType.SALE: TransactionType.SALE_ADJUSTMENT_DECREASE,
-            OperationType.EXPENSE: TransactionType.EXPENSE_ADJUSTMENT_DECREASE,
+            OperationType.PURCHASE: TransactionType.PURCHASE_ADJUSTMENT_INCREASE,
+            OperationType.SALE: TransactionType.SALE_ADJUSTMENT_INCREASE,
+            OperationType.EXPENSE: TransactionType.EXPENSE_ADJUSTMENT_INCREASE,
         }.get(self.operation.operation_type)
 
     def clean(self):
@@ -196,14 +206,6 @@ class Adjustment(
             raise ValidationError(_("This operation cannot be adjusted."))
         if AdjustmentType.is_general(self.type) and not self.reason:
             raise ValidationError(_("Reason is required in general adjustment types."))
-        # Automatically set the effect before validation/save.
-        # Item-correction types have their effect pre-set by
-        # InvoiceItemAdjustment.finalize(), so we leave it untouched.
-        if not AdjustmentType.is_item_correction(self.type):
-            if AdjustmentType.is_reduction(self.type):
-                self.effect = AdjustmentEffect.DECREASE
-            else:
-                self.effect = AdjustmentEffect.INCREASE
         return super().clean()
 
     @property
@@ -277,7 +279,9 @@ class InvoiceItemAdjustment(
             OperationType.SALE,
         ):
             raise ValidationError(
-                _("Invoice item adjustments are only allowed on Purchase or Sale operations.")
+                _(
+                    "Invoice item adjustments are only allowed on Purchase or Sale operations."
+                )
             )
         # Validate type matches operation
         purchase_types = (
@@ -288,9 +292,17 @@ class InvoiceItemAdjustment(
             InvoiceItemAdjustmentType.SALE_ITEM_INCREASE,
             InvoiceItemAdjustmentType.SALE_ITEM_DECREASE,
         )
-        if self.operation.operation_type == OperationType.PURCHASE and self.type not in purchase_types:
-            raise ValidationError(_("Use a PURCHASE_ITEM_* type for Purchase operations."))
-        if self.operation.operation_type == OperationType.SALE and self.type not in sale_types:
+        if (
+            self.operation.operation_type == OperationType.PURCHASE
+            and self.type not in purchase_types
+        ):
+            raise ValidationError(
+                _("Use a PURCHASE_ITEM_* type for Purchase operations.")
+            )
+        if (
+            self.operation.operation_type == OperationType.SALE
+            and self.type not in sale_types
+        ):
             raise ValidationError(_("Use a SALE_ITEM_* type for Sale operations."))
         return super().clean()
 
@@ -313,19 +325,36 @@ class InvoiceItemAdjustment(
         if total_delta == 0:
             raise ValidationError(_("Net adjustment is zero — nothing to record."))
 
+        # Direction (increase vs decrease) is encoded in the type, not an effect field.
+        # The sign of the net delta determines which direction type to use.
+        is_increase = total_delta > 0
         adj_type_map = {
-            InvoiceItemAdjustmentType.PURCHASE_ITEM_INCREASE: AdjustmentType.PURCHASE_ITEM_CORRECTION,
-            InvoiceItemAdjustmentType.PURCHASE_ITEM_DECREASE: AdjustmentType.PURCHASE_ITEM_CORRECTION,
-            InvoiceItemAdjustmentType.SALE_ITEM_INCREASE: AdjustmentType.SALE_ITEM_CORRECTION,
-            InvoiceItemAdjustmentType.SALE_ITEM_DECREASE: AdjustmentType.SALE_ITEM_CORRECTION,
+            InvoiceItemAdjustmentType.PURCHASE_ITEM_INCREASE: (
+                AdjustmentType.PURCHASE_ITEM_CORRECTION_INCREASE
+                if is_increase
+                else AdjustmentType.PURCHASE_ITEM_CORRECTION_DECREASE
+            ),
+            InvoiceItemAdjustmentType.PURCHASE_ITEM_DECREASE: (
+                AdjustmentType.PURCHASE_ITEM_CORRECTION_INCREASE
+                if is_increase
+                else AdjustmentType.PURCHASE_ITEM_CORRECTION_DECREASE
+            ),
+            InvoiceItemAdjustmentType.SALE_ITEM_INCREASE: (
+                AdjustmentType.SALE_ITEM_CORRECTION_INCREASE
+                if is_increase
+                else AdjustmentType.SALE_ITEM_CORRECTION_DECREASE
+            ),
+            InvoiceItemAdjustmentType.SALE_ITEM_DECREASE: (
+                AdjustmentType.SALE_ITEM_CORRECTION_INCREASE
+                if is_increase
+                else AdjustmentType.SALE_ITEM_CORRECTION_DECREASE
+            ),
         }
-        effect = AdjustmentEffect.INCREASE if total_delta > 0 else AdjustmentEffect.DECREASE
 
         adj = Adjustment(
             operation=self.operation,
             type=adj_type_map[self.type],
             amount=abs(total_delta).quantize(Decimal("0.01")),
-            effect=effect,
             reason=self.reason,
             date=self.date,
             officer=self.officer,
@@ -414,13 +443,21 @@ class InvoiceItemAdjustmentLine(
         if self.is_removed:
             return -(item.total_price)
         new_qty = self.new_quantity if self.new_quantity is not None else item.quantity
-        new_price = self.new_unit_price if self.new_unit_price is not None else item.unit_price
+        new_price = (
+            self.new_unit_price if self.new_unit_price is not None else item.unit_price
+        )
         return (new_qty * new_price) - item.total_price
 
     def clean(self):
-        if not self.is_removed and self.new_quantity is None and self.new_unit_price is None:
+        if (
+            not self.is_removed
+            and self.new_quantity is None
+            and self.new_unit_price is None
+        ):
             raise ValidationError(
-                _("At least one of new_quantity, new_unit_price, or is_removed must be set.")
+                _(
+                    "At least one of new_quantity, new_unit_price, or is_removed must be set."
+                )
             )
         # Ensure the item belongs to the same operation
         try:
@@ -436,6 +473,7 @@ class InvoiceItemAdjustmentLine(
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
         from apps.app_inventory.models import ProductLedgerEntry
+
         ProductLedgerEntry.record_adjustment_line(self)
 
     class Meta:

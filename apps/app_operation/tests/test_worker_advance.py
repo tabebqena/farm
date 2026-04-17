@@ -28,8 +28,16 @@ def _make_officer(username="officer"):
     )
 
 
-def _make_person_entity(name):
-    return Entity.create(EntityType.PERSON, name=name)
+def _make_person_entity(name, is_worker=False):
+    return Entity.create(EntityType.PERSON, name=name, is_worker=is_worker)
+
+
+def _make_client_entity(name, is_client=False):
+    return Entity.create(EntityType.CLIENT, name=name, is_client=is_client)
+
+
+def _make_vendor_entity(name):
+    return Entity.create(EntityType.VENDOR, name)
 
 
 def _make_project_entity(name):
@@ -94,7 +102,7 @@ class WorkerAdvanceCreateTest(TestCase):
             self.system_entity, self.project_entity, Decimal("5000.00"), self.officer
         )
 
-        self.worker_entity = _make_person_entity("Ali Worker")
+        self.worker_entity = _make_person_entity("Ali Worker", is_worker=True)
         _make_worker_stakeholder(self.project_entity, self.worker_entity)
 
     def _make_op(self, **kwargs):
@@ -367,7 +375,7 @@ class WorkerAdvanceRepaymentTest(TestCase):
             self.system_entity, self.project_entity, Decimal("5000.00"), self.officer
         )
 
-        self.worker_entity = _make_person_entity("Ali Worker")
+        self.worker_entity = _make_person_entity("Ali Worker", is_worker=True)
         _make_worker_stakeholder(self.project_entity, self.worker_entity)
 
         self.op = WorkerAdvanceOperation(
@@ -431,9 +439,7 @@ class WorkerAdvanceRepaymentTest(TestCase):
 
         self._repay(Decimal("400.00"))
 
-        self.assertEqual(
-            self.worker_entity.balance, balance_before - Decimal("400.00")
-        )
+        self.assertEqual(self.worker_entity.balance, balance_before - Decimal("400.00"))
 
     def test_project_fund_increases_after_repayment(self):
         balance_before = self.project_entity.balance
@@ -486,7 +492,7 @@ class WorkerAdvanceReversalTest(TestCase):
             self.system_entity, self.project_entity, Decimal("5000.00"), self.officer
         )
 
-        self.worker_entity = _make_person_entity("Ali Worker")
+        self.worker_entity = _make_person_entity("Ali Worker", is_worker=True)
         _make_worker_stakeholder(self.project_entity, self.worker_entity)
 
         self.op = WorkerAdvanceOperation(

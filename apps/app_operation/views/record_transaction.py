@@ -106,7 +106,7 @@ def record_transaction_repayment(request, pk):
                         source=operation.destination,
                         target=operation.source,
                         document=operation,
-                        type=transaction_type,
+                        tx_type=transaction_type,
                         amount=amount,
                         officer=officer,
                         description=f"Repayment of operation #{operation.pk}",

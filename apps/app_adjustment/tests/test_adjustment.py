@@ -5,7 +5,6 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from apps.app_adjustment._effect import AdjustmentEffect
 from apps.app_adjustment.models import Adjustment, AdjustmentType
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
 from apps.app_operation.models.operation_type import OperationType
@@ -15,6 +14,7 @@ from apps.app_operation.models.proxies import (
     PurchaseOperation,
     SaleOperation,
 )
+from apps.app_operation.models.proxies.op_cash_injection import CashInjectionOperation
 from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
@@ -168,9 +168,18 @@ class AdjustmentTransactionTest(TestCase):
 
         self.client_entity = _make_client_entity("Client Co")
         _make_client_stakeholder(self.project_entity, self.client_entity)
-        _inject_project(
-            self.system_entity, self.client_entity, Decimal("5000.00"), self.officer
-        )
+        # _inject_project(
+        #     self.system_entity, self.client_entity, Decimal("5000.00"), self.officer
+        # )
+        CashInjectionOperation(
+            source=self.world_entity,
+            destination=self.client_entity,
+            amount=Decimal("5000.00"),
+            operation_type=OperationType.CASH_INJECTION,
+            date=date.today(),
+            description="Setup injection",
+            officer=self.officer,
+        ).save()
 
     def test_purchase_adjustment_creates_purchase_adjustment_transaction(self):
         op = _make_purchase_op(self.project_entity, self.vendor_entity, self.officer)
@@ -202,14 +211,18 @@ class AdjustmentTransactionTest(TestCase):
             txs.filter(type=TransactionType.EXPENSE_ADJUSTMENT_DECREASE).exists()
         )
 
-    def test_adjustment_transaction_source_and_target_match_operation_funds(self):
-        """Transaction direction must mirror the operation's source/target funds."""
+    def test_adjustment_transaction_source_and_target_match_adjustment_funds(self):
+        """Transaction direction must match the adjustment's own source/target funds.
+
+        For reduction types (e.g. PURCHASE_RETURN) the direction is reversed
+        relative to the operation: vendor pays project, not project pays vendor.
+        """
         op = _make_purchase_op(self.project_entity, self.vendor_entity, self.officer)
         adj = _make_adjustment(op, AdjustmentType.PURCHASE_RETURN, self.officer)
 
         tx = adj.get_all_transactions().get()
-        self.assertEqual(tx.source, op.payment_source_fund)
-        self.assertEqual(tx.target, op.payment_target_fund)
+        self.assertEqual(tx.source, adj.payment_source_fund)  # vendor
+        self.assertEqual(tx.target, adj.payment_target_fund)  # project
 
     def test_adjustment_transaction_amount_matches_adjustment(self):
         op = _make_purchase_op(self.project_entity, self.vendor_entity, self.officer)
@@ -222,14 +235,18 @@ class AdjustmentTransactionTest(TestCase):
 
 
 # ---------------------------------------------------------------------------
-# AdjustmentEffectAutoSetTest
+# AdjustmentDirectionTest
 # ---------------------------------------------------------------------------
 
 
-class AdjustmentEffectAutoSetTest(TestCase):
+class AdjustmentDirectionTest(TestCase):
     """
-    Verify that `effect` is automatically derived from `type` on save.
-    The caller must NOT set `effect` manually — it is always overwritten.
+    Verify that direction (payment_source_fund / payment_target_fund) is
+    correctly derived from `type`.
+
+    Reduction types flow in the reversed direction relative to the parent
+    operation (operation's target pays operation's source).
+    Increase types flow in the same direction as the parent operation.
     """
 
     def setUp(self):
@@ -251,45 +268,41 @@ class AdjustmentEffectAutoSetTest(TestCase):
     def _adj(self, adj_type, reason=""):
         return _make_adjustment(self.op, adj_type, self.officer, reason=reason)
 
-    def test_purchase_return_sets_decrease(self):
+    # Reduction types: direction reversed → vendor pays project
+    def test_purchase_return_reverses_direction(self):
         adj = self._adj(AdjustmentType.PURCHASE_RETURN)
-        self.assertEqual(adj.effect, AdjustmentEffect.DECREASE)
+        self.assertEqual(adj.payment_source_fund, self.vendor_entity)
+        self.assertEqual(adj.payment_target_fund, self.project_entity)
 
-    def test_purchase_discount_sets_decrease(self):
+    def test_purchase_discount_reverses_direction(self):
         adj = self._adj(AdjustmentType.PURCHASE_DISCOUNT)
-        self.assertEqual(adj.effect, AdjustmentEffect.DECREASE)
+        self.assertEqual(adj.payment_source_fund, self.vendor_entity)
+        self.assertEqual(adj.payment_target_fund, self.project_entity)
 
-    def test_purchase_undercharge_sets_increase(self):
-        adj = self._adj(AdjustmentType.PURCHASE_UNDERCHARGE)
-        self.assertEqual(adj.effect, AdjustmentEffect.INCREASE)
-
-    def test_purchase_freight_sets_increase(self):
-        adj = self._adj(AdjustmentType.PURCHASE_FREIGHT)
-        self.assertEqual(adj.effect, AdjustmentEffect.INCREASE)
-
-    def test_sale_return_sets_decrease(self):
-        adj = self._adj(AdjustmentType.SALE_RETURN)
-        self.assertEqual(adj.effect, AdjustmentEffect.DECREASE)
-
-    def test_sale_write_off_sets_decrease(self):
-        adj = self._adj(AdjustmentType.SALE_WRITE_OFF)
-        self.assertEqual(adj.effect, AdjustmentEffect.DECREASE)
-
-    def test_sale_late_fee_sets_increase(self):
-        adj = self._adj(AdjustmentType.SALE_LATE_FEE)
-        self.assertEqual(adj.effect, AdjustmentEffect.INCREASE)
-
-    def test_general_reduction_sets_decrease(self):
+    def test_purchase_general_reduction_reverses_direction(self):
         adj = self._adj(
             AdjustmentType.PURCHASE_GENERAL_REDUCTION, reason="Typo in invoice"
         )
-        self.assertEqual(adj.effect, AdjustmentEffect.DECREASE)
+        self.assertEqual(adj.payment_source_fund, self.vendor_entity)
+        self.assertEqual(adj.payment_target_fund, self.project_entity)
 
-    def test_general_increase_sets_increase(self):
+    # Increase types: direction normal → project pays vendor
+    def test_purchase_undercharge_keeps_direction(self):
+        adj = self._adj(AdjustmentType.PURCHASE_UNDERCHARGE)
+        self.assertEqual(adj.payment_source_fund, self.project_entity)
+        self.assertEqual(adj.payment_target_fund, self.vendor_entity)
+
+    def test_purchase_freight_keeps_direction(self):
+        adj = self._adj(AdjustmentType.PURCHASE_FREIGHT)
+        self.assertEqual(adj.payment_source_fund, self.project_entity)
+        self.assertEqual(adj.payment_target_fund, self.vendor_entity)
+
+    def test_purchase_general_increase_keeps_direction(self):
         adj = self._adj(
             AdjustmentType.PURCHASE_GENERAL_INCREASE, reason="Missed line item"
         )
-        self.assertEqual(adj.effect, AdjustmentEffect.INCREASE)
+        self.assertEqual(adj.payment_source_fund, self.project_entity)
+        self.assertEqual(adj.payment_target_fund, self.vendor_entity)
 
 
 # ---------------------------------------------------------------------------
@@ -367,7 +380,16 @@ class AdjustmentValidationTest(TestCase):
     def test_sale_operation_is_adjustable(self):
         client = _make_client_entity("Client Co")
         _make_client_stakeholder(self.project_entity, client)
-        _inject_project(self.system_entity, client, Decimal("2000.00"), self.officer)
+        # _inject_project(self.system_entity, client, Decimal("2000.00"), self.officer)
+        CashInjectionOperation(
+            source=self.world_entity,
+            destination=client,
+            amount=Decimal("2000.00"),
+            operation_type=OperationType.CASH_INJECTION,
+            date=date.today(),
+            description="Setup injection",
+            officer=self.officer,
+        ).save()
         sale_op = _make_sale_op(client, self.project_entity, self.officer)
 
         adj = self._adj(operation=sale_op, type=AdjustmentType.SALE_RETURN)
@@ -473,14 +495,6 @@ class AdjustmentImmutabilityTest(TestCase):
         self.adj.amount = Decimal("999.00")
         with self.assertRaises(ValidationError):
             self.adj.save()
-
-    def test_effect_cannot_be_changed_independently_of_type(self):
-        # `effect` is always recomputed from `type` in save(), and `type` is
-        # immutable — so there is no normal code path that produces a changed effect.
-        # Re-saving with the same type leaves effect unchanged (no error expected).
-        self.adj.save()
-        self.adj.refresh_from_db()
-        self.assertEqual(self.adj.effect, AdjustmentEffect.DECREASE)
 
 
 # ---------------------------------------------------------------------------

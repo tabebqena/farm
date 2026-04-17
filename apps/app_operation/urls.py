@@ -9,6 +9,31 @@ urlpatterns = [
         name="operation_list_view",
     ),
     path(
+        "<int:pk>/evaluate/<int:product_pk>/",
+        views.EvaluationCreateView.as_view(),
+        name="evaluation_create_view",
+    ),
+    path(
+        "<int:pk>/birth/create",
+        views.BirthCreateView.as_view(),
+        name="birth_create_view",
+    ),
+    path(
+        "<int:pk>/death/create",
+        views.DeathCreateView.as_view(),
+        name="death_create_view",
+    ),
+    path(
+        "<int:pk>/purchase/create",
+        views.PurchaseCreateView.as_view(),
+        name="purchase_create_view",
+    ),
+    path(
+        "<int:pk>/sale/create",
+        views.SaleCreateView.as_view(),
+        name="sale_create_view",
+    ),
+    path(
         "<int:pk>/<op_type>/create",
         views.OperationCreateView.as_view(),
         name="operation_create_view",

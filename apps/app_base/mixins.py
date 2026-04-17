@@ -107,13 +107,18 @@ class AdjustableMixin(BaseModelMixin):
         if not adjustments_mgr:
             return Decimal(base_val)
 
-        stats = adjustments_mgr.filter(
+        from apps.app_adjustment.models import AdjustmentType
+
+        reduction_types = [t for t in AdjustmentType if AdjustmentType.is_reduction(t)]
+
+        active_qs = adjustments_mgr.filter(
             reversed_by__isnull=True,
             reversal_of__isnull=True,
             deleted_at__isnull=True,
-        ).aggregate(
-            inc=Sum("amount", filter=Q(effect="INCREASE")),
-            dec=Sum("amount", filter=Q(effect="DECREASE")),
+        )
+        stats = active_qs.aggregate(
+            inc=Sum("amount", filter=~Q(type__in=reduction_types)),
+            dec=Sum("amount", filter=Q(type__in=reduction_types)),
         )
 
         inc = stats["inc"] or Decimal("0.00")
@@ -209,7 +214,7 @@ class LinkedIssuanceTransactionMixin(
                 source=self.payment_source_fund,
                 target=self.payment_target_fund,
                 document=self,
-                type=self._issuance_transaction_type,
+                tx_type=self._issuance_transaction_type,
                 amount=self.amount,
                 officer=officer or self.officer,
                 description=description
@@ -383,7 +388,7 @@ class LinkedPaymentTransactionMixin(
                 source=self.payment_source_fund,
                 target=self.payment_target_fund,
                 document=self,
-                type=self._payment_transaction_type,
+                tx_type=self._payment_transaction_type,
                 amount=amount,
                 officer=officer or self.officer,
                 description=description
@@ -499,7 +504,7 @@ class LinkedRePaymentTransactionMixin(
                 source=self.payment_target_fund,
                 target=self.payment_source_fund,
                 document=self,
-                type=self._repayment_transaction_type,
+                tx_type=self._repayment_transaction_type,
                 amount=amount,
                 officer=officer or self.officer,
                 description=description

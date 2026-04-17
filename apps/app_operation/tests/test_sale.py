@@ -7,7 +7,11 @@ from django.test import TestCase
 
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
 from apps.app_operation.models.operation_type import OperationType
-from apps.app_operation.models.proxies import CapitalGainOperation, SaleOperation
+from apps.app_operation.models.proxies import (
+    CapitalGainOperation,
+    SaleOperation,
+    CashInjectionOperation,
+)
 from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
@@ -50,13 +54,13 @@ def _inject_project(system_entity, dest_entity, amount, officer):
     ).save()
 
 
-def _seed_client_fund(system_entity, client_entity, amount, officer):
+def _seed_client_fund(world_entity, client_entity, amount, officer):
     """Seed a Client entity's fund via CapitalGain so collections can deduct from it."""
-    CapitalGainOperation(
-        source=system_entity,
+    CashInjectionOperation(
+        source=world_entity,
         destination=client_entity,
         amount=amount,
-        operation_type=OperationType.CAPITAL_GAIN,
+        operation_type=OperationType.CASH_INJECTION,
         date=date.today(),
         description="Seed client balance",
         officer=officer,
@@ -91,13 +95,15 @@ class SaleCreateTest(TestCase):
 
     def setUp(self):
         self.system_entity = Entity.create(EntityType.SYSTEM)
+        self.world_entity = Entity.create(EntityType.WORLD)
+
         self.officer = _make_officer()
 
         self.project_entity = _make_project_entity("Test Farm Project")
 
         self.client_entity = _make_client_entity("Big Buyer Corp")
         _seed_client_fund(
-            self.system_entity,
+            self.world_entity,
             self.client_entity,
             Decimal("5000.00"),
             self.officer,
@@ -330,13 +336,15 @@ class SaleCollectionTest(TestCase):
 
     def setUp(self):
         self.system_entity = Entity.create(EntityType.SYSTEM)
+        self.world_entity = Entity.create(EntityType.WORLD)
+
         self.officer = _make_officer()
 
         self.project_entity = _make_project_entity("Farm Project")
 
         self.client_entity = _make_client_entity("Big Buyer Corp")
         _seed_client_fund(
-            self.system_entity,
+            self.world_entity,
             self.client_entity,
             Decimal("5000.00"),
             self.officer,
@@ -477,12 +485,13 @@ class SaleReversalTest(TestCase):
     def setUp(self):
         self.system_entity = Entity.create(EntityType.SYSTEM)
         self.officer = _make_officer()
+        self.world_entity = Entity.create(EntityType.WORLD)
 
         self.project_entity = _make_project_entity("Farm Project")
 
         self.client_entity = _make_client_entity("Big Buyer Corp")
         _seed_client_fund(
-            self.system_entity,
+            self.world_entity,
             self.client_entity,
             Decimal("5000.00"),
             self.officer,
@@ -610,6 +619,8 @@ class SaleBalanceGuardTest(TestCase):
 
     def setUp(self):
         self.system_entity = Entity.create(EntityType.SYSTEM)
+        self.world_entity = Entity.create(EntityType.WORLD)
+
         self.officer = _make_officer()
 
         self.project_entity = _make_project_entity("Farm Project")
@@ -619,7 +630,7 @@ class SaleBalanceGuardTest(TestCase):
         # but the sale itself is for 1000 so the over-collection guard would
         # allow 600.  Only check_balance_on_payment can reject it.
         _seed_client_fund(
-            self.system_entity,
+            self.world_entity,
             self.client_entity,
             Decimal("200.00"),
             self.officer,

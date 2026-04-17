@@ -48,6 +48,12 @@ class OperationCreateView(View):
 
     # ---- lifecycle ----------------------------------------------------------
 
+    def _setup_view(self, pk, request):
+        self.canonical_op_type = next(t for t, c in PROXY_MAP.items() if c is self.proxy_cls)
+        self.data = self.proxy_cls.resolve_request(pk, request)
+        self.has_invoice = self.data.get("has_invoice", False)
+        self.project = self.data["url_entity"]
+
     def dispatch(self, request, *args, **kwargs):
         proxy_cls = get_canonical_type(kwargs["op_type"])
         if not proxy_cls:
@@ -56,10 +62,7 @@ class OperationCreateView(View):
             )
         # proxy_cls is narrowed to type[Operation] from here on
         self.proxy_cls = proxy_cls
-        self.canonical_op_type = next(t for t, c in PROXY_MAP.items() if c is proxy_cls)
-        self.data = proxy_cls.resolve_request(kwargs["pk"], request)
-        self.has_invoice = self.data.get("has_invoice", False)
-        self.project = self.data["url_entity"]
+        self._setup_view(kwargs["pk"], request)
         return super().dispatch(request, *args, **kwargs)
 
     # ---- HTTP handlers ------------------------------------------------------

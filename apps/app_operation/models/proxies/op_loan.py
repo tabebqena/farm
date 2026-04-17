@@ -1,7 +1,7 @@
 from typing import List
 
-from django.core.exceptions import ValidationError
 
+from apps.app_entity.models import EntityType
 from apps.app_operation.models.operation import Operation
 from apps.app_transaction.transaction_type import TransactionType
 
@@ -59,7 +59,7 @@ class LoanOperation(Operation):
 
         return (
             Entity.objects.filter(
-                Q(person__isnull=False) | Q(project__isnull=False),
+                entity_type__in=[EntityType.PROJECT, EntityType.PERSON]
             )
             .exclude(pk=url_entity.pk)
             .all()

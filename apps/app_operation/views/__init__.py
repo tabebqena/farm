@@ -3,6 +3,8 @@ from .category.category_create import category_create_view
 from .category.category_detail import category_detail_view
 from .category.category_edit import category_edit_view
 from .create import OperationCreateView
+from .evaluation import EvaluationCreateView
+from .purchase_sale import BirthCreateView, DeathCreateView, PurchaseCreateView, SaleCreateView
 from .detail import operation_detail_view
 from .edit import operation_update_view
 from .list import operation_list_view
@@ -13,6 +15,11 @@ __all__ = [
     "operation_list_view",
     "operation_update_view",
     "OperationCreateView",
+    "PurchaseCreateView",
+    "SaleCreateView",
+    "BirthCreateView",
+    "DeathCreateView",
+    "EvaluationCreateView",
     "operation_detail_view",
     "operation_reverse_view",
     "record_transaction_repayment",

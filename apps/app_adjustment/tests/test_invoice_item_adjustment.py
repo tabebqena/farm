@@ -13,7 +13,6 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from apps.app_adjustment._effect import AdjustmentEffect
 from apps.app_adjustment._item_type import InvoiceItemAdjustmentType
 from apps.app_adjustment.models import (
     AdjustmentType,
@@ -181,8 +180,7 @@ class FinalizationTest(TestCase):
 
         self.assertIsNotNone(ia.adjustment)
         adj = ia.adjustment
-        self.assertEqual(adj.type, AdjustmentType.PURCHASE_ITEM_CORRECTION)
-        self.assertEqual(adj.effect, AdjustmentEffect.DECREASE)
+        self.assertEqual(adj.type, AdjustmentType.PURCHASE_ITEM_CORRECTION_DECREASE)
         self.assertEqual(adj.amount, Decimal("100.00"))  # 10 * (100-90)
 
     def test_finalize_purchase_increase_creates_correct_adjustment(self):
@@ -196,7 +194,7 @@ class FinalizationTest(TestCase):
         ia.finalize()
 
         adj = ia.adjustment
-        self.assertEqual(adj.effect, AdjustmentEffect.INCREASE)
+        self.assertEqual(adj.type, AdjustmentType.PURCHASE_ITEM_CORRECTION_INCREASE)
         self.assertEqual(adj.amount, Decimal("100.00"))  # 5 * (220-200)
 
     def test_finalize_reflects_in_effective_amount(self):

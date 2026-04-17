@@ -62,6 +62,10 @@
       <span class="d-flex align-items-center">
         {% include 'app_entity/snippets/entity_edit_link.html' with edit_label='Edit' %}
         <span class="ms-2 gap-2"><a class="btn-primary btn button-primary" href="{% url 'operation_list_view' entity.pk %}"><i class="bi bi-clock-history me-2"></i>{% trans 'Operations' %}</a></span>
+        {% if entity.project %}
+          <span class="ms-2 gap-2"><a class="btn btn-outline-secondary" href="{% url 'entity_product_templates_setup' entity.pk %}"><i class="bi bi-box-seam me-2"></i>{% trans 'Product Templates' %}</a></span>
+          <span class="ms-2 gap-2"><a class="btn btn-outline-secondary" href="{% url 'stock_detail' %}"><i class="bi bi-archive me-2"></i>{% trans 'Stock' %}</a></span>
+        {% endif %}
       </span>
     </div>
   </div>
