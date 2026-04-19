@@ -95,7 +95,7 @@ class Command(BaseCommand):
             self.stdout.write("World entity already exists, skipping.")
             return
 
-        Entity.create(EntityType.WORLD, active=True, fund_active=True)
+        Entity.create(EntityType.WORLD, active=True)
         self.stdout.write(self.style.SUCCESS("Created world entity with active fund."))
 
     def _create_system_entity(self):
@@ -105,7 +105,7 @@ class Command(BaseCommand):
             self.stdout.write("System entity already exists, skipping.")
             return
 
-        Entity.create(EntityType.SYSTEM, active=True, fund_active=True)
+        Entity.create(EntityType.SYSTEM, active=True)
         self.stdout.write(self.style.SUCCESS("Created system entity with active fund."))
 
     def _create_product_templates(self):

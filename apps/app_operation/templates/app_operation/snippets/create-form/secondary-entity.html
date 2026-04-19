@@ -2,12 +2,22 @@
 {% if config.source == 'post' or config.dest == 'post' %}
   <div class="col-12">
     <label class="form-label fw-bold">
-      {% if config.source == 'post' %}{% trans "Transfer From (Source)" %}{% else %}{% trans "Transfer To (Destination)" %}{% endif %}
+      {% if config.source == 'post' %}
+        {% trans 'Transfer From (Source)' %}
+      {% else %}
+        {% trans 'Transfer To (Destination)' %}
+      {% endif %}
     </label>
     <select name="secondary_entity" class="form-select select2" required>
-      <option value="">{% trans "Search for entity..." %}</option>
+      <option value="">
+        {% trans 'Search for entity...' %}
+      </option>
       {% for entity in entities %}
-        <option value="{{ entity.pk }}">{{ entity.name }}</option>
+        {% if entity == secondary_entity %}
+          <option value="{{ entity.pk }}" selected>{{ entity.name }}</option>
+        {% else %}
+          <option value="{{ entity.pk }}">{{ entity.name }}</option>
+        {% endif %}
       {% endfor %}
     </select>
   </div>

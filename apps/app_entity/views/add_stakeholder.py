@@ -24,9 +24,9 @@ def add_stakeholder_base(request, parent_entity_id, role_type):
 
         # Rule 2: Validation based on role_type
         error_msg = None
-        if role_type == "worker" and not target_entity.person:
+        if role_type == "worker" and not target_entity.is_person:
             error_msg = "Only People can be assigned as Workers."
-        elif role_type == "shareholder" and not target_entity.person:
+        elif role_type == "shareholder" and not target_entity.is_person:
             error_msg = "Only People can be assigned as Shareholders."
         elif role_type == "vendor" and not target_entity.is_vendor:
             error_msg = f"{target_entity} is not configured as a Vendor."

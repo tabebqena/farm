@@ -21,7 +21,6 @@ def person_edit_view(request, pk):
         entity.is_shareholder = request.POST.get("is_shareholder") == "on"
         entity.is_internal = request.POST.get("is_internal") == "on"
         entity.active = request.POST.get("active") == "on"
-        # entity.active = request.POST.get("fund_active") == "on"
 
         try:
             with transaction.atomic():

@@ -96,8 +96,8 @@ class BaseModel(models.Model):
 
         return super().clean_fields(exclude)
 
-    def post_save(self, tasks):
-        for f, f_args, f_kwargs in tasks:
+    def post_save(self, post_save_tasks):
+        for f, f_args, f_kwargs in post_save_tasks:
             f(*f_args, **f_kwargs)
 
     def save(self, *args, **kwargs):
@@ -111,6 +111,7 @@ class BaseModel(models.Model):
             using=kwargs.get("using", None),
             update_fields=kwargs.get("update_fields", None),
         )
+
         self.post_save(kwargs.get("tasks", []))
         return rv
 

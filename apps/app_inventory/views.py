@@ -1,28 +1,67 @@
 import traceback
+from datetime import date as today_date
 
 from django.contrib import messages
 from django.db import transaction as db_transaction
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.dateparse import parse_date
 from django.utils.translation import gettext as _
 
 from apps.app_entity.models import Entity
-from apps.app_inventory.models import Product, ProductTemplate
+from apps.app_inventory.forms import InventoryMovementLineFormSet
+from apps.app_inventory.models import InventoryMovement, Product, ProductTemplate
+from apps.app_operation.models.operation_type import OperationType
 
 
-def stock_detail(request):
+def stock_detail(request, entity_pk):
+    from datetime import date
+    from apps.app_entity.models import Entity
+    from apps.app_inventory.models import ProductLedgerEntry, Product, InvoiceItem, InventoryMovementLine
+    from apps.app_operation.models.operation_type import OperationType
+
+    entity = get_object_or_404(Entity, pk=entity_pk)
+
+    # Get portfolio for this entity as of today
+    portfolio = ProductLedgerEntry.portfolio_as_of(entity, date.today())
+    product_ids = [item["product_id"] for item in portfolio]
+
     products = (
-        Product.objects.select_related("product_template")
+        Product.objects.filter(pk__in=product_ids)
+        .select_related("product_template")
         .prefetch_related("invoice_items__operation")
         .order_by("product_template__nature", "product_template__name", "pk")
     )
-    return render(request, "app_inventory/stock_detail.html", {"products": products})
+
+    # Get unreceived purchases (InvoiceItems with no InventoryMovementLines)
+    unreceived_purchases = (
+        InvoiceItem.objects
+        .filter(operation__operation_type=OperationType.PURCHASE)
+        .exclude(pk__in=InventoryMovementLine.objects.values_list('invoice_item_id'))
+        .select_related('product', 'operation')
+        .order_by('-operation__date')
+    )
+
+    # Get undelivered sales (InvoiceItems with no InventoryMovementLines)
+    undelivered_sales = (
+        InvoiceItem.objects
+        .filter(operation__operation_type=OperationType.SALE)
+        .exclude(pk__in=InventoryMovementLine.objects.values_list('invoice_item_id'))
+        .select_related('product', 'operation')
+        .order_by('-operation__date')
+    )
+
+    return render(request, "app_inventory/stock_detail.html", {
+        "products": products,
+        "unreceived_items": unreceived_purchases,
+        "undelivered_items": undelivered_sales,
+    })
 
 
 def product_detail(request, pk):
     product = get_object_or_404(
         Product.objects.select_related("product_template").prefetch_related(
-            "invoice_items__operation"
+            "invoice_items__operation", "ledger_entries"
         ),
         pk=pk,
     )
@@ -74,6 +113,36 @@ def project_product_templates_setup(request, entity_pk):
     )
 
 
+def product_template_detail(request, pk):
+    template = get_object_or_404(
+        ProductTemplate.objects.prefetch_related(
+            "entities",
+            "product_set__invoice_items__operation",
+            "invoices__operation",
+        ),
+        pk=pk,
+    )
+    return render(request, "app_inventory/product_template_detail.html", {"template": template})
+
+
+def entity_product_templates_list(request, entity_pk):
+    """List product templates assigned to an entity."""
+    entity = get_object_or_404(Entity, pk=entity_pk)
+    templates = (
+        entity.product_templates.all()
+        .prefetch_related("entities", "product_set", "invoices")
+        .order_by("nature", "name")
+    )
+    return render(
+        request,
+        "app_inventory/entity_product_templates_list.html",
+        {
+            "entity": entity,
+            "templates": templates,
+        },
+    )
+
+
 def create_product_template(request):
     """
     Create a new Product Template (Animal, Feed, Medicine, or Product).
@@ -117,5 +186,92 @@ def create_product_template(request):
         {
             "natures": ProductTemplate.Nature.choices,
             "tracking_modes": ProductTemplate.TrackingMode.choices,
+        },
+    )
+
+
+def create_inventory_movement(request, operation_pk):
+    """
+    Create an InventoryMovement header + lines for a PURCHASE or SALE operation.
+    Requires staff user (officer).
+    """
+    from apps.app_operation.models.operation import Operation
+
+    if not request.user.is_staff:
+        messages.error(request, _("You must be an officer to create inventory movements."))
+        return redirect("entity_list")
+
+    operation = get_object_or_404(Operation, pk=operation_pk)
+
+    if operation.operation_type not in (OperationType.PURCHASE, OperationType.SALE):
+        messages.error(
+            request,
+            _(
+                "Inventory movements are only allowed for PURCHASE or SALE operations."
+            ),
+        )
+        return redirect("operation_detail_view", pk=operation_pk)
+
+    if request.method == "POST":
+        date_str = request.POST.get("date", "").strip()
+        notes = request.POST.get("notes", "").strip()
+
+        try:
+            date = parse_date(date_str) if date_str else today_date.today()
+            if not date:
+                raise ValueError(_("Invalid date format."))
+
+            with db_transaction.atomic():
+                movement = InventoryMovement(
+                    operation=operation,
+                    date=date,
+                    officer=request.user,
+                    notes=notes,
+                )
+                movement.full_clean()
+                movement.save()
+
+                formset = InventoryMovementLineFormSet(
+                    request.POST, instance=movement, operation=operation
+                )
+                if formset.is_valid():
+                    formset.save()
+                    messages.success(
+                        request,
+                        _(
+                            "Inventory movement created with %(count)s line(s)."
+                        )
+                        % {"count": len([f for f in formset.forms if f.cleaned_data.get('invoice_item')])},
+                    )
+                    return redirect("operation_detail_view", pk=operation_pk)
+                else:
+                    messages.error(
+                        request,
+                        _("Please check the items below for errors."),
+                    )
+                    raise ValueError(_("Formset validation failed"))
+        except Exception as e:
+            traceback.print_exc()
+            messages.error(
+                request, _("Error: %(error)s") % {"error": str(e)}
+            )
+            formset = InventoryMovementLineFormSet(request.POST, operation=operation)
+            return render(
+                request,
+                "app_inventory/inventory_movement_form.html",
+                {
+                    "operation": operation,
+                    "formset": formset,
+                },
+            )
+
+    formset = InventoryMovementLineFormSet(operation=operation)
+
+    return render(
+        request,
+        "app_inventory/inventory_movement_form.html",
+        {
+            "operation": operation,
+            "formset": formset,
         },
     )

@@ -238,10 +238,9 @@ class LinkedIssuanceTransactionMixin(
                     ...
                 else:
                     if self._has_issuance_transaction:
-                        kwargs.setdefault("tasks", []).append(
+                        kwargs.setdefault("post_save_tasks", []).append(
                             (self.create_issuance_transaction, (), {"date": self.date})
                         )
-                        # self.create_issuance_transaction()
             return super().save(*args, **kwargs)
 
 
@@ -419,7 +418,7 @@ class LinkedPaymentTransactionMixin(
                                     "This record can't act as a one-shot operation record"
                                 )
                             )
-                        kwargs.setdefault("tasks", []).append(
+                        kwargs.setdefault("post_save_tasks", []).append(
                             (
                                 self.create_payment_transaction,
                                 (),

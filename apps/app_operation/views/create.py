@@ -23,18 +23,30 @@ if TYPE_CHECKING:
 # Module-level helpers (pure logic, no request/view state)
 # ---------------------------------------------------------------------------
 
+
 def _build_formset(proxy_cls, data=None, instance=None, project=None):
     """Return the correct formset class for this operation, bound or unbound."""
     if proxy_cls.creates_assets:
-        return InvoiceItemCreateFormSet(data, instance=instance, project=project) if data is not None \
+        return (
+            InvoiceItemCreateFormSet(data, instance=instance, project=project)
+            if data is not None
             else InvoiceItemCreateFormSet(instance=instance, project=project)
-    return InvoiceItemSelectFormSet(data, instance=instance) if data is not None \
+        )
+    return (
+        InvoiceItemSelectFormSet(data, instance=instance)
+        if data is not None
         else InvoiceItemSelectFormSet(instance=instance)
+    )
 
 
+# TODO display error if the selected operation will not proceed
+# no system or world entity while the operation requires
+# no project shared in while the project required
+# no assigned worker, vendor, client, shareholder & the operaytoion requires
 # ---------------------------------------------------------------------------
 # View
 # ---------------------------------------------------------------------------
+
 
 class OperationCreateView(View):
     template_name = "app_operation/generic_form.html"
@@ -49,7 +61,9 @@ class OperationCreateView(View):
     # ---- lifecycle ----------------------------------------------------------
 
     def _setup_view(self, pk, request):
-        self.canonical_op_type = next(t for t, c in PROXY_MAP.items() if c is self.proxy_cls)
+        self.canonical_op_type = next(
+            t for t, c in PROXY_MAP.items() if c is self.proxy_cls
+        )
         self.data = self.proxy_cls.resolve_request(pk, request)
         self.has_invoice = self.data.get("has_invoice", False)
         self.project = self.data["url_entity"]
@@ -77,10 +91,16 @@ class OperationCreateView(View):
 
         if formset and not formset.is_valid():
             messages.error(request, _("Please check the items table for errors."))
-            return render(request, self.template_name, self._build_context(
-                formset=formset, date=date, description=description,
-                selected_category_id=selected_category_id,
-            ))
+            return render(
+                request,
+                self.template_name,
+                self._build_context(
+                    formset=formset,
+                    date=date,
+                    description=description,
+                    selected_category_id=selected_category_id,
+                ),
+            )
 
         amount = Decimal("0.00")
         errors = []
@@ -101,13 +121,22 @@ class OperationCreateView(View):
         except Exception as e:
             traceback.print_exc()
             errors.append(str(e))
-            messages.error(request, _("Transaction Error: %(error)s") % {"error": str(e)})
+            messages.error(
+                request, _("Transaction Error: %(error)s") % {"error": str(e)}
+            )
 
-        return render(request, self.template_name, self._build_context(
-            formset=formset, amount=amount, date=date,
-            description=description, selected_category_id=selected_category_id,
-            errors=errors,
-        ))
+        return render(
+            request,
+            self.template_name,
+            self._build_context(
+                formset=formset,
+                amount=amount,
+                date=date,
+                description=description,
+                selected_category_id=selected_category_id,
+                errors=errors,
+            ),
+        )
 
     # ---- business logic helpers ---------------------------------------------
 
@@ -122,7 +151,14 @@ class OperationCreateView(View):
 
     def _make_formset(self, data=None):
         from apps.app_operation.models.operation import Operation
-        return _build_formset(self.proxy_cls, data=data, instance=Operation(), project=self.project)
+
+        return _build_formset(
+            # self.proxy_cls, data=data, instance=Operation(), project=self.project
+            self.proxy_cls,
+            data=data,
+            instance=self.proxy_cls(),
+            project=self.project,
+        )
 
     def _compute_amount(self, formset):
         if self.has_invoice and formset:
@@ -178,8 +214,16 @@ class OperationCreateView(View):
         bound_formset.save()
         op.save_inventory(bound_formset)
 
-    def _build_context(self, *, formset, amount=Decimal("0.00"), date=None,
-                       description="", selected_category_id=None, errors=None):
+    def _build_context(
+        self,
+        *,
+        formset,
+        amount=Decimal("0.00"),
+        date=None,
+        description="",
+        selected_category_id=None,
+        errors=None
+    ):
         categories = FinancialCategory.objects.filter(
             parent_entity=self.data["url_entity"],
             category_type=self.proxy_cls.category_type,
@@ -190,7 +234,10 @@ class OperationCreateView(View):
             "config": self.data,
             "op_type": self.canonical_op_type,
             "today": timezone.now().date(),
-            "entities": self.proxy_cls.get_related_entities(self.data["url_entity"], self.data),
+            "entities": self.proxy_cls.get_related_entities(
+                self.data["url_entity"], self.data
+            ),
+            "secondary_entity": self.data["secondary_entity"],
             "theme_color": self.data["theme_color"],
             "theme_icon": self.data["theme_icon"],
             "formset": formset,

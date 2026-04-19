@@ -20,7 +20,9 @@ class PurchaseCreateView(OperationCreateView):
         if not self.proxy_cls.get_related_entities(self.project, self.data):
             messages.warning(
                 request,
-                _("This project has no active vendors. Add a vendor before recording a purchase."),
+                _(
+                    "This project has no active vendors. Add a vendor before recording a purchase."
+                ),
             )
             return redirect("operation_list_view", person_pk=self.project.pk)
         return View.dispatch(self, request, *args, **kwargs)
@@ -40,7 +42,9 @@ class SaleCreateView(OperationCreateView):
         if not self.proxy_cls.get_related_entities(self.project, self.data):
             messages.warning(
                 request,
-                _("This project has no active clients. Add a client before recording a sale."),
+                _(
+                    "This project has no active clients. Add a client before recording a sale."
+                ),
             )
             return redirect("operation_list_view", person_pk=self.project.pk)
         return View.dispatch(self, request, *args, **kwargs)

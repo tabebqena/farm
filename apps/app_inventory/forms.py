@@ -2,7 +2,7 @@ from django import forms
 from django.forms import BaseInlineFormSet, inlineformset_factory
 
 from apps.app_operation.models.operation import Operation
-from .models import InvoiceItem, Product, ProductTemplate
+from .models import InvoiceItem, InventoryMovement, InventoryMovementLine, Product, ProductTemplate
 
 
 # ---------------------------------------------------------------------------
@@ -130,4 +130,67 @@ InvoiceItemSelectFormSet = inlineformset_factory(
     form=InvoiceItemSelectForm,
     extra=1,
     can_delete=True,
+)
+
+
+# ---------------------------------------------------------------------------
+# Inventory Movement Line: used to record physical movement of items
+# Each form row specifies an InvoiceItem and the quantity being moved.
+# ---------------------------------------------------------------------------
+
+class InventoryMovementLineForm(forms.ModelForm):
+    """
+    One row = one InvoiceItem being physically moved (received/dispatched).
+    Pass `operation` to filter the `invoice_item` dropdown to only items
+    belonging to that operation.
+    """
+
+    invoice_item = forms.ModelChoiceField(
+        queryset=InvoiceItem.objects.all(),
+        label="Invoice Item",
+        empty_label="— select —",
+        widget=forms.Select(attrs={"class": "form-select form-select-sm"}),
+    )
+
+    class Meta:
+        model = InventoryMovementLine
+        fields = ("invoice_item", "quantity")
+        widgets = {
+            "quantity": forms.NumberInput(
+                attrs={
+                    "class": "form-control form-control-sm",
+                    "step": "0.01",
+                    "placeholder": "0.00",
+                }
+            ),
+        }
+
+    def __init__(self, *args, operation=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if operation is not None:
+            self.fields["invoice_item"].queryset = InvoiceItem.objects.filter(
+                operation=operation
+            ).select_related("product")
+
+
+class BaseInventoryMovementLineFormSet(BaseInlineFormSet):
+    """Passes `operation` down to each InventoryMovementLineForm."""
+
+    def __init__(self, *args, operation=None, **kwargs):
+        self.operation = operation
+        super().__init__(*args, **kwargs)
+
+    def get_form_kwargs(self, index):
+        kwargs = super().get_form_kwargs(index)
+        kwargs["operation"] = self.operation
+        return kwargs
+
+
+InventoryMovementLineFormSet = inlineformset_factory(
+    InventoryMovement,
+    InventoryMovementLine,
+    form=InventoryMovementLineForm,
+    formset=BaseInventoryMovementLineFormSet,
+    extra=1,
+    can_delete=False,
 )

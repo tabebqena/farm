@@ -17,7 +17,6 @@ def project_edit_view(request, pk):
         entity.description = request.POST.get("description", "")
         entity.is_internal = request.POST.get("is_internal") == "on"
         entity.active = request.POST.get("active") == "on"
-        # entity.active = request.POST.get("fund_active") == "on"
         entity.is_client = request.POST.get("is_client") == "on"
         entity.is_vendor = request.POST.get("is_vendor") == "on"
 

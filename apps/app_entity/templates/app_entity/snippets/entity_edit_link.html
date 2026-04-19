@@ -1,8 +1,8 @@
 {# Determine the correct edit URL based on the entity type #}
-{% if entity.person %}
+{% if entity.is_person %}
   {% url 'person_edit' entity.id as edit_url %}
   {% comment %} {% edit_label = 'Edit Person' %} {% endcomment %}
-{% elif entity.project %}
+{% elif entity.is_project %}
   {% url 'project_edit' entity.id as edit_url %}
   {% comment %} {% edit_label = 'Edit Project' %} {% endcomment %}
 {% else %}

@@ -1,53 +1,125 @@
 {% extends 'base.html' %}
 {% load i18n %}
 
-{% block title %}{% trans "Product" %} #{{ product.pk }}{% endblock %}
+{% block title %}
+  {% trans 'Product' %}#{{ product.pk }}
+{% endblock %}
 
 {% block content %}
   <div class="container mt-4">
-
     <div class="d-flex justify-content-between align-items-center mb-4">
-      <h4 class="mb-0">{% trans "Product" %} #{{ product.pk }}</h4>
-      <a href="{% url 'stock_detail' %}" class="btn btn-sm btn-outline-secondary">
-        &larr; {% trans "Back to Stock" %}
-      </a>
+      <h4 class="mb-0">{% trans 'Product' %}#{{ product.pk }}</h4>
+      <a href="{% url 'stock_detail' product.entity.pk %}" class="btn btn-sm btn-outline-secondary">&larr;{% trans 'Back to Stock' %}</a>
+    </div>
+
+    <!-- Status Banner -->
+    <div class="mb-4">
+      {% with status=product.status %}
+        {% if status == 'ACTIVE' %}
+          <div class="alert alert-success d-flex align-items-center" role="alert">
+            <span class="badge bg-success fs-5 me-3" style="padding: 0.5rem 0.75rem;">{{ status }}</span>
+            <div>
+              <strong class="fs-5">{% trans 'Active Product' %}</strong>
+              <p class="mb-0 text-muted">{% trans 'Available for operations' %}</p>
+            </div>
+          </div>
+        {% elif status == 'SOLD' %}
+          <div class="alert alert-secondary d-flex align-items-center" role="alert">
+            <span class="badge bg-secondary fs-5 me-3" style="padding: 0.5rem 0.75rem;">{{ status }}</span>
+            <div>
+              <strong class="fs-5">{% trans 'Sold Product' %}</strong>
+              <p class="mb-0 text-muted">{% trans 'Cannot be used in new operations' %}</p>
+            </div>
+          </div>
+        {% else %}
+          <div class="alert alert-danger d-flex align-items-center" role="alert">
+            <span class="badge bg-danger fs-5 me-3" style="padding: 0.5rem 0.75rem;">{{ status }}</span>
+            <div>
+              <strong class="fs-5">{% trans 'Dead Product' %}</strong>
+              <p class="mb-0 text-muted">{% trans 'Cannot be used in new operations' %}</p>
+            </div>
+          </div>
+        {% endif %}
+      {% endwith %}
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="mb-4">
+      <div class="card shadow-sm">
+        <div class="card-header fw-bold">
+          {% trans 'Quick Links' %}
+        </div>
+        <div class="card-body">
+          <div class="row g-2">
+            <div class="col-auto">
+              <a href="#invoice-items" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-file-earmark-text"></i> {% trans 'Invoice Items' %} ({{ product.invoice_items.count }})
+              </a>
+            </div>
+            <div class="col-auto">
+              <a href="#movements" class="btn btn-sm btn-outline-info">
+                <i class="bi bi-arrow-left-right"></i> {% trans 'Movements' %} ({{ product.ledger_entries.count }})
+              </a>
+            </div>
+            {% if product.invoice_items.exists %}
+              <div class="col-auto">
+                <a href="#operations" class="btn btn-sm btn-outline-secondary">
+                  <i class="bi bi-list-ul"></i> {% trans 'Related Operations' %}
+                </a>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="row g-4">
-
-      <!-- Meta card -->
-      <div class="col-md-4">
+      <!-- Details card -->
+      <div class="col-md-6">
         <div class="card shadow-sm h-100">
-          <div class="card-header fw-bold">{% trans "Details" %}</div>
+          <div class="card-header fw-bold">
+            {% trans 'Details' %}
+          </div>
           <div class="card-body">
             <dl class="mb-0">
-              <dt class="text-muted small">{% trans "Template" %}</dt>
+              <dt class="text-muted small">
+                {% trans 'Template' %}
+              </dt>
               <dd>{{ product.product_template.name }}</dd>
 
-              <dt class="text-muted small">{% trans "Nature" %}</dt>
+              <dt class="text-muted small">
+                {% trans 'Nature' %}
+              </dt>
               <dd>{{ product.product_template.get_nature_display }}</dd>
 
-              <dt class="text-muted small">{% trans "Tracking mode" %}</dt>
+              <dt class="text-muted small">
+                {% trans 'Tracking mode' %}
+              </dt>
               <dd>{{ product.product_template.get_tracking_mode_display }}</dd>
 
-              <dt class="text-muted small">{% trans "Tag / ID" %}</dt>
-              <dd>{{ product.unique_id|default:"—" }}</dd>
+              <dt class="text-muted small">
+                {% trans 'Tag / ID' %}
+              </dt>
+              <dd>{{ product.unique_id|default:'—' }}</dd>
 
-              <dt class="text-muted small">{% trans "Quantity" %}</dt>
+              <dt class="text-muted small">
+                {% trans 'Quantity' %}
+              </dt>
               <dd>{{ product.quantity }} {{ product.product_template.default_unit }}</dd>
 
-              <dt class="text-muted small">{% trans "Unit price" %}</dt>
+              <dt class="text-muted small">
+                {% trans 'Unit price' %}
+              </dt>
               <dd>{{ product.unit_price }}</dd>
 
-              <dt class="text-muted small">{% trans "Current value" %}</dt>
-              <dd class="fw-bold">{{ product.current_value }}</dd>
-
-              <dt class="text-muted small">{% trans "Status" %}</dt>
+              <dt class="text-muted small">
+                {% trans 'Status' %}
+              </dt>
               <dd>
                 {% with status=product.status %}
-                  {% if status == "ACTIVE" %}
+                  {% if status == 'ACTIVE' %}
                     <span class="badge bg-success">{{ status }}</span>
-                  {% elif status == "SOLD" %}
+                  {% elif status == 'SOLD' %}
                     <span class="badge bg-secondary">{{ status }}</span>
                   {% else %}
                     <span class="badge bg-danger">{{ status }}</span>
@@ -56,7 +128,9 @@
               </dd>
 
               {% if product.notes %}
-                <dt class="text-muted small">{% trans "Notes" %}</dt>
+                <dt class="text-muted small">
+                  {% trans 'Notes' %}
+                </dt>
                 <dd>{{ product.notes }}</dd>
               {% endif %}
             </dl>
@@ -64,21 +138,161 @@
         </div>
       </div>
 
-      <!-- Invoice items card -->
-      <div class="col-md-8">
+      <!-- Current value card -->
+      <div class="col-md-6">
+        <div class="card shadow-sm h-100">
+          <div class="card-header fw-bold">
+            {% trans 'Current Value' %}
+          </div>
+          <div class="card-body">
+            <div class="text-center">
+              <div class="display-4 fw-bold text-success">{{ product.current_value }}</div>
+              <p class="text-muted mb-0">{% trans 'Total Value' %}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Related Operations card -->
+    {% if product.invoice_items.exists %}
+        <div class="row g-4 mt-2">
+          <div class="col-12">
+            <div class="card shadow-sm">
+              <div class="card-header fw-bold" id="operations">
+                {% trans 'Related Operations' %}
+              </div>
+              <div class="card-body p-0">
+                <div class="table-responsive">
+                  <table class="table mb-0">
+                    <thead class="table-light">
+                      <tr>
+                        <th>
+                          {% trans 'Operation' %}
+                        </th>
+                        <th>
+                          {% trans 'Type' %}
+                        </th>
+                        <th>
+                          {% trans 'Date' %}
+                        </th>
+                        <th>
+                          {% trans 'Amount' %}
+                        </th>
+                        <th class="text-center">
+                          {% trans 'View' %}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% regroup product.invoice_items.all by operation as grouped_items %}
+                      {% for group in grouped_items %}
+                        <tr>
+                          <td>
+                            <a href="{% url 'operation_detail_view' group.grouper.pk %}">#{{ group.grouper.pk }}</a>
+                          </td>
+                          <td>
+                            <span class="badge bg-primary">{{ group.grouper.get_operation_type_display }}</span>
+                          </td>
+                          <td>{{ group.grouper.date }}</td>
+                          <td>{{ group.grouper.amount }}</td>
+                          <td class="text-center">
+                            <a href="{% url 'operation_detail_view' group.grouper.pk %}" class="btn btn-sm btn-outline-primary">
+                              {% trans 'View' %}
+                            </a>
+                          </td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+    {% endif %}
+
+    <!-- Product movements card -->
+    <div class="row g-4 mt-2">
+      <div class="col-12">
         <div class="card shadow-sm">
-          <div class="card-header fw-bold">{% trans "Invoice Items" %}</div>
+          <div class="card-header fw-bold" id="movements">
+            {% trans 'Product Movements' %}
+          </div>
           <div class="card-body p-0">
             <div class="table-responsive">
               <table class="table mb-0">
                 <thead class="table-light">
                   <tr>
-                    <th>{% trans "Operation" %}</th>
-                    <th>{% trans "Operation type" %}</th>
-                    <th>{% trans "Date" %}</th>
-                    <th class="text-end">{% trans "Qty" %}</th>
-                    <th class="text-end">{% trans "Unit Price" %}</th>
-                    <th class="text-end">{% trans "Total" %}</th>
+                    <th>
+                      {% trans 'Date' %}
+                    </th>
+                    <th>
+                      {% trans 'Type' %}
+                    </th>
+                    <th class="text-end">
+                      {% trans 'Qty Change' %}
+                    </th>
+                    <th class="text-end">
+                      {% trans 'Value Change' %}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for entry in product.ledger_entries.all %}
+                    <tr>
+                      <td>{{ entry.date }}</td>
+                      <td>
+                        <span class="badge bg-info">{{ entry.get_entry_type_display }}</span>
+                      </td>
+                      <td class="text-end">{{ entry.quantity_delta }}</td>
+                      <td class="text-end">{{ entry.value_delta }}</td>
+                    </tr>
+                  {% empty %}
+                    <tr>
+                      <td colspan="4" class="text-center text-muted py-3">
+                        {% trans 'No movements recorded.' %}
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Invoice items card -->
+    <div class="row g-4 mt-2">
+      <div class="col-12">
+        <div class="card shadow-sm">
+          <div class="card-header fw-bold" id="invoice-items">
+            {% trans 'Invoice Items' %}
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>
+                      {% trans 'Operation' %}
+                    </th>
+                    <th>
+                      {% trans 'Operation type' %}
+                    </th>
+                    <th>
+                      {% trans 'Date' %}
+                    </th>
+                    <th class="text-end">
+                      {% trans 'Qty' %}
+                    </th>
+                    <th class="text-end">
+                      {% trans 'Unit Price' %}
+                    </th>
+                    <th class="text-end">
+                      {% trans 'Total' %}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -95,7 +309,9 @@
                     </tr>
                   {% empty %}
                     <tr>
-                      <td colspan="6" class="text-center text-muted py-3">{% trans "No invoice items." %}</td>
+                      <td colspan="6" class="text-center text-muted py-3">
+                        {% trans 'No invoice items.' %}
+                      </td>
                     </tr>
                   {% endfor %}
                 </tbody>
@@ -104,7 +320,6 @@
           </div>
         </div>
       </div>
-
     </div>
   </div>
 {% endblock %}

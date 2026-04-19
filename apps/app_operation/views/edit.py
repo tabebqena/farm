@@ -12,7 +12,7 @@ def operation_update_view(request, pk):
     # Financial Protection: Do not allow editing reversed operations
     if operation.is_reversed:
         messages.error(request, "Cannot edit a reversed operation.")
-        return redirect("operation_detail", pk=operation.pk)
+        return redirect("operation_detail_view", pk=operation.pk)
 
     if request.method == "POST":
         try:
@@ -23,7 +23,7 @@ def operation_update_view(request, pk):
                 operation.save()  # Mixin will sync the date to linked transactions
 
             messages.success(request, f"Update saved successfully.")
-            return redirect("operation_detail", pk=operation.pk)
+            return redirect("operation_detail_view", pk=operation.pk)
         except Exception as e:
             messages.error(request, f"Update Error: {str(e)}")
 

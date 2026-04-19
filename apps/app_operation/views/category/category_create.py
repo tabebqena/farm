@@ -16,7 +16,7 @@ def category_create_view(request, parent_entity_id):
     # 1. Fetch parent and validate it's a project
     parent = get_object_or_404(Entity, id=parent_entity_id)
 
-    if not parent.project:
+    if not parent.is_project:
         messages.error(request, "Categories can only be added to Project entities.")
         return redirect("entity_detail", pk=parent_entity_id)
 

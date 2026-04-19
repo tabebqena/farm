@@ -387,11 +387,15 @@ class InvoiceItem(AmountCleanMixin, BaseModel):
             raise ValidationError(_("Unit price cannot be negative"))
 
     def clean(self) -> None:
+        # TODO: not well implemented,
+        # The operation_type is empty
         try:
             op_type = self.operation.operation_type
-        except Exception:
-            return super().clean()
+            if not op_type:
+                return super().clean()
 
+        except Exception as e:
+            return super().clean()
         if not self.product.accepts_operation(op_type):
             raise ValidationError(
                 _(
@@ -418,6 +422,14 @@ class Product(AmountCleanMixin, BaseModel):
         SOLD = "SOLD", _("Sold")
         DEAD = "DEAD", _("Dead")
 
+    entity = models.ForeignKey(
+        "app_entity.Entity",
+        on_delete=models.PROTECT,
+        related_name="products",
+        verbose_name=_("entity"),
+        null=True,
+        blank=True,
+    )
     product_template = models.ForeignKey(
         ProductTemplate, on_delete=models.PROTECT, verbose_name=_("product template")
     )

@@ -18,35 +18,55 @@
 
         {% if items %}
           <div class="card mt-4 shadow-sm">
-            <div class="card-header fw-bold">{% trans "Invoice Items" %}</div>
+            <div class="card-header fw-bold">
+              {% trans 'Invoice Items' %}
+            </div>
             <div class="card-body p-0">
               <div class="table-responsive">
                 <table class="table mb-0">
                   <thead class="table-light">
                     <tr>
-                      <th>{% trans "Product" %}</th>
-                      <th>{% trans "Description" %}</th>
-                      <th class="text-end">{% trans "Qty" %}</th>
-                      <th class="text-end">{% trans "Unit Price" %}</th>
-                      <th class="text-end">{% trans "Total" %}</th>
+                      <th>
+                        {% trans 'Product' %}
+                      </th>
+                      <th>
+                        {% trans 'Description' %}
+                      </th>
+                      <th class="text-end">
+                        {% trans 'Qty' %}
+                      </th>
+                      <th class="text-end">
+                        {% trans 'Unit Price' %}
+                      </th>
+                      <th class="text-end">
+                        {% trans 'Total' %}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {% for item in items %}
                       <tr>
-                        <td>{{ item.product.name }}</td>
+                        <td>
+                          <a href="{% url 'product_detail' item.pk %}" class="text-decoration-none">{{ item.product.name }}</a>
+                        </td>
                         <td class="text-muted">{{ item.description }}</td>
                         <td class="text-end">{{ item.quantity }}</td>
                         <td class="text-end">{{ item.unit_price }}</td>
                         <td class="text-end fw-bold">{{ item.total_price }}</td>
                       </tr>
                     {% empty %}
-                      <tr><td colspan="5" class="text-center text-muted">{% trans "No items." %}</td></tr>
+                      <tr>
+                        <td colspan="5" class="text-center text-muted">
+                          {% trans 'No items.' %}
+                        </td>
+                      </tr>
                     {% endfor %}
                   </tbody>
                   <tfoot class="table-light">
                     <tr>
-                      <td colspan="4" class="text-end fw-bold">{% trans "Total" %}</td>
+                      <td colspan="4" class="text-end fw-bold">
+                        {% trans 'Total' %}
+                      </td>
                       <td class="text-end fw-bold">{{ operation.amount }}</td>
                     </tr>
                   </tfoot>
@@ -59,43 +79,43 @@
         {% if operation.description %}
           <div class="card mt-4 shadow-sm">
             <div class="card-body">
-              <h6 class="fw-bold text-muted">{% trans "Description / Notes" %}</h6>
+              <h6 class="fw-bold text-muted">{% trans 'Description / Notes' %}</h6>
               <p class="mb-0">{{ operation.description }}</p>
             </div>
           </div>
         {% endif %}
 
-        {% if operation.operation_type in "SALE,PURCHASE" %}
+        {% if operation.operation_type in 'SALE,PURCHASE' %}
           <div class="card mt-4 shadow-sm">
             <div class="card-header bg-light">
-              <h6 class="mb-0">{% trans "Related Operations" %}</h6>
+              <h6 class="mb-0">{% trans 'Related Operations' %}</h6>
             </div>
             <div class="card-body">
               <div class="row g-3">
                 <div class="col-md-6">
-                  <h6 class="text-muted mb-3">{% trans "Adjustments" %}</h6>
+                  <h6 class="text-muted mb-3">{% trans 'Adjustments' %}</h6>
                   <ul class="list-unstyled">
                     <li>
                       <a href="#" class="btn btn-sm btn-outline-secondary text-decoration-none">
                         <i class="bi bi-receipt me-2"></i>
-                        {% trans "Account-based Adjustment" %}
+                        {% trans 'Account-based Adjustment' %}
                       </a>
                     </li>
                     <li class="mt-2">
                       <a href="#" class="btn btn-sm btn-outline-secondary text-decoration-none">
                         <i class="bi bi-file-earmark-text me-2"></i>
-                        {% trans "Invoice Item Adjustment" %}
+                        {% trans 'Invoice Item Adjustment' %}
                       </a>
                     </li>
                   </ul>
                 </div>
                 <div class="col-md-6">
-                  <h6 class="text-muted mb-3">{% trans "Inventory" %}</h6>
+                  <h6 class="text-muted mb-3">{% trans 'Inventory' %}</h6>
                   <ul class="list-unstyled">
                     <li>
-                      <a href="#" class="btn btn-sm btn-outline-secondary text-decoration-none">
+                      <a href="{% url 'create_inventory_movement' operation.pk %}" class="btn btn-sm btn-outline-secondary text-decoration-none">
                         <i class="bi bi-box-seam me-2"></i>
-                        {% trans "Good Movements" %}
+                        {% trans 'Good Movements' %}
                       </a>
                     </li>
                   </ul>

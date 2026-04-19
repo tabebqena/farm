@@ -3,10 +3,10 @@
   <div class="col-12">
     {{ formset.management_form }}
     <div class="d-flex justify-content-between align-items-center mb-2">
-      <label class="form-label fw-bold mb-0">{% trans "Items" %}</label>
+      <label class="form-label fw-bold mb-0">{% trans 'Items' %}</label>
       <button type="button" class="btn btn-sm btn-outline-{{ theme_color }}" id="add-item-row">
         <i class="bi bi-plus-lg"></i>
-        {% trans "Add Item" %}
+        {% trans 'Add Item' %}
       </button>
     </div>
 
@@ -14,60 +14,83 @@
       <table class="table table-hover align-middle mb-0 table-sm" id="items-table">
         <thead class="table-light">
           <tr>
-            <th>{% trans "Product" %}</th>
-            <th style="width: 70px">{% trans "Qty" %}</th>
-            <th style="width: 110px">{% trans "Unit Price" %}</th>
-            <th style="width: 90px">{% trans "Total" %}</th>
+            <th>
+              {% trans 'Product' %}
+            </th>
+            <th style="width: 70px">
+              {% trans 'Qty' %}
+            </th>
+            <th style="width: 110px">
+              {% trans 'Unit Price' %}
+            </th>
+            <th style="width: 90px">
+              {% trans 'Total' %}
+            </th>
             <th style="width: 36px"></th>
           </tr>
         </thead>
         <tbody id="item-formset-body">
           {% for item_form in formset %}
-            <tr class="item-row">
+            <tr class="item-row{% if item_form.product.errors or item_form.quantity.errors or item_form.unit_price.errors %} table-danger{% endif %}">
               <td>
-                {% for field in item_form.hidden_fields %}{{ field }}{% endfor %}
+                {% for field in item_form.hidden_fields %}
+                  {{ field }}
+                {% endfor %}
                 {{ item_form.product }}
+                {% if item_form.product.errors %}
+                  <div class="invalid-feedback d-block small">
+                    {% for error in item_form.product.errors %}
+                      {{ error }}
+                    {% endfor %}
+                  </div>
+                {% endif %}
                 {% if item_form.description %}
                   <div class="mt-1">{{ item_form.description }}</div>
                 {% endif %}
               </td>
               <td>
-                <input type="number"
-                       name="{{ item_form.quantity.html_name }}"
-                       class="form-control form-control-sm qty-input"
-                       step="0.01"
-                       value="{{ item_form.quantity.value|default:'1' }}"
-                       required />
+                <input type="number" name="{{ item_form.quantity.html_name }}" class="form-control form-control-sm qty-input{% if item_form.quantity.errors %} is-invalid{% endif %}" step="0.01" value="{{ item_form.quantity.value|default:'1' }}" required />
+                {% if item_form.quantity.errors %}
+                  <div class="invalid-feedback d-block small">
+                    {% for error in item_form.quantity.errors %}
+                      {{ error }}
+                    {% endfor %}
+                  </div>
+                {% endif %}
               </td>
               <td>
-                <input type="number"
-                       name="{{ item_form.unit_price.html_name }}"
-                       class="form-control form-control-sm price-input"
-                       step="0.01"
-                       value="{{ item_form.unit_price.value|default:'' }}"
-                       placeholder="0.00"
-                       required />
+                <input type="number" name="{{ item_form.unit_price.html_name }}" class="form-control form-control-sm price-input{% if item_form.unit_price.errors %} is-invalid{% endif %}" step="0.01" value="{{ item_form.unit_price.value|default:'' }}" placeholder="0.00" required />
+                {% if item_form.unit_price.errors %}
+                  <div class="invalid-feedback d-block small">
+                    {% for error in item_form.unit_price.errors %}
+                      {{ error }}
+                    {% endfor %}
+                  </div>
+                {% endif %}
               </td>
               <td class="row-total fw-bold text-muted small">0.00</td>
               <td class="text-center">
                 {% if item_form.DELETE %}
                   <div style="display:none">{{ item_form.DELETE }}</div>
                 {% endif %}
-                <button type="button" class="btn btn-link text-danger p-0 remove-row">
-                  <i class="bi bi-trash"></i>
-                </button>
+                <button type="button" class="btn btn-link text-danger p-0 remove-row"><i class="bi bi-trash"></i></button>
               </td>
             </tr>
           {% endfor %}
         </tbody>
         <tfoot>
           <tr>
-            <td colspan="3" class="text-end fw-bold pe-2 small">{% trans "Grand Total" %}</td>
+            <td colspan="3" class="text-end fw-bold pe-2 small">
+              {% trans 'Grand Total' %}
+            </td>
             <td id="grand-total" class="fw-bold small">$ 0.00</td>
             <td></td>
           </tr>
         </tfoot>
       </table>
+      {% if formset.errors %}
+        {{ formset.errors }}
+      {% endif %}
     </div>
   </div>
 {% endif %}

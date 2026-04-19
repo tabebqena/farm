@@ -15,7 +15,7 @@
     </ol>
   </nav>
 
-  {% if entity.project %}
+  {% if entity.is_project %}
     {% if not entity.product_templates.exists or not entity.categories.exists %}
       <div class="mb-3">
         {% if not entity.product_templates.exists %}
@@ -62,9 +62,9 @@
       <span class="d-flex align-items-center">
         {% include 'app_entity/snippets/entity_edit_link.html' with edit_label='Edit' %}
         <span class="ms-2 gap-2"><a class="btn-primary btn button-primary" href="{% url 'operation_list_view' entity.pk %}"><i class="bi bi-clock-history me-2"></i>{% trans 'Operations' %}</a></span>
-        {% if entity.project %}
-          <span class="ms-2 gap-2"><a class="btn btn-outline-secondary" href="{% url 'entity_product_templates_setup' entity.pk %}"><i class="bi bi-box-seam me-2"></i>{% trans 'Product Templates' %}</a></span>
-          <span class="ms-2 gap-2"><a class="btn btn-outline-secondary" href="{% url 'stock_detail' %}"><i class="bi bi-archive me-2"></i>{% trans 'Stock' %}</a></span>
+        {% if entity.is_project %}
+          <span class="ms-2 gap-2"><a class="btn btn-outline-secondary" href="{% url 'entity_product_templates_list' entity.pk %}"><i class="bi bi-box-seam me-2"></i>{% trans 'Product Templates' %}</a></span>
+          <span class="ms-2 gap-2"><a class="btn btn-outline-secondary" href="{% url 'stock_detail' entity.pk %}"><i class="bi bi-archive me-2"></i>{% trans 'Stock' %}</a></span>
         {% endif %}
       </span>
     </div>
@@ -75,9 +75,9 @@
       <div class="card border-0 shadow-sm mb-4">
         <div class="card-body text-center p-4">
           <div class="avatar-lg bg-primary bg-opacity-10 text-primary rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px; font-size: 2rem;">
-            {% if entity.person %}
+            {% if entity.is_person %}
               <i class="bi bi-person"></i>
-            {% elif entity.project %}
+            {% elif entity.is_project %}
               <i class="bi bi-kanban"></i>
             {% else %}
               <i class="bi bi-tags"></i>
@@ -106,7 +106,7 @@
           </div>
         </div>
       </div>
-      {% if entity.project or entity.person %}
+      {% if entity.is_project or entity.is_person %}
         <div class="card border-0 shadow-sm">
           <div class="card-header bg-white fw-bold py-3 d-flex justify-content-between align-items-center mb-2">
             <h6 class="fw-bold text-uppercase small text-muted">{% trans 'Contact Information' %}</h6>
@@ -149,12 +149,12 @@
       <div class="card border-0 shadow-sm">
         <div class="card-header bg-white py-3">
           <ul class="nav nav-tabs card-header-tabs" id="entityTab" role="tablist">
-            {% if entity.project %}
+            {% if entity.is_project %}
               <li class="nav-item">
                 <button class="nav-link active fw-bold" data-bs-toggle="tab" data-bs-target="#stakeholders">{% trans 'Stakeholders' %}</button>
               </li>
             {% endif %}
-            {% if entity.person %}
+            {% if entity.is_person %}
               <li class="nav-item">
                 <button class="nav-link fw-bold" data-bs-toggle="tab" data-bs-target="#memberships">{% trans 'Memberships' %}</button>
               </li>
@@ -163,89 +163,92 @@
         </div>
         <div class="card-body p-4">
           <div class="tab-content">
-            {% if entity.project or entity.person %}
-              <div class="tab-pane fade show active" id="stakeholders">
-                <div class="card border-0 shadow-sm mt-4">
-                  <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0 fw-bold text-uppercase small text-muted">{% trans 'Project Team & Stakeholders' %}</h6>
-                    {% if entity.is_internal and entity.project %}
-                      <div class="dropdown">
-                        <button class="btn btn-sm btn-dark dropdown-toggle" type="button" data-bs-toggle="dropdown"><i class="bi bi-plus-circle me-1"></i> {% trans 'Add Stakeholder' %}</button>
-                        <ul class="dropdown-menu dropdown-menu-end shadow border-0">
-                          <li>
-                            <a class="dropdown-item" href="{% url 'add_worker' entity.id %}"><i class="bi bi-person me-2"></i>{% trans 'Add Worker' %}</a>
-                          </li>
-                          <li>
-                            <a class="dropdown-item" href="{% url 'add_vendor' entity.id %}"><i class="bi bi-shop me-2"></i>{% trans 'Add Vendor' %}</a>
-                          </li>
-                          <li>
-                            <a class="dropdown-item" href="{% url 'add_client' entity.id %}"><i class="bi bi-briefcase me-2"></i>{% trans 'Add Client' %}</a>
-                          </li>
-                          <li>
-                            <a class="dropdown-item" href="{% url 'add_shareholder' entity.id %}"><i class="bi bi-pie-chart me-2"></i>{% trans 'Add Shareholder' %}</a>
-                          </li>
-                        </ul>
-                      </div>
-                    {% endif %}
-                  </div>
+            {% if entity.is_project or entity.is_person %}
+              {% if entity.is_project %}
+                <div class="tab-pane fade show active" id="stakeholders">
+                  <div class="card border-0 shadow-sm mt-4">
+                    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                      <h6 class="mb-0 fw-bold text-uppercase small text-muted">{% trans 'Project Team & Stakeholders' %}</h6>
+                      {% if entity.is_internal and entity.is_project %}
+                        <div class="dropdown">
+                          <button class="btn btn-sm btn-dark dropdown-toggle" type="button" data-bs-toggle="dropdown"><i class="bi bi-plus-circle me-1"></i> {% trans 'Add Stakeholder' %}</button>
+                          <ul class="dropdown-menu dropdown-menu-end shadow border-0">
+                            <li>
+                              <a class="dropdown-item" href="{% url 'add_worker' entity.id %}"><i class="bi bi-person me-2"></i>{% trans 'Add Worker' %}</a>
+                            </li>
+                            <li>
+                              <a class="dropdown-item" href="{% url 'add_vendor' entity.id %}"><i class="bi bi-shop me-2"></i>{% trans 'Add Vendor' %}</a>
+                            </li>
+                            <li>
+                              <a class="dropdown-item" href="{% url 'add_client' entity.id %}"><i class="bi bi-briefcase me-2"></i>{% trans 'Add Client' %}</a>
+                            </li>
+                            <li>
+                              <a class="dropdown-item" href="{% url 'add_shareholder' entity.id %}"><i class="bi bi-pie-chart me-2"></i>{% trans 'Add Shareholder' %}</a>
+                            </li>
+                          </ul>
+                        </div>
+                      {% endif %}
+                    </div>
 
-                  <div class="list-group list-group-flush">
-                    {% for sh in entity.stakeholders.all %}
-                      <div class="list-group-item d-flex align-items-center py-3">
-                        <div class="avatar-circle me-3 bg-primary-subtle text-primary fw-bold">{{ sh.target.get_display_name|slice:':1' }}</div>
-                        <div class="flex-grow-1">
-                          <div class="d-flex align-items-center">
-                            <a href="{% url 'entity_detail' sh.target.id %}" class="fw-bold text-dark text-decoration-none me-2">{{ sh.target.get_display_name }}</a>
-                            <a href="{% url 'edit_stakeholder' sh.id %}" class="text-muted small"><i class="bi bi-pencil-square"></i></a>
-                          </div>
-                          <span class="badge bg-light text-muted border small">{{ sh.get_role_display }}</span>
-                        </div>
-                      </div>
-                    {% empty %}
-                      <div class="p-3">
-                        <div class="alert alert-warning d-flex align-items-center mb-0" role="alert">
-                          <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                          <div>
-                            {% trans 'No stakeholders assigned to this project yet.' %} <a href="{% url 'add_shareholder' entity.id %}" class="alert-link">{% trans 'Add one now.' %}</a>
+                    <div class="list-group list-group-flush">
+                      {% for sh in entity.stakeholders.all %}
+                        <div class="list-group-item d-flex align-items-center py-3">
+                          <div class="avatar-circle me-3 bg-primary-subtle text-primary fw-bold">{{ sh.target.get_display_name|slice:':1' }}</div>
+                          <div class="flex-grow-1">
+                            <div class="d-flex align-items-center">
+                              <a href="{% url 'entity_detail' sh.target.id %}" class="fw-bold text-dark text-decoration-none me-2">{{ sh.target.get_display_name }}</a>
+                              <a href="{% url 'edit_stakeholder' sh.id %}" class="text-muted small"><i class="bi bi-pencil-square"></i></a>
+                            </div>
+                            <span class="badge bg-light text-muted border small">{{ sh.get_role_display }}</span>
                           </div>
                         </div>
-                      </div>
-                    {% endfor %}
+                      {% empty %}
+                        <div class="p-3">
+                          <div class="alert alert-warning d-flex align-items-center mb-0" role="alert">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            <div>
+                              {% trans 'No stakeholders assigned to this project yet.' %} <a href="{% url 'add_shareholder' entity.id %}" class="alert-link">{% trans 'Add one now.' %}</a>
+                            </div>
+                          </div>
+                        </div>
+                      {% endfor %}
+                    </div>
                   </div>
                 </div>
-              </div>
-
-              <div class="tab-pane fade" id="memberships">
-                {% for membership in entity.memberships.all %}
-                  <div class="list-group-item d-flex align-items-center py-3">
-                    <div class="me-3 text-secondary fs-4">
-                      <i class="bi bi-briefcase"></i>
-                    </div>
-                    <div class="flex-grow-1">
-                      <div class="d-flex align-items-center">
-                        <a href="{% url 'entity_detail' membership.parent.id %}" class="fw-bold text-dark text-decoration-none me-2">{{ membership.parent.get_display_name }}</a>
-                        <a href="{% url 'edit_stakeholder' membership.id %}" class="text-muted small"><i class="bi bi-pencil-square"></i></a>
+              {% endif %}
+              {% if entity.is_person %}
+                <div class="tab-pane fade" id="memberships">
+                  {% for membership in entity.memberships.all %}
+                    <div class="list-group-item d-flex align-items-center py-3">
+                      <div class="me-3 text-secondary fs-4">
+                        <i class="bi bi-briefcase"></i>
                       </div>
-                      <span class="badge bg-light text-muted border small">{{ sh.get_role_display }}</span>
+                      <div class="flex-grow-1">
+                        <div class="d-flex align-items-center">
+                          <a href="{% url 'entity_detail' membership.parent.id %}" class="fw-bold text-dark text-decoration-none me-2">{{ membership.parent.get_display_name }}</a>
+                          <a href="{% url 'edit_stakeholder' membership.id %}" class="text-muted small"><i class="bi bi-pencil-square"></i></a>
+                        </div>
+                        <span class="badge bg-light text-muted border small">{{ sh.get_role_display }}</span>
+                      </div>
+                      <div class="text-end">
+                        <span class="small text-muted d-block">{% trans 'Joined' %}</span>
+                        <span class="small fw-medium">{{ membership.created_at|date:'M Y' }}</span>
+                      </div>
                     </div>
-                    <div class="text-end">
-                      <span class="small text-muted d-block">{% trans 'Joined' %}</span>
-                      <span class="small fw-medium">{{ membership.created_at|date:'M Y' }}</span>
+                  {% empty %}
+                    <div class="p-4 text-center text-muted small">
+                      {% trans 'This person is not currently assigned to any projects.' %}
                     </div>
-                  </div>
-                {% empty %}
-                  <div class="p-4 text-center text-muted small">
-                    {% trans 'This person is not currently assigned to any projects.' %}
-                  </div>
-                {% endfor %}
-              </div>
+                  {% endfor %}
+                </div>
+              {% endif %}
             {% endif %}
           </div>
         </div>
       </div>
     </div>
 
-    {% if entity.project or entity.person %}
+    {% if entity.is_project or entity.is_person %}
       <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <h5 class="fw-bold mb-0">{% trans 'Operational Categories (Sub-Ledgers)' %}</h5>
         <div class="d-flex gap-2">

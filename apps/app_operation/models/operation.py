@@ -5,7 +5,7 @@ from typing import List
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import Q, Sum
+from django.db.models import Q
 
 from apps.app_base.mixins import (
     AdjustableMixin,
@@ -120,6 +120,7 @@ class Operation(
         Call on the proxy class: e.g. PurchaseOperation.resolve_request(pk, request)
         """
         from django.shortcuts import get_object_or_404
+
         from apps.app_entity.models import Entity, EntityType
 
         url_entity = get_object_or_404(Entity, pk=url_pk)
@@ -285,6 +286,19 @@ class Operation(
                     raise ValidationError(
                         "Cannot create an operation: no financial period covers this operation's date."
                     )
+
+        def _validate_invoice_items(op):
+            items = op.items.all()
+            for item in items:
+                item.full_clean()
+
+        kwargs.setdefault("post_save_kwargs", []).append(
+            (
+                _validate_invoice_items,
+                (self,),
+                {},
+            )
+        )
         return super().save(*args, **kwargs)
 
     def save_inventory(self, bound_formset):
@@ -303,6 +317,7 @@ class Operation(
                     continue
                 uid = form.cleaned_data.get("unique_id", "").strip() or None
                 product = Product.objects.create(
+                    entity=self.destination,
                     product_template=item.product,
                     quantity=item.quantity,
                     unit_price=item.unit_price,
@@ -327,10 +342,13 @@ class Operation(
         reversal = super().reverse(officer=officer, date=date, reason=reason)
         if type(self).has_invoice:
             if self.operation_type in (OperationType.PURCHASE, OperationType.SALE):
-                for movement in self.inventory_movements.prefetch_related("lines").all():
+                for movement in self.inventory_movements.prefetch_related(
+                    "lines"
+                ).all():
                     movement.reverse(officer=officer, date=date)
             else:
                 from apps.app_inventory.models import ProductLedgerEntry
+
                 ProductLedgerEntry.record(self, negate=True)
         return reversal
 

@@ -6,7 +6,7 @@ _VIRTUAL_TYPES = [EntityType.SYSTEM, EntityType.WORLD]
 
 
 def entity_list_view(request):
-    queryset = Entity.objects.select_related("person", "project")
+    queryset = Entity.objects
 
     # 1. Get Filter Params
     type_f = request.GET.get("type", "all")
