@@ -1,0 +1,67 @@
+{% load i18n %}
+
+<div class="mb-4">
+  <h4 class="h5 fw-bold text-primary">{% trans 'Suggested Financial Categories' %}</h4>
+  <p class="text-muted small">
+    {% trans 'Select the categories relevant to your project. You can add custom ones later.' %}
+  </p>
+</div>
+
+<form method="post" id="wizard-form">
+  {% csrf_token %}
+
+  {% if suggestions %}
+    {% for aspect, items in suggestions.items %}
+      <div class="card mb-4 shadow-sm border">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
+          <h6 class="mb-0 fw-bold text-secondary">{{ aspect }}</h6>
+          <div class="form-check">
+            <input class="form-check-input select-all-aspect" type="checkbox" id="check_all_{{ forloop.counter }}" />
+            <label class="form-check-label small text-muted" for="check_all_{{ forloop.counter }}">{% trans 'Select All' %}</label>
+          </div>
+        </div>
+        <div class="card-body py-3">
+          <div class="row row-cols-1 row-cols-md-2 g-2">
+            {% for cat in items %}
+              <div class="col">
+                <div class="form-check p-2 border rounded-3 h-100 category-option">
+                  <input class="form-check-input ms-1 me-2" type="checkbox" name="selected_categories" value="{{ cat.name }}" id="cat_{{ forloop.parentloop.counter }}_{{ forloop.counter }}" />
+                  <label class="form-check-label d-block cursor-pointer" for="cat_{{ forloop.parentloop.counter }}_{{ forloop.counter }}">
+                    <span class="d-block fw-bold small">{{ cat.name }}</span>
+                    <span class="text-muted d-block" style="font-size: 0.75rem;">{{ cat.desc }}</span>
+                  </label>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="alert alert-info py-4 text-center">
+      <i class="bi bi-info-circle fs-4 d-block mb-2"></i>
+      {% trans 'Standard categories are already set up or none are available for selection.' %}
+    </div>
+  {% endif %}
+</form>
+
+{# Hidden form for skipping #}
+<form id="wizard-form-skip" method="post" style="display: none;">
+  {% csrf_token %}
+</form>
+
+<style>
+  .category-option:hover { background-color: #fdfdfd; border-color: #0d6efd44 !important; }
+  .category-option .form-check-input:checked ~ .form-check-label .fw-bold { color: #0d6efd; }
+  .cursor-pointer { cursor: pointer; }
+</style>
+
+<script>
+  document.querySelectorAll('.select-all-aspect').forEach(function (headerCheckbox) {
+    headerCheckbox.addEventListener('change', function () {
+      const card = this.closest('.card')
+      const checkboxes = card.querySelectorAll('input[name="selected_categories"]')
+      checkboxes.forEach((cb) => (cb.checked = this.checked))
+    })
+  })
+</script>

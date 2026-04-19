@@ -1,0 +1,84 @@
+{% load i18n %}
+
+{% if user.is_staff %}
+<div class="mb-4">
+  <h4 class="h5 fw-bold text-primary">{% trans 'Product Templates' %}</h4>
+  <p class="text-muted small">
+    {% trans 'Assign product templates for tracking livestock, feed, medicines, and outputs.' %}
+  </p>
+</div>
+
+<form method="post" id="wizard-form">
+  {% csrf_token %}
+
+  {% if templates %}
+    {% regroup templates by get_nature_display as nature_list %}
+    {% for nature in nature_list %}
+      <div class="card mb-4 shadow-sm border">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
+          <h6 class="mb-0 fw-bold text-secondary">{{ nature.grouper }}</h6>
+          <div class="form-check">
+            <input class="form-check-input select-all-nature" type="checkbox" id="check_all_nature_{{ forloop.counter }}" />
+            <label class="form-check-label small text-muted" for="check_all_nature_{{ forloop.counter }}">{% trans 'Select All' %}</label>
+          </div>
+        </div>
+        <div class="card-body py-3">
+          <div class="row row-cols-1 row-cols-md-2 g-2">
+            {% for template in nature.list %}
+              <div class="col">
+                <div class="form-check p-2 border rounded-3 h-100 template-option">
+                  <input class="form-check-input ms-1 me-2" type="checkbox" name="product_templates" value="{{ template.id }}" id="tmpl_{{ template.id }}" {% if template.id in enabled_ids %}checked{% endif %} />
+                  <label class="form-check-label d-block cursor-pointer" for="tmpl_{{ template.id }}">
+                    <span class="d-block fw-bold small">{{ template.name }}{% if template.name_ar %} / {{ template.name_ar }}{% endif %}</span>
+                    <span class="text-muted d-block" style="font-size: 0.75rem;">{% trans 'Tracking:' %} {{ template.get_tracking_mode_display }}</span>
+                  </label>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="alert alert-info py-4 text-center">
+      <i class="bi bi-info-circle fs-4 d-block mb-2"></i>
+      {% trans 'No product templates available. Ask an administrator to create them.' %}
+    </div>
+  {% endif %}
+</form>
+
+{# Hidden form for skipping #}
+<form id="wizard-form-skip" method="post" style="display: none;">
+  {% csrf_token %}
+</form>
+
+<style>
+  .template-option:hover { background-color: #fdfdfd; border-color: #0d6efd44 !important; }
+  .template-option .form-check-input:checked ~ .form-check-label .fw-bold { color: #0d6efd; }
+  .cursor-pointer { cursor: pointer; }
+</style>
+
+<script>
+  document.querySelectorAll('.select-all-nature').forEach(function (headerCheckbox) {
+    headerCheckbox.addEventListener('change', function () {
+      const card = this.closest('.card')
+      const checkboxes = card.querySelectorAll('input[name="product_templates"]')
+      checkboxes.forEach((cb) => (cb.checked = this.checked))
+    })
+  })
+</script>
+{% else %}
+<div class="alert alert-info" role="alert">
+    <i class="bi bi-info-circle"></i>
+    <strong>{% trans "Limited Access" %}</strong><br>
+    {% trans "Product template management requires staff privileges. You can skip this step or contact an administrator." %}
+</div>
+
+<form method="post" id="wizard-form">
+    {% csrf_token %}
+</form>
+
+<form id="wizard-form-skip" method="post" style="display: none;">
+    {% csrf_token %}
+</form>
+{% endif %}

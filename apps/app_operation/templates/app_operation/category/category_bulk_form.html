@@ -1,90 +1,106 @@
 {% extends 'base.html' %}
 {% load i18n %}
 
+{% block title %}
+  {% trans 'Bulk Add Categories' %}- {{ parent.name }}
+{% endblock %}
+
 {% block content %}
-<div class="container py-4">
-    <nav aria-label="breadcrumb" class="mb-4">
-        <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{% url 'entity_detail' parent.id %}">{{ parent.get_display_name }}</a></li>
-            <li class="breadcrumb-item active">{% trans "Bulk Add Categories" %}</li>
-        </ol>
-    </nav>
-
+  <div class="container py-4">
     <div class="row justify-content-center">
-        <div class="col-lg-10">
-            <form method="post">
-                {% csrf_token %}
-                <div class="card border-0 shadow-sm">
-                    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-                        <div>
-                            <h5 class="mb-0 fw-bold text-primary">{% trans "Suggested Livestock Categories" %}</h5>
-                            <small class="text-muted">{% trans "Showing only items not yet added to" %} <strong>{{ parent.name }}</strong></small>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="select-all">
-                            <label class="form-check-label fw-bold" for="select-all">{% trans "Select All" %}</label>
-                        </div>
-                    </div>
+      <div class="col-lg-10">
+        <nav aria-label="breadcrumb" class="mb-4">
+          <ol class="breadcrumb">
+            <li class="breadcrumb-item">
+              <a href="{% url 'entity_detail' parent.id %}">{{ parent.name }}</a>
+            </li>
+            <li class="breadcrumb-item active">
+              {% trans 'Bulk Categories' %}
+            </li>
+          </ol>
+        </nav>
 
-                    <div class="card-body p-0">
-                        <div class="list-group list-group-flush">
-                            {% for name, details in suggestions.items %}
-                            <label class="list-group-item list-group-item-action p-3 d-flex align-items-center" style="cursor: pointer;">
-                                <input class="form-check-input me-3 category-checkbox" type="checkbox" name="selected_categories" value="{{ name }}">
-                                <div class="flex-grow-1">
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <span class="fw-bold">{{ name }}</span>
-                                        <span class="badge {% if details.type == 'SALE' %}bg-success{% elif details.type == 'PURCHASE' %}bg-warning text-dark{% else %}bg-info{% endif %}">
-                                            {{ details.type }}
-                                        </span>
-                                    </div>
-                                    <small class="text-muted d-block">{{ details.desc }}</small>
-                                </div>
-                            </label>
-                            {% empty %}
-                            <div class="text-center py-5">
-                                <i class="bi bi-check-all fs-1 text-success"></i>
-                                <p class="mt-2 fw-bold text-muted">{% trans "All suggested categories have already been added!" %}</p>
-                                <a href="{% url 'entity_detail' parent.id %}" class="btn btn-outline-primary btn-sm">{% trans "Return to Project" %}</a>
-                            </div>
-                            {% endfor %}
-                        </div>
-                    </div>
-
-                    <div class="card-footer bg-light py-3 d-flex justify-content-between align-items-center">
-                        <span id="counter" class="text-muted small fw-bold">{% trans "0 items selected" %}</span>
-                        <div>
-                            <a href="{% url 'entity_detail' parent.id %}" class="btn btn-link text-muted text-decoration-none me-2">{% trans "Cancel" %}</a>
-                            <button type="submit" class="btn btn-primary px-4 fw-bold shadow-sm" {% if not suggestions %}disabled{% endif %}>
-                                {% trans "Add Selected Categories" %}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </form>
+        <div class="d-flex justify-content-between align-items-end mb-4">
+          <div>
+            <h2 class="h3 mb-1">{% trans 'Financial Category Suggestions' %}</h2>
+            <p class="text-muted mb-0">
+              {% trans 'Select the expense categories you want to track for this project.' %}
+            </p>
+          </div>
         </div>
+
+        <form method="post" id="bulk-category-form">
+          {% csrf_token %}
+
+          {% if suggestions %}
+            {% for aspect, items in suggestions.items %}
+              <div class="card mb-4 shadow-sm border-0">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center py-3">
+                  <h5 class="mb-0 fw-bold text-secondary"><i class="bi bi-tag-fill me-2"></i>{{ aspect }}</h5>
+                  <div class="form-check">
+                    <input class="form-check-input select-all-aspect" type="checkbox" id="check_all_{{ forloop.counter }}" />
+                    <label class="form-check-label small text-muted" for="check_all_{{ forloop.counter }}">{% trans 'Select All' %}</label>
+                  </div>
+                </div>
+                <div class="card-body">
+                  <div class="row row-cols-1 row-cols-md-2 g-3">
+                    {% for cat in items %}
+                      <div class="col">
+                        <div class="form-check h-100 p-3 border rounded category-option">
+                          <input class="form-check-input ms-0 me-3 mt-1" type="checkbox" name="selected_categories" value="{{ cat.name }}" id="cat_{{ forloop.parentloop.counter }}_{{ forloop.counter }}" />
+                          <label class="form-check-label d-block cursor-pointer" for="cat_{{ forloop.parentloop.counter }}_{{ forloop.counter }}">
+                            <span class="d-block fw-bold">{{ cat.name }}</span>
+                            <small class="text-muted">{{ cat.desc }}</small>
+                          </label>
+                        </div>
+                      </div>
+                    {% endfor %}
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
+
+            <div class="d-flex justify-content-between mt-5 pt-3 border-top">
+              <a href="{% url 'entity_detail' parent.id %}" class="btn btn-outline-secondary px-4">{% trans 'Cancel' %}</a>
+              <button type="submit" class="btn btn-primary px-5 fw-bold shadow-sm">{% trans 'Create Selected Categories' %}</button>
+            </div>
+          {% else %}
+            <div class="alert alert-info py-4 text-center">
+              <i class="bi bi-info-circle fs-2 d-block mb-3"></i>
+              <p class="mb-0">
+                {% trans 'All standard categories have already been added to this project.' %}
+              </p>
+              <a href="{% url 'entity_detail' parent.id %}" class="btn btn-primary mt-3">{% trans 'Back to Project' %}</a>
+            </div>
+          {% endif %}
+        </form>
+      </div>
     </div>
-</div>
+  </div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const selectAll = document.getElementById('select-all');
-    const checkboxes = document.querySelectorAll('.category-checkbox');
-    const counter = document.getElementById('counter');
+  <style>
+    .category-option:hover {
+      background-color: #fdfdfd;
+      border-color: #0d6efd44 !important;
+    }
+    .category-option .form-check-input:checked ~ .form-check-label .fw-bold {
+      color: #0d6efd;
+    }
+    .cursor-pointer {
+      cursor: pointer;
+    }
+  </style>
 
-    const updateCounter = () => {
-        const count = document.querySelectorAll('.category-checkbox:checked').length;
-        counter.textContent = `${count} item(s) selected`;
-    };
-
-    selectAll.addEventListener('change', function() {
-        checkboxes.forEach(cb => cb.checked = this.checked);
-        updateCounter();
-    });
-
-    checkboxes.forEach(cb => {
-        cb.addEventListener('change', updateCounter);
-    });
-});
-</script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      // Toggle all checkboxes within a specific Aspect card
+      document.querySelectorAll('.select-all-aspect').forEach(function (headerCheckbox) {
+        headerCheckbox.addEventListener('change', function () {
+          const card = this.closest('.card')
+          const checkboxes = card.querySelectorAll('input[name="selected_categories"]')
+          checkboxes.forEach((cb) => (cb.checked = this.checked))
+        })
+      })
+    })
+  </script>
 {% endblock %}

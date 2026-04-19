@@ -4,26 +4,42 @@ from django.db import transaction
 
 User = get_user_model()
 
-CATEGORIES = [
+PRODUCT_TEMPLATES = [
     # (name, name_ar, nature, default_unit, requires_individual_tag)
     # --- ANIMAL ---
-    ("Fattening Cattle", "ماشية التسمين", "ANIMAL", "Head", True),
-    ("Dairy Cows", "أبقار الحليب", "ANIMAL", "Head", True),
-    ("Breeding Bulls", "ثيران التكاثر", "ANIMAL", "Head", True),
+    ("Fattening Cattle", "ماشية تسمين", "ANIMAL", "Head", True),
+    ("Dairy Cows", "أبقار حليب", "ANIMAL", "Head", True),
+    ("Breeding Bulls", "فحول تكاثر", "ANIMAL", "Head", True),
+    ("Replacement Heifers", "بكاير / تليعات", "ANIMAL", "Head", True),
     ("Calves", "عجول", "ANIMAL", "Head", True),
-    ("Fattening Sheep", "غنم التسمين", "ANIMAL", "Head", True),
-    ("Breeding Ewes", "نعاج التكاثر", "ANIMAL", "Head", True),
-    ("Fattening Goats", "ماعز التسمين", "ANIMAL", "Head", True),
-    ("Breeding Does", "إناث الماعز التكاثر", "ANIMAL", "Head", True),
-    ("Camels", "جمال", "ANIMAL", "Head", True),
+    ("Fattening Lambs", "خراف تسمين", "ANIMAL", "Head", True),
+    ("Breeding Ewes", "نعاج تكاثر", "ANIMAL", "Head", True),
+    ("Breeding Rams", "كباش تكاثر", "ANIMAL", "Head", True),
+    ("Fattening Kids", "جداء تسمين", "ANIMAL", "Head", True),
+    ("Breeding Does", "عنزات تكاثر", "ANIMAL", "Head", True),
+    ("Breeding Bucks", "تيوس تكاثر", "ANIMAL", "Head", True),
+    ("Fattening Camels (Hashi)", "حاشي تسمين", "ANIMAL", "Head", True),
+    ("Breeding / Dairy Camels", "نوق تكاثر / حليب", "ANIMAL", "Head", True),
+    ("Stud Camels", "فحول إبل", "ANIMAL", "Head", True),
     ("Horses", "خيول", "ANIMAL", "Head", True),
     ("Donkeys / Mules", "حمير / بغال", "ANIMAL", "Head", True),
-    ("Buffaloes", "جاموس", "ANIMAL", "Head", True),
-    ("Broiler Chickens", "دجاج التسمين", "ANIMAL", "Head", False),
-    ("Laying Hens", "دجاج البيض", "ANIMAL", "Head", False),
-    ("Turkeys", "ديوك رومية", "ANIMAL", "Head", False),
-    ("Ducks / Geese", "بط / إوز", "ANIMAL", "Head", False),
-    ("Rabbits", "أرانب", "ANIMAL", "Head", False),
+    ("Fattening Buffaloes", "جاموس تسمين", "ANIMAL", "Head", True),
+    ("Dairy Buffaloes", "جاموس حليب", "ANIMAL", "Head", True),
+    ("Breeding Buffalo Bulls", "فحول جاموس", "ANIMAL", "Head", True),
+    ("Replacement Buffalo Heifers", "بكاير جاموس", "ANIMAL", "Head", True),
+    ("Buffalo Calves", "عجول جاموس", "ANIMAL", "Head", True),
+    ("Broiler Chickens", "دجاج تسمين", "ANIMAL", "Head", False),
+    ("Laying Hens", "دجاج بياض", "ANIMAL", "Head", False),
+    ("Poultry Parent Stock", "أمهات الدواجن", "ANIMAL", "Head", False),
+    ("Fattening Turkeys", "ديوك رومية تسمين", "ANIMAL", "Head", False),
+    ("Breeding Turkeys", "أمهات ديوك رومية", "ANIMAL", "Head", False),
+    ("Fattening Ducks / Geese", "بط / إوز تسمين", "ANIMAL", "Head", False),
+    ("Breeding Ducks / Geese", "أمهات بط وإوز", "ANIMAL", "Head", False),
+    ("Fattening Rabbits", "أرانب تسمين", "ANIMAL", "Head", False),
+    ("Breeding Rabbits", "أمهات أرانب", "ANIMAL", "Head", False),
+    ("Quails", "سمان", "ANIMAL", "Head", False),
+    ("Pigeons", "حمام", "ANIMAL", "Head", False),
+    ("Honeybee Colonies", "طوائف نحل", "ANIMAL", "Colony", False),
     # --- FEED ---
     ("Barley", "شعير", "FEED", "Kg", False),
     ("Corn / Maize", "ذرة", "FEED", "Kg", False),
@@ -36,6 +52,10 @@ CATEGORIES = [
     ("Green Fodder", "علف أخضر", "FEED", "Kg", False),
     ("Mineral & Salt Blocks", "كتل معدنية وملحية", "FEED", "Kg", False),
     ("Vitamin Premix", "خليط فيتامينات مسبق التحضير", "FEED", "Kg", False),
+    ("Alfalfa / Lucerne", "برسيم حجازي", "FEED", "Kg", False),
+    ("Molasses", "مولاس", "FEED", "Kg", False),
+    ("Cottonseed Meal", "كسب بذور القطن", "FEED", "Kg", False),
+    ("Fish Meal", "مسحوق السمك", "FEED", "Kg", False),
     # --- MEDICINE ---
     ("Vaccines", "لقاحات", "MEDICINE", "Dose", False),
     ("Antibiotics", "مضادات حيوية", "MEDICINE", "Unit", False),
@@ -45,6 +65,8 @@ CATEGORIES = [
     ("Disinfectants", "مطهرات", "MEDICINE", "Liter", False),
     ("Wound Treatments", "علاجات الجروح", "MEDICINE", "Unit", False),
     ("Growth Promoters", "محفزات النمو", "MEDICINE", "Unit", False),
+    ("Antiseptics", "مطهرات ومعقمات", "MEDICINE", "Liter", False),
+    ("IV Fluids / Electrolytes", "سوائل وريدية / أملاح", "MEDICINE", "Unit", False),
     # --- PRODUCT ---
     ("Raw Milk", "حليب خام", "PRODUCT", "Liter", False),
     ("Meat (Live Weight)", "لحم (وزن حي)", "PRODUCT", "Kg", False),
@@ -54,6 +76,10 @@ CATEGORIES = [
     ("Honey", "عسل", "PRODUCT", "Kg", False),
     ("Organic Manure", "سماد عضوي", "PRODUCT", "Ton", False),
     ("Offspring (Weaned)", "ذرية (مفطومة)", "PRODUCT", "Head", False),
+    ("Breeding Semen", "سائل منوي للتلقيح", "PRODUCT", "Dose", False),
+    ("Beeswax", "شمع النحل", "PRODUCT", "Kg", False),
+    ("Propolis / Bee Glue", "عكبر / صمغ النحل", "PRODUCT", "Kg", False),
+    ("Royal Jelly", "غذاء ملكات النحل", "PRODUCT", "Gram", False),
 ]
 
 
@@ -113,7 +139,7 @@ class Command(BaseCommand):
 
         created = 0
         updated = 0
-        for name, name_ar, nature, unit, tag in CATEGORIES:
+        for name, name_ar, nature, unit, tag in PRODUCT_TEMPLATES:
             template, is_new = ProductTemplate.objects.get_or_create(
                 name=name,
                 name_ar=name_ar,

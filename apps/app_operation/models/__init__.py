@@ -1,15 +1,15 @@
-from .category import FinancialCategory, default_categories
+from .category import FinancialCategory, default_categories, get_flat_default_categories
 from .operation import Operation
 from .operation_type import OperationType
 from .period import FinancialPeriod
 from .proxies import (
     PROXY_MAP,
     BirthOperation,
-    DeathOperation,
     CapitalGainOperation,
     CapitalLossOperation,
     CashInjectionOperation,
     CashWithdrawalOperation,
+    DeathOperation,
     ExpenseOperation,
     InternalTransferOperation,
     LoanOperation,
@@ -29,6 +29,7 @@ __all__ = [
     "Operation",
     "FinancialCategory",
     "default_categories",
+    "get_flat_default_categories",
     "FinancialPeriod",
     "ShareholderAllocation",
     "get_operation_class",

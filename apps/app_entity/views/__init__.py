@@ -9,6 +9,7 @@ from .person_create import person_create_view
 from .person_edit import person_edit_view
 from .project_create import project_create_view
 from .project_edit import project_edit_view
+from .project_setup_wizard import project_setup_wizard_view
 
 __all__ = [
     "entity_list_view",
@@ -17,6 +18,7 @@ __all__ = [
     "project_create_view",
     "person_edit_view",
     "project_edit_view",
+    "project_setup_wizard_view",
     "add_contact_info_view",
     "edit_contact_info_view",
     "add_client_view",

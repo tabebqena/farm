@@ -1,0 +1,58 @@
+{% load i18n %}
+
+<form method="post" id="wizard-form">
+    {% csrf_token %}
+
+    <h6 class="text-uppercase text-muted small fw-bold mb-3">{% trans "Project Identity" %}</h6>
+    <div class="row g-3 mb-4">
+        <div class="col-12">
+            <label class="form-label fw-semibold">{% trans "Project Name" %}</label>
+            <input type="text" name="name" class="form-control"
+                   value="{{ entity.name|default:'' }}" placeholder="e.g. Q1 Infrastructure Expansion" required>
+        </div>
+        <div class="col-12">
+            <label class="form-label fw-semibold">{% trans "Description / Scope" %}</label>
+            <textarea name="description" class="form-control" rows="3">{{ entity.description }}</textarea>
+        </div>
+    </div>
+
+    <hr class="my-4">
+
+    <h6 class="text-uppercase text-muted small fw-bold mb-3">{% trans "Entity Configuration" %}</h6>
+    <div class="row g-3 p-3 bg-light rounded border mb-4">
+        <div class="col-md-6">
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="is_client" id="f_client" {% if entity.is_client %}checked{% endif %}>
+                <label class="form-check-label" for="f_client">{% trans "Act as Client (Can receive invoices)" %}</label>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="is_vendor" id="f_vendor" {% if entity.is_vendor %}checked{% endif %}>
+                <label class="form-check-label" for="f_vendor">{% trans "Act as Vendor (Can charge expenses)" %}</label>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="is_internal" id="f_internal"
+                       {% if entity.is_internal %}checked{% endif %}>
+                <label class="form-check-label fw-bold" for="f_internal">{% trans "Internal Project" %}</label>
+                <small class="d-block text-muted">{% trans "Owned by our organization." %}</small>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="active" id="f_active"
+                       {% if not is_edit or entity.active %}checked{% endif %}>
+                <label class="form-check-label fw-bold text-success" for="f_active">{% trans "Active" %}</label>
+                <small class="d-block text-muted">{% trans "Current operational status." %}</small>
+            </div>
+        </div>
+    </div>
+</form>
+
+<form method="post" id="wizard-form-skip" style="display: none;"></form>

@@ -17,7 +17,7 @@ class SaleOperation(Operation):
     # with insufficient balance; each individual payment is guarded at settlement time.
     check_balance_on_payment = True
     is_partially_payable = True
-    has_category = True
+    has_category = False
     category_required = False
     has_invoice = True
     _is_one_shot_operation = False

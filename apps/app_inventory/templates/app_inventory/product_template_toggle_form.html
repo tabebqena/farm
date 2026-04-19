@@ -28,45 +28,47 @@
                 {% trans "Select the product template that this project is authorized to manage or trade." %}
             </p>
 
-            <div class="row g-4">
-                {% regroup templates by get_nature_display as template_groups %}
-                {% for group in template_groups %}
-                <div class="col-md-6">
-                    <div class="p-3 bg-light rounded border h-100">
-                        <h6 class="text-uppercase text-primary small fw-bold mb-3 border-bottom pb-2">
-                            {{ group.grouper }}
-                        </h6>
-                        <div class="list-group list-group-flush bg-transparent">
-                            {% for templ in group.list %}
-                            <div class="list-group-item bg-transparent border-0 px-0 py-2 d-flex justify-content-between align-items-center">
-                                <div class="form-check form-switch flex-grow-1">
-                                    <input class="form-check-input" type="checkbox" name="product_templates"
-                                        value="{{ templ.id }}" id="cat_{{ templ.id }}"
-                                        {% if templ.id in enabled_template_ids %}checked{% endif %}>
-                                    <label class="form-check-label fw-semibold" for="cat_{{ templ.id }}">
-                                        {% if LANGUAGE_CODE == 'ar' and templ.name_ar %}
-                                        {{ templ.name_ar }}
-                                        {% else %}
-                                        {{ templ.name }}
-                                        {% endif %}
-
-                                    </label>
-                                    {% if templ.requires_individual_tag %}
-                                    <i class="bi bi-tag-fill small text-warning ms-2"
-                                        title="Requires Individual Tagging"></i>
-                                    {% endif %}
-                                    <div class="small text-muted ms-0">{{ templ.default_unit }}</div>
-                                </div>
-                                <a href="{% url 'product_template_detail' templ.pk %}" class="btn btn-sm btn-outline-info ms-2" title="{% trans 'View Details' %}">
-                                    <i class="bi bi-eye"></i>
-                                </a>
-                            </div>
-                            {% endfor %}
-                        </div>
-                    </div>
+            {% regroup templates by get_nature_display as template_groups %}
+            {% for group in template_groups %}
+              <div class="card mb-4 shadow-sm border">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
+                  <h6 class="mb-0 fw-bold text-secondary">{{ group.grouper }}</h6>
+                  <div class="form-check">
+                    <input class="form-check-input select-all-nature" type="checkbox" id="check_all_nature_{{ forloop.counter }}" />
+                    <label class="form-check-label small text-muted" for="check_all_nature_{{ forloop.counter }}">{% trans 'Select All' %}</label>
+                  </div>
                 </div>
-                {% endfor %}
-            </div>
+                <div class="card-body py-3">
+                  <div class="row row-cols-1 row-cols-md-2 g-2">
+                    {% for templ in group.list %}
+                      <div class="col">
+                        <div class="form-check p-2 border rounded-3 h-100 template-option d-flex align-items-center">
+                          <div class="flex-grow-1">
+                            <input class="form-check-input ms-1 me-2" type="checkbox" name="product_templates" 
+                                   value="{{ templ.id }}" id="cat_{{ templ.id }}" 
+                                   {% if templ.id in enabled_template_ids %}checked{% endif %}>
+                            <label class="form-check-label d-inline cursor-pointer" for="cat_{{ templ.id }}">
+                              <span class="fw-bold small">
+                                {% if LANGUAGE_CODE == 'ar' and templ.name_ar %}{{ templ.name_ar }}{% else %}{{ templ.name }}{% endif %}
+                              </span>
+                              {% if templ.requires_individual_tag %}
+                                <i class="bi bi-tag-fill small text-warning ms-1" title="{% trans 'Requires Individual Tagging' %}"></i>
+                              {% endif %}
+                              <span class="text-muted d-block" style="font-size: 0.75rem;">
+                                {% trans 'Unit:' %} {{ templ.default_unit }} | {% trans 'Mode:' %} {{ templ.get_tracking_mode_display }}
+                              </span>
+                            </label>
+                          </div>
+                          <a href="{% url 'product_template_detail' templ.pk %}" class="btn btn-link btn-sm p-0 ms-2 text-info" title="{% trans 'View Details' %}">
+                            <i class="bi bi-eye"></i>
+                          </a>
+                        </div>
+                      </div>
+                    {% endfor %}
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
 
             <div class="d-flex gap-2 justify-content-end border-top mt-4 pt-4">
                 <a href="{% url 'entity_detail' entity.pk %}" class="btn btn-light px-4">{% trans "Cancel" %}</a>
@@ -76,4 +78,20 @@
         </form>
     </div>
 </div>
+
+<style>
+  .template-option:hover { background-color: #fdfdfd; border-color: #0d6efd44 !important; }
+  .template-option .form-check-input:checked ~ .form-check-label .fw-bold { color: #0d6efd; }
+  .cursor-pointer { cursor: pointer; }
+</style>
+
+<script>
+  document.querySelectorAll('.select-all-nature').forEach(function (headerCheckbox) {
+    headerCheckbox.addEventListener('change', function () {
+      const card = this.closest('.card')
+      const checkboxes = card.querySelectorAll('input[name="product_templates"]')
+      checkboxes.forEach((cb) => (cb.checked = this.checked))
+    })
+  })
+</script>
 {% endblock %}
