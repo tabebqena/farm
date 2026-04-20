@@ -39,8 +39,14 @@
                   </div>
                 </div>
                 <div class="card-body py-3">
-                  <div class="row row-cols-1 row-cols-md-2 g-2">
-                    {% for templ in group.list %}
+                  {% regroup group.list by sub_caytegory as sub_groups %}
+                  {% for sub in sub_groups %}
+                    <div class="mb-3">
+                      <h6 class="small text-muted fw-bold border-bottom pb-1 mb-2">
+                        {{ sub.grouper }}
+                      </h6>
+                      <div class="row row-cols-1 row-cols-md-2 g-2">
+                        {% for templ in sub.list %}
                       <div class="col">
                         <div class="form-check p-2 border rounded-3 h-100 template-option d-flex align-items-center">
                           <div class="flex-grow-1">
@@ -65,7 +71,9 @@
                         </div>
                       </div>
                     {% endfor %}
-                  </div>
+                      </div>
+                    </div>
+                  {% endfor %}
                 </div>
               </div>
             {% endfor %}

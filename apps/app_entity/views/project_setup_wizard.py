@@ -375,7 +375,9 @@ def _get_step_context(request, entity, step):
     elif step == 3:
         # Product templates: show all, highlight assigned
         if entity:
-            all_templates = ProductTemplate.objects.all().order_by("nature", "name")
+            all_templates = ProductTemplate.objects.all().order_by(
+                "nature", "sub_caytegory", "name"
+            )
             enabled_ids = set(entity.product_templates.values_list("id", flat=True))
             context["templates"] = all_templates
             context["enabled_ids"] = enabled_ids

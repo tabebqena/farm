@@ -312,6 +312,13 @@ class ProductTemplate(BaseModel):
     nature = models.CharField(
         _("nature"), choices=Nature.choices, max_length=20, default=Nature.ANIMAL
     )
+
+    sub_caytegory = models.CharField(
+        _("sub_caytegory"),
+        max_length=20,
+        default=_("General"),
+    )
+
     default_unit = models.CharField(
         _("default unit"), max_length=20, default="Head"
     )  # e.g., "Head", "Kg"
@@ -325,7 +332,7 @@ class ProductTemplate(BaseModel):
         max_length=24,
         default=TrackingMode.BATCH,
     )
-
+    # TODO: only project entities are allowed
     entities = models.ManyToManyField(
         "app_entity.Entity",
         related_name="product_templates",

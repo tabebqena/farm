@@ -16,8 +16,14 @@ from apps.app_operation.models.operation_type import OperationType
 
 def stock_detail(request, entity_pk):
     from datetime import date
+
     from apps.app_entity.models import Entity
-    from apps.app_inventory.models import ProductLedgerEntry, Product, InvoiceItem, InventoryMovementLine
+    from apps.app_inventory.models import (
+        InventoryMovementLine,
+        InvoiceItem,
+        Product,
+        ProductLedgerEntry,
+    )
     from apps.app_operation.models.operation_type import OperationType
 
     entity = get_object_or_404(Entity, pk=entity_pk)
@@ -35,27 +41,29 @@ def stock_detail(request, entity_pk):
 
     # Get unreceived purchases (InvoiceItems with no InventoryMovementLines)
     unreceived_purchases = (
-        InvoiceItem.objects
-        .filter(operation__operation_type=OperationType.PURCHASE)
-        .exclude(pk__in=InventoryMovementLine.objects.values_list('invoice_item_id'))
-        .select_related('product', 'operation')
-        .order_by('-operation__date')
+        InvoiceItem.objects.filter(operation__operation_type=OperationType.PURCHASE)
+        .exclude(pk__in=InventoryMovementLine.objects.values_list("invoice_item_id"))
+        .select_related("product", "operation")
+        .order_by("-operation__date")
     )
 
     # Get undelivered sales (InvoiceItems with no InventoryMovementLines)
     undelivered_sales = (
-        InvoiceItem.objects
-        .filter(operation__operation_type=OperationType.SALE)
-        .exclude(pk__in=InventoryMovementLine.objects.values_list('invoice_item_id'))
-        .select_related('product', 'operation')
-        .order_by('-operation__date')
+        InvoiceItem.objects.filter(operation__operation_type=OperationType.SALE)
+        .exclude(pk__in=InventoryMovementLine.objects.values_list("invoice_item_id"))
+        .select_related("product", "operation")
+        .order_by("-operation__date")
     )
 
-    return render(request, "app_inventory/stock_detail.html", {
-        "products": products,
-        "unreceived_items": unreceived_purchases,
-        "undelivered_items": undelivered_sales,
-    })
+    return render(
+        request,
+        "app_inventory/stock_detail.html",
+        {
+            "products": products,
+            "unreceived_items": unreceived_purchases,
+            "undelivered_items": undelivered_sales,
+        },
+    )
 
 
 def product_detail(request, pk):
@@ -99,7 +107,9 @@ def project_product_templates_setup(request, entity_pk):
                 request, _("Transaction Error: %(error)s") % {"error": str(e)}
             )
 
-    all_templates = ProductTemplate.objects.all().order_by("nature", "name")
+    all_templates = ProductTemplate.objects.all().order_by(
+        "nature", "sub_caytegory", "name"
+    )
     enabled_template_ids = target_entity.product_templates.values_list("id", flat=True)
 
     return render(
@@ -122,7 +132,9 @@ def product_template_detail(request, pk):
         ),
         pk=pk,
     )
-    return render(request, "app_inventory/product_template_detail.html", {"template": template})
+    return render(
+        request, "app_inventory/product_template_detail.html", {"template": template}
+    )
 
 
 def entity_product_templates_list(request, entity_pk):
@@ -131,7 +143,7 @@ def entity_product_templates_list(request, entity_pk):
     templates = (
         entity.product_templates.all()
         .prefetch_related("entities", "product_set", "invoices")
-        .order_by("nature", "name")
+        .order_by("nature", "sub_caytegory", "name")
     )
     return render(
         request,
@@ -158,6 +170,7 @@ def create_product_template(request):
         default_unit = request.POST.get("default_unit", "").strip()
         tracking_mode = request.POST.get("tracking_mode")
         requires_individual_tag = request.POST.get("requires_individual_tag") == "on"
+        sub_category = request.POST.get("sub_category", "").strip()
 
         try:
             with db_transaction.atomic():
@@ -166,6 +179,7 @@ def create_product_template(request):
                     nature=nature,
                     default_unit=default_unit,
                     tracking_mode=tracking_mode,
+                    sub_category=sub_category,
                     requires_individual_tag=requires_individual_tag,
                 )
                 messages.success(
@@ -198,7 +212,9 @@ def create_inventory_movement(request, operation_pk):
     from apps.app_operation.models.operation import Operation
 
     if not request.user.is_staff:
-        messages.error(request, _("You must be an officer to create inventory movements."))
+        messages.error(
+            request, _("You must be an officer to create inventory movements.")
+        )
         return redirect("entity_list")
 
     operation = get_object_or_404(Operation, pk=operation_pk)
@@ -206,9 +222,7 @@ def create_inventory_movement(request, operation_pk):
     if operation.operation_type not in (OperationType.PURCHASE, OperationType.SALE):
         messages.error(
             request,
-            _(
-                "Inventory movements are only allowed for PURCHASE or SALE operations."
-            ),
+            _("Inventory movements are only allowed for PURCHASE or SALE operations."),
         )
         return redirect("operation_detail_view", pk=operation_pk)
 
@@ -238,10 +252,16 @@ def create_inventory_movement(request, operation_pk):
                     formset.save()
                     messages.success(
                         request,
-                        _(
-                            "Inventory movement created with %(count)s line(s)."
-                        )
-                        % {"count": len([f for f in formset.forms if f.cleaned_data.get('invoice_item')])},
+                        _("Inventory movement created with %(count)s line(s).")
+                        % {
+                            "count": len(
+                                [
+                                    f
+                                    for f in formset.forms
+                                    if f.cleaned_data.get("invoice_item")
+                                ]
+                            )
+                        },
                     )
                     return redirect("operation_detail_view", pk=operation_pk)
                 else:
@@ -252,9 +272,7 @@ def create_inventory_movement(request, operation_pk):
                     raise ValueError(_("Formset validation failed"))
         except Exception as e:
             traceback.print_exc()
-            messages.error(
-                request, _("Error: %(error)s") % {"error": str(e)}
-            )
+            messages.error(request, _("Error: %(error)s") % {"error": str(e)})
             formset = InventoryMovementLineFormSet(request.POST, operation=operation)
             return render(
                 request,

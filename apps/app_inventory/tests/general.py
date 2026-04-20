@@ -1,19 +1,12 @@
 from datetime import date
 from decimal import Decimal
-from typing import Union
 
 from django.contrib.auth import get_user_model
 
 from apps.app_entity.models import Entity, EntityType
-from apps.app_inventory.models import (
-    InvoiceItem,
-    Product,
-    ProductTemplate,
-)
+from apps.app_inventory.models import InvoiceItem, Product, ProductTemplate
 from apps.app_operation.models.operation_type import OperationType
-from apps.app_operation.models.proxies import (
-    PurchaseOperation,
-)
+from apps.app_operation.models.proxies import PurchaseOperation
 
 User = get_user_model()
 
@@ -78,6 +71,7 @@ def make_product_template(name="Calves"):
     return ProductTemplate.objects.create(
         name=name,
         nature=ProductTemplate.Nature.ANIMAL,
+        sub_category="Cattle",
         tracking_mode=ProductTemplate.TrackingMode.BATCH,
         default_unit="Head",
     )

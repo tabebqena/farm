@@ -1,0 +1,42 @@
+{% load i18n %}
+
+<form id="wizard-form" method="post" novalidate>
+    {% csrf_token %}
+
+    <!-- Step 1 Summary -->
+    {% if step1_data %}
+        <div class="alert alert-light border mb-4">
+            <strong>{% trans "Purchase Information (from Step 1):" %}</strong>
+            <ul class="mb-0 mt-2">
+                <li>{% trans "Date:" %} <strong>{{ step1_data.date }}</strong></li>
+                <li>{% trans "Vendor:" %} <strong>{{ step1_data.vendor }}</strong></li>
+                {% if step1_data.description %}
+                    <li>{% trans "Description:" %} <strong>{{ step1_data.description }}</strong></li>
+                {% endif %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <!-- Invoice Items Formset -->
+    <div class="mb-3">
+        <h5>{% trans "Invoice Items" %} <span class="text-danger">*</span></h5>
+
+        {% include "app_operation/snippets/create-form/invoice_formset.html" with theme_color="primary" %}
+    </div>
+
+    <!-- Grand Total (readonly) -->
+    <div class="alert alert-info mt-4">
+        <strong>{% trans "Total Amount:" %}</strong>
+        <div class="mt-2">
+            <div class="input-group">
+                <span class="input-group-text">$</span>
+                <input type="text" id="grand-total" class="form-control" readonly value="0.00">
+            </div>
+            <input type="hidden" id="id_total_amount" name="total_amount">
+        </div>
+    </div>
+
+    <div class="alert alert-info">
+        <strong>{% trans "Step 2 of 4:" %}</strong> {% trans "Add the items included in this purchase" %}
+    </div>
+</form>

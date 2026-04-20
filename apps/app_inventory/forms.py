@@ -2,7 +2,13 @@ from django import forms
 from django.forms import BaseInlineFormSet, inlineformset_factory
 
 from apps.app_operation.models.operation import Operation
-from .models import InvoiceItem, InventoryMovement, InventoryMovementLine, Product, ProductTemplate
+from .models import (
+    InvoiceItem,
+    InventoryMovement,
+    InventoryMovementLine,
+    Product,
+    ProductTemplate,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -10,6 +16,7 @@ from .models import InvoiceItem, InventoryMovement, InventoryMovementLine, Produ
 # Each form row specifies a ProductTemplate + quantity/price.
 # The view creates a Product instance from each saved InvoiceItem.
 # ---------------------------------------------------------------------------
+
 
 class InvoiceItemCreateForm(forms.ModelForm):
     """
@@ -32,7 +39,9 @@ class InvoiceItemCreateForm(forms.ModelForm):
         required=False,
         label="Tag / ID",
         help_text="Required for individually tracked animals.",
-        widget=forms.TextInput(attrs={"class": "form-control form-control-sm", "placeholder": "Tag / ID"}),
+        widget=forms.TextInput(
+            attrs={"class": "form-control form-control-sm", "placeholder": "Tag / ID"}
+        ),
     )
 
     class Meta:
@@ -40,7 +49,12 @@ class InvoiceItemCreateForm(forms.ModelForm):
         fields = ("product", "description", "quantity", "unit_price")
         # `product` here is the FK to ProductTemplate (what type is being acquired)
         widgets = {
-            "description": forms.TextInput(attrs={"class": "form-control form-control-sm", "placeholder": "Description (optional)"}),
+            "description": forms.TextInput(
+                attrs={
+                    "class": "form-control form-control-sm",
+                    "placeholder": "Description (optional)",
+                }
+            ),
         }
 
     def __init__(self, *args, project=None, **kwargs):
@@ -54,12 +68,10 @@ class InvoiceItemCreateForm(forms.ModelForm):
         cleaned = super().clean()
         template = cleaned.get("product")
         uid = cleaned.get("unique_id", "").strip()
-        if (
-            template
-            and template.tracking_mode == ProductTemplate.TrackingMode.INDIVIDUAL
-            and not uid
-        ):
-            self.add_error("unique_id", "Tag / ID is required for individually tracked animals.")
+        if template and template.requires_individual_tag and not uid:
+            self.add_error(
+                "unique_id", "Tag / ID is required for individually tracked animals."
+            )
         return cleaned
 
 
@@ -93,6 +105,7 @@ InvoiceItemCreateFormSet = inlineformset_factory(
 # The view links the saved InvoiceItem back to the Product via M2M.
 # ---------------------------------------------------------------------------
 
+
 class InvoiceItemSelectForm(forms.ModelForm):
     """
     One row = one existing Product being referenced (sold / died / gained / lost).
@@ -111,7 +124,12 @@ class InvoiceItemSelectForm(forms.ModelForm):
         model = InvoiceItem
         fields = ("quantity", "unit_price", "description")
         widgets = {
-            "description": forms.TextInput(attrs={"class": "form-control form-control-sm", "placeholder": "Description (optional)"}),
+            "description": forms.TextInput(
+                attrs={
+                    "class": "form-control form-control-sm",
+                    "placeholder": "Description (optional)",
+                }
+            ),
         }
 
     def clean(self):
@@ -137,6 +155,7 @@ InvoiceItemSelectFormSet = inlineformset_factory(
 # Inventory Movement Line: used to record physical movement of items
 # Each form row specifies an InvoiceItem and the quantity being moved.
 # ---------------------------------------------------------------------------
+
 
 class InventoryMovementLineForm(forms.ModelForm):
     """

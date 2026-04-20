@@ -5,6 +5,7 @@ from .category.category_edit import category_edit_view
 from .create import OperationCreateView
 from .evaluation import EvaluationCreateView
 from .purchase_sale import BirthCreateView, DeathCreateView, PurchaseCreateView, SaleCreateView
+from .purchase_wizard import purchase_wizard_view
 from .detail import operation_detail_view
 from .edit import operation_update_view
 from .list import operation_list_view
@@ -20,6 +21,7 @@ __all__ = [
     "BirthCreateView",
     "DeathCreateView",
     "EvaluationCreateView",
+    "purchase_wizard_view",
     "operation_detail_view",
     "operation_reverse_view",
     "record_transaction_repayment",

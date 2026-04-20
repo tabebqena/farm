@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'operation_list_view' person_pk=project.pk %}">{{ project.name }}</a></li>
+            <li class="breadcrumb-item active">{% trans "New Purchase" %}</li>
+            <li class="breadcrumb-item active">{{ current_step.title }}</li>
+        </ol>
+    </nav>
+
+    <!-- Step Progress Indicator -->
+    <div class="mb-4 d-flex justify-content-between align-items-center">
+        <h2 class="mb-0">{{ current_step.title }}</h2>
+        <div class="d-flex gap-2">
+            {% for step_num in "1234" %}
+                {% if step_num|add:"0" == step %}
+                    <span class="badge bg-primary rounded-pill fs-6">{{ step_num }}</span>
+                {% elif step_num|add:"0" < step %}
+                    <span class="badge bg-success rounded-pill fs-6">{{ step_num }}</span>
+                {% else %}
+                    <span class="badge bg-light text-dark rounded-pill fs-6">{{ step_num }}</span>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Main Card -->
+    <div class="card">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">{{ current_step.title }}</h5>
+            {% if operation %}
+                <small class="text-muted">{% trans "Purchase" %} #{{ operation.pk }}</small>
+            {% endif %}
+        </div>
+
+        <div class="card-body">
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            <!-- Step 1: Basic Info -->
+            {% if step == 1 %}
+                {% include "app_operation/purchase_wizard/step_1_basic.html" %}
+            {% endif %}
+
+            <!-- Step 2: Invoice Items -->
+            {% if step == 2 %}
+                {% include "app_operation/purchase_wizard/step_2_items.html" %}
+            {% endif %}
+
+            <!-- Step 3: Payment -->
+            {% if step == 3 %}
+                {% include "app_operation/purchase_wizard/step_3_payment.html" %}
+            {% endif %}
+
+            <!-- Step 4: Goods Movement -->
+            {% if step == 4 %}
+                {% include "app_operation/purchase_wizard/step_4_movement.html" %}
+            {% endif %}
+        </div>
+
+        <!-- Footer Navigation -->
+        <div class="card-footer bg-light d-flex justify-content-between">
+            <!-- Left: Back / Cancel -->
+            <div>
+                {% if step > 1 and operation %}
+                    <a href="{% url 'purchase_wizard_step' pk=project.pk operation_pk=operation.pk step=step|add:'-1' %}" class="btn btn-secondary">
+                        &larr; {% trans "Back" %}
+                    </a>
+                {% elif step > 1 %}
+                    <a href="{% url 'purchase_wizard_step1' pk=project.pk %}" class="btn btn-secondary">
+                        &larr; {% trans "Back" %}
+                    </a>
+                {% endif %}
+                <a href="{% url 'operation_list_view' person_pk=project.pk %}" class="btn btn-outline-secondary">
+                    {% trans "Cancel" %}
+                </a>
+            </div>
+
+            <!-- Right: Skip / Continue / Finish -->
+            <div>
+                {% if step == 3 or step == 4 %}
+                    <form id="wizard-form-skip" method="post" style="display:inline;">
+                        {% csrf_token %}
+                        <input type="hidden" name="skip" value="1">
+                        <button type="submit" class="btn btn-outline-primary">
+                            {% trans "Skip" %}
+                        </button>
+                    </form>
+                {% endif %}
+
+                <button type="submit" form="wizard-form" class="btn btn-primary">
+                    {% if step == 4 %}
+                        {% trans "Finish" %}
+                    {% else %}
+                        {% trans "Continue" %}
+                    {% endif %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+    {% if step == 2 %}
+        <script>
+            window.OperationConfig = {
+                formsetPrefix: "items",
+                hasCategory: false,
+            };
+        </script>
+        <script src="{% static 'js/operation-formset.js' %}"></script>
+    {% endif %}
+{% endblock %}
+{% endblock %}

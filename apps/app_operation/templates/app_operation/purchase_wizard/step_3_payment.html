@@ -1,0 +1,42 @@
+{% load i18n %}
+
+<form id="wizard-form" method="post" novalidate>
+    {% csrf_token %}
+
+    <!-- Purchase Summary -->
+    <div class="alert alert-light border mb-4">
+        <strong>{% trans "Purchase Summary:" %}</strong>
+        <ul class="mb-0 mt-2">
+            <li>{% trans "Purchase #:" %} <strong>{{ operation.pk }}</strong></li>
+            <li>{% trans "Invoice Total:" %} <strong>${{ operation.amount }}</strong></li>
+            <li>{% trans "Amount Remaining:" %} <strong>${{ amount_remaining }}</strong></li>
+        </ul>
+    </div>
+
+    <!-- Payment Amount -->
+    <div class="mb-3">
+        <label for="id_amount_paid" class="form-label">
+            {% trans "Payment Amount" %}
+        </label>
+        <div class="input-group">
+            <span class="input-group-text">$</span>
+            <input
+                type="number"
+                id="id_amount_paid"
+                name="amount_paid"
+                class="form-control"
+                step="0.01"
+                min="0"
+                max="{{ amount_remaining }}"
+                placeholder="{% trans 'Leave blank to skip payment' %}"
+            >
+        </div>
+        <small class="form-text text-muted">
+            {% trans "Leave blank or enter 0 to skip payment recording for now." %}
+        </small>
+    </div>
+
+    <div class="alert alert-info">
+        <strong>{% trans "Step 3 of 4:" %}</strong> {% trans "Record a partial or full payment (optional)" %}
+    </div>
+</form>

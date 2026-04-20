@@ -1,0 +1,143 @@
+{% load i18n %}
+
+<form id="wizard-form" method="post" novalidate>
+    {% csrf_token %}
+
+    <!-- Purchase Summary -->
+    <div class="alert alert-light border mb-4">
+        <strong>{% trans "Purchase Summary:" %}</strong>
+        <ul class="mb-0 mt-2">
+            <li>{% trans "Purchase #:" %} <strong>{{ operation.pk }}</strong></li>
+            <li>{% trans "Invoice Total:" %} <strong>${{ operation.amount }}</strong></li>
+            <li>{% trans "Invoice Items:" %} <strong>{{ operation.items.count }}</strong></li>
+        </ul>
+    </div>
+
+    <!-- Movement Date -->
+    <div class="mb-3">
+        <label for="id_date" class="form-label">
+            {% trans "Goods Receipt Date" %}
+        </label>
+        <input
+            type="date"
+            id="id_date"
+            name="date"
+            class="form-control"
+            value="{{ operation.date|date:'Y-m-d' }}"
+            required
+        >
+        <small class="form-text text-muted">
+            {% trans "When were the goods physically received?" %}
+        </small>
+    </div>
+
+    <!-- Movement Notes -->
+    <div class="mb-3">
+        <label for="id_notes" class="form-label">
+            {% trans "Notes" %}
+        </label>
+        <textarea
+            id="id_notes"
+            name="notes"
+            class="form-control"
+            rows="3"
+            placeholder="{% trans 'e.g., Received at warehouse, checked by John Smith, etc.' %}"
+        ></textarea>
+    </div>
+
+    <!-- Formset Management -->
+    <div class="mb-3">
+        <h5>{% trans "Goods Lines" %}</h5>
+        {{ formset.management_form }}
+
+        {% if formset.non_form_errors %}
+            <div class="alert alert-danger">
+                {{ formset.non_form_errors.0 }}
+            </div>
+        {% endif %}
+
+        <!-- Formset Table -->
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered" id="inventory-formset-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>{% trans "Invoice Item" %}</th>
+                        <th>{% trans "Quantity" %}</th>
+                        <th style="width: 60px;">{% trans "Delete" %}</th>
+                    </tr>
+                </thead>
+                <tbody id="item-formset-body">
+                    {% for form in formset %}
+                        <tr class="item-row">
+                            <td>
+                                {{ form.invoice_item }}
+                                {% if form.invoice_item.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.invoice_item.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {{ form.quantity }}
+                                {% if form.quantity.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.quantity.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {{ form.DELETE }}
+                                <label class="form-check-label" for="{{ form.DELETE.id_for_label }}">
+                                    <i class="bi bi-trash"></i>
+                                </label>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="add-item-row">
+            <i class="bi bi-plus"></i> {% trans "Add Row" %}
+        </button>
+    </div>
+
+    <!-- Helper Text -->
+    <div class="alert alert-info">
+        <strong>{% trans "Step 4 of 4:" %}</strong> {% trans "Record which items were physically received (optional)" %}
+    </div>
+</form>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    // Simple formset add row logic
+    const addButton = document.getElementById("add-item-row");
+    const tbody = document.getElementById("item-formset-body");
+    const totalFormsInput = document.querySelector('input[name="inventory_lines-TOTAL_FORMS"]');
+
+    if (addButton && tbody && totalFormsInput) {
+        addButton.addEventListener("click", function(e) {
+            e.preventDefault();
+
+            const formCount = parseInt(totalFormsInput.value);
+            const newRow = tbody.querySelector(".item-row").cloneNode(true);
+
+            // Update form indices
+            newRow.querySelectorAll("input, select, textarea").forEach(field => {
+                const oldName = field.name;
+                if (oldName) {
+                    field.name = oldName.replace(/-\d+-/, `-${formCount}-`);
+                }
+                const oldId = field.id;
+                if (oldId) {
+                    field.id = oldId.replace(/_\d+_/, `_${formCount}_`);
+                }
+                field.value = "";
+            });
+
+            tbody.appendChild(newRow);
+            totalFormsInput.value = formCount + 1;
+        });
+    }
+});
+</script>

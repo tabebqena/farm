@@ -23,10 +23,27 @@ urlpatterns = [
         views.DeathCreateView.as_view(),
         name="death_create_view",
     ),
+    # path(
+    #     "<int:pk>/purchase/create",
+    #     views.PurchaseCreateView.as_view(),
+    #     name="purchase_create_view",
+    # ),
+    # Just for testing
     path(
-        "<int:pk>/purchase/create",
-        views.PurchaseCreateView.as_view(),
+        "<int:pk>/purchase/wizard/",
+        views.purchase_wizard_view,
+        # name="purchase_wizard_step1",
         name="purchase_create_view",
+    ),
+    path(
+        "<int:pk>/purchase/wizard/2/",
+        views.purchase_wizard_view,
+        name="purchase_wizard_step2_new",
+    ),
+    path(
+        "<int:pk>/purchase/wizard/<int:operation_pk>/<int:step>/",
+        views.purchase_wizard_view,
+        name="purchase_wizard_step",
     ),
     path(
         "<int:pk>/sale/create",
