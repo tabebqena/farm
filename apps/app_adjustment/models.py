@@ -1,3 +1,4 @@
+import logging
 from decimal import Decimal
 from typing import List
 
@@ -8,6 +9,7 @@ from django.forms import ValidationError
 from django.utils.translation import gettext_lazy as _
 
 from apps.app_adjustment._item_type import InvoiceItemAdjustmentType
+from apps.app_base.debug import DebugContext, debug_model_save
 from apps.app_base.mixins import (
     AmountCleanMixin,
     ImmutableMixin,
@@ -17,6 +19,8 @@ from apps.app_base.mixins import (
 from apps.app_base.models import BaseModel, ReversableModel
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_transaction.models import TransactionType
+
+logger = logging.getLogger(__name__)
 
 
 class AdjustmentType(models.TextChoices):
@@ -198,14 +202,27 @@ class Adjustment(
         }.get(self.operation.operation_type)
 
     def clean(self):
+        DebugContext.log(f"Adjustment.clean() for operation {self.operation.pk}", {
+            "type": self.type,
+            "operation_type": self.operation.operation_type,
+            "amount": float(self.amount),
+        })
         if self.operation.operation_type not in (
             OperationType.PURCHASE,
             OperationType.SALE,
             OperationType.EXPENSE,
         ):
+            DebugContext.error("Invalid operation type for adjustment", data={
+                "operation_type": self.operation.operation_type,
+                "allowed": ["PURCHASE", "SALE", "EXPENSE"],
+            })
             raise ValidationError(_("This operation cannot be adjusted."))
         if AdjustmentType.is_general(self.type) and not self.reason:
+            DebugContext.warn("General adjustment type requires reason", {
+                "type": self.type,
+            })
             raise ValidationError(_("Reason is required in general adjustment types."))
+        DebugContext.success("Adjustment validation passed")
         return super().clean()
 
     @property
@@ -318,11 +335,34 @@ class InvoiceItemAdjustment(
         and link it back. Must be called inside an atomic block, after all lines
         have been saved.
         """
+        DebugContext.log(f"InvoiceItemAdjustment.finalize() called", {
+            "item_adjustment_pk": self.pk,
+            "type": self.type,
+            "operation_pk": self.operation.pk,
+        })
+
         if self.adjustment_id is not None:
+            DebugContext.error("Item adjustment already finalized", data={
+                "item_adjustment_pk": self.pk,
+                "adjustment_pk": self.adjustment_id,
+            })
             raise ValidationError(_("This item adjustment has already been finalized."))
 
-        total_delta = sum(line.value_delta for line in self.lines.all())
+        lines = self.lines.all()
+        DebugContext.log(f"Computing net delta from {lines.count()} lines", {
+            "line_count": lines.count(),
+        })
+
+        total_delta = sum(line.value_delta for line in lines)
+        DebugContext.log(f"Net delta computed", {
+            "total_delta": float(total_delta),
+            "is_increase": total_delta > 0,
+        })
+
         if total_delta == 0:
+            DebugContext.error("Net adjustment is zero", {
+                "line_count": lines.count(),
+            })
             raise ValidationError(_("Net adjustment is zero — nothing to record."))
 
         # Direction (increase vs decrease) is encoded in the type, not an effect field.
@@ -351,19 +391,37 @@ class InvoiceItemAdjustment(
             ),
         }
 
-        adj = Adjustment(
-            operation=self.operation,
-            type=adj_type_map[self.type],
-            amount=abs(total_delta).quantize(Decimal("0.01")),
-            reason=self.reason,
-            date=self.date,
-            officer=self.officer,
-        )
-        adj.full_clean()
-        adj.save()  # creates issuance transaction via LinkedIssuanceTransactionMixin
+        adj_type = adj_type_map[self.type]
+        DebugContext.log(f"Adjustment type mapped", {
+            "input_type": self.type,
+            "output_type": adj_type,
+            "is_increase": is_increase,
+        })
+
+        with DebugContext.section(f"Creating Adjustment record", {
+            "type": adj_type,
+            "amount": float(abs(total_delta)),
+            "operation_pk": self.operation.pk,
+        }):
+            adj = Adjustment(
+                operation=self.operation,
+                type=adj_type,
+                amount=abs(total_delta).quantize(Decimal("0.01")),
+                reason=self.reason,
+                date=self.date,
+                officer=self.officer,
+            )
+            adj.full_clean()
+            DebugContext.log("Adjustment validation passed")
+            adj.save()  # creates issuance transaction via LinkedIssuanceTransactionMixin
+            DebugContext.success("Adjustment saved", {"adjustment_pk": adj.pk})
 
         self.adjustment = adj
         self.save(update_fields=["adjustment"])
+        DebugContext.success("InvoiceItemAdjustment finalized", {
+            "item_adjustment_pk": self.pk,
+            "adjustment_pk": adj.pk,
+        })
 
     def reverse(self, officer, date, reason=""):
         """
@@ -374,14 +432,36 @@ class InvoiceItemAdjustment(
         """
         from apps.app_inventory.models import ProductLedgerEntry
 
+        DebugContext.log(f"InvoiceItemAdjustment.reverse() called", {
+            "item_adjustment_pk": self.pk,
+            "adjustment_pk": self.adjustment_id,
+            "officer": str(officer),
+            "date": str(date),
+        })
+
         if self.adjustment is None:
+            DebugContext.error("Cannot reverse un-finalized item adjustment", data={
+                "item_adjustment_pk": self.pk,
+            })
             raise ValidationError(_("Cannot reverse an un-finalized item adjustment."))
 
-        with db_transaction.atomic():
-            self.adjustment.reverse(officer=officer, date=date, reason=reason)
-            for line in self.lines.all():
-                ProductLedgerEntry.record_adjustment_line(line, negate=True)
-            return super().reverse(officer=officer, date=date, reason=reason)
+        with DebugContext.section(f"Reversing InvoiceItemAdjustment", {
+            "item_adjustment_pk": self.pk,
+            "line_count": self.lines.count(),
+        }):
+            with db_transaction.atomic():
+                DebugContext.log("Reversing linked Adjustment")
+                self.adjustment.reverse(officer=officer, date=date, reason=reason)
+                DebugContext.success("Linked Adjustment reversed")
+
+                DebugContext.log("Recording negating ProductLedgerEntry rows")
+                for line in self.lines.all():
+                    ProductLedgerEntry.record_adjustment_line(line, negate=True)
+                DebugContext.success(f"Negated ledger entries recorded")
+
+                result = super().reverse(officer=officer, date=date, reason=reason)
+                DebugContext.success("InvoiceItemAdjustment reversed successfully")
+                return result
 
     class Meta:
         verbose_name = _("invoice item adjustment")
@@ -471,10 +551,20 @@ class InvoiceItemAdjustmentLine(
         return super().clean()
 
     def save(self, *args, **kwargs):
+        DebugContext.log(f"InvoiceItemAdjustmentLine.save()", {
+            "pk": self.pk,
+            "adjustment_pk": self.adjustment_id,
+            "invoice_item_pk": self.invoice_item_id,
+            "is_removed": self.is_removed,
+            "quantity_delta": float(self.quantity_delta) if self.quantity_delta else None,
+            "value_delta": float(self.value_delta) if self.value_delta else None,
+        })
         super().save(*args, **kwargs)
         from apps.app_inventory.models import ProductLedgerEntry
 
+        DebugContext.log("Recording ProductLedgerEntry for adjustment line")
         ProductLedgerEntry.record_adjustment_line(self)
+        DebugContext.success("ProductLedgerEntry recorded", {"adjustment_line_pk": self.pk})
 
     class Meta:
         verbose_name = _("invoice item adjustment line")

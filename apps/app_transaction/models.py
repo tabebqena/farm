@@ -1,4 +1,5 @@
 import datetime
+import logging
 import typing
 from decimal import Decimal
 
@@ -12,9 +13,12 @@ from django.forms import ValidationError
 from django.urls import reverse
 from django.utils import timezone
 
+from apps.app_base.debug import DebugContext
 from apps.app_base.mixins import AmountCleanMixin, ImmutableMixin
 from apps.app_base.models import BaseModel
 from apps.app_transaction.transaction_type import TransactionType
+
+logger = logging.getLogger(__name__)
 
 if typing.TYPE_CHECKING:
     from django.contrib.auth.base_user import AbstractBaseUser
@@ -101,11 +105,19 @@ class Transaction(AmountCleanMixin, ImmutableMixin, BaseModel):
         return super().save(*args, **kwargs)
 
     def clean(self) -> None:
+        DebugContext.log(f"Transaction.clean()", {
+            "type": self.type,
+            "source": str(self.source),
+            "target": str(self.target),
+            "amount": float(self.amount),
+        })
         if self.source == self.target:
+            DebugContext.error("Source and target are the same", data={
+                "source": str(self.source),
+                "target": str(self.target),
+            })
             raise ValidationError("Source and target funds must be different.")
-        # if self.content_type:
-        #     model_name = self.content_type.model  # lowercase model name
-
+        DebugContext.success("Transaction validation passed")
         return super().clean()
 
     @staticmethod
@@ -120,72 +132,128 @@ class Transaction(AmountCleanMixin, ImmutableMixin, BaseModel):
         note="",
         date=None,
     ):
-        violation = tx_type.get_entity_type_violation(source, target)
-        if violation:
-            raise ValidationError(
-                f"Transaction type '{tx_type}' has invalid entity types: {violation}."
+        with DebugContext.section(f"Transaction.create()", {
+            "type": str(tx_type),
+            "source": str(source),
+            "target": str(target),
+            "amount": float(amount),
+            "document_type": type(document).__name__,
+            "document_pk": getattr(document, "pk", None),
+        }):
+            DebugContext.log("Validating entity types")
+            violation = tx_type.get_entity_type_violation(source, target)
+            if violation:
+                DebugContext.error("Entity type violation", data={
+                    "type": str(tx_type),
+                    "violation": violation,
+                })
+                raise ValidationError(
+                    f"Transaction type '{tx_type}' has invalid entity types: {violation}."
+                )
+            DebugContext.success("Entity types valid")
+
+            DebugContext.log("Validating operation type")
+            if not tx_type.is_allowed_operation_type(document):
+                DebugContext.error("Operation type not allowed", data={
+                    "type": str(tx_type),
+                    "operation_type": type(document).__name__,
+                })
+                raise ValidationError(
+                    f"Transaction type '{tx_type}' is not allowed for operation '{type(document).__name__}'."
+                )
+            DebugContext.success("Operation type valid")
+
+            DebugContext.log("Resolving transaction date")
+            resolved_date = date or timezone.now()
+            if isinstance(resolved_date, datetime.date) and not isinstance(
+                resolved_date, datetime.datetime
+            ):
+                resolved_date = timezone.make_aware(
+                    datetime.datetime.combine(resolved_date, datetime.time.min)
+                )
+            DebugContext.log("Date resolved", {"date": str(resolved_date)})
+
+            DebugContext.log("Creating Transaction record in database")
+            tx = Transaction.objects.create(
+                source=source,
+                target=target,
+                type=tx_type,
+                document=document,
+                amount=Decimal(str(amount)) if not isinstance(amount, Decimal) else amount,
+                officer=officer or document.officer,
+                description=description or f"Transaction for {document.description}",
+                note=note,
+                date=resolved_date,
             )
-        if not tx_type.is_allowed_operation_type(document):
-            raise ValidationError(
-                f"Transaction type '{tx_type}' is not allowed for operation '{type(document).__name__}'."
-            )
-        resolved_date = date or timezone.now()
-        if isinstance(resolved_date, datetime.date) and not isinstance(
-            resolved_date, datetime.datetime
-        ):
-            resolved_date = timezone.make_aware(
-                datetime.datetime.combine(resolved_date, datetime.time.min)
-            )
-        return Transaction.objects.create(
-            source=source,
-            target=target,
-            type=tx_type,
-            document=document,
-            amount=Decimal(str(amount)) if not isinstance(amount, Decimal) else amount,
-            officer=officer or document.officer,
-            description=description or f"Transaction for {document.description}",
-            note=note,
-            date=resolved_date,
-        )
+            DebugContext.success("Transaction created", {"transaction_pk": tx.pk})
+            return tx
 
     @db_transaction.atomic
     def reverse(self, officer, reason="", date=None):
         """
         Creates a counter-transaction to neutralize this transaction.
         """
+        DebugContext.log(f"Transaction.reverse() called", {
+            "transaction_pk": self.pk,
+            "type": self.type,
+            "amount": float(self.amount),
+            "officer": str(officer),
+            "reason": reason,
+        })
+
         if self.reversal_of:
+            DebugContext.error("Cannot reverse a reversal", data={
+                "transaction_pk": self.pk,
+                "reversal_of_pk": self.reversal_of_id,
+            })
             raise ValidationError(
                 "Cannot reverse a transaction that is already a reversal."
             )
+
         if hasattr(self, "reversed_by") and self.reversed_by:  # type: ignore
+            DebugContext.error("Transaction already reversed", data={
+                "transaction_pk": self.pk,
+                "reversed_by_pk": self.reversed_by.pk,
+            })
             raise ValidationError("This transaction has already been reversed.")
-        # Use the same type in the reversal to make it readable
-        # This has no effect in calculations
-        # 1. Create the mirror-image Transaction
-        resolved_date = date or timezone.now()
-        if isinstance(resolved_date, datetime.date) and not isinstance(
-            resolved_date, datetime.datetime
-        ):
-            resolved_date = timezone.make_aware(
-                datetime.datetime.combine(resolved_date, datetime.time.min)
+
+        with DebugContext.section(f"Creating reversal transaction", {
+            "original_transaction_pk": self.pk,
+            "original_source": str(self.source),
+            "original_target": str(self.target),
+            "reversal_source": str(self.target),  # Swapped
+            "reversal_target": str(self.source),  # Swapped
+            "amount": float(self.amount),
+        }):
+            DebugContext.log("Resolving reversal date")
+            resolved_date = date or timezone.now()
+            if isinstance(resolved_date, datetime.date) and not isinstance(
+                resolved_date, datetime.datetime
+            ):
+                resolved_date = timezone.make_aware(
+                    datetime.datetime.combine(resolved_date, datetime.time.min)
+                )
+
+            DebugContext.log("Creating mirror-image transaction")
+            reversal = Transaction(
+                date=resolved_date,
+                source=self.target,
+                target=self.source,
+                amount=self.amount,
+                type=self.type,
+                officer=officer,
+                reversal_of=self,
+                description=f"REVERSAL of ID {self.id}: {reason}",
+                content_type=self.content_type,
+                object_id=self.object_id,
+                document=self.document,
             )
-        reversal = Transaction(
-            date=resolved_date,
-            source=self.target,
-            target=self.source,
-            amount=self.amount,
-            type=self.type,
-            officer=officer,
-            reversal_of=self,  #
-            description=f"REVERSAL of ID {self.id}: {reason}",
-            content_type=self.content_type,
-            object_id=self.object_id,
-            document=self.document,
-        )
-        reversal.save()
-        setattr(self, "reversed_by", reversal)
-        # self.refresh_from_db()
-        return reversal
+            reversal.save()
+            DebugContext.success("Reversal transaction created", {"reversal_pk": reversal.pk})
+
+            setattr(self, "reversed_by", reversal)
+            DebugContext.success("Reversal linked to original transaction")
+            return reversal
 
     def get_absolute_url(self):
         return reverse("transaction_detail", kwargs={"transaction_pk": self.pk})

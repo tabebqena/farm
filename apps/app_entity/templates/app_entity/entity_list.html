@@ -88,48 +88,151 @@
         </form>
     </div>
 </div>
-    <div class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
-        <thead class="bg-light text-muted small text-uppercase">
-          <tr>
-            <th class="ps-4">{% trans "Entity Name" %}</th>
-            <th>{% trans "Identity Type" %}</th>
-            <th>{% trans "Roles" %}</th>
-            <th>{% trans "Fund Status" %}</th>
-            <th>{% trans "Internal" %}</th>
-            <th class="text-end pe-4">{% trans "Actions" %}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for entity in entities %}
+    <!-- Table view for medium screens and up -->
+    <div class="d-none d-md-block">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="bg-light text-muted small text-uppercase">
             <tr>
-              <td class="ps-4">
-                <div class="d-flex align-items-center">
-                  <div class="avatar-sm me-3 bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
-                    {% if entity.is_person %}
-                      <i class="bi bi-person"></i>
-                    {% elif entity.is_project %}
-                      <i class="bi bi-kanban"></i>
-                    {% else %}
-                      <i class="bi bi-cpu"></i>
+              <th class="ps-4">{% trans "Entity Name" %}</th>
+              <th>{% trans "Identity Type" %}</th>
+              <th>{% trans "Roles" %}</th>
+              <th>{% trans "Fund Status" %}</th>
+              <th>{% trans "Internal" %}</th>
+              <th class="text-end pe-4">{% trans "Actions" %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for entity in entities %}
+              <tr>
+                <td class="ps-4">
+                  <div class="d-flex align-items-center">
+                    <div class="avatar-sm me-3 bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
+                      {% if entity.is_person %}
+                        <i class="bi bi-person"></i>
+                      {% elif entity.is_project %}
+                        <i class="bi bi-kanban"></i>
+                      {% else %}
+                        <i class="bi bi-cpu"></i>
+                      {% endif %}
+                    </div>
+                    <div>
+                      <a href="{{ entity.get_absolute_url }}" class="fw-bold text-decoration-none text-dark">{{ entity.name }}</a>
+                      <br /><small class="text-muted">ID: #{{ entity.id|stringformat:'04d' }}</small>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <span class="badge bg-light text-dark border">
+                    {% if entity.is_person %}{% trans "Person" %}
+                    {% elif entity.is_project %}{% trans "Project" %}
+                    {% elif entity.is_system %}{% trans "System" %}
+                    {% else %}{% trans "World" %}
+                    {% endif %}
+                  </span>
+                </td>
+                <td>
+                  <div class="d-flex gap-1 flex-wrap">
+                    {% if entity.is_vendor %}
+                      <span class="badge bg-info-subtle text-info">{% trans "Vendor" %}</span>
+                    {% endif %}
+                    {% if entity.is_client %}
+                      <span class="badge bg-success-subtle text-success">{% trans "Client" %}</span>
+                    {% endif %}
+                    {% if entity.is_worker %}
+                      <span class="badge bg-warning-subtle text-warning">{% trans "Worker" %}</span>
+                    {% endif %}
+                    {% if entity.is_shareholder %}
+                      <span class="badge bg-primary-subtle text-primary">{% trans "Shareholder" %}</span>
+                    {% endif %}
+                    {% if not entity.is_vendor and not entity.is_client and not entity.is_worker and not entity.is_shareholder %}
+                      <span class="text-muted small italic">{% trans "No Roles" %}</span>
                     {% endif %}
                   </div>
-                  <div>
-                    <a href="{{ entity.get_absolute_url }}" class="fw-bold text-decoration-none text-dark">{{ entity.name }}</a>
-                    <br /><small class="text-muted">ID: #{{ entity.id|stringformat:'04d' }}</small>
+                </td>
+                <td>
+                  {% if entity %}
+                    <div class="text-dark small fw-semibold">
+                      <i class="bi bi-wallet2 me-1"></i> {{ entity.balance|default:'0.00' }}
+                    </div>
+                    {% if entity.active %}
+                      <span class="text-success small" style="font-size: 0.7rem;"><i class="bi bi-check-circle-fill"></i> {% trans "Ready" %}</span>
+                    {% else %}
+                      <span class="text-muted small" style="font-size: 0.7rem;"><i class="bi bi-slash-circle"></i> {% trans "View Only" %}</span>
+                    {% endif %}
+                  {% else %}
+                    <span class="text-danger small"><i class="bi bi-exclamation-triangle"></i> {% trans "Missing Fund" %}</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if entity.is_internal %}
+                    <span class="text-primary"><i class="bi bi-house-door-fill"></i></span>
+                  {% else %}
+                    <span class="text-muted"><i class="bi bi-globe"></i></span>
+                  {% endif %}
+                </td>
+                <td class="text-end pe-4">
+                  <div class="btn-group">
+                    {% if entity.is_person %}
+                      <a href="{% url 'person_edit' pk=entity.pk %}" class="btn btn-sm btn-outline-light text-dark border-0"><i class="bi bi-pencil"></i></a>
+                    {% elif entity.is_project %}
+                       <a href="{% url 'project_edit' pk=entity.pk %}" class="btn btn-sm btn-outline-light text-dark border-0"><i class="bi bi-pencil"></i></a>
+                    {% endif %}
+                    <a href="#" class="btn btn-sm btn-outline-light text-dark border-0"><i class="bi bi-three-dots-vertical"></i></a>
                   </div>
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="6" class="text-center py-5">
+                  <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
+                  <p class="mt-2 text-muted">{% trans "No entities found. Create your first one to start ledgering." %}</p>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Card view for small screens -->
+    <div class="d-md-none">
+      {% if entities %}
+        <div class="list-group list-group-flush">
+          {% for entity in entities %}
+            <div class="list-group-item">
+              <div class="d-flex align-items-start mb-2">
+                <div class="avatar-sm me-3 bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width: 40px; height: 40px;">
+                  {% if entity.is_person %}
+                    <i class="bi bi-person"></i>
+                  {% elif entity.is_project %}
+                    <i class="bi bi-kanban"></i>
+                  {% else %}
+                    <i class="bi bi-cpu"></i>
+                  {% endif %}
                 </div>
-              </td>
-              <td>
-                <span class="badge bg-light text-dark border">
+                <div class="flex-grow-1">
+                  <a href="{{ entity.get_absolute_url }}" class="fw-bold text-decoration-none text-dark d-block">{{ entity.name }}</a>
+                  <small class="text-muted">ID: #{{ entity.id|stringformat:'04d' }}</small>
+                </div>
+              </div>
+
+              <div class="mb-2">
+                <span class="badge bg-light text-dark border me-2">
                   {% if entity.is_person %}{% trans "Person" %}
                   {% elif entity.is_project %}{% trans "Project" %}
                   {% elif entity.is_system %}{% trans "System" %}
                   {% else %}{% trans "World" %}
                   {% endif %}
                 </span>
-              </td>
-              <td>
+                {% if entity.is_internal %}
+                  <span class="text-primary"><i class="bi bi-house-door-fill"></i> {% trans "Internal" %}</span>
+                {% else %}
+                  <span class="text-muted"><i class="bi bi-globe"></i> {% trans "External" %}</span>
+                {% endif %}
+              </div>
+
+              <div class="mb-2">
                 <div class="d-flex gap-1 flex-wrap">
                   {% if entity.is_vendor %}
                     <span class="badge bg-info-subtle text-info">{% trans "Vendor" %}</span>
@@ -147,49 +250,41 @@
                     <span class="text-muted small italic">{% trans "No Roles" %}</span>
                   {% endif %}
                 </div>
-              </td>
-              <td>
+              </div>
+
+              <div class="mb-2">
+                <small class="text-muted d-block mb-1">{% trans "Fund Status" %}</small>
                 {% if entity %}
                   <div class="text-dark small fw-semibold">
                     <i class="bi bi-wallet2 me-1"></i> {{ entity.balance|default:'0.00' }}
                   </div>
                   {% if entity.active %}
-                    <span class="text-success small" style="font-size: 0.7rem;"><i class="bi bi-check-circle-fill"></i> {% trans "Ready" %}</span>
+                    <span class="text-success small"><i class="bi bi-check-circle-fill"></i> {% trans "Ready" %}</span>
                   {% else %}
-                    <span class="text-muted small" style="font-size: 0.7rem;"><i class="bi bi-slash-circle"></i> {% trans "View Only" %}</span>
+                    <span class="text-muted small"><i class="bi bi-slash-circle"></i> {% trans "View Only" %}</span>
                   {% endif %}
                 {% else %}
                   <span class="text-danger small"><i class="bi bi-exclamation-triangle"></i> {% trans "Missing Fund" %}</span>
                 {% endif %}
-              </td>
-              <td>
-                {% if entity.is_internal %}
-                  <span class="text-primary"><i class="bi bi-house-door-fill"></i></span>
-                {% else %}
-                  <span class="text-muted"><i class="bi bi-globe"></i></span>
+              </div>
+
+              <div class="d-flex gap-2">
+                <a href="{{ entity.get_absolute_url }}" class="btn btn-sm btn-outline-primary flex-grow-1">{% trans "View" %}</a>
+                {% if entity.is_person %}
+                  <a href="{% url 'person_edit' pk=entity.pk %}" class="btn btn-sm btn-outline-secondary flex-grow-1">{% trans "Edit" %}</a>
+                {% elif entity.is_project %}
+                  <a href="{% url 'project_edit' pk=entity.pk %}" class="btn btn-sm btn-outline-secondary flex-grow-1">{% trans "Edit" %}</a>
                 {% endif %}
-              </td>
-              <td class="text-end pe-4">
-                <div class="btn-group">
-                  {% if entity.is_person %}
-                    <a href="{% url 'person_edit' pk=entity.pk %}" class="btn btn-sm btn-outline-light text-dark border-0"><i class="bi bi-pencil"></i></a>
-                  {% elif entity.is_project %}
-                     <a href="{% url 'project_edit' pk=entity.pk %}" class="btn btn-sm btn-outline-light text-dark border-0"><i class="bi bi-pencil"></i></a>
-                  {% endif %}
-                  <a href="#" class="btn btn-sm btn-outline-light text-dark border-0"><i class="bi bi-three-dots-vertical"></i></a>
-                </div>
-              </td>
-            </tr>
-          {% empty %}
-            <tr>
-              <td colspan="6" class="text-center py-5">
-                <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
-                <p class="mt-2 text-muted">{% trans "No entities found. Create your first one to start ledgering." %}</p>
-              </td>
-            </tr>
+              </div>
+            </div>
           {% endfor %}
-        </tbody>
-      </table>
+        </div>
+      {% else %}
+        <div class="text-center py-5">
+          <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
+          <p class="mt-2 text-muted">{% trans "No entities found. Create your first one to start ledgering." %}</p>
+        </div>
+      {% endif %}
     </div>
   </div>
 {% endblock %}

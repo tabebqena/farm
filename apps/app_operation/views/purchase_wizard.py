@@ -1,4 +1,5 @@
-from datetime import date
+import logging
+from datetime import date, datetime
 from decimal import Decimal
 
 from django.contrib import messages
@@ -6,536 +7,509 @@ from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.translation import gettext as _
 
+from apps.app_base.debug import DebugContext, debug_view
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
-from apps.app_inventory.forms import (
-    InvoiceItemCreateFormSet,
-    InventoryMovementLineFormSet,
+from apps.app_inventory.models import (
+    InventoryMovement,
+    InventoryMovementLine,
+    Product,
+    ProductTemplate,
 )
-from apps.app_inventory.models import InventoryMovement
-from apps.app_operation.forms import PurchaseWizardStep1Form
+from apps.app_operation.forms import (
+    PurchaseItemForm,
+    PurchaseWizardStep1Form,
+    PurchaseWizardStep2Form,
+    PurchaseWizardStep3Form,
+)
 from apps.app_operation.models import PurchaseOperation
 
-STEPS = {
-    1: {"name": "Basic Info", "title": _("Purchase — Basic Information")},
-    2: {"name": "Invoice Items", "title": _("Purchase — Invoice Items")},
-    3: {"name": "Payment", "title": _("Purchase — Payment (optional)")},
-    4: {"name": "Goods Receipt", "title": _("Purchase — Goods Receipt (optional)")},
-}
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Session helpers
+# ---------------------------------------------------------------------------
+
+def _session_key(project_pk):
+    return f"purchase_wizard_{project_pk}"
 
 
-def purchase_wizard_view(request, pk, operation_pk=None, step=1):
-    """Multi-step purchase wizard."""
+def _get_session(request, project_pk) -> dict:
+    return request.session.get(_session_key(project_pk), {})
 
-    # Validate step number
-    if step not in STEPS:
-        messages.error(request, _("Invalid wizard step."))
-        return redirect("operation_list_view", person_pk=pk)
 
-    # Load project
+def _save_session(request, project_pk, data: dict):
+    request.session[_session_key(project_pk)] = data
+    request.session.modified = True
+
+
+def _clear_session(request, project_pk):
+    key = _session_key(project_pk)
+    request.session.pop(key, None)
+    request.session.modified = True
+
+
+def _items_total(items: list) -> Decimal:
+    return sum(
+        Decimal(item["quantity"]) * Decimal(item["unit_price"]) for item in items
+    )
+
+
+# ---------------------------------------------------------------------------
+# Project guard
+# ---------------------------------------------------------------------------
+
+def _load_project(request, pk):
+    """Return (project, None) or (None, redirect_response)."""
     project = get_object_or_404(Entity, pk=pk, entity_type=EntityType.PROJECT)
-
-    # Guard: project must have at least one active vendor
     vendor_count = Stakeholder.objects.filter(
-        parent=project,
-        role=StakeholderRole.VENDOR,
-        active=True,
+        parent=project, role=StakeholderRole.VENDOR, active=True
     ).count()
     if vendor_count == 0:
         messages.warning(
             request,
             _("Cannot create purchase: no active vendors configured for this project."),
         )
+        return None, redirect("operation_list_view", person_pk=pk)
+    return project, None
+
+
+# ---------------------------------------------------------------------------
+# Cancel
+# ---------------------------------------------------------------------------
+
+def cancel_purchase_wizard_view(request, pk):
+    _clear_session(request, pk)
+    return redirect("operation_list_view", person_pk=pk)
+
+
+# ---------------------------------------------------------------------------
+# Wizard steps 1–3  (session-only, nothing written to DB)
+# ---------------------------------------------------------------------------
+
+STEPS = {
+    1: {"name": _("Basic Info"),    "title": _("Purchase — Basic Information")},
+    2: {"name": _("Total Amount"),  "title": _("Purchase — Invoice Total")},
+    3: {"name": _("Payment"),       "title": _("Purchase — Payment (optional)")},
+}
+
+
+@debug_view
+def purchase_wizard_view(request, pk, step=1):
+    if step not in STEPS:
+        messages.error(request, _("Invalid wizard step."))
         return redirect("operation_list_view", person_pk=pk)
 
-    # Load operation if provided (steps 2–4)
-    operation = None
-    if operation_pk:
-        operation = get_object_or_404(PurchaseOperation, pk=operation_pk)
-        if operation.source != project:
-            messages.error(
-                request, _("Operation does not belong to this project.")
-            )
-            return redirect("operation_list_view", person_pk=pk)
+    project, redir = _load_project(request, pk)
+    if redir:
+        return redir
 
-    # Guard: steps 2+ require operation_pk or session key (step 1 initial data)
-    session_key = f"purchase_wizard_{project.pk}"
-    if step >= 2 and not operation_pk:
-        if session_key not in request.session:
-            messages.error(
-                request, _("Session expired. Please start from the beginning.")
-            )
-            return redirect("purchase_wizard_step1", pk=pk)
+    session = _get_session(request, pk)
 
-    # Dispatch
+    # Steps 2-3 require step 1 session data
+    if step >= 2 and "date" not in session:
+        messages.error(request, _("Session expired. Please start from the beginning."))
+        return redirect("purchase_wizard_step1", pk=pk)
+
     if request.method == "POST":
         if step == 1:
-            return _handle_step_1_post(request, project, operation)
+            return _handle_step_1_post(request, project, session)
         elif step == 2:
-            return _handle_step_2_post(request, project, operation)
+            return _handle_step_2_post(request, project, session)
         elif step == 3:
-            return _handle_step_3_post(request, project, operation)
-        elif step == 4:
-            return _handle_step_4_post(request, project, operation)
+            return _handle_step_3_post(request, project, session)
 
-    # GET: build context and render
-    context = {
-        "project": project,
-        "step": step,
-        "steps": STEPS,
-        "current_step": STEPS[step],
-    }
+    # GET
+    next_param = request.GET.get("next", "")
+    context = {"project": project, "step": step, "steps": STEPS, "current_step": STEPS[step], "next_param": next_param}
 
     if step == 1:
-        context.update(_get_step_1_context(request, project, operation))
+        initial = {
+            "date": session.get("date", date.today().isoformat()),
+            "vendor": session.get("vendor_id"),
+            "description": session.get("description", ""),
+        }
+        context["form"] = PurchaseWizardStep1Form(initial=initial, project=project)
+
     elif step == 2:
-        context.update(_get_step_2_context(request, project, operation))
+        initial = {"total_amount": session.get("total_amount")}
+        context["form"] = PurchaseWizardStep2Form(initial=initial)
+        context["step1_data"] = _resolve_step1_display(session)
+
     elif step == 3:
-        context.update(_get_step_3_context(request, project, operation))
-    elif step == 4:
-        context.update(_get_step_4_context(request, project, operation))
+        initial = {"amount_paid": session.get("amount_paid") or ""}
+        context["form"] = PurchaseWizardStep3Form(initial=initial)
+        context["total_amount"] = session.get("total_amount")
 
     return render(request, "app_operation/purchase_wizard.html", context)
 
 
-# Step 1 handlers
+def _resolve_step1_display(session: dict) -> dict:
+    """Return step 1 values suitable for read-only display."""
+    vendor = None
+    if session.get("vendor_id"):
+        try:
+            vendor = Entity.objects.get(pk=session["vendor_id"])
+        except Entity.DoesNotExist:
+            pass
+    return {"date": session.get("date", ""), "vendor": vendor, "description": session.get("description", "")}
 
 
-def _get_step_1_context(request, project, operation=None):
-    """Render Step 1: basic info form."""
-    session_key = f"purchase_wizard_{project.pk}"
-
-    if operation:
-        # Back navigation to existing operation
-        initial = {
-            "date": operation.date,
-            "vendor": operation.destination.pk,
-            "description": operation.description,
-        }
-    else:
-        # New purchase
-        session_data = request.session.get(session_key, {})
-        initial = {
-            "date": session_data.get("date", date.today().isoformat()),
-            "vendor": session_data.get("vendor_id"),
-            "description": session_data.get("description", ""),
-        }
-
-    form = PurchaseWizardStep1Form(
-        initial=initial,
-        project=project,
-    )
-
-    # If editing existing operation, disable vendor (immutable)
-    if operation:
-        form.fields["vendor"].disabled = True
-        form.fields["vendor"].help_text = "Vendor cannot be changed after items are entered."
-
-    return {"form": form}
-
-
-def _handle_step_1_post(request, project, operation=None):
-    """Handle Step 1 POST: validate and store to session, or update existing operation."""
-    session_key = f"purchase_wizard_{project.pk}"
-
+def _handle_step_1_post(request, project, session: dict):
     form = PurchaseWizardStep1Form(request.POST, project=project)
-
     if not form.is_valid():
-        context = {
-            "project": project,
-            "step": 1,
-            "steps": STEPS,
-            "current_step": STEPS[1],
-            "form": form,
-        }
-        if operation:
-            context["operation"] = operation
-        return render(
-            request,
-            "app_operation/purchase_wizard.html",
-            context,
-        )
-
-    # If editing existing operation, update it (except vendor which is immutable)
-    if operation:
-        operation.date = form.cleaned_data["date"]
-        operation.description = form.cleaned_data["description"]
-        operation.save()
-        messages.success(request, _("Basic information updated."))
-        return redirect(
-            "purchase_wizard_step",
-            pk=project.pk,
-            operation_pk=operation.pk,
-            step=2,
-        )
-
-    # New purchase: store to session
-    request.session[session_key] = {
+        return render(request, "app_operation/purchase_wizard.html", {
+            "project": project, "step": 1, "steps": STEPS,
+            "current_step": STEPS[1], "form": form,
+        })
+    session.update({
         "date": form.cleaned_data["date"].isoformat(),
         "vendor_id": form.cleaned_data["vendor"].pk,
         "description": form.cleaned_data["description"],
-    }
-    request.session.modified = True
-
-    messages.success(request, _("Basic information saved. Now add invoice items."))
-    return redirect("purchase_wizard_step2_new", pk=project.pk)
-
-
-# Step 2 handlers
+        "items": session.get("items", []),
+    })
+    _save_session(request, project.pk, session)
+    return redirect("purchase_wizard_step_new", pk=project.pk, step=2)
 
 
-def _get_step_2_context(request, project, operation):
-    """Render Step 2: invoice items formset."""
-    if operation:
-        formset = InvoiceItemCreateFormSet(instance=operation, project=project)
-        step1_data = {
-            "date": operation.date.isoformat(),
-            "vendor": operation.destination,
-            "description": operation.description,
-        }
+def _handle_step_2_post(request, project, session: dict):
+    next_param = request.POST.get("next", "")
+    form = PurchaseWizardStep2Form(request.POST)
+    if not form.is_valid():
+        return render(request, "app_operation/purchase_wizard.html", {
+            "project": project, "step": 2, "steps": STEPS,
+            "current_step": STEPS[2], "form": form,
+            "step1_data": _resolve_step1_display(session),
+            "next_param": next_param,
+        })
+    session["total_amount"] = str(form.cleaned_data["total_amount"])
+    _save_session(request, project.pk, session)
+    if next_param == "invoice":
+        return redirect("purchase_invoice", pk=project.pk)
+    return redirect("purchase_wizard_step_new", pk=project.pk, step=3)
+
+
+def _handle_step_3_post(request, project, session: dict):
+    next_param = request.POST.get("next", "")
+    form = PurchaseWizardStep3Form(request.POST)
+    if not form.is_valid():
+        return render(request, "app_operation/purchase_wizard.html", {
+            "project": project, "step": 3, "steps": STEPS,
+            "current_step": STEPS[3], "form": form,
+            "total_amount": session.get("total_amount"),
+            "next_param": next_param,
+        })
+    paid = form.cleaned_data["amount_paid"]
+    total = Decimal(session["total_amount"])
+    if paid > total:
+        form.add_error("amount_paid", _("Payment cannot exceed the declared total."))
+        return render(request, "app_operation/purchase_wizard.html", {
+            "project": project, "step": 3, "steps": STEPS,
+            "current_step": STEPS[3], "form": form,
+            "total_amount": session.get("total_amount"),
+            "next_param": next_param,
+        })
+    session["amount_paid"] = str(paid)
+    _save_session(request, project.pk, session)
+    return redirect("purchase_invoice", pk=project.pk)
+
+
+# ---------------------------------------------------------------------------
+# Invoice hub
+# ---------------------------------------------------------------------------
+
+@debug_view
+def purchase_invoice_view(request, pk):
+    project, redir = _load_project(request, pk)
+    if redir:
+        return redir
+
+    session = _get_session(request, pk)
+    if "total_amount" not in session:
+        messages.error(request, _("Session expired. Please start from the beginning."))
+        return redirect("purchase_wizard_step1", pk=pk)
+
+    total_amount = Decimal(session["total_amount"])
+    raw_items = session.get("items", [])
+
+    # Augment each item with display fields
+    items = []
+    for item in raw_items:
+        try:
+            template = ProductTemplate.objects.get(pk=item["product_template_id"])
+            template_name = template.name
+        except ProductTemplate.DoesNotExist:
+            template_name = _("(unknown)")
+        qty = Decimal(item["quantity"])
+        price = Decimal(item["unit_price"])
+        items.append({**item, "template_name": template_name, "total_price": qty * price})
+
+    items_total = _items_total(raw_items)
+    difference = total_amount - items_total
+    submit_enabled = abs(difference) <= Decimal("0.01")
+
+    vendor = _resolve_step1_display(session).get("vendor")
+
+    return render(request, "app_operation/purchase_invoice.html", {
+        "project": project,
+        "session_data": session,
+        "items": items,
+        "items_total": items_total,
+        "difference": difference,
+        "submit_enabled": submit_enabled,
+        "vendor": vendor,
+    })
+
+
+# ---------------------------------------------------------------------------
+# Select template
+# ---------------------------------------------------------------------------
+
+@debug_view
+def purchase_select_template_view(request, pk):
+    project, redir = _load_project(request, pk)
+    if redir:
+        return redir
+
+    session = _get_session(request, pk)
+    if "total_amount" not in session:
+        messages.error(request, _("Session expired. Please start from the beginning."))
+        return redirect("purchase_wizard_step1", pk=pk)
+
+    templates = ProductTemplate.objects.filter(entities=project).order_by("nature", "name")
+    return render(request, "app_operation/purchase_select_template.html", {
+        "project": project,
+        "templates": templates,
+    })
+
+
+# ---------------------------------------------------------------------------
+# Add / edit item
+# ---------------------------------------------------------------------------
+
+@debug_view
+def purchase_add_item_view(request, pk, idx=None):
+    project, redir = _load_project(request, pk)
+    if redir:
+        return redir
+
+    session = _get_session(request, pk)
+    if "total_amount" not in session:
+        messages.error(request, _("Session expired. Please start from the beginning."))
+        return redirect("purchase_wizard_step1", pk=pk)
+
+    items = session.setdefault("items", [])
+    is_edit = idx is not None
+
+    # Resolve template
+    if request.method == "POST":
+        try:
+            template_pk = int(request.POST.get("product_template_id", 0))
+        except (ValueError, TypeError):
+            messages.error(request, _("Invalid product template."))
+            return redirect("purchase_select_template", pk=pk)
+    elif is_edit:
+        if idx < 0 or idx >= len(items):
+            messages.warning(request, _("Item not found."))
+            return redirect("purchase_invoice", pk=pk)
+        template_pk = items[idx]["product_template_id"]
     else:
-        formset = InvoiceItemCreateFormSet(
-            instance=PurchaseOperation(), project=project
-        )
-        session_key = f"purchase_wizard_{project.pk}"
-        step1_data = request.session.get(session_key, {})
+        try:
+            template_pk = int(request.GET.get("template_id", 0))
+        except (ValueError, TypeError):
+            template_pk = 0
 
-    return {
-        "formset": formset,
-        "step1_data": step1_data,
-    }
+    template = get_object_or_404(ProductTemplate, pk=template_pk, entities=project)
 
+    if request.method == "POST":
+        form = PurchaseItemForm(request.POST, template=template)
+        if form.is_valid():
+            cd = form.cleaned_data
+            # Duplicate unique_id guard
+            uid = (cd.get("unique_id") or "").strip()
+            if uid and template.requires_individual_tag:
+                for i, existing in enumerate(items):
+                    if i == idx:
+                        continue
+                    if (existing["product_template_id"] == template.pk
+                            and existing.get("unique_id") == uid):
+                        form.add_error("unique_id", _("This Tag/ID is already used by another item."))
+                        break
 
-def _handle_step_2_post(request, project, operation):
-    """Handle Step 2 POST: create Operation with invoice items."""
-    session_key = f"purchase_wizard_{project.pk}"
-
-    if not operation and session_key not in request.session:
-        messages.error(
-            request, _("Session expired. Please start from the beginning.")
-        )
-        return redirect("purchase_wizard_step1", pk=project.pk)
-
-    # Get step 1 data
-    if operation:
-        step1_data = {
-            "date": operation.date,
-            "vendor": operation.destination,
-            "description": operation.description,
-        }
+        if form.is_valid():
+            cd = form.cleaned_data
+            item_data = {
+                "idx": idx if is_edit else len(items),
+                "product_template_id": template.pk,
+                "description": cd.get("description", ""),
+                "quantity": str(cd["quantity"]),
+                "unit_price": str(cd["unit_price"]),
+                "unique_id": (cd.get("unique_id") or "").strip(),
+                "received_qty": str(cd["received_qty"]),
+            }
+            if is_edit:
+                items[idx] = item_data
+            else:
+                items.append(item_data)
+            _save_session(request, project.pk, session)
+            return redirect("purchase_invoice", pk=pk)
     else:
-        session_data = request.session.get(session_key, {})
-        from datetime import datetime
+        if is_edit:
+            item = items[idx]
+            initial = {
+                "product_template_id": template.pk,
+                "description": item.get("description", ""),
+                "quantity": item["quantity"],
+                "unit_price": item["unit_price"],
+                "unique_id": item.get("unique_id", ""),
+                "received_qty": item.get("received_qty", "0"),
+            }
+        else:
+            initial = {"product_template_id": template.pk, "received_qty": "0"}
+        form = PurchaseItemForm(initial=initial, template=template)
 
-        step1_data = {
-            "date": datetime.fromisoformat(session_data["date"]).date(),
-            "vendor": get_object_or_404(Entity, pk=session_data["vendor_id"]),
-            "description": session_data["description"],
-        }
+    return render(request, "app_operation/purchase_add_item.html", {
+        "project": project,
+        "form": form,
+        "template": template,
+        "is_edit": is_edit,
+        "idx": idx,
+    })
 
-    # Validate formset (with unsaved instance)
-    formset = InvoiceItemCreateFormSet(
-        request.POST, instance=PurchaseOperation(), project=project
-    )
 
-    if not formset.is_valid():
-        return render(
-            request,
-            "app_operation/purchase_wizard.html",
-            {
-                "project": project,
-                "step": 2,
-                "steps": STEPS,
-                "current_step": STEPS[2],
-                "formset": formset,
-                "step1_data": step1_data,
-            },
-        )
+# ---------------------------------------------------------------------------
+# Delete item
+# ---------------------------------------------------------------------------
 
-    # Compute amount from formset rows
-    amount = Decimal("0")
-    for form in formset.forms:
-        if form.cleaned_data and not form.cleaned_data.get("DELETE"):
-            qty = form.cleaned_data.get("quantity") or Decimal("0")
-            price = form.cleaned_data.get("unit_price") or Decimal("0")
-            amount += qty * price
+def purchase_delete_item_view(request, pk, idx):
+    if request.method != "POST":
+        return redirect("purchase_invoice", pk=pk)
 
-    if amount == 0:
-        messages.error(request, _("Total amount must be greater than zero."))
-        return render(
-            request,
-            "app_operation/purchase_wizard.html",
-            {
-                "project": project,
-                "step": 2,
-                "steps": STEPS,
-                "current_step": STEPS[2],
-                "formset": formset,
-                "step1_data": step1_data,
-            },
-        )
+    session = _get_session(request, pk)
+    items = session.get("items", [])
+    if 0 <= idx < len(items):
+        items = [item for i, item in enumerate(items) if i != idx]
+        for i, item in enumerate(items):
+            item["idx"] = i
+        session["items"] = items
+        _save_session(request, pk, session)
+    return redirect("purchase_invoice", pk=pk)
 
-    # Atomic: create operation and save invoice items
+
+# ---------------------------------------------------------------------------
+# Final submit
+# ---------------------------------------------------------------------------
+
+def purchase_submit_view(request, pk):
+    if request.method != "POST":
+        return redirect("purchase_invoice", pk=pk)
+
+    project, redir = _load_project(request, pk)
+    if redir:
+        return redir
+
+    session = _get_session(request, pk)
+    if "total_amount" not in session:
+        messages.error(request, _("Session expired. Please start from the beginning."))
+        return redirect("purchase_wizard_step1", pk=pk)
+
+    items = session.get("items", [])
+    if not items:
+        messages.error(request, _("Add at least one item before submitting."))
+        return redirect("purchase_invoice", pk=pk)
+
     try:
-        with transaction.atomic():
-            op = PurchaseOperation.objects.create(
-                source=project,
-                destination=step1_data["vendor"],
-                amount=amount,
-                date=step1_data["date"],
-                description=step1_data["description"],
-                officer=request.user,
-                operation_type="PURCHASE",
-            )
-
-            # Re-bind formset to saved operation and save
-            bound_formset = InvoiceItemCreateFormSet(
-                request.POST, instance=op, project=project
-            )
-            bound_formset.is_valid()
-            bound_formset.save()
-
-            # Create Product instances
-            op.save_inventory(bound_formset)
-
+        op = _do_submit(request, project, session)
     except Exception as e:
-        messages.error(
-            request,
-            _("Error creating operation: %(error)s") % {"error": str(e)},
-        )
-        return render(
-            request,
-            "app_operation/purchase_wizard.html",
-            {
-                "project": project,
-                "step": 2,
-                "steps": STEPS,
-                "current_step": STEPS[2],
-                "formset": formset,
-                "step1_data": step1_data,
-            },
-        )
+        logger.exception("Error during purchase submit")
+        messages.error(request, _("Error: %(e)s") % {"e": str(e)})
+        return redirect("purchase_invoice", pk=pk)
 
-    # Clean up session
-    if session_key in request.session:
-        del request.session[session_key]
-        request.session.modified = True
-
-    messages.success(
-        request,
-        _("Invoice items saved. You can now record payment (optional)."),
-    )
-    return redirect("purchase_wizard_step", pk=project.pk, operation_pk=op.pk, step=3)
+    _clear_session(request, pk)
+    messages.success(request, _("Purchase recorded successfully."))
+    return redirect("operation_detail_view", pk=op.pk)
 
 
-# Step 3 handlers
+@transaction.atomic
+def _do_submit(request, project, session_data: dict):
+    date_val = datetime.fromisoformat(session_data["date"]).date()
+    vendor = get_object_or_404(Entity, pk=session_data["vendor_id"])
+    desc = session_data.get("description", "")
+    total = Decimal(session_data["total_amount"])
+    paid = Decimal(session_data.get("amount_paid", "0"))
+    items = session_data["items"]
 
-
-def _get_step_3_context(request, project, operation):
-    """Render Step 3: optional cash payment."""
-    return {
-        "operation": operation,
-        "amount_remaining": operation.amount_remaining_to_settle,
-    }
-
-
-def _handle_step_3_post(request, project, operation):
-    """Handle Step 3 POST: optional payment transaction."""
-    amount_paid_str = request.POST.get("amount_paid", "").strip()
-
-    # If blank or zero, skip
-    if not amount_paid_str or amount_paid_str == "0":
-        messages.info(request, _("Skipped payment recording."))
-        return redirect(
-            "purchase_wizard_step",
-            pk=project.pk,
-            operation_pk=operation.pk,
-            step=4,
+    # Integrity check
+    computed = _items_total(items)
+    if abs(computed - total) > Decimal("0.01"):
+        raise ValueError(
+            _("Items total %(items)s does not match declared total %(total)s.")
+            % {"items": computed, "total": total}
         )
 
-    # Parse amount
-    try:
-        amount_paid = Decimal(amount_paid_str)
-    except Exception:
-        messages.error(request, _("Invalid payment amount."))
-        return render(
-            request,
-            "app_operation/purchase_wizard.html",
-            {
-                "project": project,
-                "step": 3,
-                "steps": STEPS,
-                "current_step": STEPS[3],
-                "operation": operation,
-                "amount_remaining": operation.amount_remaining_to_settle,
-            },
-        )
-
-    # Validate
-    if amount_paid <= 0:
-        messages.error(request, _("Payment amount must be greater than zero."))
-        return render(
-            request,
-            "app_operation/purchase_wizard.html",
-            {
-                "project": project,
-                "step": 3,
-                "steps": STEPS,
-                "current_step": STEPS[3],
-                "operation": operation,
-                "amount_remaining": operation.amount_remaining_to_settle,
-            },
-        )
-
-    if amount_paid > operation.amount_remaining_to_settle:
-        messages.error(
-            request,
-            _(
-                "Payment cannot exceed remaining balance of %(balance)s."
-                % {"balance": operation.amount_remaining_to_settle}
-            ),
-        )
-        return render(
-            request,
-            "app_operation/purchase_wizard.html",
-            {
-                "project": project,
-                "step": 3,
-                "steps": STEPS,
-                "current_step": STEPS[3],
-                "operation": operation,
-                "amount_remaining": operation.amount_remaining_to_settle,
-            },
-        )
-
-    # Create payment transaction
-    try:
-        with transaction.atomic():
-            operation.create_payment_transaction(
-                amount=amount_paid,
-                officer=request.user,
-                date=operation.date,
-                description=f"Instant payment for Purchase #{operation.pk}",
-            )
-    except Exception as e:
-        messages.error(
-            request,
-            _("Error recording payment: %(error)s") % {"error": str(e)},
-        )
-        return render(
-            request,
-            "app_operation/purchase_wizard.html",
-            {
-                "project": project,
-                "step": 3,
-                "steps": STEPS,
-                "current_step": STEPS[3],
-                "operation": operation,
-                "amount_remaining": operation.amount_remaining_to_settle,
-            },
-        )
-
-    messages.success(request, _("Payment recorded."))
-    return redirect(
-        "purchase_wizard_step",
-        pk=project.pk,
-        operation_pk=operation.pk,
-        step=4,
+    # 1. Create operation
+    op = PurchaseOperation.objects.create(
+        source=project,
+        destination=vendor,
+        amount=total,
+        date=date_val,
+        description=desc,
+        officer=request.user,
+        operation_type="PURCHASE",
     )
 
+    movement_lines = []
 
-# Step 4 handlers
+    for item_data in items:
+        template = get_object_or_404(ProductTemplate, pk=item_data["product_template_id"])
 
-
-def _get_step_4_context(request, project, operation):
-    """Render Step 4: optional inventory movement."""
-    movement = InventoryMovement.objects.filter(operation=operation).first()
-
-    if movement:
-        formset = InventoryMovementLineFormSet(instance=movement, operation=operation)
-    else:
-        formset = InventoryMovementLineFormSet(
-            instance=InventoryMovement(), operation=operation
+        # 2. Create InvoiceItem
+        from apps.app_inventory.models import InvoiceItem
+        invoice_item = InvoiceItem.objects.create(
+            operation=op,
+            product=template,
+            description=item_data.get("description", ""),
+            quantity=Decimal(item_data["quantity"]),
+            unit_price=Decimal(item_data["unit_price"]),
         )
 
-    return {
-        "operation": operation,
-        "formset": formset,
-        "movement": movement,
-    }
-
-
-def _handle_step_4_post(request, project, operation):
-    """Handle Step 4 POST: optional inventory movement."""
-    # Check if formset has any data (detect skip)
-    formset = InventoryMovementLineFormSet(
-        request.POST, instance=InventoryMovement(), operation=operation
-    )
-
-    # Count non-empty rows
-    has_data = False
-    for form in formset.forms:
-        if form.cleaned_data and form.cleaned_data.get("invoice_item"):
-            has_data = True
-            break
-
-    if not has_data:
-        messages.info(request, _("Skipped goods receipt recording."))
-        return redirect("operation_detail_view", pk=operation.pk)
-
-    # Validate formset
-    if not formset.is_valid():
-        movement = InventoryMovement.objects.filter(operation=operation).first()
-        return render(
-            request,
-            "app_operation/purchase_wizard.html",
-            {
-                "project": project,
-                "step": 4,
-                "steps": STEPS,
-                "current_step": STEPS[4],
-                "operation": operation,
-                "formset": formset,
-                "movement": movement,
-            },
+        # 3. Create Product and link via M2M (replicates save_inventory PURCHASE branch)
+        uid = (item_data.get("unique_id") or "").strip() or None
+        product = Product.objects.create(
+            entity=vendor,
+            product_template=template,
+            quantity=Decimal(item_data["quantity"]),
+            unit_price=Decimal(item_data["unit_price"]),
+            unique_id=uid,
         )
+        product.invoice_items.add(invoice_item)
 
-    # Create inventory movement
-    try:
-        with transaction.atomic():
-            movement = InventoryMovement(
-                operation=operation,
-                date=operation.date,
-                officer=request.user,
-                notes=request.POST.get("notes", ""),
+        received_qty = Decimal(item_data.get("received_qty", "0"))
+        if received_qty > Decimal("0"):
+            movement_lines.append((invoice_item, received_qty))
+
+    # 4. InventoryMovement if any received quantities
+    if movement_lines:
+        movement = InventoryMovement.objects.create(
+            operation=op,
+            date=date_val,
+            officer=request.user,
+            notes="",
+        )
+        for invoice_item, received_qty in movement_lines:
+            InventoryMovementLine.objects.create(
+                movement=movement,
+                invoice_item=invoice_item,
+                quantity=received_qty,
             )
-            movement.full_clean()
-            movement.save()
 
-            bound_formset = InventoryMovementLineFormSet(
-                request.POST, instance=movement, operation=operation
-            )
-            bound_formset.is_valid()
-            bound_formset.save()
-
-    except Exception as e:
-        messages.error(
-            request,
-            _("Error recording goods movement: %(error)s") % {"error": str(e)},
-        )
-        movement = InventoryMovement.objects.filter(operation=operation).first()
-        return render(
-            request,
-            "app_operation/purchase_wizard.html",
-            {
-                "project": project,
-                "step": 4,
-                "steps": STEPS,
-                "current_step": STEPS[4],
-                "operation": operation,
-                "formset": formset,
-                "movement": movement,
-            },
+    # 5. Payment transaction
+    if paid > Decimal("0"):
+        op.create_payment_transaction(
+            amount=paid,
+            officer=request.user,
+            date=date_val,
+            description=_("Payment for Purchase #%(pk)s") % {"pk": op.pk},
         )
 
-    messages.success(request, _("Goods movement recorded."))
-    return redirect("operation_detail_view", pk=operation.pk)
+    DebugContext.success("Purchase submitted", {"operation_pk": op.pk})
+    return op

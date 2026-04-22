@@ -30,7 +30,7 @@
         <div class="mt-2">
             <div class="input-group">
                 <span class="input-group-text">$</span>
-                <input type="text" id="grand-total" class="form-control" readonly value="0.00">
+                <input type="text" class="form-control grand-total-display" readonly value="0.00">
             </div>
             <input type="hidden" id="id_total_amount" name="total_amount">
         </div>
@@ -40,3 +40,13 @@
         <strong>{% trans "Step 2 of 4:" %}</strong> {% trans "Add the items included in this purchase" %}
     </div>
 </form>
+
+<script>
+document.getElementById('wizard-form').addEventListener('submit', function () {
+    var isDesktop = window.matchMedia('(min-width: 768px)').matches;
+    var selectorToDisable = isDesktop ? '#item-formset-body-mobile' : '#item-formset-body';
+    document.querySelectorAll(selectorToDisable + ' input, ' + selectorToDisable + ' select').forEach(function (el) {
+        el.disabled = true;
+    });
+});
+</script>

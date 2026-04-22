@@ -7,6 +7,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
 
+from apps.app_base.debug import DebugContext, debug_model_save
 from apps.app_base.mixins import (
     AdjustableMixin,
     AmountCleanMixin,
@@ -262,6 +263,8 @@ class Operation(
         return super().clean()
 
     def save(self, *args, **kwargs):
+        is_new = self.pk is None
+
         # Auto-assign the period that contains this operation's date (never creates one).
         if (
             self.pk is None
@@ -289,8 +292,10 @@ class Operation(
 
         def _validate_invoice_items(op):
             items = op.items.all()
+            DebugContext.log(f"Validating {items.count()} invoice items", {"operation_pk": op.pk})
             for item in items:
                 item.full_clean()
+            DebugContext.success(f"All {items.count()} invoice items validated")
 
         kwargs.setdefault("post_save_tasks", []).append(
             (
@@ -299,7 +304,18 @@ class Operation(
                 {},
             )
         )
-        return super().save(*args, **kwargs)
+
+        with DebugContext.section(f"Operation.save() ({self.operation_type})", {
+            "is_new": is_new,
+            "pk": self.pk,
+            "source": str(self.source),
+            "destination": str(self.destination),
+            "amount": float(self.amount),
+            "date": str(self.date),
+        }):
+            result = super().save(*args, **kwargs)
+            DebugContext.success("Operation saved", {"pk": self.pk})
+            return result
 
     def save_inventory(self, bound_formset):
         """

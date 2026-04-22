@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django import forms
 from django.utils.translation import gettext_lazy as _
 
@@ -33,3 +35,102 @@ class PurchaseWizardStep1Form(forms.Form):
                 active=True,
             ).values_list("target_id", flat=True)
             self.fields["vendor"].queryset = Entity.objects.filter(pk__in=vendor_ids)
+
+
+class PurchaseWizardStep2Form(forms.Form):
+    """Form for purchase wizard step 2: declared invoice total."""
+
+    total_amount = forms.DecimalField(
+        label=_("Total Invoice Amount"),
+        min_value=Decimal("0.01"),
+        decimal_places=2,
+        max_digits=20,
+        widget=forms.NumberInput(
+            attrs={"class": "form-control", "step": "0.01", "placeholder": "0.00"}
+        ),
+    )
+
+
+class PurchaseWizardStep3Form(forms.Form):
+    """Form for purchase wizard step 3: optional initial payment."""
+
+    amount_paid = forms.DecimalField(
+        label=_("Payment Amount"),
+        min_value=Decimal("0"),
+        decimal_places=2,
+        max_digits=20,
+        required=False,
+        widget=forms.NumberInput(
+            attrs={"class": "form-control", "step": "0.01", "placeholder": "0.00"}
+        ),
+    )
+
+    def clean_amount_paid(self):
+        value = self.cleaned_data.get("amount_paid")
+        return value if value is not None else Decimal("0")
+
+
+class PurchaseItemForm(forms.Form):
+    """Form for adding or editing a single invoice item in the purchase invoice view."""
+
+    product_template_id = forms.IntegerField(widget=forms.HiddenInput)
+
+    description = forms.CharField(
+        label=_("Description"),
+        required=False,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": _("Optional")}),
+    )
+
+    quantity = forms.DecimalField(
+        label=_("Quantity"),
+        min_value=Decimal("0.01"),
+        decimal_places=2,
+        max_digits=10,
+        widget=forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
+    )
+
+    unit_price = forms.DecimalField(
+        label=_("Unit Price"),
+        min_value=Decimal("0.01"),
+        decimal_places=2,
+        max_digits=15,
+        widget=forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
+    )
+
+    unique_id = forms.CharField(
+        label=_("Tag / ID"),
+        required=False,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": _("Tag / ID")}),
+    )
+
+    received_qty = forms.DecimalField(
+        label=_("Received Qty"),
+        min_value=Decimal("0"),
+        decimal_places=2,
+        max_digits=10,
+        required=False,
+        initial=Decimal("0"),
+        help_text=_("Quantity physically received (0 = none yet)"),
+        widget=forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
+    )
+
+    def __init__(self, *args, template=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._template = template
+
+    def clean(self):
+        cleaned: dict = super().clean() or {}
+        template = self._template
+
+        if template and template.requires_individual_tag:
+            uid = (cleaned.get("unique_id") or "").strip()
+            if not uid:
+                self.add_error("unique_id", _("Tag / ID is required for this product."))
+
+        received: Decimal = cleaned.get("received_qty") or Decimal("0")
+        qty: Decimal = cleaned.get("quantity") or Decimal("0")
+        if received > qty:
+            self.add_error("received_qty", _("Received quantity cannot exceed ordered quantity."))
+
+        cleaned["received_qty"] = received
+        return cleaned

@@ -1,0 +1,2774 @@
+Untranslated Strings Report
+================================================================================
+
+
+apps/app_adjustment/models.py
+--------------------------------------------------------------------------------
+  Line 115: Returns True if this type flows in the reversed direction (target pays source).
+
+  Line 235: Records a correction to one or more InvoiceItems on a PURCHASE or SALE.
+
+    Res
+  Line 310: Reversal records must not copy the OneToOneField — they have no
+        accounti
+  Line 316: Compute the net delta from all lines, create the accounting Adjustment,
+        
+  Line 369: Reverse the item adjustment:
+        1. Reverse the linked Adjustment (counter-t
+  Line 395: One line of an InvoiceItemAdjustment.
+
+    Records how a single InvoiceItem was 
+  Line 441: Positive = invoice total increased; negative = decreased.
+
+apps/app_adjustment/tests/test_adjustment.py
+--------------------------------------------------------------------------------
+  Line 79: Seed balance
+  Line 93: Test purchase
+  Line 109: Test sale
+  Line 125: Test expense
+  Line 151: Verify that saving an Adjustment creates exactly one issuance transaction
+    of
+  Line 161: Test Farm Project
+  Line 166: Vendor Ltd
+  Line 169: Client Co
+  Line 180: Setup injection
+  Line 215: Transaction direction must match the adjustment's own source/target funds.
+
+    
+  Line 243: Verify that direction (payment_source_fund / payment_target_fund) is
+    correct
+  Line 256: Test Farm
+  Line 261: Vendor Ltd
+  Line 284: Typo in invoice
+  Line 302: Missed line item
+  Line 314: Validate business rules enforced in Adjustment.clean():
+    - Only PURCHASE, SAL
+  Line 327: Test Farm
+  Line 332: Vendor Ltd
+  Line 358: Cash injection operations cannot be adjusted.
+  Line 381: Client Co
+  Line 390: Setup injection
+  Line 412: Miscounted items
+  Line 456: After save, the fields `operation`, `type`, `amount`, and `effect`
+    must be i
+  Line 465: Test Farm
+  Line 470: Vendor Ltd
+  Line 481: Second Vendor
+  Line 506: Verify that `operation.effective_amount` (from AdjustableMixin) correctly
+    re
+  Line 515: Test Farm
+  Line 520: Vendor Ltd
+  Line 580: Verify the full reversal lifecycle for Adjustment:
+    - reverse() creates a cou
+  Line 592: Test Farm
+  Line 597: Vendor Ltd
+  Line 639: Original has 1 PURCHASE_ADJUSTMENT; after reversal there should be 2.
+
+apps/app_adjustment/tests/test_invoice_item_adjustment.py
+--------------------------------------------------------------------------------
+  Line 1: Tests for InvoiceItemAdjustment and InvoiceItemAdjustmentLine.
+
+Concern breakdow
+  Line 155: finalize() creates the Adjustment with correct type/amount/effect,
+    and the i
+  Line 253: Saving a line creates the correct ProductLedgerEntry rows.
+  Line 376: Model-level validation rules.
+  Line 457: Fields on both models cannot be changed after save.
+  Line 505: Reversing an InvoiceItemAdjustment creates counter-transactions
+    and counter-
+
+apps/app_base/management/commands/seed.py
+--------------------------------------------------------------------------------
+  Line 10: Fattening Cattle
+  Line 10: ماشية تسمين
+  Line 11: Dairy Cows
+  Line 11: أبقار حليب
+  Line 12: Breeding Bulls
+  Line 12: فحول تكاثر
+  Line 13: Replacement Heifers
+  Line 13: بكاير / تليعات
+  Line 15: Fattening Lambs
+  Line 15: خراف تسمين
+  Line 16: Breeding Ewes
+  Line 16: نعاج تكاثر
+  Line 17: Breeding Rams
+  Line 17: كباش تكاثر
+  Line 18: Fattening Kids
+  Line 18: جداء تسمين
+  Line 19: Breeding Does
+  Line 19: عنزات تكاثر
+  Line 20: Breeding Bucks
+  Line 20: تيوس تكاثر
+  Line 21: Fattening Camels (Hashi)
+  Line 21: حاشي تسمين
+  Line 22: Breeding / Dairy Camels
+  Line 22: نوق تكاثر / حليب
+  Line 23: Stud Camels
+  Line 23: فحول إبل
+  Line 25: Donkeys / Mules
+  Line 25: حمير / بغال
+  Line 26: Fattening Buffaloes
+  Line 26: جاموس تسمين
+  Line 27: Dairy Buffaloes
+  Line 27: جاموس حليب
+  Line 28: Breeding Buffalo Bulls
+  Line 28: فحول جاموس
+  Line 29: Replacement Buffalo Heifers
+  Line 29: بكاير جاموس
+  Line 30: Buffalo Calves
+  Line 30: عجول جاموس
+  Line 31: Broiler Chickens
+  Line 31: دجاج تسمين
+  Line 32: Laying Hens
+  Line 32: دجاج بياض
+  Line 33: Poultry Parent Stock
+  Line 33: أمهات الدواجن
+  Line 34: Fattening Turkeys
+  Line 34: ديوك رومية تسمين
+  Line 35: Breeding Turkeys
+  Line 35: أمهات ديوك رومية
+  Line 36: Fattening Ducks / Geese
+  Line 36: بط / إوز تسمين
+  Line 37: Breeding Ducks / Geese
+  Line 37: أمهات بط وإوز
+  Line 38: Fattening Rabbits
+  Line 38: أرانب تسمين
+  Line 39: Breeding Rabbits
+  Line 39: أمهات أرانب
+  Line 42: Honeybee Colonies
+  Line 42: طوائف نحل
+  Line 47: Corn / Maize
+  Line 48: Wheat Bran
+  Line 48: نخالة القمح
+  Line 49: Soybean Meal
+  Line 49: وجبة فول الصويا
+  Line 50: Concentrated Feed Mix
+  Line 50: خليط علف مركز
+  Line 54: Green Fodder
+  Line 54: علف أخضر
+  Line 55: Mineral & Salt Blocks
+  Line 55: كتل معدنية وملحية
+  Line 57: Vitamin Premix
+  Line 58: خليط فيتامينات مسبق التحضير
+  Line 64: Alfalfa / Lucerne
+  Line 64: برسيم حجازي
+  Line 66: Cottonseed Meal
+  Line 66: كسب بذور القطن
+  Line 67: Fish Meal
+  Line 67: مسحوق السمك
+  Line 70: مضادات حيوية
+  Line 71: مضادات الطفيليات
+  Line 74: Injectable Vitamins
+  Line 75: فيتامينات قابلة للحقن
+  Line 82: Wound Treatments
+  Line 82: علاجات الجروح
+  Line 83: Growth Promoters
+  Line 83: محفزات النمو
+  Line 84: مطهرات ومعقمات
+  Line 86: IV Fluids / Electrolytes
+  Line 87: سوائل وريدية / أملاح
+  Line 94: Raw Milk
+  Line 94: حليب خام
+  Line 95: Meat (Live Weight)
+  Line 95: لحم (وزن حي)
+  Line 97: Wool / Fiber
+  Line 97: صوف / ألياف
+  Line 98: Hides / Leather
+  Line 100: Organic Manure
+  Line 100: سماد عضوي
+  Line 101: Offspring (Weaned)
+  Line 101: ذرية (مفطومة)
+  Line 102: Breeding Semen
+  Line 102: سائل منوي للتلقيح
+  Line 103: شمع النحل
+  Line 104: Propolis / Bee Glue
+  Line 104: عكبر / صمغ النحل
+  Line 105: Royal Jelly
+  Line 105: غذاء ملكات النحل
+  Line 113: Labor & Personnel
+  Line 115: Permanent Staff Salaries
+  Line 117: Labor & Personnel: Monthly wages
+  Line 120: Casual/Daily Labor
+  Line 122: Labor & Personnel: One-off help
+  Line 125: Security Services
+  Line 127: Labor & Personnel: Security fees
+  Line 130: Staff Training & PPE
+  Line 132: Labor & Personnel: Safety gear and training
+  Line 135: Workers' Compensation
+  Line 137: Labor & Personnel: Insurance for employees
+  Line 140: Professional Services
+  Line 142: Veterinary Consultation
+  Line 144: Professional Services: Clinical fees
+  Line 147: Breeding/AI Technical Fees
+  Line 149: Professional Services: AI fees
+  Line 152: Shearing/Hoof Trimming
+  Line 154: Professional Services: Maintenance
+  Line 157: Laboratory & Diagnostics
+  Line 159: Professional Services: Testing and lab fees
+  Line 162: Pedigree & Registration
+  Line 164: Professional Services: Breed association fees
+  Line 167: Infrastructure & Utilities
+  Line 171: Utilities: Power & Heating
+  Line 174: Water Access Fees
+  Line 176: Utilities: Pumping & Access
+  Line 179: Machinery Servicing
+  Line 181: Utilities: Repairs labor
+  Line 184: Irrigation Maintenance
+  Line 186: Utilities: Repairs to water systems
+  Line 189: Waste & Manure Management
+  Line 191: Environmental: Disposal and treatment
+  Line 194: Internet & Communications
+  Line 196: Utilities: Farm connectivity
+  Line 199: Land & Logistics
+  Line 201: Land Lease/Rent
+  Line 203: Fixed: Grazing land lease
+  Line 206: Pasture Maintenance
+  Line 208: Land: Fertilizers, seeds, and weed control
+  Line 211: Animal Transport
+  Line 213: Logistics: Trucking services
+  Line 216: Slaughter Fees
+  Line 218: Logistics: Abattoir service fees
+  Line 221: Maintenance & Fuel
+  Line 223: Fuel (Diesel/Petrol)
+  Line 225: Maintenance: Vehicle and generator fuel
+  Line 228: Lubricants & Grease
+  Line 230: Maintenance: Oil and machinery fluids
+  Line 233: Fencing & Gate Repairs
+  Line 235: Maintenance: Boundary and paddock upkeep
+  Line 238: Building & Shed Repairs
+  Line 240: Maintenance: Structures and roofing
+  Line 243: Small Tools & Supplies
+  Line 245: Maintenance: Workshop consumables
+  Line 248: Marketing & Sales
+  Line 250: Marketing & Advertising
+  Line 252: Sales: Promoting products/livestock
+  Line 255: Sales Commissions
+  Line 257: Sales: Broker or auctioneer fees
+  Line 260: Packaging & Branding
+  Line 262: Sales: Labels and design
+  Line 265: Administrative & Finance
+  Line 267: Insurance Premiums
+  Line 269: Admin: Livestock and property coverage
+  Line 272: Accounting & Legal
+  Line 274: Admin: Professional consultancy
+  Line 277: Licenses & Permits
+  Line 279: Admin: Regulatory compliance fees
+  Line 282: Bank Fees & Interest
+  Line 284: Admin: Transaction and loan costs
+  Line 287: Stationery & Office
+  Line 289: Admin: Printing and office supplies
+  Line 296: Seed initial data: users, entities, and inventory categories
+  Line 311: Created superuser: admin
+  Line 313: Superuser 'admin' already exists, skipping.
+  Line 319: User 'officer' already exists, skipping.
+  Line 325: Created officer user (is_staff=True).
+  Line 331: World entity already exists, skipping.
+  Line 335: Created world entity with active fund.
+  Line 341: System entity already exists, skipping.
+  Line 345: Created system entity with active fund.
+  Line 381: product templates, updated
+  Line 381: product templates.
+  Line 386: All product templates already exist and are up to date, skipping.
+  Line 405: default financial categories.
+  Line 408: Default financial categories already exist, skipping.
+
+apps/app_base/managers.py
+--------------------------------------------------------------------------------
+  Line 47: A model manager that return active models only (models that has no delete_at fie
+
+apps/app_base/mixins.py
+--------------------------------------------------------------------------------
+  Line 34: Ensure the save() method will never update immutable fields
+  Line 68: Ensure amount will never be zero or less
+  Line 93: Easy wat to calculate the net amount after all adjustments
+  Line 196: Indicates if this reord can/should be linked to a transaction that its type is *
+  Line 338: indicates whther this record can be linked to one or more transactions
+  Line 343: Indicates if this record can/should be linked to a single transaction of type pa
+  Line 348: Indicates if this record can/should be linked to more than one payment transacti
+  Line 491: indicates whther this record can be linked to one or more transactions
+
+apps/app_base/models.py
+--------------------------------------------------------------------------------
+  Line 69: Overridden to simulate forms.clean{field_name} Clean all fields and raise a Vali
+  Line 153: returns the issuance transaction type.
+  Line 157: returns the payment transaction type.
+  Line 218: returns a list of transaction types that should be reversed
+        during the r
+  Line 229: returns a list of transaction that can be implicity reversed during this object
+
+
+apps/app_entity/models/__init__.py
+--------------------------------------------------------------------------------
+  Line 303: Fund balance as of dt (a date or datetime).
+        Includes reversed and revers
+  Line 316: Helper to sum transactions of specific types in a given direction.
+  Line 338: Helper to sum transactions excluding those reversed before dt.
+  Line 428: P&L for a project fund, driven entirely by issuance/adjustment transactions.
+
+  
+  Line 465: Sum amounts, negating reversal transactions for cross-period correctness.
+
+apps/app_entity/models/category.py
+--------------------------------------------------------------------------------
+  Line 30: Financial Categories
+  Line 55: Financial Categories Entities Relations
+
+apps/app_entity/templates/app_entity/category/category_bulk_form.html
+--------------------------------------------------------------------------------
+  Line 101: EventListener
+  Line 102: Toggle all checkboxes within a specific Aspect card
+  Line 103: SelectorAll
+  Line 104: Checkbox.addEventListener
+  Line 106: SelectorAll
+  Line 107: Each
+
+apps/app_entity/templates/app_entity/category/category_relation_edit_form.html
+--------------------------------------------------------------------------------
+  Line 59: Expense
+
+apps/app_entity/templates/app_entity/entity_detail.html
+--------------------------------------------------------------------------------
+  Line 63: Edit
+
+apps/app_entity/templates/app_entity/entity_list.html
+--------------------------------------------------------------------------------
+  Line 42: Dropdown" data-bs-toggle
+
+apps/app_entity/templates/app_entity/project_form.html
+--------------------------------------------------------------------------------
+  Line 24: Q1 Infrastructure Expansion" required
+
+apps/app_entity/templates/app_entity/project_setup_wizard.html
+--------------------------------------------------------------------------------
+  Line 11: Progress breadcrumb
+  Line 26: Step progress indicator
+  Line 132: Step content
+  Line 158: Navigation buttons
+  Line 187: Skip form: POST with no changes, advances to next step
+  Line 190: Form.addEventListener
+  Line 191: Default
+  Line 192: Create a hidden form that POSTs and redirects
+  Line 193: Element
+  Line 194: POST
+  Line 196: Child
+  Line 203: Custom template tag helper since Django doesn't have get
+  Line 204: Note: The template uses
+  Line 206: Library
+  Line 208: KeyError, TypeError, IndexError
+
+apps/app_entity/templates/app_entity/setup/step_1_project.html
+--------------------------------------------------------------------------------
+  Line 11: Q1 Infrastructure Expansion" required
+
+apps/app_entity/templates/app_entity/setup/step_2_categories.html
+--------------------------------------------------------------------------------
+  Line 13: Section A: Already linked categories grouped by aspect
+  Line 46: Section B: Available categories grouped by aspect
+  Line 89: Hidden form for skipping
+  Line 101: SelectorAll
+  Line 102: Checkbox.addEventListener
+  Line 104: SelectorAll
+  Line 105: Each
+
+apps/app_entity/templates/app_entity/setup/step_3_templates.html
+--------------------------------------------------------------------------------
+  Line 50: Hidden form for skipping
+  Line 62: SelectorAll
+  Line 63: Checkbox.addEventListener
+  Line 65: SelectorAll
+  Line 66: Each
+
+apps/app_entity/templates/app_entity/setup/step_5_vendors.html
+--------------------------------------------------------------------------------
+  Line 28: Person
+  Line 30: Project
+
+apps/app_entity/templates/app_entity/snippets/entity_edit_link.html
+--------------------------------------------------------------------------------
+  Line 1: Determine the correct edit URL based on the entity type
+  Line 4: Edit Person
+  Line 7: Edit Project
+  Line 9: Fallback for System
+  Line 11: Edit Entity
+
+apps/app_entity/templatetags/custom_filters.py
+--------------------------------------------------------------------------------
+  Line 8: Get item from dict or list by key.
+  Line 19: Add two values.
+
+apps/app_entity/templatetags/string_utils.py
+--------------------------------------------------------------------------------
+  Line 8: Returns the value split by the key.
+    Usage: {{ "Label: Error"|split:":" }}
+  Line 17: Returns the value split by the key.
+    Usage: {{ "Label: Error"|split:":" }}
+
+apps/app_entity/views/add_stakeholder.py
+--------------------------------------------------------------------------------
+  Line 17: No project match the supplied query pk
+  Line 28: Only People can be assigned as Workers.
+  Line 30: Only People can be assigned as Shareholders.
+  Line 32: is not configured as a Vendor.
+  Line 34: is not configured as a Client.
+  Line 37: Configuration Error:
+  Line 45: Successfully added
+
+apps/app_entity/views/category/category_bulk_assign.py
+--------------------------------------------------------------------------------
+  Line 50: Successfully added
+  Line 50: categories, remove
+  Line 53: No new categories were added.
+  Line 55: Bulk creation failed:
+
+apps/app_entity/views/category/category_relation_edit.py
+--------------------------------------------------------------------------------
+  Line 29: Category '
+  Line 36: Category '
+  Line 44: Category '
+  Line 50: Update failed:
+
+apps/app_entity/views/edit_contact_info.py
+--------------------------------------------------------------------------------
+  Line 31: contact updated.
+  Line 35: Update Error:
+
+apps/app_entity/views/edit_stakeholder.py
+--------------------------------------------------------------------------------
+  Line 24: Stakeholder: Updated details for
+  Line 28: Update Error:
+
+apps/app_entity/views/person_create.py
+--------------------------------------------------------------------------------
+  Line 31: created with Fund ID #
+  Line 36: System Error:
+
+apps/app_entity/views/person_edit.py
+--------------------------------------------------------------------------------
+  Line 12: This entity is not a Person.
+  Line 29: Identity for
+  Line 29: updated successfully.
+  Line 33: Update failed:
+
+apps/app_entity/views/project_edit.py
+--------------------------------------------------------------------------------
+  Line 12: This entity is not a Project.
+  Line 28: Project '
+  Line 32: Update failed:
+
+apps/app_entity/views/project_setup_wizard.py
+--------------------------------------------------------------------------------
+  Line 22: Project Info
+  Line 32: Multi-step project setup wizard.
+    - Step 1: Create/edit project (Entity)
+    
+  Line 87: Create or edit project entity.
+  Line 143: Manage financial category links: create/activate/deactivate relations.
+  Line 204: Assign product templates to entity.
+  Line 241: Add worker stakeholders.
+  Line 251: Add vendor stakeholders.
+  Line 261: Add shareholder stakeholders. Final step, redirect to entity_detail.
+  Line 304: Generic handler for workers, vendors, and other stakeholders.
+  Line 359: Build context dict for the current step.
+
+apps/app_inventory/forms.py
+--------------------------------------------------------------------------------
+  Line 22: One row = one Product to be created (animal born / purchased).
+    `unique_id` i
+  Line 35: — select —
+  Line 36: form-select form-select-sm
+  Line 40: Tag / ID
+  Line 41: Required for individually tracked animals.
+  Line 43: Tag / ID
+  Line 43: form-control form-control-sm
+  Line 54: form-control form-control-sm
+  Line 55: Description (optional)
+  Line 73: Tag / ID is required for individually tracked animals.
+  Line 79: Passes `project` down to each InvoiceItemCreateForm.
+  Line 110: One row = one existing Product being referenced (sold / died / gained / lost).
+ 
+  Line 118: Animal / Batch
+  Line 119: — select —
+  Line 120: form-select form-select-sm
+  Line 129: form-control form-control-sm
+  Line 130: Description (optional)
+  Line 161: One row = one InvoiceItem being physically moved (received/dispatched).
+    Pass
+  Line 169: Invoice Item
+  Line 170: — select —
+  Line 171: form-select form-select-sm
+  Line 180: form-control form-control-sm
+  Line 196: Passes `operation` down to each InventoryMovementLineForm.
+
+apps/app_inventory/management/commands/backfill_product_ledger.py
+--------------------------------------------------------------------------------
+  Line 7: Backfill ProductLedgerEntry rows from existing Operation items. Safe to re-run —
+  Line 38: (already existed).
+  Line 38: Done. Created
+  Line 38: entries, skipped
+
+apps/app_inventory/models.py
+--------------------------------------------------------------------------------
+  Line 16: Append-only ledger of inventory events per product.
+
+    Every operation that ch
+  Line 68: Write ledger entries for every product linked to *operation*.
+
+        Must be c
+  Line 133: Write a ledger correction for a single InvoiceItemAdjustmentLine.
+
+        Sign 
+  Line 196: Write ledger entries for one InventoryMovementLine.
+
+        Direction is implic
+  Line 263: Return {"quantity": ..., "value": ...} for *product* up to *as_of*.
+  Line 275: Return a queryset of dicts — one per product still in stock for *entity*
+       
+  Line 294: Return InvoiceItems from PURCHASE operations where the delivered quantity
+      
+  Line 565: Raise ValidationError if product can't participate in operations.
+        SOLD/D
+  Line 605: Header record for a physical delivery or dispatch batch.
+    Linked to a PURCHAS
+  Line 641: Reverse every non-yet-reversed line in this movement.
+  Line 663: One line in an InventoryMovement.  Records the quantity of a specific
+    Invoic
+  Line 740: Create a reversal line (and its movement header if not supplied).
+        Writes
+
+apps/app_inventory/templates/app_inventory/inventory_movement_form.html
+--------------------------------------------------------------------------------
+  Line 37: Y-m-d
+  Line 121: DELETE
+  Line 157: EventListener
+  Line 158: Button
+  Line 159: Body
+  Line 160: Forms
+  Line 161: Prefix
+  Line 163: Button
+  Line 164: Button.addEventListener
+  Line 165: Default
+  Line 166: Count
+  Line 169: Clear inputs
+  Line 171: SelectorAll
+  Line 172: Each
+  Line 176: Update field names
+  Line 177: Form.querySelectorAll
+  Line 181: RegExp
+  Line 182: Prefix
+  Line 184: Attribute
+  Line 187: RegExp
+  Line 188: Prefix
+  Line 194: Body.appendChild
+  Line 195: Forms.value
+  Line 199: Remove row
+  Line 200: EventListener
+  Line 202: Default
+  Line 204: Checkbox
+  Line 205: Checkbox
+  Line 206: Checkbox.checked
+
+apps/app_inventory/templates/app_inventory/product_detail.html
+--------------------------------------------------------------------------------
+  Line 18: ACTIVE
+  Line 26: SOLD
+  Line 120: ACTIVE
+  Line 122: SOLD
+
+apps/app_inventory/templates/app_inventory/product_template_detail.html
+--------------------------------------------------------------------------------
+  Line 123: ACTIVE
+  Line 125: SOLD
+  Line 153: ACTIVE
+  Line 155: SOLD
+
+apps/app_inventory/templates/app_inventory/product_template_toggle_form.html
+--------------------------------------------------------------------------------
+  Line 58: LANGUAGE
+  Line 97: SelectorAll
+  Line 98: Checkbox.addEventListener
+  Line 100: SelectorAll
+  Line 101: Each
+
+apps/app_inventory/templates/app_inventory/stock_detail.html
+--------------------------------------------------------------------------------
+  Line 46: ACTIVE
+  Line 48: SOLD
+  Line 83: ACTIVE
+  Line 85: SOLD
+
+apps/app_inventory/tests/general.py
+--------------------------------------------------------------------------------
+  Line 52: Bypass BaseModel.full_clean() (which requires proxy-level methods like
+    payme
+
+apps/app_inventory/tests/test_inventory_movement.py
+--------------------------------------------------------------------------------
+  Line 45: Test creating an inventory movement for a PURCHASE operation.
+  Line 61: Test movement
+  Line 77: InventoryMovement should be created
+  Line 81: Test movement
+  Line 91: Test that non-staff users cannot create movements.
+  Line 107: Non-staff should not be able to create movements
+  Line 111: Test creating a movement for a SALE operation.
+  Line 127: Sale shipment
+  Line 143: Test that validation fails when movement qty exceeds invoice qty.
+  Line 171: Movement should not be created when qty exceeds invoice
+  Line 175: Test that GET request shows the form with empty formset.
+
+apps/app_inventory/tests/test_invoice.py
+--------------------------------------------------------------------------------
+  Line 1: The Invoice model has been removed.
+Operation.amount is the authoritative total 
+
+apps/app_inventory/tests/test_product.py
+--------------------------------------------------------------------------------
+  Line 57: Create an operation → item → product chain and return the product.
+  Line 136: base + gain - loss are applied together.
+  Line 159: A capital gain item does not change the status to SOLD or DEAD.
+  Line 166: A capital loss item does not change the status to SOLD or DEAD.
+  Line 184: AmountCleanMixin rejects unit_price=0 (must be > 0).
+
+apps/app_inventory/tests/test_product_ledger_entry.py
+--------------------------------------------------------------------------------
+  Line 61: Build op → item, link self.product to the item, return the operation.
+  Line 184: Calling record(negate=True) twice is idempotent — second call is skipped.
+  Line 203: Entries dated after as_of must not be included in the totals.
+  Line 261: Entries dated after as_of must not appear in the portfolio.
+
+apps/app_inventory/tests/test_product_template.py
+--------------------------------------------------------------------------------
+  Line 10: Fattening Calves
+  Line 11: Fattening Calves
+  Line 41: عجول تسمين
+  Line 44: عجول تسمين
+
+apps/app_inventory/views.py
+--------------------------------------------------------------------------------
+  Line 80: Manage multiple product template assignments for an entity at once.
+    Verifies
+  Line 87: Target entity not found
+  Line 90: The current user is not an officer
+  Line 141: List product templates assigned to an entity.
+  Line 159: Create a new Product Template (Animal, Feed, Medicine, or Product).
+    Checks f
+  Line 165: Not an officer
+  Line 208: Create an InventoryMovement header + lines for a PURCHASE or SALE operation.
+   
+
+apps/app_operation/admin.py
+--------------------------------------------------------------------------------
+  Line 16: Operation Details
+  Line 17: Period & Plan
+  Line 29: <a href="{}">{}</a>
+  Line 47: <a href="{}">{}</a>
+
+apps/app_operation/forms.py
+--------------------------------------------------------------------------------
+  Line 8: Form for purchase wizard step 1: basic info (date, vendor, description).
+
+apps/app_operation/models/managers.py
+--------------------------------------------------------------------------------
+  Line 23: Re-casts each Operation instance in the queryset to its correct proxy subclass.
+
+  Line 45: Cast a single Operation instance to its proxy subclass.
+  Line 55: Manager that includes soft-deleted records.
+
+apps/app_operation/models/operation.py
+--------------------------------------------------------------------------------
+  Line 43: Central financial operation record.
+    All type-specific logic lives in proxy s
+  Line 118: Resolves a request into a unified config + entity dict.
+        Call on the prox
+  Line 192: Allow the reversal to set in a different period than the original.
+        Open 
+  Line 229: Returns the URL-role entity — the entity whose financial period this
+        ope
+  Line 260: Cannot create an operation whose date falls within a closed financial period.
+  Line 287: Cannot create an operation: no financial period covers this operation's date.
+  Line 305: Called inside an atomic block after the formset is saved.
+        - create-mode 
+
+apps/app_operation/models/operation_type.py
+--------------------------------------------------------------------------------
+  Line 5: Cash Injection
+  Line 6: Cash Withdrawal
+  Line 7: Project Funding
+  Line 8: Project Refund
+  Line 9: Profit Distribution
+  Line 10: Loss Coverage
+  Line 11: Internal Transfer
+  Line 19: Correction Credit
+  Line 20: Correction Debit
+
+apps/app_operation/models/period.py
+--------------------------------------------------------------------------------
+  Line 14: An accounting period for one entity.
+    Interval semantics: [start_date, end_da
+  Line 42: Financial Period
+  Line 43: Financial Periods
+  Line 64: Sum of active (non-reversed) ProfitDistribution operations on this period.
+  Line 77: Sum of active (non-reversed) LossCoverage operations on this period.
+  Line 90: How much profit is still available to distribute.
+  Line 97: How much loss is still available to be covered (positive number).
+  Line 104: True if shareholder allocations sum to ~100% (float tolerance).
+  Line 115: Sum incoming transactions of the given types into entity's fund.
+        Reverse
+  Line 133: Sum outgoing transactions of the given types from entity's fund.
+        Reverse
+  Line 152: Entity fund balance as of end_date (cumulative, not period-only).
+        Return
+  Line 162: Net inventory value as of end_date:
+            total purchase amounts (entity a
+  Line 190: Amount the entity is owed as creditor (lent out but not yet repaid):
+           
+  Line 202: Advance amounts the entity paid to workers not yet recovered:
+            paid v
+  Line 218: Total assets at end_date:
+            cash balance + remaining inventory + outst
+  Line 239: Amount the entity owes as debtor (received but not yet repaid):
+            rece
+  Line 251: Advance amounts received by the entity (as a worker) not yet repaid:
+           
+  Line 267: Total obligations against the entity at end_date:
+            loans received but
+  Line 278: Derive amount from entity.profit_loss(self) and save.
+        The period must be
+  Line 288: FinancialPeriod | None
+  Line 289: Close this period by setting end_date.
+        If the entity is still active, au
+  Line 296: This period is already closed.
+  Line 302: end_date must be strictly after start_date (
+  Line 319: end_date must be strictly greater than start_date.
+  Line 325: Only project entities can have a profit/loss amount.
+  Line 329: Cannot set profit/loss amount on an open period. Close the period first.
+  Line 336: Ensure no existing period for this entity overlaps with [start_date, end_date).
+  Line 357: This period overlaps with an existing financial period for this entity.
+  Line 362: Period [
+  Line 362: ] for
+
+apps/app_operation/models/proxies/__init__.py
+--------------------------------------------------------------------------------
+  Line 55: Resolves a URL string to the corresponding proxy class.
+    The proxy class carr
+  Line 69: Factory helper. Returns the correct proxy class for a given operation type.
+    
+
+apps/app_operation/models/proxies/op_birth.py
+--------------------------------------------------------------------------------
+  Line 8: Records a livestock birth event.
+
+    A birth creates a new Animal/Batch in inve
+  Line 50: Birth source must be the System entity.
+
+apps/app_operation/models/proxies/op_capital_gain.py
+--------------------------------------------------------------------------------
+  Line 12: Capital Gain Issuance
+  Line 30: Capital Gain
+  Line 44: Capital Gain source must be the System entity.
+
+apps/app_operation/models/proxies/op_capital_loss.py
+--------------------------------------------------------------------------------
+  Line 12: Capital Loss Issuance
+  Line 30: Capital Loss
+  Line 42: Capital Loss destination must be the System entity.
+
+apps/app_operation/models/proxies/op_cash_injection.py
+--------------------------------------------------------------------------------
+  Line 12: Cash Injection
+  Line 27: Cash Injection
+  Line 39: Cash Injection source must be the World entity.
+  Line 43: Cash Injection must target a Person entity.
+
+apps/app_operation/models/proxies/op_cash_withdrawal.py
+--------------------------------------------------------------------------------
+  Line 12: Cash Withdrawal
+  Line 26: Cash Withdrawal
+  Line 38: Cash Withdrawal source must be a Person entity.
+  Line 43: Cash Withdrawal destination must be the World entity.
+
+apps/app_operation/models/proxies/op_consumption.py
+--------------------------------------------------------------------------------
+  Line 8: Records internal consumption of a product we own.
+
+    Consumption removes an ex
+  Line 52: Consumption source must be a Project entity.
+  Line 56: Consumption destination must be the System entity.
+
+apps/app_operation/models/proxies/op_correction_credit.py
+--------------------------------------------------------------------------------
+  Line 12: Correction Credit
+  Line 31: Correction Credit
+  Line 43: Correction Credit source must be the System entity.
+  Line 48: Correction Credit destination must be a Project entity.
+
+apps/app_operation/models/proxies/op_correction_debit.py
+--------------------------------------------------------------------------------
+  Line 12: Correction Debit
+  Line 31: Correction Debit
+  Line 43: Correction Debit source must be a Project entity.
+  Line 48: Correction Debit destination must be the System entity.
+
+apps/app_operation/models/proxies/op_death.py
+--------------------------------------------------------------------------------
+  Line 8: Records a livestock death event.
+
+    A death removes an existing Animal/Batch f
+  Line 49: Death destination must be the System entity.
+
+apps/app_operation/models/proxies/op_expense.py
+--------------------------------------------------------------------------------
+  Line 12: Expense Issuance
+  Line 47: Expense source must be a Project entity.
+  Line 51: Expense destination must be the World entity.
+
+apps/app_operation/models/proxies/op_internal_transfer.py
+--------------------------------------------------------------------------------
+  Line 13: Internal Transfer
+  Line 26: Internal Transfer
+  Line 49: Internal Transfer source must be an internal entity.
+  Line 53: Internal Transfer destination must be an internal entity.
+  Line 57: Internal Transfer source cannot be a system or world entity.
+  Line 61: Internal Transfer destination cannot be a system or world entity.
+  Line 66: ) is less than transfer amount (
+  Line 66: Insufficient funds: source fund balance (
+
+apps/app_operation/models/proxies/op_loan.py
+--------------------------------------------------------------------------------
+  Line 15: Debt Issuance
+  Line 27: Loan Recovery
+
+apps/app_operation/models/proxies/op_loss_coverage.py
+--------------------------------------------------------------------------------
+  Line 15: Loss Coverage
+  Line 31: Loss Coverage
+  Line 66: Loss Coverage requires a Distribution Plan.
+  Line 70: The linked Distribution Plan has no loss to cover (amount=
+  Line 89: exceeds remaining coverable loss
+  Line 90: for this plan.
+
+apps/app_operation/models/proxies/op_profit_distribution.py
+--------------------------------------------------------------------------------
+  Line 14: Profit Distribution
+  Line 32: Profit Distribution
+  Line 53: Profit Distribution source must be a Project entity.
+  Line 72: Profit Distribution destination must be a Shareholder.
+  Line 77: Profit Distribution requires a Distribution Plan.
+  Line 81: The linked Distribution Plan has no profit to distribute (amount=
+  Line 100: exceeds remaining distributable profit
+  Line 101: for this plan.
+
+apps/app_operation/models/proxies/op_project_funding.py
+--------------------------------------------------------------------------------
+  Line 13: Project Funding
+  Line 26: Project Funding
+  Line 61: Project Funding source must be a Person entity.
+  Line 66: Project Funding destination must be a Project entity.
+  Line 82: The funding source must be a registered shareholder of the project.
+  Line 97: , cannot fund
+  Line 97: Insufficient funds: balance is
+
+apps/app_operation/models/proxies/op_project_refund.py
+--------------------------------------------------------------------------------
+  Line 13: Project Refund
+  Line 28: Project Refund
+  Line 63: Project Refund source must be a Project entity.
+  Line 67: Project Refund destination must be a Person entity.
+  Line 82: The refund destination must be a registered shareholder of the project.
+  Line 97: , cannot refund
+  Line 97: Insufficient project funds: balance is
+  Line 131: Refund amount
+  Line 131: exceeds the net amount funded (
+  Line 132: ) by this shareholder.
+
+apps/app_operation/models/proxies/op_purchase.py
+--------------------------------------------------------------------------------
+  Line 12: Purchase Issuance
+  Line 51: Purchase source must be a Project entity.
+  Line 68: Purchase destination must be a Vendor entity.
+  Line 78: Purchase destination must be an active vendor of the source project.
+
+apps/app_operation/models/proxies/op_sale.py
+--------------------------------------------------------------------------------
+  Line 12: Sale Issuance
+  Line 53: Sale source must be a Client entity.
+  Line 63: Sale source must be an active client of the destination project.
+  Line 81: Sale destination must be a Project entity.
+
+apps/app_operation/models/proxies/op_worker_advance.py
+--------------------------------------------------------------------------------
+  Line 13: Worker Advance Issuance
+  Line 22: Advance Repayment
+  Line 27: Worker Advance
+  Line 39: Worker advance source should be a project.
+  Line 56: Worker Advance destination must be a person entity.
+  Line 66: Worker Advance destination must be an active worker in the selected project.
+  Line 75: ) is less than the advance amount (
+  Line 75: Insufficient funds: project fund balance (
+
+apps/app_operation/models/share_allocation.py
+--------------------------------------------------------------------------------
+  Line 10: Instructional (advisory) percentage for a shareholder within a FinancialPeriod.
+
+  Line 28: Shareholder Allocation
+  Line 29: Shareholder Allocations
+  Line 45: Allocation target must be a shareholder entity.
+  Line 47: Percent cannot be negative.
+  Line 51: % of
+
+apps/app_operation/signals.py
+--------------------------------------------------------------------------------
+  Line 6: Auto-create an opening FinancialPeriod whenever a real (non-virtual) Entity is c
+
+apps/app_operation/templates/app_operation/add_payment_form.html
+--------------------------------------------------------------------------------
+  Line 53: ElementById
+  Line 54: Input
+  Line 55: Amount
+  Line 57: EventListener
+  Line 59: Input.value
+  Line 60: Input.readOnly
+  Line 62: Input.readOnly
+
+apps/app_operation/templates/app_operation/evaluation_form.html
+--------------------------------------------------------------------------------
+  Line 113: UnitPrice
+  Line 115: UnitPriceInput
+  Line 116: Preview
+  Line 118: Number
+  Line 119: Intl.NumberFormat
+  Line 120: FractionDigits: 2
+  Line 121: FractionDigits: 2
+  Line 125: UnitPriceInput.addEventListener
+  Line 126: Price
+  Line 127: Price
+  Line 128: Preview.style.display
+  Line 132: Price - currentUnitPrice
+  Line 134: Math.abs
+  Line 135: Preview.style.display
+  Line 139: Gain
+  Line 140: Preview.className
+  Line 141: ElementById
+  Line 144: ElementById
+  Line 146: Preview.style.display
+
+apps/app_operation/templates/app_operation/generic_form.html
+--------------------------------------------------------------------------------
+  Line 61: OperationConfig
+  Line 64: Logic flags from your backend config
+  Line 66: PartiallyPayable
+  Line 67: Status
+  Line 68: Prefix: "items
+  Line 69: Category
+
+apps/app_operation/templates/app_operation/operation_detail.html
+--------------------------------------------------------------------------------
+  Line 95: SALE,PURCHASE
+
+apps/app_operation/templates/app_operation/operation_list.html
+--------------------------------------------------------------------------------
+  Line 71: Loan Repayment
+
+apps/app_operation/templates/app_operation/purchase_wizard.html
+--------------------------------------------------------------------------------
+  Line 113: OperationConfig
+  Line 114: Prefix: 'items
+  Line 115: Category: false
+
+apps/app_operation/templates/app_operation/purchase_wizard/step_4_movement.html
+--------------------------------------------------------------------------------
+  Line 26: Y-m-d
+  Line 90: DELETE
+  Line 128: DELETE
+  Line 150: EventListener
+  Line 151: Simple formset add row logic
+  Line 152: Button
+  Line 153: ElementById
+  Line 154: FormsInput
+  Line 156: Button
+  Line 157: Button.addEventListener
+  Line 158: Default
+  Line 160: Count
+  Line 163: Update form indices
+  Line 164: Row.querySelectorAll
+  Line 167: Name.replace
+  Line 171: Id.replace
+  Line 176: Child
+  Line 177: FormsInput.value
+
+apps/app_operation/templates/app_operation/snippets/create-form/category.html
+--------------------------------------------------------------------------------
+  Line 4: Category
+
+apps/app_operation/templates/app_operation/snippets/create-form/expected-direction.html
+--------------------------------------------------------------------------------
+  Line 6: External World
+  Line 8: System
+  Line 12: Selected Source
+  Line 18: External World
+  Line 20: System
+  Line 24: Selected Destination
+
+apps/app_operation/templates/app_operation/snippets/create-form/invoice_formset.html
+--------------------------------------------------------------------------------
+  Line 66: DELETE
+  Line 143: DELETE
+
+apps/app_operation/templates/app_operation/snippets/create-form/partial_payment_subform.html
+--------------------------------------------------------------------------------
+  Line 8: Payment Terms
+  Line 40: Recording as full payment of total amount.
+
+apps/app_operation/templates/app_operation/snippets/transactions_table.html
+--------------------------------------------------------------------------------
+  Line 59: Issuance' in tx.label
+  Line 160: Issuance' in tx.label
+
+apps/app_operation/tests/test_capital_gain.py
+--------------------------------------------------------------------------------
+  Line 25: Test Project
+  Line 34: Test capital gain
+  Line 55: Issuance transaction should be created
+  Line 59: Payment transaction should be created
+  Line 101: Regular Person
+  Line 165: Other Project
+  Line 175: Other Project 2
+  Line 209: Source is the system entity; no fund balance gate on payment.
+  Line 221: Test Project
+  Line 229: Test capital gain
+
+apps/app_operation/tests/test_capital_loss.py
+--------------------------------------------------------------------------------
+  Line 25: Test Project
+  Line 34: Test capital loss
+  Line 55: Issuance transaction should be created
+  Line 59: Payment transaction should be created
+  Line 95: Seed balance
+  Line 141: Non System Person
+  Line 195: Other Project
+  Line 204: Other Project
+  Line 238: Destination is the system entity; no fund balance gate on payment.
+  Line 250: Test Project
+  Line 258: Test capital loss
+
+apps/app_operation/tests/test_cash_injection.py
+--------------------------------------------------------------------------------
+  Line 27: Receiver Person
+  Line 36: Test cash injection
+  Line 60: Issuance transaction should be created
+  Line 64: Payment transaction should be created
+  Line 109: Test Project
+  Line 178: Other Source Person
+  Line 187: Other Source Person
+  Line 223: Payer is the world entity; balance is not enforced before issuing payment.
+  Line 227: World entity is never balance-checked; injection proceeds without limit.
+  Line 256: Receiver Person
+  Line 265: Test cash injection
+
+apps/app_operation/tests/test_cash_withdrawal.py
+--------------------------------------------------------------------------------
+  Line 29: Withdrawer Person
+  Line 42: Setup injection
+  Line 55: Test cash withdrawal
+  Line 80: Issuance transaction should be created
+  Line 86: Payment transaction should be created
+  Line 129: Test Project
+  Line 198: Other Source Person
+  Line 209: Other Dest Person
+  Line 278: Balance is checked before each payment transaction is created.
+  Line 282: check_balance_on_payment=True: clean() enforces balance at creation time.
+  Line 283: Broke Person
+  Line 295: Broke Person
+  Line 318: Withdrawer Person
+  Line 328: Setup injection
+  Line 338: Test cash withdrawal
+
+apps/app_operation/tests/test_correction.py
+--------------------------------------------------------------------------------
+  Line 31: Test Project
+  Line 36: Give a project fund some balance via a CapitalGain.
+  Line 43: Seed balance
+  Line 67: Test correction credit
+  Line 129: Regular Person
+  Line 161: Some Person
+  Line 215: Other Project
+  Line 224: Other Project 2
+  Line 260: Corrections bypass balance checks; admins need this to fix ledger errors.
+  Line 281: Test correction credit
+  Line 388: Test correction debit
+  Line 449: Some Person
+  Line 480: Non System Person
+  Line 541: Other Project
+  Line 553: Other Project 2
+  Line 571: Corrections bypass balance checks; admins need this to fix ledger errors.
+  Line 575: A debit for more than the fund balance must succeed — no balance gate.
+  Line 625: Test correction debit
+
+apps/app_operation/tests/test_distribution_plan.py
+--------------------------------------------------------------------------------
+  Line 37: Test Project
+  Line 41: Shareholder A
+  Line 55: Bypass SafeQuerySet to set end_date in the past so is_closed == True.
+    Also b
+  Line 68: Set amount on a period, bypassing immutability for test setup.
+  Line 108: Props Project
+  Line 109: Props Shareholder
+  Line 290: Val Project
+  Line 297: Non-project person
+  Line 331: Imm Project
+  Line 355: Alloc Project
+  Line 356: Alloc Shareholder
+  Line 390: Non Shareholder
+  Line 429: Alloc Shareholder B
+  Line 450: PD Project
+  Line 451: PD Shareholder
+  Line 500: Loss PD Project
+  Line 507: PD Loss Shareholder
+  Line 523: BreakEven PD Project
+  Line 532: PD BE Shareholder
+  Line 571: Non-SH Person
+  Line 596: LC Project
+  Line 597: LC Shareholder
+  Line 646: Profit LC Project
+  Line 655: LC Profit Shareholder
+
+apps/app_operation/tests/test_expense.py
+--------------------------------------------------------------------------------
+  Line 43: Seed a Project entity's fund via CapitalGain.
+  Line 50: Seed project balance
+  Line 55: Veterinary Consultation
+  Line 74: Tests for expense operation creation: validation, issuance transaction, and
+    
+  Line 88: Test Farm Project
+  Line 103: Test expense
+  Line 121: Issuance transaction must be created on save
+  Line 132: Payment transaction must NOT be created on save — expense is not one-shot
+  Line 151: EXPENSE_ISSUANCE is non-cash; it does not affect fund balances.
+  Line 198: Animal Sale Income
+  Line 211: Not A Project
+  Line 237: Not The World
+  Line 243: Some Person
+  Line 290: Other Project
+  Line 300: Other Destination
+  Line 320: Tests for EXPENSE_PAYMENT transactions.
+
+    The project issues an expense oblig
+  Line 333: Farm Project
+  Line 347: Test expense
+  Line 419: One issuance (created on save) + one payment = two transactions.
+  Line 451: Balance is checked before each payment transaction is created.
+  Line 455: ExpenseOperation.check_balance_on_payment = True.
+        A payment that exceeds
+  Line 468: Drain expense
+  Line 489: Tests for expense operation reversal.
+
+    Reversal is allowed only when no EXPE
+  Line 503: Farm Project
+  Line 517: Test expense
+  Line 553: Only the EXPENSE_ISSUANCE is implicitly reversed (not one-shot operation).
+  Line 574: Issuance is non-cash; reversing it leaves the project fund balance untouched.
+
+apps/app_operation/tests/test_financial_period.py
+--------------------------------------------------------------------------------
+  Line 47: Period Owner
+  Line 50: Return the period that was auto-created when the entity was created.
+  Line 168: Other Entity
+  Line 182: Auto Period Person
+  Line 186: Auto Period Project
+  Line 200: Date Check Person
+  Line 211: Tests for the auto-assign and closed-period guard on Operation.
+  Line 216: Receiver Assign
+  Line 292: A date that falls before the entity's period start is not in any closed
+        
+  Line 304: With an inactive entity, close() creates no next period; the following operation
+
+apps/app_operation/tests/test_internal_transfer.py
+--------------------------------------------------------------------------------
+  Line 37: Seed balance
+  Line 46: Source Person
+  Line 47: Destination Person
+  Line 59: Test internal transfer
+  Line 128: External Person
+  Line 171: External Dest
+  Line 238: Other Source
+  Line 248: Other Dest
+  Line 281: Balance is enforced by clean() at creation; no per-payment gate needed.
+  Line 289: Source Person
+  Line 290: Destination Person
+  Line 300: Test internal transfer
+  Line 400: Tests for get_related_entities — the method that populates the destination
+    d
+  Line 409: Source Person
+  Line 411: Other Internal Person
+  Line 412: External Person
+  Line 414: Test Project
+
+apps/app_operation/tests/test_loan.py
+--------------------------------------------------------------------------------
+  Line 32: Seed a Person entity's fund via CashInjection.
+  Line 39: Seed balance
+  Line 45: Tests for the issuance phase of a Loan operation.
+
+    Note: LOAN_ISSUANCE is an
+  Line 57: Creditor Person
+  Line 65: Debtor Project
+  Line 74: Test loan
+  Line 129: Creditor Project
+  Line 130: Debtor Person
+  Line 211: Other Creditor
+  Line 220: Other Debtor
+  Line 238: Creditor fund balance is checked before each disbursement.
+  Line 243: Tests for LOAN_PAYMENT (disbursement) transactions, which represent
+    addition
+  Line 252: Creditor Person
+  Line 253: Debtor Person
+  Line 268: Test loan
+  Line 341: Tests for LOAN_REPAYMENT transactions — debtor returning funds to creditor.
+    
+  Line 349: Creditor Person
+  Line 350: Debtor Person
+  Line 372: Test loan
+  Line 501: Creditor Person
+  Line 502: Debtor Project
+  Line 517: Test loan
+
+apps/app_operation/tests/test_loss_coverage.py
+--------------------------------------------------------------------------------
+  Line 93: LC Create Project
+  Line 94: LC Create Shareholder
+  Line 208: LC Profit Project
+  Line 209: LC Profit Shareholder
+  Line 233: LC BreakEven Project
+  Line 234: LC BreakEven Shareholder
+  Line 284: LC Poor Project
+  Line 285: LC Poor Shareholder
+  Line 327: Other LC Source SH
+  Line 338: Other LC Destination Project
+  Line 375: LC Reversal Project
+  Line 376: LC Reversal Shareholder
+
+apps/app_operation/tests/test_profit_distribution.py
+--------------------------------------------------------------------------------
+  Line 91: PD Create Project
+  Line 92: PD Create Shareholder
+  Line 202: PD Non-project
+  Line 212: PD Non-SH
+  Line 227: PD Loss Project
+  Line 228: PD Loss Shareholder
+  Line 248: PD BreakEven Project
+  Line 249: PD BreakEven Shareholder
+  Line 295: PD Small Project
+  Line 296: PD Small Shareholder
+  Line 335: Other PD Source Project
+  Line 343: Other PD Destination SH
+  Line 379: PD Reversal Project
+  Line 380: PD Reversal Shareholder
+
+apps/app_operation/tests/test_project_funding.py
+--------------------------------------------------------------------------------
+  Line 29: Funder Person
+  Line 34: Test Project
+  Line 53: Setup injection
+  Line 66: Test project funding
+  Line 89: Issuance transaction should be created
+  Line 93: Payment transaction should be created
+  Line 128: Another Project
+  Line 141: Non Shareholder
+  Line 150: Wrong Destination
+  Line 232: Other Funder
+  Line 248: Other Project
+  Line 311: Balance is enforced by clean() at creation; no per-payment gate needed.
+  Line 325: Setup injection
+  Line 339: Funder Person
+  Line 343: Test Project
+  Line 358: Setup injection
+  Line 368: Test project funding
+
+apps/app_operation/tests/test_project_refund.py
+--------------------------------------------------------------------------------
+  Line 26: Test Project
+  Line 37: Shareholder Person
+  Line 66: Setup injection
+  Line 77: Setup funding
+  Line 88: Test project refund
+  Line 111: Issuance transaction should be created
+  Line 115: Payment transaction should be created
+  Line 150: Wrong Source
+  Line 156: Other Project
+  Line 164: Non Shareholder
+  Line 273: Other Project
+  Line 282: Other Dest Person
+  Line 344: Balance is enforced by clean() at creation; no per-payment gate needed.
+  Line 358: Setup funding
+  Line 369: Shareholder Person
+  Line 388: Setup injection
+  Line 398: Setup funding
+  Line 408: Test project refund
+
+apps/app_operation/tests/test_purchase.py
+--------------------------------------------------------------------------------
+  Line 41: Seed a Project entity's fund via CapitalGain.
+  Line 48: Seed project balance
+  Line 70: Tests for purchase operation creation: validation, issuance transaction, and
+   
+  Line 83: Test Farm Project
+  Line 91: Agri Supplies Ltd
+  Line 101: Test purchase
+  Line 119: Issuance transaction must be created on save
+  Line 130: Payment transaction must NOT be created on save — purchase is not one-shot
+  Line 149: PURCHASE_ISSUANCE is non-cash; it does not affect fund balances.
+  Line 175: Not A Project
+  Line 201: Not A Vendor
+  Line 208: Some Project
+  Line 214: Unregistered Vendor
+  Line 221: Inactive Vendor
+  Line 271: Other Project
+  Line 280: Other Vendor
+  Line 301: Tests for PURCHASE_PAYMENT transactions.
+
+    The project records a purchase obl
+  Line 313: Farm Project
+  Line 321: Agri Supplies Ltd
+  Line 330: Test purchase
+  Line 413: One issuance (created on save) + one payment = two transactions.
+  Line 445: Balance is checked before each payment transaction is created.
+  Line 449: PurchaseOperation.check_balance_on_payment = True.
+        A payment that exceed
+  Line 462: Drain purchase
+  Line 483: Tests for purchase operation reversal.
+
+    Reversal is allowed only when no PUR
+  Line 496: Farm Project
+  Line 504: Agri Supplies Ltd
+  Line 513: Test purchase
+  Line 549: Only the PURCHASE_ISSUANCE is implicitly reversed (not one-shot operation).
+  Line 570: Issuance is non-cash; reversing it leaves the project fund balance untouched.
+
+apps/app_operation/tests/test_sale.py
+--------------------------------------------------------------------------------
+  Line 45: Seed a Project entity's fund via CapitalGain.
+  Line 52: Seed project balance
+  Line 58: Seed a Client entity's fund via CapitalGain so collections can deduct from it.
+  Line 65: Seed client balance
+  Line 87: Tests for sale operation creation: validation, issuance transaction, and
+    fun
+  Line 102: Test Farm Project
+  Line 104: Big Buyer Corp
+  Line 120: Test sale
+  Line 138: Issuance transaction must be created on save
+  Line 149: Collection transaction must NOT be created on save — sale is not one-shot
+  Line 168: SALE_ISSUANCE is non-cash; it does not affect fund balances.
+  Line 178: SALE_ISSUANCE is non-cash; it does not affect fund balances.
+  Line 204: Not A Client
+  Line 210: Some Project
+  Line 236: Not A Project
+  Line 242: Unregistered Project
+  Line 249: Inactive Relationship Project
+  Line 298: Other Client
+  Line 308: Other Project
+  Line 329: Tests for SALE_COLLECTION transactions.
+
+    The project records a sale receivab
+  Line 343: Farm Project
+  Line 345: Big Buyer Corp
+  Line 360: Test sale
+  Line 443: One issuance (created on save) + one collection = two transactions.
+  Line 477: Tests for sale operation reversal.
+
+    Reversal is allowed only when no SALE_CO
+  Line 490: Farm Project
+  Line 492: Big Buyer Corp
+  Line 507: Test sale
+  Line 543: Only the SALE_ISSUANCE is implicitly reversed (not one-shot operation).
+  Line 564: Issuance is non-cash; reversing it leaves all fund balances untouched.
+  Line 613: Tests that check_balance_on_payment=True on SaleOperation is enforced.
+
+    The 
+  Line 626: Farm Project
+  Line 628: Low-Balance Client
+  Line 646: Test sale
+  Line 652: Balance is checked before each collection transaction is created.
+  Line 656: check_balance_on_payment=True: collection is rejected when the client
+        fu
+  Line 667: Partial collection that fits within the available fund balance is allowed.
+
+apps/app_operation/tests/test_worker_advance.py
+--------------------------------------------------------------------------------
+  Line 48: Seed a Person entity's fund via CashInjection.
+  Line 55: Seed balance
+  Line 61: Seed a Project entity's fund via CapitalGain.
+  Line 68: Seed project balance
+  Line 89: Tests for operation creation: validation, one-shot transactions, and fund balanc
+  Line 100: Test Farm Project
+  Line 105: Ali Worker
+  Line 115: Test worker advance
+  Line 133: Issuance transaction must be created
+  Line 137: Payment transaction must be created
+  Line 211: Not A Project
+  Line 243: Other Project
+  Line 257: Unrelated Person
+  Line 263: Inactive Worker
+  Line 271: A person with a non-WORKER stakeholder role should not be a valid destination.
+  Line 272: Client Person
+  Line 323: Other Project
+  Line 332: Other Worker
+  Line 351: Balance is enforced by clean() at creation; no per-payment gate needed.
+  Line 361: Tests for WORKER_ADVANCE_REPAYMENT transactions — worker returning the
+    advan
+  Line 373: Farm Project
+  Line 378: Ali Worker
+  Line 387: Test worker advance
+  Line 478: Tests for operation reversal.
+
+    Reversal is only allowed when no repayments e
+  Line 490: Farm Project
+  Line 495: Ali Worker
+  Line 504: Test worker advance
+
+apps/app_operation/views/create.py
+--------------------------------------------------------------------------------
+  Line 32: Return the correct formset class for this operation, bound or unbound.
+
+apps/app_operation/views/edit.py
+--------------------------------------------------------------------------------
+  Line 14: Cannot edit a reversed operation.
+  Line 25: Update saved successfully.
+  Line 28: Update Error:
+
+apps/app_operation/views/purchase_wizard.py
+--------------------------------------------------------------------------------
+  Line 19: Basic Info
+  Line 20: Invoice Items
+  Line 22: Goods Receipt
+  Line 27: Multi-step purchase wizard.
+  Line 102: Render Step 1: basic info form.
+  Line 130: Vendor cannot be changed after items are entered.
+  Line 137: Handle Step 1 POST: validate and store to session, or update existing operation.
+  Line 187: Render Step 2: invoice items formset.
+  Line 209: Handle Step 2 POST: create Operation with invoice items.
+  Line 332: Render Step 3: optional cash payment.
+  Line 340: Handle Step 3 POST: optional payment transaction.
+  Line 415: Instant payment for Purchase #
+  Line 448: Render Step 4: optional inventory movement.
+  Line 466: Handle Step 4 POST: optional inventory movement.
+
+apps/app_operation/views/record_transaction.py
+--------------------------------------------------------------------------------
+  Line 27: Invalid amount value.
+  Line 39: Payment of
+  Line 39: recorded for Operation #
+  Line 62: No Operation matches the provided info
+  Line 70: Unsupported operation type:
+  Line 75: This operation does not accept repayments:
+  Line 87: Invalid amount value.
+  Line 93: Amount must be greater than zero.
+  Line 97: exceeds remaining balance
+  Line 112: Repayment of operation #
+  Line 118: Repayment of
+  Line 118: recorded for Operation #
+
+apps/app_operation/views/reverse.py
+--------------------------------------------------------------------------------
+  Line 17: This operation has already been reversed.
+  Line 21: This operation is a reversal (You can't reverse it).
+  Line 27: Unsupported operation type.
+  Line 35: A reason for reversal is required.
+  Line 41: Successfully reversed
+  Line 46: Reversal failed:
+
+apps/app_transaction/models.py
+--------------------------------------------------------------------------------
+  Line 105: Source and target funds must be different.
+  Line 126: Transaction type '
+  Line 130: Transaction type '
+  Line 146: Transaction for
+  Line 153: Creates a counter-transaction to neutralize this transaction.
+  Line 158: Cannot reverse a transaction that is already a reversal.
+  Line 161: This transaction has already been reversed.
+  Line 180: REVERSAL of ID
+
+apps/app_transaction/transaction_type.py
+--------------------------------------------------------------------------------
+  Line 396: ) must be
+  Line 396: source '
+  Line 401: ) must be
+  Line 401: target '
+  Line 419: Transaction types that represent actual cash movement (affect balance).
+  Line 448: Transaction types that represent issuance (obligation/receivable, do not affect 
+
+debug_tools/empty_table.py
+--------------------------------------------------------------------------------
+  Line 6: Empties all data from the specified SQLite table.
+
+    Args:
+        database_fi
+  Line 18: Connected to SQLite database:
+  Line 22: DELETE FROM
+  Line 29: All rows deleted from the table '
+  Line 34: DELETE FROM sqlite_sequence WHERE name='
+  Line 38: Auto-increment counter reset.
+  Line 43: Database vacuumed to reclaim space.
+  Line 46: Error emptying table:
+  Line 52: The SQLite connection is closed.
+
+farm/asgi.py
+--------------------------------------------------------------------------------
+  Line 1: ASGI config for farm project.
+
+It exposes the ASGI callable as a module-level va
+
+farm/settings.py
+--------------------------------------------------------------------------------
+  Line 1: Django settings for farm project.
+
+Generated by 'django-admin startproject' usin
+  Line 174: {levelname} {asctime} {module} {message}
+
+farm/urls.py
+--------------------------------------------------------------------------------
+  Line 1: URL configuration for farm project.
+
+The `urlpatterns` list routes URLs to views
+
+farm/wsgi.py
+--------------------------------------------------------------------------------
+  Line 1: WSGI config for farm project.
+
+It exposes the WSGI callable as a module-level va
+
+find_untranslated_strings.py
+--------------------------------------------------------------------------------
+  Line 2: Find translatable strings that are not wrapped by translator wrappers.
+Checks bo
+  Line 15: Check for untranslated strings in Python and template files.
+  Line 41: Check if directory should be skipped.
+  Line 50: Scan Python files for untranslated strings.
+  Line 51: Scanning Python files...
+  Line 63: ⚠ Skipped
+  Line 66: Check Python file for untranslated strings.
+  Line 91: Scan template files for untranslated strings.
+  Line 92: Scanning template files...
+  Line 111: Check template file for untranslated strings.
+  Line 151: Check if text should NOT be translated.
+  Line 162: Check if a Python string should be translated.
+  Line 185: Print results organized by file.
+  Line 187: ✅ No untranslated strings found!
+  Line 190: potential untranslated strings:
+  Line 190: ⚠️  Found
+  Line 206: Save results to a file.
+  Line 208: Untranslated Strings Report
+  Line 223: 💾 Results saved to
+  Line 227: AST visitor to find strings and track if they're in translation function calls.
+  Line 240: Visit function calls.
+  Line 253: Visit string constants (Python 3.8+).
+  Line 259: Visit string nodes (Python 3.7 compatibility).
+  Line 265: Extract function name from Call node.
+  Line 274: Run the translation checker.
+
+htmlcov/class_index.html
+--------------------------------------------------------------------------------
+  Line 4132: No items found using the specified filter.
+
+htmlcov/function_index.html
+--------------------------------------------------------------------------------
+  Line 15102: No items found using the specified filter.
+
+htmlcov/index.html
+--------------------------------------------------------------------------------
+  Line 1682: No items found using the specified filter.
+
+manage.py
+--------------------------------------------------------------------------------
+  Line 2: Django's command-line utility for administrative tasks.
+  Line 8: Run administrative tasks.
+  Line 14: Couldn't import Django. Are you sure it's installed and available on your PYTHON
+
+requirements.txt
+--------------------------------------------------------------------------------
+  Line 3: Django
+  Line 11: Pygments
+  Line 16: PyYAML
+
+templates/base.html
+--------------------------------------------------------------------------------
+  Line 4: LANGUAGE
+  Line 11: ERP System
+  Line 15: LANGUAGE
+  Line 41: Content
+  Line 42: Content" aria-expanded
+  Line 43: Toggle navigation
+  Line 66: LANGUAGE
+  Line 68: LANGUAGE
+  Line 151: EventListener
+  Line 152: Auto-dismiss non-error alerts after 5 s
+  Line 153: SelectorAll
+  Line 154: List.contains
+  Line 155: Timeout
+
+untranslated_strings.txt
+--------------------------------------------------------------------------------
+  Line 1: Untranslated Strings Report
+  Line 7: Line 115: Returns True if this type flows in the reversed di
+  Line 9: Line 235: Records a correction to one or more InvoiceItems o
+  Line 12: Line 310: Reversal records must not copy the OneToOneField
+  Line 14: Line 316: Compute the net delta from all lines, create the a
+  Line 16: Line 369: Reverse the item adjustment
+  Line 17: Reverse the linked Adjustment
+  Line 18: Line 395: One line of an InvoiceItemAdjustment.
+  Line 20: Records how a single InvoiceItem was
+  Line 21: Line 441: Positive
+  Line 25: Line 79: Seed balance
+  Line 26: Line 93: Test purchase
+  Line 27: Line 109: Test sale
+  Line 28: Line 125: Test expense
+  Line 29: Line 151: Verify that saving an Adjustment creates exactly o
+  Line 31: Line 161: Test Farm Project
+  Line 32: Line 166: Vendor Ltd
+  Line 33: Line 169: Client Co
+  Line 34: Line 180: Setup injection
+  Line 35: Line 215: Transaction direction must match the adjustment's 
+  Line 38: Line 243: Verify that direction
+  Line 40: Line 256: Test Farm
+  Line 41: Line 261: Vendor Ltd
+  Line 42: Line 284: Typo in invoice
+  Line 43: Line 302: Missed line item
+  Line 44: Line 314: Validate business rules enforced in Adjustment.cle
+  Line 45: Only PURCHASE, SAL
+  Line 46: Line 327: Test Farm
+  Line 47: Line 332: Vendor Ltd
+  Line 48: Line 358: Cash injection operations cannot be adjusted.
+  Line 49: Line 381: Client Co
+  Line 50: Line 390: Setup injection
+  Line 51: Line 412: Miscounted items
+  Line 52: Line 456: After save, the fields
+  Line 54: Line 465: Test Farm
+  Line 55: Line 470: Vendor Ltd
+  Line 56: Line 481: Second Vendor
+  Line 57: Line 506: Verify that
+  Line 59: Line 515: Test Farm
+  Line 60: Line 520: Vendor Ltd
+  Line 61: Line 580: Verify the full reversal lifecycle for Adjustment
+  Line 63: Line 592: Test Farm
+  Line 64: Line 597: Vendor Ltd
+  Line 65: Line 639: Original has 1 PURCHASE
+  Line 69: Line 1: Tests for InvoiceItemAdjustment and InvoiceItemAdjus
+  Line 71: Concern breakdow
+  Line 72: Line 155: finalize
+  Line 74: Line 253: Saving a line creates the correct ProductLedgerEnt
+  Line 75: Line 376: Model-level validation rules.
+  Line 76: Line 457: Fields on both models cannot be changed after save
+  Line 77: Line 505: Reversing an InvoiceItemAdjustment creates counter
+  Line 82: Line 10: Fattening Cattle
+  Line 83: Line 10
+  Line 84: Line 11: Dairy Cows
+  Line 85: Line 11
+  Line 86: Line 12: Breeding Bulls
+  Line 87: Line 12
+  Line 88: Line 13: Replacement Heifers
+  Line 89: Line 13
+  Line 90: Line 15: Fattening Lambs
+  Line 91: Line 15
+  Line 92: Line 16: Breeding Ewes
+  Line 93: Line 16
+  Line 94: Line 17: Breeding Rams
+  Line 95: Line 17
+  Line 96: Line 18: Fattening Kids
+  Line 97: Line 18
+  Line 98: Line 19: Breeding Does
+  Line 99: Line 19
+  Line 100: Line 20: Breeding Bucks
+  Line 101: Line 20
+  Line 102: Line 21: Fattening Camels
+  Line 103: Line 21
+  Line 104: Line 22: Breeding
+  Line 105: Line 22
+  Line 106: Line 23: Stud Camels
+  Line 107: Line 23
+  Line 108: Line 25: Donkeys
+  Line 109: Line 25
+  Line 110: Line 26: Fattening Buffaloes
+  Line 111: Line 26
+  Line 112: Line 27: Dairy Buffaloes
+  Line 113: Line 27
+  Line 114: Line 28: Breeding Buffalo Bulls
+  Line 115: Line 28
+  Line 116: Line 29: Replacement Buffalo Heifers
+  Line 117: Line 29
+  Line 118: Line 30: Buffalo Calves
+  Line 119: Line 30
+  Line 120: Line 31: Broiler Chickens
+  Line 121: Line 31
+  Line 122: Line 32: Laying Hens
+  Line 123: Line 32
+  Line 124: Line 33: Poultry Parent Stock
+  Line 125: Line 33
+  Line 126: Line 34: Fattening Turkeys
+  Line 127: Line 34
+  Line 128: Line 35: Breeding Turkeys
+  Line 129: Line 35
+  Line 130: Line 36: Fattening Ducks
+  Line 131: Line 36
+  Line 132: Line 37: Breeding Ducks
+  Line 133: Line 37
+  Line 134: Line 38: Fattening Rabbits
+  Line 135: Line 38
+  Line 136: Line 39: Breeding Rabbits
+  Line 137: Line 39
+  Line 138: Line 42: Honeybee Colonies
+  Line 139: Line 42
+  Line 140: Line 47: Corn
+  Line 141: Line 48: Wheat Bran
+  Line 142: Line 48
+  Line 143: Line 49: Soybean Meal
+  Line 144: Line 49
+  Line 145: Line 50: Concentrated Feed Mix
+  Line 146: Line 50
+  Line 147: Line 54: Green Fodder
+  Line 148: Line 54
+  Line 149: Line 55: Mineral
+  Line 150: Line 55
+  Line 151: Line 57: Vitamin Premix
+  Line 152: Line 58
+  Line 153: Line 64: Alfalfa
+  Line 154: Line 64
+  Line 155: Line 66: Cottonseed Meal
+  Line 156: Line 66
+  Line 157: Line 67: Fish Meal
+  Line 158: Line 67
+  Line 159: Line 70
+  Line 160: Line 71
+  Line 161: Line 74: Injectable Vitamins
+  Line 162: Line 75
+  Line 163: Line 82: Wound Treatments
+  Line 164: Line 82
+  Line 165: Line 83: Growth Promoters
+  Line 166: Line 83
+  Line 167: Line 84
+  Line 168: Line 86: IV Fluids
+  Line 169: Line 87
+  Line 170: Line 94: Raw Milk
+  Line 171: Line 94
+  Line 172: Line 95: Meat
+  Line 173: Line 95
+  Line 174: Line 97: Wool
+  Line 175: Line 97
+  Line 176: Line 98: Hides
+  Line 177: Line 100: Organic Manure
+  Line 178: Line 100
+  Line 179: Line 101: Offspring
+  Line 180: Line 101
+  Line 181: Line 102: Breeding Semen
+  Line 182: Line 102
+  Line 183: Line 103
+  Line 184: Line 104: Propolis
+  Line 185: Line 104
+  Line 186: Line 105: Royal Jelly
+  Line 187: Line 105
+  Line 188: Line 113: Labor
+  Line 189: Line 115: Permanent Staff Salaries
+  Line 190: Line 117: Labor
+  Line 191: Line 120: Casual
+  Line 192: Line 122: Labor
+  Line 193: Line 125: Security Services
+  Line 194: Line 127: Labor
+  Line 195: Line 130: Staff Training
+  Line 196: Line 132: Labor
+  Line 197: Line 135: Workers' Compensation
+  Line 198: Line 137: Labor
+  Line 199: Line 140: Professional Services
+  Line 200: Line 142: Veterinary Consultation
+  Line 201: Line 144: Professional Services: Clinical fees
+  Line 202: Line 147: Breeding
+  Line 203: Line 149: Professional Services: AI fees
+  Line 204: Line 152: Shearing
+  Line 205: Line 154: Professional Services: Maintenance
+  Line 206: Line 157: Laboratory
+  Line 207: Line 159: Professional Services: Testing and lab fees
+  Line 208: Line 162: Pedigree
+  Line 209: Line 164: Professional Services: Breed association fees
+  Line 210: Line 167: Infrastructure
+  Line 211: Line 171: Utilities: Power
+  Line 212: Line 174: Water Access Fees
+  Line 213: Line 176: Utilities: Pumping
+  Line 214: Line 179: Machinery Servicing
+  Line 215: Line 181: Utilities: Repairs labor
+  Line 216: Line 184: Irrigation Maintenance
+  Line 217: Line 186: Utilities: Repairs to water systems
+  Line 218: Line 189: Waste
+  Line 219: Line 191: Environmental: Disposal and treatment
+  Line 220: Line 194: Internet
+  Line 221: Line 196: Utilities: Farm connectivity
+  Line 222: Line 199: Land
+  Line 223: Line 201: Land Lease
+  Line 224: Line 203: Fixed: Grazing land lease
+  Line 225: Line 206: Pasture Maintenance
+  Line 226: Line 208: Land: Fertilizers, seeds, and weed control
+  Line 227: Line 211: Animal Transport
+  Line 228: Line 213: Logistics: Trucking services
+  Line 229: Line 216: Slaughter Fees
+  Line 230: Line 218: Logistics: Abattoir service fees
+  Line 231: Line 221: Maintenance
+  Line 232: Line 223: Fuel
+  Line 233: Line 225: Maintenance: Vehicle and generator fuel
+  Line 234: Line 228: Lubricants
+  Line 235: Line 230: Maintenance: Oil and machinery fluids
+  Line 236: Line 233: Fencing
+  Line 237: Line 235: Maintenance: Boundary and paddock upkeep
+  Line 238: Line 238: Building
+  Line 239: Line 240: Maintenance: Structures and roofing
+  Line 240: Line 243: Small Tools
+  Line 241: Line 245: Maintenance: Workshop consumables
+  Line 242: Line 248: Marketing
+  Line 243: Line 250: Marketing
+  Line 244: Line 252: Sales: Promoting products
+  Line 245: Line 255: Sales Commissions
+  Line 246: Line 257: Sales: Broker or auctioneer fees
+  Line 247: Line 260: Packaging
+  Line 248: Line 262: Sales: Labels and design
+  Line 249: Line 265: Administrative
+  Line 250: Line 267: Insurance Premiums
+  Line 251: Line 269: Admin: Livestock and property coverage
+  Line 252: Line 272: Accounting
+  Line 253: Line 274: Admin: Professional consultancy
+  Line 254: Line 277: Licenses
+  Line 255: Line 279: Admin: Regulatory compliance fees
+  Line 256: Line 282: Bank Fees
+  Line 257: Line 284: Admin: Transaction and loan costs
+  Line 258: Line 287: Stationery
+  Line 259: Line 289: Admin: Printing and office supplies
+  Line 260: Line 296: Seed initial data: users, entities, and inventory 
+  Line 261: Line 311: Created superuser: admin
+  Line 262: Line 313: Superuser 'admin' already exists, skipping.
+  Line 263: Line 319: User 'officer' already exists, skipping.
+  Line 264: Line 325: Created officer user
+  Line 265: Line 331: World entity already exists, skipping.
+  Line 266: Line 335: Created world entity with active fund.
+  Line 267: Line 341: System entity already exists, skipping.
+  Line 268: Line 345: Created system entity with active fund.
+  Line 269: Line 381: product templates, updated
+  Line 270: Line 381: product templates.
+  Line 271: Line 386: All product templates already exist and are up to 
+  Line 272: Line 405: default financial categories.
+  Line 273: Line 408: Default financial categories already exist, skippi
+  Line 277: Line 47: A model manager that return active models only
+  Line 281: Line 34: Ensure the save
+  Line 282: Line 68: Ensure amount will never be zero or less
+  Line 283: Line 93: Easy wat to calculate the net amount after all adju
+  Line 284: Line 196: Indicates if this reord can
+  Line 285: Line 338: indicates whther this record can be linked to one 
+  Line 286: Line 343: Indicates if this record can
+  Line 287: Line 348: Indicates if this record can
+  Line 288: Line 491: indicates whther this record can be linked to one 
+  Line 292: Line 69: Overridden to simulate forms.clean
+  Line 293: Line 153: returns the issuance transaction type.
+  Line 294: Line 157: returns the payment transaction type.
+  Line 295: Line 218: returns a list of transaction types that should be
+  Line 297: Line 229: returns a list of transaction that can be implicit
+  Line 302: Line 303: Fund balance as of dt
+  Line 303: Includes reversed and revers
+  Line 304: Line 316: Helper to sum transactions of specific types in a 
+  Line 305: Line 338: Helper to sum transactions excluding those reverse
+  Line 306: Line 428: P
+  Line 309: Line 465: Sum amounts, negating reversal transactions for cr
+  Line 313: Line 30: Financial Categories
+  Line 314: Line 55: Financial Categories Entities Relations
+  Line 318: Line 101: EventListener
+  Line 319: Line 102: Toggle all checkboxes within a specific Aspect car
+  Line 320: Line 103: SelectorAll
+  Line 321: Line 104: Checkbox.addEventListener
+  Line 322: Line 106: SelectorAll
+  Line 323: Line 107: Each
+  Line 327: Line 59: Expense
+  Line 331: Line 63: Edit
+  Line 335: Line 42: Dropdown" data-bs-toggle
+  Line 339: Line 24: Q1 Infrastructure Expansion" required
+  Line 343: Line 11: Progress breadcrumb
+  Line 344: Line 26: Step progress indicator
+  Line 345: Line 132: Step content
+  Line 346: Line 158: Navigation buttons
+  Line 347: Line 187: Skip form: POST with no changes, advances to next 
+  Line 348: Line 190: Form.addEventListener
+  Line 349: Line 191: Default
+  Line 350: Line 192: Create a hidden form that POSTs and redirects
+  Line 351: Line 193: Element
+  Line 352: Line 194: POST
+  Line 353: Line 196: Child
+  Line 354: Line 203: Custom template tag helper since Django doesn't ha
+  Line 355: Line 204: Note: The template uses
+  Line 356: Line 206: Library
+  Line 357: Line 208: KeyError, TypeError, IndexError
+  Line 361: Line 11: Q1 Infrastructure Expansion" required
+  Line 365: Line 13: Section A: Already linked categories grouped by asp
+  Line 366: Line 46: Section B: Available categories grouped by aspect
+  Line 367: Line 89: Hidden form for skipping
+  Line 368: Line 101: SelectorAll
+  Line 369: Line 102: Checkbox.addEventListener
+  Line 370: Line 104: SelectorAll
+  Line 371: Line 105: Each
+  Line 375: Line 50: Hidden form for skipping
+  Line 376: Line 62: SelectorAll
+  Line 377: Line 63: Checkbox.addEventListener
+  Line 378: Line 65: SelectorAll
+  Line 379: Line 66: Each
+  Line 383: Line 28: Person
+  Line 384: Line 30: Project
+  Line 388: Line 1: Determine the correct edit URL based on the entity t
+  Line 389: Line 4: Edit Person
+  Line 390: Line 7: Edit Project
+  Line 391: Line 9: Fallback for System
+  Line 392: Line 11: Edit Entity
+  Line 396: Line 8: Get item from dict or list by key.
+  Line 397: Line 19: Add two values.
+  Line 401: Line 8: Returns the value split by the key.
+  Line 402: Usage
+  Line 403: Line 17: Returns the value split by the key.
+  Line 404: Usage
+  Line 408: Line 17: No project match the supplied query pk
+  Line 409: Line 28: Only People can be assigned as Workers.
+  Line 410: Line 30: Only People can be assigned as Shareholders.
+  Line 411: Line 32: is not configured as a Vendor.
+  Line 412: Line 34: is not configured as a Client.
+  Line 413: Line 37: Configuration Error
+  Line 414: Line 45: Successfully added
+  Line 418: Line 50: Successfully added
+  Line 419: Line 50: categories, remove
+  Line 420: Line 53: No new categories were added.
+  Line 421: Line 55: Bulk creation failed
+  Line 425: Line 29: Category
+  Line 426: Line 36: Category
+  Line 427: Line 44: Category
+  Line 428: Line 50: Update failed
+  Line 432: Line 31: contact updated.
+  Line 433: Line 35: Update Error
+  Line 437: Line 24: Stakeholder: Updated details for
+  Line 438: Line 28: Update Error
+  Line 442: Line 31: created with Fund ID
+  Line 443: Line 36: System Error
+  Line 447: Line 12: This entity is not a Person.
+  Line 448: Line 29: Identity for
+  Line 449: Line 29: updated successfully.
+  Line 450: Line 33: Update failed
+  Line 454: Line 12: This entity is not a Project.
+  Line 455: Line 28: Project
+  Line 456: Line 32: Update failed
+  Line 460: Line 22: Project Info
+  Line 461: Line 32: Multi-step project setup wizard.
+  Line 462: Step 1: Create
+  Line 464: Line 87: Create or edit project entity.
+  Line 465: Line 143: Manage financial category links: create
+  Line 466: Line 204: Assign product templates to entity.
+  Line 467: Line 241: Add worker stakeholders.
+  Line 468: Line 251: Add vendor stakeholders.
+  Line 469: Line 261: Add shareholder stakeholders. Final step, redirect
+  Line 470: Line 304: Generic handler for workers, vendors, and other st
+  Line 471: Line 359: Build context dict for the current step.
+  Line 475: Line 22: One row
+  Line 477: Line 35
+  Line 478: Line 36: form-select form-select-sm
+  Line 479: Line 40: Tag
+  Line 480: Line 41: Required for individually tracked animals.
+  Line 481: Line 43: Tag
+  Line 482: Line 43: form-control form-control-sm
+  Line 483: Line 54: form-control form-control-sm
+  Line 484: Line 55: Description
+  Line 485: Line 73: Tag
+  Line 486: Line 79: Passes
+  Line 487: Line 110: One row
+  Line 489: Line 118: Animal
+  Line 490: Line 119
+  Line 491: Line 120: form-select form-select-sm
+  Line 492: Line 129: form-control form-control-sm
+  Line 493: Line 130: Description
+  Line 494: Line 161: One row
+  Line 495: Pass
+  Line 496: Line 169: Invoice Item
+  Line 497: Line 170
+  Line 498: Line 171: form-select form-select-sm
+  Line 499: Line 180: form-control form-control-sm
+  Line 500: Line 196: Passes
+  Line 504: Line 7: Backfill ProductLedgerEntry rows from existing Opera
+  Line 505: Line 38
+  Line 506: Line 38: Done. Created
+  Line 507: Line 38: entries, skipped
+  Line 511: Line 16: Append-only ledger of inventory events per product.
+  Line 513: Every operation that ch
+  Line 514: Line 68: Write ledger entries for every product linked to
+  Line 516: Must be c
+  Line 517: Line 133: Write a ledger correction for a single InvoiceItem
+  Line 519: Sign
+  Line 520: Line 196: Write ledger entries for one InventoryMovementLine
+  Line 522: Direction is implic
+  Line 523: Line 263: Return
+  Line 524: Line 275: Return a queryset of dicts
+  Line 526: Line 294: Return InvoiceItems from PURCHASE operations where
+  Line 528: Line 565: Raise ValidationError if product can't participate
+  Line 529: SOLD
+  Line 530: Line 605: Header record for a physical delivery or dispatch 
+  Line 531: Linked to a PURCHAS
+  Line 532: Line 641: Reverse every non-yet-reversed line in this moveme
+  Line 533: Line 663: One line in an InventoryMovement.  Records the qua
+  Line 534: Invoic
+  Line 535: Line 740: Create a reversal line
+  Line 536: Writes
+  Line 540: Line 37: Y-m-d
+  Line 541: Line 121: DELETE
+  Line 542: Line 157: EventListener
+  Line 543: Line 158: Button
+  Line 544: Line 159: Body
+  Line 545: Line 160: Forms
+  Line 546: Line 161: Prefix
+  Line 547: Line 163: Button
+  Line 548: Line 164: Button.addEventListener
+  Line 549: Line 165: Default
+  Line 550: Line 166: Count
+  Line 551: Line 169: Clear inputs
+  Line 552: Line 171: SelectorAll
+  Line 553: Line 172: Each
+  Line 554: Line 176: Update field names
+  Line 555: Line 177: Form.querySelectorAll
+  Line 556: Line 181: RegExp
+  Line 557: Line 182: Prefix
+  Line 558: Line 184: Attribute
+  Line 559: Line 187: RegExp
+  Line 560: Line 188: Prefix
+  Line 561: Line 194: Body.appendChild
+  Line 562: Line 195: Forms.value
+  Line 563: Line 199: Remove row
+  Line 564: Line 200: EventListener
+  Line 565: Line 202: Default
+  Line 566: Line 204: Checkbox
+  Line 567: Line 205: Checkbox
+  Line 568: Line 206: Checkbox.checked
+  Line 572: Line 18: ACTIVE
+  Line 573: Line 26: SOLD
+  Line 574: Line 120: ACTIVE
+  Line 575: Line 122: SOLD
+  Line 579: Line 123: ACTIVE
+  Line 580: Line 125: SOLD
+  Line 581: Line 153: ACTIVE
+  Line 582: Line 155: SOLD
+  Line 586: Line 58: LANGUAGE
+  Line 587: Line 97: SelectorAll
+  Line 588: Line 98: Checkbox.addEventListener
+  Line 589: Line 100: SelectorAll
+  Line 590: Line 101: Each
+  Line 594: Line 46: ACTIVE
+  Line 595: Line 48: SOLD
+  Line 596: Line 83: ACTIVE
+  Line 597: Line 85: SOLD
+  Line 601: Line 52: Bypass BaseModel.full
+  Line 606: Line 45: Test creating an inventory movement for a PURCHASE 
+  Line 607: Line 61: Test movement
+  Line 608: Line 77: InventoryMovement should be created
+  Line 609: Line 81: Test movement
+  Line 610: Line 91: Test that non-staff users cannot create movements.
+  Line 611: Line 107: Non-staff should not be able to create movements
+  Line 612: Line 111: Test creating a movement for a SALE operation.
+  Line 613: Line 127: Sale shipment
+  Line 614: Line 143: Test that validation fails when movement qty excee
+  Line 615: Line 171: Movement should not be created when qty exceeds in
+  Line 616: Line 175: Test that GET request shows the form with empty fo
+  Line 620: Line 1: The Invoice model has been removed.
+  Line 621: Operation.amount is the authoritative total
+  Line 625: Line 57: Create an operation
+  Line 626: Line 136: base
+  Line 627: Line 159: A capital gain item does not change the status to 
+  Line 628: Line 166: A capital loss item does not change the status to 
+  Line 629: Line 184: AmountCleanMixin rejects unit
+  Line 633: Line 61: Build op
+  Line 634: Line 184: Calling record
+  Line 635: Line 203: Entries dated after as
+  Line 636: Line 261: Entries dated after as
+  Line 640: Line 10: Fattening Calves
+  Line 641: Line 11: Fattening Calves
+  Line 642: Line 41
+  Line 643: Line 44
+  Line 647: Line 80: Manage multiple product template assignments for an
+  Line 648: Verifies
+  Line 649: Line 87: Target entity not found
+  Line 650: Line 90: The current user is not an officer
+  Line 651: Line 141: List product templates assigned to an entity.
+  Line 652: Line 159: Create a new Product Template
+  Line 653: Checks f
+  Line 654: Line 165: Not an officer
+  Line 655: Line 208: Create an InventoryMovement header
+  Line 660: Line 16: Operation Details
+  Line 661: Line 17: Period
+  Line 662: Line 29
+  Line 663: Line 47
+  Line 667: Line 8: Form for purchase wizard step 1: basic info
+  Line 671: Line 23: Re-casts each Operation instance in the queryset to
+  Line 673: Line 45: Cast a single Operation instance to its proxy subcl
+  Line 674: Line 55: Manager that includes soft-deleted records.
+  Line 678: Line 43: Central financial operation record.
+  Line 679: All type-specific logic lives in proxy s
+  Line 680: Line 118: Resolves a request into a unified config
+  Line 681: Call on the prox
+  Line 682: Line 192: Allow the reversal to set in a different period th
+  Line 683: Open
+  Line 684: Line 229: Returns the URL-role entity
+  Line 686: Line 260: Cannot create an operation whose date falls within
+  Line 687: Line 287: Cannot create an operation: no financial period co
+  Line 688: Line 305: Called inside an atomic block after the formset is
+  Line 693: Line 5: Cash Injection
+  Line 694: Line 6: Cash Withdrawal
+  Line 695: Line 7: Project Funding
+  Line 696: Line 8: Project Refund
+  Line 697: Line 9: Profit Distribution
+  Line 698: Line 10: Loss Coverage
+  Line 699: Line 11: Internal Transfer
+  Line 700: Line 19: Correction Credit
+  Line 701: Line 20: Correction Debit
+  Line 705: Line 14: An accounting period for one entity.
+  Line 706: Interval semantics
+  Line 707: Line 42: Financial Period
+  Line 708: Line 43: Financial Periods
+  Line 709: Line 64: Sum of active
+  Line 710: Line 77: Sum of active
+  Line 711: Line 90: How much profit is still available to distribute.
+  Line 712: Line 97: How much loss is still available to be covered
+  Line 713: Line 104: True if shareholder allocations sum to
+  Line 714: Line 115: Sum incoming transactions of the given types into 
+  Line 715: Reverse
+  Line 716: Line 133: Sum outgoing transactions of the given types from 
+  Line 717: Reverse
+  Line 718: Line 152: Entity fund balance as of end
+  Line 719: Return
+  Line 720: Line 162: Net inventory value as of end
+  Line 722: Line 190: Amount the entity is owed as creditor
+  Line 724: Line 202: Advance amounts the entity paid to workers not yet
+  Line 726: Line 218: Total assets at end
+  Line 728: Line 239: Amount the entity owes as debtor
+  Line 730: Line 251: Advance amounts received by the entity
+  Line 732: Line 267: Total obligations against the entity at end
+  Line 734: Line 278: Derive amount from entity.profit
+  Line 735: The period must be
+  Line 736: Line 288: FinancialPeriod
+  Line 737: Line 289: Close this period by setting end
+  Line 738: If the entity is still active, au
+  Line 739: Line 296: This period is already closed.
+  Line 740: Line 302: end
+  Line 741: Line 319: end
+  Line 742: Line 325: Only project entities can have a profit
+  Line 743: Line 329: Cannot set profit
+  Line 744: Line 336: Ensure no existing period for this entity overlaps
+  Line 745: Line 357: This period overlaps with an existing financial pe
+  Line 746: Line 362: Period
+  Line 747: Line 362
+  Line 751: Line 55: Resolves a URL string to the corresponding proxy cl
+  Line 752: The proxy class carr
+  Line 753: Line 69: Factory helper. Returns the correct proxy class for
+  Line 758: Line 8: Records a livestock birth event.
+  Line 760: A birth creates a new Animal
+  Line 761: Line 50: Birth source must be the System entity.
+  Line 765: Line 12: Capital Gain Issuance
+  Line 766: Line 30: Capital Gain
+  Line 767: Line 44: Capital Gain source must be the System entity.
+  Line 771: Line 12: Capital Loss Issuance
+  Line 772: Line 30: Capital Loss
+  Line 773: Line 42: Capital Loss destination must be the System entity.
+  Line 777: Line 12: Cash Injection
+  Line 778: Line 27: Cash Injection
+  Line 779: Line 39: Cash Injection source must be the World entity.
+  Line 780: Line 43: Cash Injection must target a Person entity.
+  Line 784: Line 12: Cash Withdrawal
+  Line 785: Line 26: Cash Withdrawal
+  Line 786: Line 38: Cash Withdrawal source must be a Person entity.
+  Line 787: Line 43: Cash Withdrawal destination must be the World entit
+  Line 791: Line 8: Records internal consumption of a product we own.
+  Line 793: Consumption removes an ex
+  Line 794: Line 52: Consumption source must be a Project entity.
+  Line 795: Line 56: Consumption destination must be the System entity.
+  Line 799: Line 12: Correction Credit
+  Line 800: Line 31: Correction Credit
+  Line 801: Line 43: Correction Credit source must be the System entity.
+  Line 802: Line 48: Correction Credit destination must be a Project ent
+  Line 806: Line 12: Correction Debit
+  Line 807: Line 31: Correction Debit
+  Line 808: Line 43: Correction Debit source must be a Project entity.
+  Line 809: Line 48: Correction Debit destination must be the System ent
+  Line 813: Line 8: Records a livestock death event.
+  Line 815: A death removes an existing Animal
+  Line 816: Line 49: Death destination must be the System entity.
+  Line 820: Line 12: Expense Issuance
+  Line 821: Line 47: Expense source must be a Project entity.
+  Line 822: Line 51: Expense destination must be the World entity.
+  Line 826: Line 13: Internal Transfer
+  Line 827: Line 26: Internal Transfer
+  Line 828: Line 49: Internal Transfer source must be an internal entity
+  Line 829: Line 53: Internal Transfer destination must be an internal e
+  Line 830: Line 57: Internal Transfer source cannot be a system or worl
+  Line 831: Line 61: Internal Transfer destination cannot be a system or
+  Line 832: Line 66
+  Line 833: Line 66: Insufficient funds: source fund balance
+  Line 837: Line 15: Debt Issuance
+  Line 838: Line 27: Loan Recovery
+  Line 842: Line 15: Loss Coverage
+  Line 843: Line 31: Loss Coverage
+  Line 844: Line 66: Loss Coverage requires a Distribution Plan.
+  Line 845: Line 70: The linked Distribution Plan has no loss to cover
+  Line 846: Line 89: exceeds remaining coverable loss
+  Line 847: Line 90: for this plan.
+  Line 851: Line 14: Profit Distribution
+  Line 852: Line 32: Profit Distribution
+  Line 853: Line 53: Profit Distribution source must be a Project entity
+  Line 854: Line 72: Profit Distribution destination must be a Sharehold
+  Line 855: Line 77: Profit Distribution requires a Distribution Plan.
+  Line 856: Line 81: The linked Distribution Plan has no profit to distr
+  Line 857: Line 100: exceeds remaining distributable profit
+  Line 858: Line 101: for this plan.
+  Line 862: Line 13: Project Funding
+  Line 863: Line 26: Project Funding
+  Line 864: Line 61: Project Funding source must be a Person entity.
+  Line 865: Line 66: Project Funding destination must be a Project entit
+  Line 866: Line 82: The funding source must be a registered shareholder
+  Line 867: Line 97: , cannot fund
+  Line 868: Line 97: Insufficient funds: balance is
+  Line 872: Line 13: Project Refund
+  Line 873: Line 28: Project Refund
+  Line 874: Line 63: Project Refund source must be a Project entity.
+  Line 875: Line 67: Project Refund destination must be a Person entity.
+  Line 876: Line 82: The refund destination must be a registered shareho
+  Line 877: Line 97: , cannot refund
+  Line 878: Line 97: Insufficient project funds: balance is
+  Line 879: Line 131: Refund amount
+  Line 880: Line 131: exceeds the net amount funded
+  Line 881: Line 132
+  Line 885: Line 12: Purchase Issuance
+  Line 886: Line 51: Purchase source must be a Project entity.
+  Line 887: Line 68: Purchase destination must be a Vendor entity.
+  Line 888: Line 78: Purchase destination must be an active vendor of th
+  Line 892: Line 12: Sale Issuance
+  Line 893: Line 53: Sale source must be a Client entity.
+  Line 894: Line 63: Sale source must be an active client of the destina
+  Line 895: Line 81: Sale destination must be a Project entity.
+  Line 899: Line 13: Worker Advance Issuance
+  Line 900: Line 22: Advance Repayment
+  Line 901: Line 27: Worker Advance
+  Line 902: Line 39: Worker advance source should be a project.
+  Line 903: Line 56: Worker Advance destination must be a person entity.
+  Line 904: Line 66: Worker Advance destination must be an active worker
+  Line 905: Line 75
+  Line 906: Line 75: Insufficient funds: project fund balance
+  Line 910: Line 10: Instructional
+  Line 912: Line 28: Shareholder Allocation
+  Line 913: Line 29: Shareholder Allocations
+  Line 914: Line 45: Allocation target must be a shareholder entity.
+  Line 915: Line 47: Percent cannot be negative.
+  Line 916: Line 51
+  Line 920: Line 6: Auto-create an opening FinancialPeriod whenever a re
+  Line 924: Line 53: ElementById
+  Line 925: Line 54: Input
+  Line 926: Line 55: Amount
+  Line 927: Line 57: EventListener
+  Line 928: Line 59: Input.value
+  Line 929: Line 60: Input.readOnly
+  Line 930: Line 62: Input.readOnly
+  Line 934: Line 113: UnitPrice
+  Line 935: Line 115: UnitPriceInput
+  Line 936: Line 116: Preview
+  Line 937: Line 118: Number
+  Line 938: Line 119: Intl.NumberFormat
+  Line 939: Line 120: FractionDigits: 2
+  Line 940: Line 121: FractionDigits: 2
+  Line 941: Line 125: UnitPriceInput.addEventListener
+  Line 942: Line 126: Price
+  Line 943: Line 127: Price
+  Line 944: Line 128: Preview.style.display
+  Line 945: Line 132: Price - currentUnitPrice
+  Line 946: Line 134: Math.abs
+  Line 947: Line 135: Preview.style.display
+  Line 948: Line 139: Gain
+  Line 949: Line 140: Preview.className
+  Line 950: Line 141: ElementById
+  Line 951: Line 144: ElementById
+  Line 952: Line 146: Preview.style.display
+  Line 956: Line 61: OperationConfig
+  Line 957: Line 64: Logic flags from your backend config
+  Line 958: Line 66: PartiallyPayable
+  Line 959: Line 67: Status
+  Line 960: Line 68: Prefix: "items
+  Line 961: Line 69: Category
+  Line 965: Line 95: SALE,PURCHASE
+  Line 969: Line 71: Loan Repayment
+  Line 973: Line 113: OperationConfig
+  Line 974: Line 114: Prefix: 'items
+  Line 975: Line 115: Category: false
+  Line 979: Line 26: Y-m-d
+  Line 980: Line 90: DELETE
+  Line 981: Line 128: DELETE
+  Line 982: Line 150: EventListener
+  Line 983: Line 151: Simple formset add row logic
+  Line 984: Line 152: Button
+  Line 985: Line 153: ElementById
+  Line 986: Line 154: FormsInput
+  Line 987: Line 156: Button
+  Line 988: Line 157: Button.addEventListener
+  Line 989: Line 158: Default
+  Line 990: Line 160: Count
+  Line 991: Line 163: Update form indices
+  Line 992: Line 164: Row.querySelectorAll
+  Line 993: Line 167: Name.replace
+  Line 994: Line 171: Id.replace
+  Line 995: Line 176: Child
+  Line 996: Line 177: FormsInput.value
+  Line 1000: Line 4: Category
+  Line 1004: Line 6: External World
+  Line 1005: Line 8: System
+  Line 1006: Line 12: Selected Source
+  Line 1007: Line 18: External World
+  Line 1008: Line 20: System
+  Line 1009: Line 24: Selected Destination
+  Line 1013: Line 66: DELETE
+  Line 1014: Line 143: DELETE
+  Line 1018: Line 8: Payment Terms
+  Line 1019: Line 40: Recording as full payment of total amount.
+  Line 1023: Line 59: Issuance' in tx.label
+  Line 1024: Line 160: Issuance' in tx.label
+  Line 1028: Line 25: Test Project
+  Line 1029: Line 34: Test capital gain
+  Line 1030: Line 55: Issuance transaction should be created
+  Line 1031: Line 59: Payment transaction should be created
+  Line 1032: Line 101: Regular Person
+  Line 1033: Line 165: Other Project
+  Line 1034: Line 175: Other Project 2
+  Line 1035: Line 209: Source is the system entity; no fund balance gate 
+  Line 1036: Line 221: Test Project
+  Line 1037: Line 229: Test capital gain
+  Line 1041: Line 25: Test Project
+  Line 1042: Line 34: Test capital loss
+  Line 1043: Line 55: Issuance transaction should be created
+  Line 1044: Line 59: Payment transaction should be created
+  Line 1045: Line 95: Seed balance
+  Line 1046: Line 141: Non System Person
+  Line 1047: Line 195: Other Project
+  Line 1048: Line 204: Other Project
+  Line 1049: Line 238: Destination is the system entity; no fund balance 
+  Line 1050: Line 250: Test Project
+  Line 1051: Line 258: Test capital loss
+  Line 1055: Line 27: Receiver Person
+  Line 1056: Line 36: Test cash injection
+  Line 1057: Line 60: Issuance transaction should be created
+  Line 1058: Line 64: Payment transaction should be created
+  Line 1059: Line 109: Test Project
+  Line 1060: Line 178: Other Source Person
+  Line 1061: Line 187: Other Source Person
+  Line 1062: Line 223: Payer is the world entity; balance is not enforced
+  Line 1063: Line 227: World entity is never balance-checked; injection p
+  Line 1064: Line 256: Receiver Person
+  Line 1065: Line 265: Test cash injection
+  Line 1069: Line 29: Withdrawer Person
+  Line 1070: Line 42: Setup injection
+  Line 1071: Line 55: Test cash withdrawal
+  Line 1072: Line 80: Issuance transaction should be created
+  Line 1073: Line 86: Payment transaction should be created
+  Line 1074: Line 129: Test Project
+  Line 1075: Line 198: Other Source Person
+  Line 1076: Line 209: Other Dest Person
+  Line 1077: Line 278: Balance is checked before each payment transaction
+  Line 1078: Line 282: check
+  Line 1079: Line 283: Broke Person
+  Line 1080: Line 295: Broke Person
+  Line 1081: Line 318: Withdrawer Person
+  Line 1082: Line 328: Setup injection
+  Line 1083: Line 338: Test cash withdrawal
+  Line 1087: Line 31: Test Project
+  Line 1088: Line 36: Give a project fund some balance via a CapitalGain.
+  Line 1089: Line 43: Seed balance
+  Line 1090: Line 67: Test correction credit
+  Line 1091: Line 129: Regular Person
+  Line 1092: Line 161: Some Person
+  Line 1093: Line 215: Other Project
+  Line 1094: Line 224: Other Project 2
+  Line 1095: Line 260: Corrections bypass balance checks; admins need thi
+  Line 1096: Line 281: Test correction credit
+  Line 1097: Line 388: Test correction debit
+  Line 1098: Line 449: Some Person
+  Line 1099: Line 480: Non System Person
+  Line 1100: Line 541: Other Project
+  Line 1101: Line 553: Other Project 2
+  Line 1102: Line 571: Corrections bypass balance checks; admins need thi
+  Line 1103: Line 575: A debit for more than the fund balance must succee
+  Line 1104: Line 625: Test correction debit
+  Line 1108: Line 37: Test Project
+  Line 1109: Line 41: Shareholder A
+  Line 1110: Line 55: Bypass SafeQuerySet to set end
+  Line 1111: Also b
+  Line 1112: Line 68: Set amount on a period, bypassing immutability for 
+  Line 1113: Line 108: Props Project
+  Line 1114: Line 109: Props Shareholder
+  Line 1115: Line 290: Val Project
+  Line 1116: Line 297: Non-project person
+  Line 1117: Line 331: Imm Project
+  Line 1118: Line 355: Alloc Project
+  Line 1119: Line 356: Alloc Shareholder
+  Line 1120: Line 390: Non Shareholder
+  Line 1121: Line 429: Alloc Shareholder B
+  Line 1122: Line 450: PD Project
+  Line 1123: Line 451: PD Shareholder
+  Line 1124: Line 500: Loss PD Project
+  Line 1125: Line 507: PD Loss Shareholder
+  Line 1126: Line 523: BreakEven PD Project
+  Line 1127: Line 532: PD BE Shareholder
+  Line 1128: Line 571: Non-SH Person
+  Line 1129: Line 596: LC Project
+  Line 1130: Line 597: LC Shareholder
+  Line 1131: Line 646: Profit LC Project
+  Line 1132: Line 655: LC Profit Shareholder
+  Line 1136: Line 43: Seed a Project entity's fund via CapitalGain.
+  Line 1137: Line 50: Seed project balance
+  Line 1138: Line 55: Veterinary Consultation
+  Line 1139: Line 74: Tests for expense operation creation: validation, i
+  Line 1141: Line 88: Test Farm Project
+  Line 1142: Line 103: Test expense
+  Line 1143: Line 121: Issuance transaction must be created on save
+  Line 1144: Line 132: Payment transaction must NOT be created on save
+  Line 1145: Line 151: EXPENSE
+  Line 1146: Line 198: Animal Sale Income
+  Line 1147: Line 211: Not A Project
+  Line 1148: Line 237: Not The World
+  Line 1149: Line 243: Some Person
+  Line 1150: Line 290: Other Project
+  Line 1151: Line 300: Other Destination
+  Line 1152: Line 320: Tests for EXPENSE
+  Line 1154: The project issues an expense oblig
+  Line 1155: Line 333: Farm Project
+  Line 1156: Line 347: Test expense
+  Line 1157: Line 419: One issuance
+  Line 1158: Line 451: Balance is checked before each payment transaction
+  Line 1159: Line 455: ExpenseOperation.check
+  Line 1160: A payment that exceeds
+  Line 1161: Line 468: Drain expense
+  Line 1162: Line 489: Tests for expense operation reversal.
+  Line 1164: Reversal is allowed only when no EXPE
+  Line 1165: Line 503: Farm Project
+  Line 1166: Line 517: Test expense
+  Line 1167: Line 553: Only the EXPENSE
+  Line 1168: Line 574: Issuance is non-cash; reversing it leaves the proj
+  Line 1172: Line 47: Period Owner
+  Line 1173: Line 50: Return the period that was auto-created when the en
+  Line 1174: Line 168: Other Entity
+  Line 1175: Line 182: Auto Period Person
+  Line 1176: Line 186: Auto Period Project
+  Line 1177: Line 200: Date Check Person
+  Line 1178: Line 211: Tests for the auto-assign and closed-period guard 
+  Line 1179: Line 216: Receiver Assign
+  Line 1180: Line 292: A date that falls before the entity's period start
+  Line 1182: Line 304: With an inactive entity, close
+  Line 1186: Line 37: Seed balance
+  Line 1187: Line 46: Source Person
+  Line 1188: Line 47: Destination Person
+  Line 1189: Line 59: Test internal transfer
+  Line 1190: Line 128: External Person
+  Line 1191: Line 171: External Dest
+  Line 1192: Line 238: Other Source
+  Line 1193: Line 248: Other Dest
+  Line 1194: Line 281: Balance is enforced by clean
+  Line 1195: Line 289: Source Person
+  Line 1196: Line 290: Destination Person
+  Line 1197: Line 300: Test internal transfer
+  Line 1198: Line 400: Tests for get
+  Line 1200: Line 409: Source Person
+  Line 1201: Line 411: Other Internal Person
+  Line 1202: Line 412: External Person
+  Line 1203: Line 414: Test Project
+  Line 1207: Line 32: Seed a Person entity's fund via CashInjection.
+  Line 1208: Line 39: Seed balance
+  Line 1209: Line 45: Tests for the issuance phase of a Loan operation.
+  Line 1211: Note: LOAN
+  Line 1212: Line 57: Creditor Person
+  Line 1213: Line 65: Debtor Project
+  Line 1214: Line 74: Test loan
+  Line 1215: Line 129: Creditor Project
+  Line 1216: Line 130: Debtor Person
+  Line 1217: Line 211: Other Creditor
+  Line 1218: Line 220: Other Debtor
+  Line 1219: Line 238: Creditor fund balance is checked before each disbu
+  Line 1220: Line 243: Tests for LOAN
+  Line 1222: Line 252: Creditor Person
+  Line 1223: Line 253: Debtor Person
+  Line 1224: Line 268: Test loan
+  Line 1225: Line 341: Tests for LOAN
+  Line 1227: Line 349: Creditor Person
+  Line 1228: Line 350: Debtor Person
+  Line 1229: Line 372: Test loan
+  Line 1230: Line 501: Creditor Person
+  Line 1231: Line 502: Debtor Project
+  Line 1232: Line 517: Test loan
+  Line 1236: Line 93: LC Create Project
+  Line 1237: Line 94: LC Create Shareholder
+  Line 1238: Line 208: LC Profit Project
+  Line 1239: Line 209: LC Profit Shareholder
+  Line 1240: Line 233: LC BreakEven Project
+  Line 1241: Line 234: LC BreakEven Shareholder
+  Line 1242: Line 284: LC Poor Project
+  Line 1243: Line 285: LC Poor Shareholder
+  Line 1244: Line 327: Other LC Source SH
+  Line 1245: Line 338: Other LC Destination Project
+  Line 1246: Line 375: LC Reversal Project
+  Line 1247: Line 376: LC Reversal Shareholder
+  Line 1251: Line 91: PD Create Project
+  Line 1252: Line 92: PD Create Shareholder
+  Line 1253: Line 202: PD Non-project
+  Line 1254: Line 212: PD Non-SH
+  Line 1255: Line 227: PD Loss Project
+  Line 1256: Line 228: PD Loss Shareholder
+  Line 1257: Line 248: PD BreakEven Project
+  Line 1258: Line 249: PD BreakEven Shareholder
+  Line 1259: Line 295: PD Small Project
+  Line 1260: Line 296: PD Small Shareholder
+  Line 1261: Line 335: Other PD Source Project
+  Line 1262: Line 343: Other PD Destination SH
+  Line 1263: Line 379: PD Reversal Project
+  Line 1264: Line 380: PD Reversal Shareholder
+  Line 1268: Line 29: Funder Person
+  Line 1269: Line 34: Test Project
+  Line 1270: Line 53: Setup injection
+  Line 1271: Line 66: Test project funding
+  Line 1272: Line 89: Issuance transaction should be created
+  Line 1273: Line 93: Payment transaction should be created
+  Line 1274: Line 128: Another Project
+  Line 1275: Line 141: Non Shareholder
+  Line 1276: Line 150: Wrong Destination
+  Line 1277: Line 232: Other Funder
+  Line 1278: Line 248: Other Project
+  Line 1279: Line 311: Balance is enforced by clean
+  Line 1280: Line 325: Setup injection
+  Line 1281: Line 339: Funder Person
+  Line 1282: Line 343: Test Project
+  Line 1283: Line 358: Setup injection
+  Line 1284: Line 368: Test project funding
+  Line 1288: Line 26: Test Project
+  Line 1289: Line 37: Shareholder Person
+  Line 1290: Line 66: Setup injection
+  Line 1291: Line 77: Setup funding
+  Line 1292: Line 88: Test project refund
+  Line 1293: Line 111: Issuance transaction should be created
+  Line 1294: Line 115: Payment transaction should be created
+  Line 1295: Line 150: Wrong Source
+  Line 1296: Line 156: Other Project
+  Line 1297: Line 164: Non Shareholder
+  Line 1298: Line 273: Other Project
+  Line 1299: Line 282: Other Dest Person
+  Line 1300: Line 344: Balance is enforced by clean
+  Line 1301: Line 358: Setup funding
+  Line 1302: Line 369: Shareholder Person
+  Line 1303: Line 388: Setup injection
+  Line 1304: Line 398: Setup funding
+  Line 1305: Line 408: Test project refund
+  Line 1309: Line 41: Seed a Project entity's fund via CapitalGain.
+  Line 1310: Line 48: Seed project balance
+  Line 1311: Line 70: Tests for purchase operation creation: validation, 
+  Line 1313: Line 83: Test Farm Project
+  Line 1314: Line 91: Agri Supplies Ltd
+  Line 1315: Line 101: Test purchase
+  Line 1316: Line 119: Issuance transaction must be created on save
+  Line 1317: Line 130: Payment transaction must NOT be created on save
+  Line 1318: Line 149: PURCHASE
+  Line 1319: Line 175: Not A Project
+  Line 1320: Line 201: Not A Vendor
+  Line 1321: Line 208: Some Project
+  Line 1322: Line 214: Unregistered Vendor
+  Line 1323: Line 221: Inactive Vendor
+  Line 1324: Line 271: Other Project
+  Line 1325: Line 280: Other Vendor
+  Line 1326: Line 301: Tests for PURCHASE
+  Line 1328: The project records a purchase obl
+  Line 1329: Line 313: Farm Project
+  Line 1330: Line 321: Agri Supplies Ltd
+  Line 1331: Line 330: Test purchase
+  Line 1332: Line 413: One issuance
+  Line 1333: Line 445: Balance is checked before each payment transaction
+  Line 1334: Line 449: PurchaseOperation.check
+  Line 1335: A payment that exceed
+  Line 1336: Line 462: Drain purchase
+  Line 1337: Line 483: Tests for purchase operation reversal.
+  Line 1339: Reversal is allowed only when no PUR
+  Line 1340: Line 496: Farm Project
+  Line 1341: Line 504: Agri Supplies Ltd
+  Line 1342: Line 513: Test purchase
+  Line 1343: Line 549: Only the PURCHASE
+  Line 1344: Line 570: Issuance is non-cash; reversing it leaves the proj
+  Line 1348: Line 45: Seed a Project entity's fund via CapitalGain.
+  Line 1349: Line 52: Seed project balance
+  Line 1350: Line 58: Seed a Client entity's fund via CapitalGain so coll
+  Line 1351: Line 65: Seed client balance
+  Line 1352: Line 87: Tests for sale operation creation: validation, issu
+  Line 1354: Line 102: Test Farm Project
+  Line 1355: Line 104: Big Buyer Corp
+  Line 1356: Line 120: Test sale
+  Line 1357: Line 138: Issuance transaction must be created on save
+  Line 1358: Line 149: Collection transaction must NOT be created on save
+  Line 1359: Line 168: SALE
+  Line 1360: Line 178: SALE
+  Line 1361: Line 204: Not A Client
+  Line 1362: Line 210: Some Project
+  Line 1363: Line 236: Not A Project
+  Line 1364: Line 242: Unregistered Project
+  Line 1365: Line 249: Inactive Relationship Project
+  Line 1366: Line 298: Other Client
+  Line 1367: Line 308: Other Project
+  Line 1368: Line 329: Tests for SALE
+  Line 1370: The project records a sale receivab
+  Line 1371: Line 343: Farm Project
+  Line 1372: Line 345: Big Buyer Corp
+  Line 1373: Line 360: Test sale
+  Line 1374: Line 443: One issuance
+  Line 1375: Line 477: Tests for sale operation reversal.
+  Line 1377: Reversal is allowed only when no SALE
+  Line 1378: Line 490: Farm Project
+  Line 1379: Line 492: Big Buyer Corp
+  Line 1380: Line 507: Test sale
+  Line 1381: Line 543: Only the SALE
+  Line 1382: Line 564: Issuance is non-cash; reversing it leaves all fund
+  Line 1383: Line 613: Tests that check
+  Line 1386: Line 626: Farm Project
+  Line 1387: Line 628: Low-Balance Client
+  Line 1388: Line 646: Test sale
+  Line 1389: Line 652: Balance is checked before each collection transact
+  Line 1390: Line 656: check
+  Line 1392: Line 667: Partial collection that fits within the available 
+  Line 1396: Line 48: Seed a Person entity's fund via CashInjection.
+  Line 1397: Line 55: Seed balance
+  Line 1398: Line 61: Seed a Project entity's fund via CapitalGain.
+  Line 1399: Line 68: Seed project balance
+  Line 1400: Line 89: Tests for operation creation: validation, one-shot 
+  Line 1401: Line 100: Test Farm Project
+  Line 1402: Line 105: Ali Worker
+  Line 1403: Line 115: Test worker advance
+  Line 1404: Line 133: Issuance transaction must be created
+  Line 1405: Line 137: Payment transaction must be created
+  Line 1406: Line 211: Not A Project
+  Line 1407: Line 243: Other Project
+  Line 1408: Line 257: Unrelated Person
+  Line 1409: Line 263: Inactive Worker
+  Line 1410: Line 271: A person with a non-WORKER stakeholder role should
+  Line 1411: Line 272: Client Person
+  Line 1412: Line 323: Other Project
+  Line 1413: Line 332: Other Worker
+  Line 1414: Line 351: Balance is enforced by clean
+  Line 1415: Line 361: Tests for WORKER
+  Line 1417: Line 373: Farm Project
+  Line 1418: Line 378: Ali Worker
+  Line 1419: Line 387: Test worker advance
+  Line 1420: Line 478: Tests for operation reversal.
+  Line 1422: Reversal is only allowed when no repayments e
+  Line 1423: Line 490: Farm Project
+  Line 1424: Line 495: Ali Worker
+  Line 1425: Line 504: Test worker advance
+  Line 1429: Line 32: Return the correct formset class for this operation
+  Line 1433: Line 14: Cannot edit a reversed operation.
+  Line 1434: Line 25: Update saved successfully.
+  Line 1435: Line 28: Update Error
+  Line 1439: Line 19: Basic Info
+  Line 1440: Line 20: Invoice Items
+  Line 1441: Line 22: Goods Receipt
+  Line 1442: Line 27: Multi-step purchase wizard.
+  Line 1443: Line 102: Render Step 1: basic info form.
+  Line 1444: Line 130: Vendor cannot be changed after items are entered.
+  Line 1445: Line 137: Handle Step 1 POST: validate and store to session,
+  Line 1446: Line 187: Render Step 2: invoice items formset.
+  Line 1447: Line 209: Handle Step 2 POST: create Operation with invoice 
+  Line 1448: Line 332: Render Step 3: optional cash payment.
+  Line 1449: Line 340: Handle Step 3 POST: optional payment transaction.
+  Line 1450: Line 415: Instant payment for Purchase
+  Line 1451: Line 448: Render Step 4: optional inventory movement.
+  Line 1452: Line 466: Handle Step 4 POST: optional inventory movement.
+  Line 1456: Line 27: Invalid amount value.
+  Line 1457: Line 39: Payment of
+  Line 1458: Line 39: recorded for Operation
+  Line 1459: Line 62: No Operation matches the provided info
+  Line 1460: Line 70: Unsupported operation type
+  Line 1461: Line 75: This operation does not accept repayments
+  Line 1462: Line 87: Invalid amount value.
+  Line 1463: Line 93: Amount must be greater than zero.
+  Line 1464: Line 97: exceeds remaining balance
+  Line 1465: Line 112: Repayment of operation
+  Line 1466: Line 118: Repayment of
+  Line 1467: Line 118: recorded for Operation
+  Line 1471: Line 17: This operation has already been reversed.
+  Line 1472: Line 21: This operation is a reversal
+  Line 1473: Line 27: Unsupported operation type.
+  Line 1474: Line 35: A reason for reversal is required.
+  Line 1475: Line 41: Successfully reversed
+  Line 1476: Line 46: Reversal failed
+  Line 1480: Line 105: Source and target funds must be different.
+  Line 1481: Line 126: Transaction type
+  Line 1482: Line 130: Transaction type
+  Line 1483: Line 146: Transaction for
+  Line 1484: Line 153: Creates a counter-transaction to neutralize this t
+  Line 1485: Line 158: Cannot reverse a transaction that is already a rev
+  Line 1486: Line 161: This transaction has already been reversed.
+  Line 1487: Line 180: REVERSAL of ID
+  Line 1491: Line 396
+  Line 1492: Line 396: source
+  Line 1493: Line 401
+  Line 1494: Line 401: target
+  Line 1495: Line 419: Transaction types that represent actual cash movem
+  Line 1496: Line 448: Transaction types that represent issuance
+  Line 1500: Line 6: Empties all data from the specified SQLite table.
+  Line 1502: Args
+  Line 1504: Line 18: Connected to SQLite database
+  Line 1505: Line 22: DELETE FROM
+  Line 1506: Line 29: All rows deleted from the table
+  Line 1507: Line 34: DELETE FROM sqlite
+  Line 1508: Line 38: Auto-increment counter reset.
+  Line 1509: Line 43: Database vacuumed to reclaim space.
+  Line 1510: Line 46: Error emptying table
+  Line 1511: Line 52: The SQLite connection is closed.
+  Line 1515: Line 1: ASGI config for farm project.
+  Line 1517: It exposes the ASGI callable as a module-level va
+  Line 1521: Line 1: Django settings for farm project.
+  Line 1523: Generated by 'django-admin startproject' usin
+  Line 1524: Line 174
+  Line 1528: Line 1: URL configuration for farm project.
+  Line 1534: Line 1: WSGI config for farm project.
+  Line 1536: It exposes the WSGI callable as a module-level va
+  Line 1540: Line 2: Find translatable strings that are not wrapped by tr
+  Line 1541: Checks bo
+  Line 1542: Line 15: Check for untranslated strings in Python and templa
+  Line 1543: Line 41: Check if directory should be skipped.
+  Line 1544: Line 50: Scan Python files for untranslated strings.
+  Line 1545: Line 51: Scanning Python files...
+  Line 1546: Line 63
+  Line 1547: Line 66: Check Python file for untranslated strings.
+  Line 1548: Line 91: Scan template files for untranslated strings.
+  Line 1549: Line 92: Scanning template files...
+  Line 1550: Line 111: Check template file for untranslated strings.
+  Line 1551: Line 151: Check if text should NOT be translated.
+  Line 1552: Line 162: Check if a Python string should be translated.
+  Line 1553: Line 185: Print results organized by file.
+  Line 1554: Line 187
+  Line 1555: Line 190: potential untranslated strings
+  Line 1556: Line 190
+  Line 1557: Line 206: Save results to a file.
+  Line 1558: Line 208: Untranslated Strings Report
+  Line 1559: Line 223
+  Line 1560: Line 227: AST visitor to find strings and track if they're i
+  Line 1561: Line 240: Visit function calls.
+  Line 1562: Line 253: Visit string constants
+  Line 1563: Line 259: Visit string nodes
+  Line 1564: Line 265: Extract function name from Call node.
+  Line 1565: Line 274: Run the translation checker.
+  Line 1569: Line 4132: No items found using the specified filter.
+  Line 1573: Line 15102: No items found using the specified filter.
+  Line 1577: Line 1682: No items found using the specified filter.
+  Line 1581: Line 2: Django's command-line utility for administrative tas
+  Line 1582: Line 8: Run administrative tasks.
+  Line 1583: Line 14: Couldn't import Django. Are you sure it's installed
+  Line 1587: Line 3: Django
+  Line 1588: Line 11: Pygments
+  Line 1589: Line 16: PyYAML
+  Line 1593: Line 4: LANGUAGE
+  Line 1594: Line 11: ERP System
+  Line 1595: Line 15: LANGUAGE
+  Line 1596: Line 41: Content
+  Line 1597: Line 42: Content" aria-expanded
+  Line 1598: Line 43: Toggle navigation
+  Line 1599: Line 66: LANGUAGE
+  Line 1600: Line 68: LANGUAGE
+  Line 1601: Line 151: EventListener
+  Line 1602: Line 152: Auto-dismiss non-error alerts after 5 s
+  Line 1603: Line 153: SelectorAll
+  Line 1604: Line 154: List.contains
+  Line 1605: Line 155: Timeout
+  Line 1609: Line 1: Untranslated Strings Report

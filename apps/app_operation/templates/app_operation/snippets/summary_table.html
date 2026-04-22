@@ -1,19 +1,31 @@
 {% load i18n %}
 <ul class="list-group list-group-flush">
-  <li class="list-group-item d-flex justify-content-between">
+  <li class="list-group-item d-flex justify-content-between flex-wrap gap-2">
     <span>{% trans "Initial Amount" %}</span>
     <span class="fw-bold text-primary">${{ operation.amount }}</span>
   </li>
   <li class="list-group-item">
-    <small class="text-muted d-block">{% trans "Source (Creditor)" %}</small>
-    <strong>{{ operation.source.name }}</strong>
+    <small class="text-muted d-block mb-1">{% trans "Source (Creditor)" %}</small>
+    <strong class="d-block text-break">
+      {% if operation.source.entity_type in 'system,world' %}
+        {{ operation.source.name }}
+      {% else %}
+        <a href="{% url 'entity_detail' operation.source.pk %}" class="text-decoration-none">{{ operation.source.name }}</a>
+      {% endif %}
+    </strong>
   </li>
   <li class="list-group-item">
-    <small class="text-muted d-block">{% trans "Destination (Debtor)" %}</small>
-    <strong>{{ operation.destination.name }}</strong>
+    <small class="text-muted d-block mb-1">{% trans "Destination (Debtor)" %}</small>
+    <strong class="d-block text-break">
+      {% if operation.destination.entity_type in 'system,world' %}
+        {{ operation.destination.name }}
+      {% else %}
+        <a href="{% url 'entity_detail' operation.destination.pk %}" class="text-decoration-none">{{ operation.destination.name }}</a>
+      {% endif %}
+    </strong>
   </li>
   <li class="list-group-item">
-    <small class="text-muted d-block">{% trans "Officer" %}</small>
-    <span>{{ operation.officer.get_full_name|default:operation.officer.username }}</span>
+    <small class="text-muted d-block mb-1">{% trans "Officer" %}</small>
+    <span class="d-block text-break">{{ operation.officer.get_full_name|default:operation.officer.username }}</span>
   </li>
 </ul>

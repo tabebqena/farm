@@ -48,10 +48,17 @@
                 grandTotal += rowTotal;
             });
 
-            // Update footer grand-total display
-            const grandTotalCell = document.getElementById("grand-total");
-            if (grandTotalCell) {
-                grandTotalCell.textContent = "$ " + grandTotal.toFixed(2);
+            // Update footer grand-total display (desktop and mobile views)
+            document.querySelectorAll(".grand-total-display").forEach((el) => {
+                if (el.tagName === "INPUT") {
+                    el.value = "$ " + grandTotal.toFixed(2);
+                } else {
+                    el.textContent = "$ " + grandTotal.toFixed(2);
+                }
+            });
+
+            if (totalAmountInput) {
+                totalAmountInput.value = grandTotal.toFixed(2);
             }
 
             // Update the standalone total-amount input (present only when no formset)
@@ -94,6 +101,7 @@
                 // Reset selects (product / selected_product dropdowns).
                 newRow.querySelectorAll("select").forEach((sel) => {
                     sel.selectedIndex = 0;
+                    sel.dispatchEvent(new Event("change", { bubbles: true }));
                 });
 
                 // Ensure the new row is visible (in case it was cloned from a deleted one).

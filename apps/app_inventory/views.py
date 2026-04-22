@@ -59,6 +59,7 @@ def stock_detail(request, entity_pk):
         request,
         "app_inventory/stock_detail.html",
         {
+            "entity": entity,
             "products": products,
             "unreceived_items": unreceived_purchases,
             "undelivered_items": undelivered_sales,

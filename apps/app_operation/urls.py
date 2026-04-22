@@ -32,18 +32,47 @@ urlpatterns = [
     path(
         "<int:pk>/purchase/wizard/",
         views.purchase_wizard_view,
-        # name="purchase_wizard_step1",
-        name="purchase_wizard_view",
+        name="purchase_wizard_step1",
     ),
     path(
-        "<int:pk>/purchase/wizard/2/",
-        views.purchase_wizard_view,
-        name="purchase_wizard_step2_new",
+        "<int:pk>/purchase/wizard/cancel/",
+        views.cancel_purchase_wizard_view,
+        name="purchase_wizard_cancel",
     ),
     path(
-        "<int:pk>/purchase/wizard/<int:operation_pk>/<int:step>/",
+        "<int:pk>/purchase/wizard/<int:step>/",
         views.purchase_wizard_view,
-        name="purchase_wizard_step",
+        name="purchase_wizard_step_new",
+    ),
+    path(
+        "<int:pk>/purchase/invoice/",
+        views.purchase_invoice_view,
+        name="purchase_invoice",
+    ),
+    path(
+        "<int:pk>/purchase/invoice/select-template/",
+        views.purchase_select_template_view,
+        name="purchase_select_template",
+    ),
+    path(
+        "<int:pk>/purchase/invoice/add-item/",
+        views.purchase_add_item_view,
+        name="purchase_add_item",
+    ),
+    path(
+        "<int:pk>/purchase/invoice/add-item/<int:idx>/",
+        views.purchase_add_item_view,
+        name="purchase_edit_item",
+    ),
+    path(
+        "<int:pk>/purchase/invoice/delete-item/<int:idx>/",
+        views.purchase_delete_item_view,
+        name="purchase_delete_item",
+    ),
+    path(
+        "<int:pk>/purchase/invoice/submit/",
+        views.purchase_submit_view,
+        name="purchase_submit",
     ),
     path(
         "<int:pk>/sale/create",

@@ -163,48 +163,68 @@
                 {% trans 'Related Operations' %}
               </div>
               <div class="card-body p-0">
-                <div class="table-responsive">
-                  <table class="table mb-0">
-                    <thead class="table-light">
-                      <tr>
-                        <th>
-                          {% trans 'Operation' %}
-                        </th>
-                        <th>
-                          {% trans 'Type' %}
-                        </th>
-                        <th>
-                          {% trans 'Date' %}
-                        </th>
-                        <th>
-                          {% trans 'Amount' %}
-                        </th>
-                        <th class="text-center">
-                          {% trans 'View' %}
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {% regroup product.invoice_items.all by operation as grouped_items %}
-                      {% for group in grouped_items %}
+                <!-- Table view for medium screens and up -->
+                <div class="d-none d-md-block">
+                  <div class="table-responsive">
+                    <table class="table mb-0">
+                      <thead class="table-light">
                         <tr>
-                          <td>
-                            <a href="{% url 'operation_detail_view' group.grouper.pk %}">#{{ group.grouper.pk }}</a>
-                          </td>
-                          <td>
-                            <span class="badge bg-primary">{{ group.grouper.get_operation_type_display }}</span>
-                          </td>
-                          <td>{{ group.grouper.date }}</td>
-                          <td>{{ group.grouper.amount }}</td>
-                          <td class="text-center">
-                            <a href="{% url 'operation_detail_view' group.grouper.pk %}" class="btn btn-sm btn-outline-primary">
-                              {% trans 'View' %}
-                            </a>
-                          </td>
+                          <th>{% trans 'Operation' %}</th>
+                          <th>{% trans 'Type' %}</th>
+                          <th>{% trans 'Date' %}</th>
+                          <th>{% trans 'Amount' %}</th>
+                          <th class="text-center">{% trans 'View' %}</th>
                         </tr>
+                      </thead>
+                      <tbody>
+                        {% regroup product.invoice_items.all by operation as grouped_items %}
+                        {% for group in grouped_items %}
+                          <tr>
+                            <td>
+                              <a href="{% url 'operation_detail_view' group.grouper.pk %}">#{{ group.grouper.pk }}</a>
+                            </td>
+                            <td>
+                              <span class="badge bg-primary">{{ group.grouper.get_operation_type_display }}</span>
+                            </td>
+                            <td>{{ group.grouper.date }}</td>
+                            <td>{{ group.grouper.amount }}</td>
+                            <td class="text-center">
+                              <a href="{% url 'operation_detail_view' group.grouper.pk %}" class="btn btn-sm btn-outline-primary">
+                                {% trans 'View' %}
+                              </a>
+                            </td>
+                          </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <!-- Card view for small screens -->
+                <div class="d-md-none">
+                  {% regroup product.invoice_items.all by operation as grouped_items %}
+                  {% if grouped_items %}
+                    <div class="list-group list-group-flush">
+                      {% for group in grouped_items %}
+                        <div class="list-group-item">
+                          <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                              <a href="{% url 'operation_detail_view' group.grouper.pk %}" class="fw-bold text-decoration-none">#{{ group.grouper.pk }}</a>
+                              <small class="text-muted d-block">{{ group.grouper.date }}</small>
+                            </div>
+                            <span class="badge bg-primary">{{ group.grouper.get_operation_type_display }}</span>
+                          </div>
+
+                          <div class="mb-2">
+                            <small class="text-muted d-block mb-1">{% trans 'Amount' %}</small>
+                            <span class="fw-bold">{{ group.grouper.amount }}</span>
+                          </div>
+
+                          <a href="{% url 'operation_detail_view' group.grouper.pk %}" class="btn btn-sm btn-outline-primary w-100">{% trans 'View' %}</a>
+                        </div>
                       {% endfor %}
-                    </tbody>
-                  </table>
+                    </div>
+                  {% endif %}
                 </div>
               </div>
             </div>
@@ -220,43 +240,71 @@
             {% trans 'Product Movements' %}
           </div>
           <div class="card-body p-0">
-            <div class="table-responsive">
-              <table class="table mb-0">
-                <thead class="table-light">
-                  <tr>
-                    <th>
-                      {% trans 'Date' %}
-                    </th>
-                    <th>
-                      {% trans 'Type' %}
-                    </th>
-                    <th class="text-end">
-                      {% trans 'Qty Change' %}
-                    </th>
-                    <th class="text-end">
-                      {% trans 'Value Change' %}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
+            <!-- Table view for medium screens and up -->
+            <div class="d-none d-md-block">
+              <div class="table-responsive">
+                <table class="table mb-0">
+                  <thead class="table-light">
+                    <tr>
+                      <th>{% trans 'Date' %}</th>
+                      <th>{% trans 'Type' %}</th>
+                      <th class="text-end">{% trans 'Qty Change' %}</th>
+                      <th class="text-end">{% trans 'Value Change' %}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for entry in product.ledger_entries.all %}
+                      <tr>
+                        <td>{{ entry.date }}</td>
+                        <td>
+                          <span class="badge bg-info">{{ entry.get_entry_type_display }}</span>
+                        </td>
+                        <td class="text-end">{{ entry.quantity_delta }}</td>
+                        <td class="text-end">{{ entry.value_delta }}</td>
+                      </tr>
+                    {% empty %}
+                      <tr>
+                        <td colspan="4" class="text-center text-muted py-3">
+                          {% trans 'No movements recorded.' %}
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Card view for small screens -->
+            <div class="d-md-none">
+              {% if product.ledger_entries.all %}
+                <div class="list-group list-group-flush">
                   {% for entry in product.ledger_entries.all %}
-                    <tr>
-                      <td>{{ entry.date }}</td>
-                      <td>
-                        <span class="badge bg-info">{{ entry.get_entry_type_display }}</span>
-                      </td>
-                      <td class="text-end">{{ entry.quantity_delta }}</td>
-                      <td class="text-end">{{ entry.value_delta }}</td>
-                    </tr>
-                  {% empty %}
-                    <tr>
-                      <td colspan="4" class="text-center text-muted py-3">
-                        {% trans 'No movements recorded.' %}
-                      </td>
-                    </tr>
+                    <div class="list-group-item">
+                      <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div>
+                          <span class="badge bg-info mb-1 d-block">{{ entry.get_entry_type_display }}</span>
+                          <small class="text-muted">{{ entry.date }}</small>
+                        </div>
+                      </div>
+
+                      <div class="row g-2 small">
+                        <div class="col-6">
+                          <small class="text-muted d-block">{% trans 'Qty Change' %}</small>
+                          <span>{{ entry.quantity_delta }}</span>
+                        </div>
+                        <div class="col-6">
+                          <small class="text-muted d-block">{% trans 'Value Change' %}</small>
+                          <span>{{ entry.value_delta }}</span>
+                        </div>
+                      </div>
+                    </div>
                   {% endfor %}
-                </tbody>
-              </table>
+                </div>
+              {% else %}
+                <div class="text-center text-muted py-3">
+                  {% trans 'No movements recorded.' %}
+                </div>
+              {% endif %}
             </div>
           </div>
         </div>
@@ -271,51 +319,82 @@
             {% trans 'Invoice Items' %}
           </div>
           <div class="card-body p-0">
-            <div class="table-responsive">
-              <table class="table mb-0">
-                <thead class="table-light">
-                  <tr>
-                    <th>
-                      {% trans 'Operation' %}
-                    </th>
-                    <th>
-                      {% trans 'Operation type' %}
-                    </th>
-                    <th>
-                      {% trans 'Date' %}
-                    </th>
-                    <th class="text-end">
-                      {% trans 'Qty' %}
-                    </th>
-                    <th class="text-end">
-                      {% trans 'Unit Price' %}
-                    </th>
-                    <th class="text-end">
-                      {% trans 'Total' %}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
+            <!-- Table view for medium screens and up -->
+            <div class="d-none d-md-block">
+              <div class="table-responsive">
+                <table class="table mb-0">
+                  <thead class="table-light">
+                    <tr>
+                      <th>{% trans 'Operation' %}</th>
+                      <th>{% trans 'Operation type' %}</th>
+                      <th>{% trans 'Date' %}</th>
+                      <th class="text-end">{% trans 'Qty' %}</th>
+                      <th class="text-end">{% trans 'Unit Price' %}</th>
+                      <th class="text-end">{% trans 'Total' %}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for item in product.invoice_items.all %}
+                      <tr>
+                        <td>
+                          <a href="{% url 'operation_detail_view' item.operation.pk %}">#{{ item.operation.pk }}</a>
+                        </td>
+                        <td>{{ item.operation.get_operation_type_display }}</td>
+                        <td>{{ item.operation.date }}</td>
+                        <td class="text-end">{{ item.quantity }}</td>
+                        <td class="text-end">{{ item.unit_price }}</td>
+                        <td class="text-end fw-bold">{{ item.total_price }}</td>
+                      </tr>
+                    {% empty %}
+                      <tr>
+                        <td colspan="6" class="text-center text-muted py-3">
+                          {% trans 'No invoice items.' %}
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Card view for small screens -->
+            <div class="d-md-none">
+              {% if product.invoice_items.all %}
+                <div class="list-group list-group-flush">
                   {% for item in product.invoice_items.all %}
-                    <tr>
-                      <td>
-                        <a href="{% url 'operation_detail_view' item.operation.pk %}">#{{ item.operation.pk }}</a>
-                      </td>
-                      <td>{{ item.operation.get_operation_type_display }}</td>
-                      <td>{{ item.operation.date }}</td>
-                      <td class="text-end">{{ item.quantity }}</td>
-                      <td class="text-end">{{ item.unit_price }}</td>
-                      <td class="text-end fw-bold">{{ item.total_price }}</td>
-                    </tr>
-                  {% empty %}
-                    <tr>
-                      <td colspan="6" class="text-center text-muted py-3">
-                        {% trans 'No invoice items.' %}
-                      </td>
-                    </tr>
+                    <div class="list-group-item">
+                      <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div>
+                          <a href="{% url 'operation_detail_view' item.operation.pk %}" class="fw-bold text-decoration-none">#{{ item.operation.pk }}</a>
+                          <small class="text-muted d-block">{{ item.operation.date }}</small>
+                        </div>
+                        <span class="badge bg-primary">{{ item.operation.get_operation_type_display }}</span>
+                      </div>
+
+                      <div class="row g-2 mb-2 small">
+                        <div class="col-6">
+                          <small class="text-muted d-block">{% trans 'Qty' %}</small>
+                          <span>{{ item.quantity }}</span>
+                        </div>
+                        <div class="col-6">
+                          <small class="text-muted d-block">{% trans 'Unit Price' %}</small>
+                          <span>{{ item.unit_price }}</span>
+                        </div>
+                        <div class="col-12">
+                          <small class="text-muted d-block">{% trans 'Total' %}</small>
+                          <span class="fw-bold">{{ item.total_price }}</span>
+                        </div>
+                      </div>
+
+                      <a href="{% url 'operation_detail_view' item.operation.pk %}" class="btn btn-sm btn-outline-primary w-100">{% trans 'View' %}</a>
+                    </div>
                   {% endfor %}
-                </tbody>
-              </table>
+                </div>
+              {% else %}
+                <div class="text-center text-muted py-3">
+                  {% trans 'No invoice items.' %}
+                </div>
+              {% endif %}
             </div>
           </div>
         </div>

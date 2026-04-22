@@ -2,41 +2,27 @@
 
 <form id="wizard-form" method="post" novalidate>
     {% csrf_token %}
+    <input type="hidden" name="next" value="{{ next_param }}">
 
-    <!-- Purchase Summary -->
     <div class="alert alert-light border mb-4">
-        <strong>{% trans "Purchase Summary:" %}</strong>
-        <ul class="mb-0 mt-2">
-            <li>{% trans "Purchase #:" %} <strong>{{ operation.pk }}</strong></li>
-            <li>{% trans "Invoice Total:" %} <strong>${{ operation.amount }}</strong></li>
-            <li>{% trans "Amount Remaining:" %} <strong>${{ amount_remaining }}</strong></li>
-        </ul>
+        <strong>{% trans "Invoice Total:" %}</strong> <strong>${{ total_amount }}</strong>
     </div>
 
-    <!-- Payment Amount -->
     <div class="mb-3">
-        <label for="id_amount_paid" class="form-label">
-            {% trans "Payment Amount" %}
+        <label for="{{ form.amount_paid.id_for_label }}" class="form-label">
+            {{ form.amount_paid.label }}
         </label>
         <div class="input-group">
             <span class="input-group-text">$</span>
-            <input
-                type="number"
-                id="id_amount_paid"
-                name="amount_paid"
-                class="form-control"
-                step="0.01"
-                min="0"
-                max="{{ amount_remaining }}"
-                placeholder="{% trans 'Leave blank to skip payment' %}"
-            >
+            {{ form.amount_paid }}
         </div>
-        <small class="form-text text-muted">
-            {% trans "Leave blank or enter 0 to skip payment recording for now." %}
-        </small>
+        {% if form.amount_paid.errors %}
+            <div class="invalid-feedback d-block">{{ form.amount_paid.errors.0 }}</div>
+        {% endif %}
+        <small class="text-muted">{% trans "Leave blank or enter 0 to skip payment for now." %}</small>
     </div>
 
     <div class="alert alert-info">
-        <strong>{% trans "Step 3 of 4:" %}</strong> {% trans "Record a partial or full payment (optional)" %}
+        <strong>{% trans "Step 3 of 3:" %}</strong> {% trans "Optionally record an immediate payment." %}
     </div>
 </form>

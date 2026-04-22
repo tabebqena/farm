@@ -18,6 +18,21 @@ from .models import (
 # ---------------------------------------------------------------------------
 
 
+class RequiresTagSelect(forms.Select):
+    """Select widget that stamps each ProductTemplate option with data-requires-tag."""
+
+    def __init__(self, *args, **kwargs):
+        self.requires_tag_pks = set()
+        super().__init__(*args, **kwargs)
+
+    def create_option(self, name, value, label, selected, index, subgroup=None, attrs=None):
+        option = super().create_option(name, value, label, selected, index, subgroup=subgroup, attrs=attrs)
+        if value:
+            pk = str(value.value if hasattr(value, "value") else value)
+            option["attrs"]["data-requires-tag"] = "true" if pk in self.requires_tag_pks else "false"
+        return option
+
+
 class InvoiceItemCreateForm(forms.ModelForm):
     """
     One row = one Product to be created (animal born / purchased).
@@ -33,7 +48,8 @@ class InvoiceItemCreateForm(forms.ModelForm):
         queryset=ProductTemplate.objects.all(),
         label="Product",
         empty_label="— select —",
-        widget=forms.Select(attrs={"class": "form-select form-select-sm"}),
+        required=False,
+        widget=RequiresTagSelect(attrs={"class": "form-select form-select-sm product-select"}),
     )
     unique_id = forms.CharField(
         required=False,
@@ -60,14 +76,23 @@ class InvoiceItemCreateForm(forms.ModelForm):
     def __init__(self, *args, project=None, **kwargs):
         super().__init__(*args, **kwargs)
         if project is not None:
-            self.fields["product"].queryset = ProductTemplate.objects.filter(
-                entities=project
+            qs = ProductTemplate.objects.filter(entities=project)
+            self.fields["product"].queryset = qs
+            self.fields["product"].widget.requires_tag_pks = set(
+                str(pk) for pk in qs.filter(requires_individual_tag=True).values_list("pk", flat=True)
             )
+        self.fields["unit_price"].required = False
 
     def clean(self):
         cleaned = super().clean()
         template = cleaned.get("product")
         uid = cleaned.get("unique_id", "").strip()
+
+        # If product is selected, require unit_price
+        if template and not cleaned.get("unit_price"):
+            self.add_error("unit_price", "Unit price is required when a product is selected.")
+
+        # If product is selected and requires individual tag, validate unique_id
         if template and template.requires_individual_tag and not uid:
             self.add_error(
                 "unique_id", "Tag / ID is required for individually tracked animals."

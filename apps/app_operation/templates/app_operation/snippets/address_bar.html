@@ -1,15 +1,38 @@
 {% load i18n %}
 <div>
-  <h2 class="mb-0">{{ operation.get_operation_type_display }}</h2>
-  <p class="text-muted">{% trans "Voucher #" %}{{ operation.pk }} | {% trans "Date:" %} {{ operation.date }}</p>
+  <h2 class="mb-2">{{ operation.get_operation_type_display }}</h2>
+  <p class="text-muted mb-3">{% trans "Voucher #" %}{{ operation.pk }} | {% trans "Date:" %} {{ operation.date }}</p>
 </div>
-<div class="btn-group">
-  {% if not operation.source.is_virtual %}
-    <a href="{% url 'operation_list_view' operation.source.pk %}" class="btn btn-primary me-1">{{ operation.source }} {% trans "Operations" %}</a>
-  {% endif %}
-  {% if not operation.destination.is_virtual %}
-    <a href="{% url 'operation_list_view' operation.destination.pk %}" class="btn btn-secondary ms-1">{{ operation.destination }} {% trans "Operations" %}</a>
+<div class="d-flex flex-wrap gap-2">
+  {% if operation.source.entity_type not in 'system,world' %}
+    <a href="{% url 'entity_detail' operation.source.pk %}" class="btn btn-outline-primary btn-sm" title="View {{ operation.source }} details">
+      <i class="bi bi-person-circle"></i>
+      <span class="d-none d-sm-inline">{{ operation.source }}</span>
+    </a>
   {% endif %}
 
-  <button onclick="window.print()" class="btn btn-outline-dark ms-1"><i class="bi bi-printer"></i> {% trans "Print" %}</button>
+  {% if operation.destination.entity_type not in 'system,world' %}
+    <a href="{% url 'entity_detail' operation.destination.pk %}" class="btn btn-outline-primary btn-sm" title="View {{ operation.destination }} details">
+      <i class="bi bi-person-circle"></i>
+      <span class="d-none d-sm-inline">{{ operation.destination }}</span>
+    </a>
+  {% endif %}
+
+  {% if not operation.source.is_virtual %}
+    <a href="{% url 'operation_list_view' operation.source.pk %}" class="btn btn-primary btn-sm">
+      <span class="d-none d-sm-inline">{{ operation.source }}</span>
+      {% trans "Ops" %}
+    </a>
+  {% endif %}
+  {% if not operation.destination.is_virtual %}
+    <a href="{% url 'operation_list_view' operation.destination.pk %}" class="btn btn-secondary btn-sm">
+      <span class="d-none d-sm-inline">{{ operation.destination }}</span>
+      {% trans "Ops" %}
+    </a>
+  {% endif %}
+
+  <button onclick="window.print()" class="btn btn-outline-dark btn-sm ms-auto">
+    <i class="bi bi-printer"></i>
+    <span class="d-none d-sm-inline">{% trans "Print" %}</span>
+  </button>
 </div>

@@ -1,13 +1,13 @@
 {% load i18n %}
-<div class="col-md-4">
-  <div class="card shadow-sm mb-4">
+<div class="col-12 col-lg-4 order-last order-lg-0">
+  <div class="card shadow-sm mb-3 mb-lg-4">
     <div class="card-header bg-light fw-bold">{% trans "Operation Summary" %}</div>
     {% include 'app_operation/snippets/summary_table.html' %}
   </div>
 
   {% if not operation.is_reversed and not operation.is_reversed %}
     {% if operation.max_payment_transaction_count < 0 %}
-      <div class="card border-success shadow-sm mb-4">
+      <div class="card border-success shadow-sm mb-3 mb-lg-4">
         <div class="card-body">
           <h6 class="text-success fw-bold">{% trans "Record Payment" %}</h6>
           <p class="small text-muted">{% trans "Record a payment transaction." %}</p>
@@ -17,7 +17,7 @@
     {% endif %}
 
     {% if operation.has_repayment %}
-      <div class="card border-success shadow-sm mb-4">
+      <div class="card border-success shadow-sm mb-3 mb-lg-4">
         <div class="card-body">
           <h6 class="text-success fw-bold">{{ operation.repayment_label }}</h6>
           <p class="small text-muted">{% trans "Add a repayment transaction to reduce the outstanding balance of this operation." %}</p>
