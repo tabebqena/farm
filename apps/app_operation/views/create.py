@@ -12,7 +12,11 @@ from django.utils.translation import gettext as _
 from django.views import View
 
 from apps.app_inventory.forms import InvoiceItemCreateFormSet, InvoiceItemSelectFormSet
-from apps.app_operation.models import FinancialCategory
+from apps.app_entity.models import Entity
+from apps.app_entity.models.category import (
+    FinancialCategoriesEntitiesRelations,
+    FinancialCategory,
+)
 from apps.app_operation.models.proxies import PROXY_MAP, get_canonical_type
 
 if TYPE_CHECKING:
@@ -224,11 +228,13 @@ class OperationCreateView(View):
         selected_category_id=None,
         errors=None
     ):
-        categories = FinancialCategory.objects.filter(
-            parent_entity=self.data["url_entity"],
-            category_type=self.proxy_cls.category_type,
-            is_active=True,
-        )
+        categories = []
+        if self.proxy_cls.has_category:
+            categories = FinancialCategory.objects.filter(
+                entities_relations__entity=self.data["url_entity"],
+                category_type=self.proxy_cls.category_type,
+                is_active=True,
+            )
         return {
             "primary": self.data["url_entity"],
             "config": self.data,

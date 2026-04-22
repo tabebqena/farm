@@ -36,7 +36,7 @@
           {% endif %}
           {% if entity_person.is_project %}
             <li>
-              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'purchase' %}">{% trans 'Purchase' %}</a>
+              <a class="dropdown-item" href="{% url 'purchase_wizard_view' entity_person.pk %}">{% trans 'Purchase' %}</a>
             </li>
             <li>
               <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'sale' %}">{% trans 'Sale' %}</a>

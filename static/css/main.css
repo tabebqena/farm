@@ -189,3 +189,26 @@ body {
     font-size: 0.9rem;
     text-transform: uppercase;
 }
+
+
+/* ================================================================
+   RTL Support - Icon Flipping
+   ================================================================ */
+[dir="rtl"] .bi-chevron-left,
+[dir="rtl"] .bi-chevron-right,
+[dir="rtl"] .bi-arrow-left,
+[dir="rtl"] .bi-arrow-right,
+[dir="rtl"] .bi-arrow-up-right,
+[dir="rtl"] .bi-arrow-down-left,
+[dir="rtl"] .bi-arrow-left-right,
+[dir="rtl"] .bi-arrow-counterclockwise,
+[dir="rtl"] .bi-arrow-return-left,
+[dir="rtl"] .bi-box-arrow-right,
+[dir="rtl"] .bi-box-arrow-left,
+[dir="rtl"] .bi-box-arrow-in-down,
+[dir="rtl"] .bi-box-arrow-up-right,
+[dir="rtl"] .bi-patch-minus,
+[dir="rtl"] .bi-patch-plus {
+    transform: scaleX(-1);
+    display: inline-block;
+}

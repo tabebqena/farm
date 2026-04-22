@@ -292,7 +292,7 @@ class Operation(
             for item in items:
                 item.full_clean()
 
-        kwargs.setdefault("post_save_kwargs", []).append(
+        kwargs.setdefault("post_save_tasks", []).append(
             (
                 _validate_invoice_items,
                 (self,),

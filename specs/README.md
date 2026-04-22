@@ -60,6 +60,7 @@ adjustments, inventory, and evaluations.
 |---------|------|
 | Adjustment | [adjustment.md](adjustment.md) |
 | Financial Period | [financial_period.md](financial_period.md) |
+| Inventory Ledger | [inventory_ledger.md](inventory_ledger.md) |
 
 ---
 

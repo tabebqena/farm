@@ -108,7 +108,7 @@ def project_product_templates_setup(request, entity_pk):
             )
 
     all_templates = ProductTemplate.objects.all().order_by(
-        "nature", "sub_caytegory", "name"
+        "nature", "sub_category", "name"
     )
     enabled_template_ids = target_entity.product_templates.values_list("id", flat=True)
 
@@ -143,7 +143,7 @@ def entity_product_templates_list(request, entity_pk):
     templates = (
         entity.product_templates.all()
         .prefetch_related("entities", "product_set", "invoices")
-        .order_by("nature", "sub_caytegory", "name")
+        .order_by("nature", "sub_category", "name")
     )
     return render(
         request,

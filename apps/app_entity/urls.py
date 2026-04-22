@@ -39,4 +39,20 @@ urlpatterns = [
         views.edit_stakeholder_view,
         name="edit_stakeholder",
     ),
+    # Categories
+    path(
+        "category/edit/<int:pk>",
+        views.category_relation_edit_view,
+        name="category_relation_edit_view",
+    ),
+    path(
+        "category/detail/<int:pk>",
+        views.category_relation_detail_view,
+        name="category_relation_detail_view",
+    ),
+    path(
+        "<int:parent_entity_id>/category/bulk-assign/",
+        views.category_bulk_assign_view,
+        name="category_bulk_assign_view",
+    ),
 ]

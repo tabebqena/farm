@@ -1,34 +1,37 @@
 {% load i18n %}
 
 <div class="mb-4">
-  <h4 class="h5 fw-bold text-primary">{% trans 'Suggested Financial Categories' %}</h4>
+  <h4 class="h5 fw-bold text-primary">{% trans 'Financial Categories' %}</h4>
   <p class="text-muted small">
-    {% trans 'Select the categories relevant to your project. You can add custom ones later.' %}
+    {% trans 'Select the categories relevant to your project. Already linked categories can be unchecked to deactivate them.' %}
   </p>
 </div>
 
 <form method="post" id="wizard-form">
   {% csrf_token %}
 
-  {% if suggestions %}
-    {% for aspect, items in suggestions.items %}
-      <div class="card mb-4 shadow-sm border">
+  {# Section A: Already linked categories grouped by aspect #}
+  {% if linked_by_aspect %}
+  <div class="mb-4">
+    <h6 class="fw-bold text-success mb-3">
+      <i class="bi bi-check-circle me-2"></i>{% trans 'Currently Linked' %}
+    </h6>
+    {% for aspect, relations in linked_by_aspect.items %}
+      <div class="card mb-3 shadow-sm border" style="border-color: #d4edda !important;">
         <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
-          <h6 class="mb-0 fw-bold text-secondary">{{ aspect }}</h6>
-          <div class="form-check">
-            <input class="form-check-input select-all-aspect" type="checkbox" id="check_all_{{ forloop.counter }}" />
-            <label class="form-check-label small text-muted" for="check_all_{{ forloop.counter }}">{% trans 'Select All' %}</label>
-          </div>
+          <h6 class="mb-0 fw-bold text-success small">{{ aspect }}</h6>
+          <span class="badge bg-success">{{ relations|length }}</span>
         </div>
         <div class="card-body py-3">
           <div class="row row-cols-1 row-cols-md-2 g-2">
-            {% for cat in items %}
+            {% for relation in relations %}
               <div class="col">
-                <div class="form-check p-2 border rounded-3 h-100 category-option">
-                  <input class="form-check-input ms-1 me-2" type="checkbox" name="selected_categories" value="{{ cat.name }}" id="cat_{{ forloop.parentloop.counter }}_{{ forloop.counter }}" />
-                  <label class="form-check-label d-block cursor-pointer" for="cat_{{ forloop.parentloop.counter }}_{{ forloop.counter }}">
-                    <span class="d-block fw-bold small">{{ cat.name }}</span>
-                    <span class="text-muted d-block" style="font-size: 0.75rem;">{{ cat.desc }}</span>
+                <div class="form-check p-2 border rounded-3 h-100 category-option" style="background-color: #f0f9ff;">
+                  <input class="form-check-input ms-1 me-2" type="checkbox" name="selected_categories" value="{{ relation.category.id }}" id="cat_linked_{{ relation.category.id }}"
+                  {% if relation.is_active %}checked{% endif %} />
+                  <label class="form-check-label d-block cursor-pointer" for="cat_linked_{{ relation.category.id }}">
+                    <span class="d-block fw-bold small">{{ relation.category.name }}</span>
+                    {% if relation.category.description %}<span class="text-muted d-block" style="font-size: 0.75rem;">{{ relation.category.description }}</span>{% endif %}
                   </label>
                 </div>
               </div>
@@ -37,10 +40,48 @@
         </div>
       </div>
     {% endfor %}
-  {% else %}
+  </div>
+  {% endif %}
+
+  {# Section B: Available categories grouped by aspect #}
+  {% if available_by_aspect %}
+  <div class="mb-4">
+    <h6 class="fw-bold text-info mb-3">
+      <i class="bi bi-library me-2"></i>{% trans 'Available Categories' %}
+    </h6>
+    {% for aspect, categories in available_by_aspect.items %}
+      <div class="card mb-3 shadow-sm border">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
+          <h6 class="mb-0 fw-bold text-secondary small">{{ aspect }}</h6>
+          <div class="form-check">
+            <input class="form-check-input select-all-aspect" type="checkbox" id="check_all_{{ forloop.counter }}" />
+            <label class="form-check-label small text-muted" for="check_all_{{ forloop.counter }}">{% trans 'Select All' %}</label>
+          </div>
+        </div>
+        <div class="card-body py-3">
+          <div class="row row-cols-1 row-cols-md-2 g-2">
+            {% for cat in categories %}
+              <div class="col">
+                <div class="form-check p-2 border rounded-3 h-100 category-option">
+                  <input class="form-check-input ms-1 me-2" type="checkbox" name="selected_categories" value="{{ cat.id }}" id="cat_{{ cat.id }}" />
+                  <label class="form-check-label d-block cursor-pointer" for="cat_{{ cat.id }}">
+                    <span class="d-block fw-bold small">{{ cat.name }}</span>
+                    <span class="text-muted d-block" style="font-size: 0.75rem;">{{ cat.description }}</span>
+                  </label>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if not linked_by_aspect and not available_by_aspect %}
     <div class="alert alert-info py-4 text-center">
       <i class="bi bi-info-circle fs-4 d-block mb-2"></i>
-      {% trans 'Standard categories are already set up or none are available for selection.' %}
+      {% trans 'No categories available for selection.' %}
     </div>
   {% endif %}
 </form>

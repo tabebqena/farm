@@ -5,7 +5,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.db import models
-from django.db.models import DecimalField, ExpressionWrapper, F, Sum
+from django.db.models import DecimalField, ExpressionWrapper, F, Q, Sum
 from django.utils.translation import gettext_lazy as _
 
 from apps.app_base.mixins import AmountCleanMixin, ImmutableMixin, OfficerMixin
@@ -32,6 +32,7 @@ class ProductLedgerEntry(BaseModel):
         SALE = "SALE", _("Sale")
         BIRTH = "BIRTH", _("Birth")
         DEATH = "DEATH", _("Death")
+        CONSUMPTION = "CONSUMPTION", _("Consumption")
         CAPITAL_GAIN = "CAPITAL_GAIN", _("Capital Gain")
         CAPITAL_LOSS = "CAPITAL_LOSS", _("Capital Loss")
         REVERSAL = "REVERSAL", _("Reversal")
@@ -83,6 +84,7 @@ class ProductLedgerEntry(BaseModel):
             OperationType.SALE: (cls.EntryType.SALE, -1, -1),
             OperationType.BIRTH: (cls.EntryType.BIRTH, 1, 1),
             OperationType.DEATH: (cls.EntryType.DEATH, -1, -1),
+            OperationType.CONSUMPTION: (cls.EntryType.CONSUMPTION, -1, -1),
             OperationType.CAPITAL_GAIN: (cls.EntryType.CAPITAL_GAIN, 0, 1),
             OperationType.CAPITAL_LOSS: (cls.EntryType.CAPITAL_LOSS, 0, -1),
         }
@@ -287,6 +289,52 @@ class ProductLedgerEntry(BaseModel):
             .order_by("product_id")
         )
 
+    @classmethod
+    def pending_deliveries(cls, entity=None, as_of=None):
+        """
+        Return InvoiceItems from PURCHASE operations where the delivered quantity
+        is less than the ordered quantity (not yet fully delivered).
+
+        Optionally filter by entity and/or cutoff date.
+        Returns a queryset of dicts with ``invoice_item_id``, ``ordered_qty``,
+        ``delivered_qty``, ``pending_qty``.
+        """
+        from apps.app_operation.models.operation_type import OperationType
+        from django.db.models.functions import Coalesce
+
+        query = (
+            InvoiceItem.objects
+            .filter(operation__operation_type=OperationType.PURCHASE)
+            .annotate(
+                delivered_qty=Coalesce(
+                    Sum("movement_lines__quantity", filter=Q(movement_lines__reversal_of__isnull=True)),
+                    Decimal("0.00")
+                )
+            )
+            .annotate(
+                pending_qty=ExpressionWrapper(
+                    F("quantity") - F("delivered_qty"),
+                    output_field=DecimalField(max_digits=10, decimal_places=2),
+                )
+            )
+            .filter(pending_qty__gt=0)
+        )
+
+        if entity:
+            query = query.filter(operation__entity=entity)
+
+        if as_of:
+            query = query.filter(operation__date__lte=as_of)
+
+        return query.values(
+            "id",
+            "quantity",
+            "delivered_qty",
+            "pending_qty",
+            "product__name",
+            "operation__id",
+        ).order_by("operation__date")
+
     class Meta:
         verbose_name = _("product ledger entry")
         verbose_name_plural = _("product ledger entries")
@@ -313,8 +361,8 @@ class ProductTemplate(BaseModel):
         _("nature"), choices=Nature.choices, max_length=20, default=Nature.ANIMAL
     )
 
-    sub_caytegory = models.CharField(
-        _("sub_caytegory"),
+    sub_category = models.CharField(
+        _("sub_category"),
         max_length=20,
         default=_("General"),
     )
@@ -362,6 +410,14 @@ class ProductTemplate(BaseModel):
     class Meta:
         verbose_name = _("product template")
         verbose_name_plural = _("product templates")
+        unique_together = (
+            "name",
+            "nature",
+            "sub_category",
+            "default_unit",
+            "tracking_mode",
+            "requires_individual_tag",
+        )
 
 
 class InvoiceItem(AmountCleanMixin, BaseModel):

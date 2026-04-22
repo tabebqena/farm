@@ -33,7 +33,7 @@ urlpatterns = [
         "<int:pk>/purchase/wizard/",
         views.purchase_wizard_view,
         # name="purchase_wizard_step1",
-        name="purchase_create_view",
+        name="purchase_wizard_view",
     ),
     path(
         "<int:pk>/purchase/wizard/2/",
@@ -79,25 +79,5 @@ urlpatterns = [
         "<int:pk>/edit/",
         views.operation_update_view,
         name="operation_update_view",
-    ),
-    path(
-        "category/add/<int:parent_entity_id>",
-        views.category_create_view,
-        name="category_create",
-    ),
-    path(
-        "category/edit/<int:pk>",
-        views.category_edit_view,
-        name="category_edit",
-    ),
-    path(
-        "category/detail/<int:pk>",
-        views.category_detail_view,
-        name="category_detail",
-    ),
-    path(
-        "category/bulk-create/<int:parent_entity_id>",
-        views.category_bulk_create_view,
-        name="category_bulk_create",
     ),
 ]

@@ -5,13 +5,18 @@ from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.translation import gettext as _
 
-from apps.app_entity.models import Entity, EntityType, Stakeholder
-from apps.app_inventory.models import ProductTemplate
-from apps.app_operation.models import (
-    FinancialCategory,
-    default_categories,
-    get_flat_default_categories,
+from apps.app_entity.models import (
+    Entity,
+    EntityType,
+    Stakeholder,
 )
+from apps.app_entity.models import Entity
+from apps.app_entity.models.category import (
+    FinancialCategoriesEntitiesRelations,
+    FinancialCategory,
+)
+
+from apps.app_inventory.models import ProductTemplate
 
 STEPS = {
     1: {"name": "Project Info", "title": _("Initialize Project")},
@@ -135,51 +140,56 @@ def _handle_step_1_post(request, entity):
 
 
 def _handle_step_2_post(request, entity):
-    """Create selected financial categories."""
+    """Manage financial category links: create/activate/deactivate relations."""
     if not entity:
         messages.error(request, _("Project not found."))
         return redirect("project_setup")
 
-    selected_names = request.POST.getlist("selected_categories")
-
-    # Get already-existing category names for this entity
-    existing_names = set(
-        FinancialCategory.objects.filter(parent_entity=entity).values_list(
-            "name", flat=True
-        )
-    )
-
-    categories_to_create = []
-    flat_defaults = get_flat_default_categories()
-    for name in selected_names:
-        if name in flat_defaults and name not in existing_names:
-            data = flat_defaults[name]
-            categories_to_create.append(
-                FinancialCategory(
-                    parent_entity=entity,
-                    name=name,
-                    category_type=data["type"],
-                    description=data["desc"],
-                    max_limit=Decimal("0.00"),
-                    is_active=True,
-                )
-            )
+    selected_pks = set(request.POST.getlist("selected_categories"))
+    # Convert to integers for comparison
+    try:
+        selected_pks = {int(pk) for pk in selected_pks if pk}
+    except ValueError:
+        messages.error(request, _("Invalid category selection."))
+        return redirect("project_setup_step", entity_pk=entity.pk, step=2)
 
     try:
         with transaction.atomic():
-            for cat in categories_to_create:
-                cat.save()
-            if categories_to_create:
-                messages.success(
-                    request,
-                    _("Added %(count)d categories.")
-                    % {"count": len(categories_to_create)},
-                )
-            else:
-                messages.info(request, _("No new categories to add."))
+            # Get all existing relations for this entity
+            existing_relations = {
+                r.category.id: r
+                for r in FinancialCategoriesEntitiesRelations.objects.filter(
+                    entity=entity
+                ).select_related("category")
+            }
+
+            # Handle existing relations: activate if selected, deactivate if not
+            for category_id, relation in existing_relations.items():
+                if category_id in selected_pks:
+                    if not relation.is_active:
+                        relation.is_active = True
+                        relation.save()
+                else:
+                    if relation.is_active:
+                        relation.is_active = False
+                        relation.save()
+
+            # Create new relations for newly selected categories
+            for category_id in selected_pks - existing_relations.keys():
+                try:
+                    category = FinancialCategory.objects.get(pk=category_id)
+                    FinancialCategoriesEntitiesRelations.objects.get_or_create(
+                        entity=entity,
+                        category=category,
+                        defaults={"is_active": True, "max_limit": Decimal("0.00")},
+                    )
+                except FinancialCategory.DoesNotExist:
+                    pass
+
+            messages.success(request, _("Categories updated successfully."))
     except Exception as e:
         messages.error(
-            request, _("Failed to create categories: %(error)s") % {"error": str(e)}
+            request, _("Failed to update categories: %(error)s") % {"error": str(e)}
         )
 
     return redirect("project_setup_step", entity_pk=entity.pk, step=3)
@@ -354,29 +364,53 @@ def _get_step_context(request, entity, step):
         pass
 
     elif step == 2:
-        # Get already-assigned category names
+        # Get already-linked category relations grouped by aspect
         if entity:
-            existing_names = set(
-                FinancialCategory.objects.filter(parent_entity=entity).values_list(
-                    "name", flat=True
-                )
-            )
-            # Filter suggestions to only new ones
-            suggestions = {}
-            for aspect, items in default_categories.items():
-                filtered_items = [i for i in items if i["name"] not in existing_names]
-                if filtered_items:
-                    suggestions[aspect] = filtered_items
-        else:
-            suggestions = default_categories.copy()
+            # All relations for this entity (active or inactive)
+            linked_relations = FinancialCategoriesEntitiesRelations.objects.filter(
+                entity=entity
+            ).select_related("category")
 
-        context["suggestions"] = suggestions
+            # Group linked categories by aspect
+            linked_by_aspect = {}
+            linked_ids = set()
+            for relation in linked_relations:
+                aspect = relation.category.aspect
+                if aspect not in linked_by_aspect:
+                    linked_by_aspect[aspect] = []
+                linked_by_aspect[aspect].append(relation)
+                linked_ids.add(relation.category.id)
+
+            # All categories not yet linked, grouped by aspect
+            available_categories = FinancialCategory.objects.exclude(
+                id__in=linked_ids
+            ).order_by("aspect", "name")
+
+            available_by_aspect = {}
+            for category in available_categories:
+                aspect = category.aspect
+                if aspect not in available_by_aspect:
+                    available_by_aspect[aspect] = []
+                available_by_aspect[aspect].append(category)
+        else:
+            linked_by_aspect = {}
+            linked_ids = set()
+            available_by_aspect = {}
+            available_categories = FinancialCategory.objects.order_by("aspect", "name")
+            for category in available_categories:
+                aspect = category.aspect
+                if aspect not in available_by_aspect:
+                    available_by_aspect[aspect] = []
+                available_by_aspect[aspect].append(category)
+
+        context["linked_by_aspect"] = linked_by_aspect
+        context["available_by_aspect"] = available_by_aspect
 
     elif step == 3:
         # Product templates: show all, highlight assigned
         if entity:
             all_templates = ProductTemplate.objects.all().order_by(
-                "nature", "sub_caytegory", "name"
+                "nature", "sub_category", "name"
             )
             enabled_ids = set(entity.product_templates.values_list("id", flat=True))
             context["templates"] = all_templates
@@ -444,5 +478,12 @@ def _get_step_context(request, entity, step):
 
         context["eligible_entities"] = eligible
         context["existing_stakeholder_ids"] = existing
-
+    context["step_nums"] = (
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+    )
     return context

@@ -32,7 +32,7 @@
             <i class="bi bi-exclamation-triangle-fill me-2 flex-shrink-0"></i>
             <div>
               {% trans 'This project has no' %} <strong>{% trans 'Financial Categories' %}</strong> {% trans 'defined.' %}
-              <a href="{% url 'category_create' entity.pk %}" class="alert-link">{% trans 'Add a category now.' %}</a>
+              <a href="{% url 'category_bulk_assign_view' entity.id %}" class="alert-link">{% trans 'Add a category now.' %}</a>
             </div>
           </div>
         {% endif %}
@@ -247,33 +247,113 @@
         </div>
       </div>
     </div>
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+      <h5 class="fw-bold mb-0">{% trans 'Product Templates' %}</h5>
+    </div>
+    <div class="card shadow-sm">
+      <div class="card-header fw-bold">
+        {% trans 'Product Templates' %}
+      </div>
+      <div class="card-body p-0">
+        {% if entity.product_templates %}
+          <div class="table-responsive">
+            <table class="table mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>
+                    {% trans 'Name' %}
+                  </th>
+                  <th>
+                    {% trans 'Nature' %}
+                  </th>
+                  <th>
+                    {% trans 'Default Unit' %}
+                  </th>
+                  <th>
+                    {% trans 'Tracking Mode' %}
+                  </th>
+                  <th class="text-center">
+                    {% trans 'Products' %}
+                  </th>
+                  <th class="text-center">
+                    {% trans 'Invoice Items' %}
+                  </th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for template in entity.product_templates.all %}
+                  <tr>
+                    <td>
+                      <strong>{{ template.name }}</strong>
+                      {% if template.name_ar %}
+                        <br /><small class="text-muted">{{ template.name_ar }}</small>
+                      {% endif %}
+                    </td>
+                    <td>{{ template.get_nature_display }}</td>
+                    <td>{{ template.default_unit }}</td>
+                    <td>{{ template.get_tracking_mode_display }}</td>
+                    <td class="text-center">{{ template.product_set.count }}</td>
+                    <td class="text-center">{{ template.invoices.count }}</td>
+                    <td>
+                      <a href="{% url 'product_template_detail' template.pk %}" class="btn btn-sm btn-outline-primary">{% trans 'View' %}</a>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="text-center text-muted py-4">
+            <p class="mb-3">
+              {% trans 'No product templates assigned to this entity.' %}
+            </p>
+            <a href="{% url 'entity_product_templates_setup' entity.pk %}" class="btn btn-sm btn-primary">{% trans 'Assign Product Templates' %}</a>
+          </div>
+        {% endif %}
+      </div>
+    </div>
 
-    {% if entity.is_project or entity.is_person %}
+    {% if entity.is_project %}
       <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-        <h5 class="fw-bold mb-0">{% trans 'Operational Categories (Sub-Ledgers)' %}</h5>
+        <h5 class="fw-bold mb-0">{% trans 'Operational Categories' %}</h5>
         <div class="d-flex gap-2">
-          <a href="{% url 'category_create' entity.id %}" class="btn btn-sm btn-primary">{% trans '+ Add Category' %}</a>
-          <a href="{% url 'category_bulk_create' entity.id %}" class="btn btn-sm btn-secondary">{% trans '++ Bulk Create' %}</a>
+          <a href="{% url 'category_bulk_assign_view' entity.id %}" class="btn btn-sm btn-secondary">{% trans '++ Bulk Create' %}</a>
         </div>
       </div>
       <div class="list-group shadow-sm">
-        {% for cat in entity.categories.all %}
-          <a href="{% url 'category_detail' pk=cat.pk %}" class="list-group-item d-flex justify-content-between align-items-center">
-            <div>
-              <span class="fw-bold text-dark">{{ cat.name }}</span>
-              <small class="text-muted d-block">{{ cat.category_type }}</small>
-            </div>
-            <div class="text-end">
-              <div class="fw-bold">{{ cat.balance }}</div>
-              <small class="text-muted">{% trans 'Limit:' %} {{ cat.max_limit }}</small>
-            </div>
-          </a>
+        {% for cat in entity.financial_categories_entities_relations.all %}
+          {% if cat.is_active %}
+            <a href="{% url 'category_relation_detail_view' pk=cat.pk %}" class="list-group-item d-flex justify-content-between align-items-center">
+              <div class="text-muted">
+                <span class="fw-bold text-dark">{{ cat.category.name }}</span>
+                <span class="ms-4 badge bg-success">Active</span>
+                <small class="text-muted d-block">{{ cat.category.category_type }}</small>
+              </div>
+              <div class="text-end">
+                <div class="fw-bold">{{ cat.balance }}</div>
+                <small class="text-muted">{% trans 'Limit:' %} {{ cat.max_limit }}</small>
+              </div>
+            </a>
+          {% else %}
+            <a href="{% url 'category_relation_detail_view' pk=cat.pk %}" class="text-muted list-group-item d-flex justify-content-between align-items-center">
+              <div>
+                <span class="fw-bold text-muted">{{ cat.category.name }}</span>
+                <span class="ms-4 badge bg-danger">InActive</span>
+                <small class="text-muted d-block">{{ cat.category.category_type }}</small>
+              </div>
+              <div class="text-end">
+                <div class="fw-bold">{{ cat.balance }}</div>
+                <small class="text-muted">{% trans 'Limit:' %} {{ cat.max_limit }}</small>
+              </div>
+            </a>
+          {% endif %}
         {% empty %}
           <div class="list-group-item py-3">
             <div class="alert alert-warning d-flex align-items-center mb-0" role="alert">
               <i class="bi bi-exclamation-triangle-fill me-2"></i>
               <div>
-                {% trans 'No expense categories defined for this entity.' %} <a href="{% url 'category_create' entity.id %}" class="alert-link">{% trans 'Add one now.' %}</a>
+                {% trans 'No expense categories defined for this entity.' %} <a href="{% url 'category_bulk_assign_view' entity.id %}" class="alert-link">{% trans 'Add one now.' %}</a>
               </div>
             </div>
           </div>

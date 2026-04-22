@@ -10,10 +10,6 @@ def entity_detail_view(request, pk):
         pk=pk,
     )
 
-    # Categorize stakeholders for the UI
-    stakeholders = entity.stakeholders.all()
-    print(entity.memberships.first())
-
     context = {
         "entity": entity,
         # "vendors": stakeholders.filter(is_vendor=True),

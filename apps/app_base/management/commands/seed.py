@@ -105,6 +105,192 @@ PRODUCT_TEMPLATES = [
     ("Royal Jelly", "غذاء ملكات النحل", "PRODUCT", "Gram", False, "Output"),
 ]
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Default Categories
+# ─────────────────────────────────────────────────────────────────────────────
+
+default_categories = {
+    "Labor & Personnel": [
+        {
+            "name": "Permanent Staff Salaries",
+            "type": "EXPENSE",
+            "desc": "Labor & Personnel: Monthly wages",
+        },
+        {
+            "name": "Casual/Daily Labor",
+            "type": "EXPENSE",
+            "desc": "Labor & Personnel: One-off help",
+        },
+        {
+            "name": "Security Services",
+            "type": "EXPENSE",
+            "desc": "Labor & Personnel: Security fees",
+        },
+        {
+            "name": "Staff Training & PPE",
+            "type": "EXPENSE",
+            "desc": "Labor & Personnel: Safety gear and training",
+        },
+        {
+            "name": "Workers' Compensation",
+            "type": "EXPENSE",
+            "desc": "Labor & Personnel: Insurance for employees",
+        },
+    ],
+    "Professional Services": [
+        {
+            "name": "Veterinary Consultation",
+            "type": "EXPENSE",
+            "desc": "Professional Services: Clinical fees",
+        },
+        {
+            "name": "Breeding/AI Technical Fees",
+            "type": "EXPENSE",
+            "desc": "Professional Services: AI fees",
+        },
+        {
+            "name": "Shearing/Hoof Trimming",
+            "type": "EXPENSE",
+            "desc": "Professional Services: Maintenance",
+        },
+        {
+            "name": "Laboratory & Diagnostics",
+            "type": "EXPENSE",
+            "desc": "Professional Services: Testing and lab fees",
+        },
+        {
+            "name": "Pedigree & Registration",
+            "type": "EXPENSE",
+            "desc": "Professional Services: Breed association fees",
+        },
+    ],
+    "Infrastructure & Utilities": [
+        {
+            "name": "Electricity/Energy",
+            "type": "EXPENSE",
+            "desc": "Utilities: Power & Heating",
+        },
+        {
+            "name": "Water Access Fees",
+            "type": "EXPENSE",
+            "desc": "Utilities: Pumping & Access",
+        },
+        {
+            "name": "Machinery Servicing",
+            "type": "EXPENSE",
+            "desc": "Utilities: Repairs labor",
+        },
+        {
+            "name": "Irrigation Maintenance",
+            "type": "EXPENSE",
+            "desc": "Utilities: Repairs to water systems",
+        },
+        {
+            "name": "Waste & Manure Management",
+            "type": "EXPENSE",
+            "desc": "Environmental: Disposal and treatment",
+        },
+        {
+            "name": "Internet & Communications",
+            "type": "EXPENSE",
+            "desc": "Utilities: Farm connectivity",
+        },
+    ],
+    "Land & Logistics": [
+        {
+            "name": "Land Lease/Rent",
+            "type": "EXPENSE",
+            "desc": "Fixed: Grazing land lease",
+        },
+        {
+            "name": "Pasture Maintenance",
+            "type": "EXPENSE",
+            "desc": "Land: Fertilizers, seeds, and weed control",
+        },
+        {
+            "name": "Animal Transport",
+            "type": "EXPENSE",
+            "desc": "Logistics: Trucking services",
+        },
+        {
+            "name": "Slaughter Fees",
+            "type": "EXPENSE",
+            "desc": "Logistics: Abattoir service fees",
+        },
+    ],
+    "Maintenance & Fuel": [
+        {
+            "name": "Fuel (Diesel/Petrol)",
+            "type": "EXPENSE",
+            "desc": "Maintenance: Vehicle and generator fuel",
+        },
+        {
+            "name": "Lubricants & Grease",
+            "type": "EXPENSE",
+            "desc": "Maintenance: Oil and machinery fluids",
+        },
+        {
+            "name": "Fencing & Gate Repairs",
+            "type": "EXPENSE",
+            "desc": "Maintenance: Boundary and paddock upkeep",
+        },
+        {
+            "name": "Building & Shed Repairs",
+            "type": "EXPENSE",
+            "desc": "Maintenance: Structures and roofing",
+        },
+        {
+            "name": "Small Tools & Supplies",
+            "type": "EXPENSE",
+            "desc": "Maintenance: Workshop consumables",
+        },
+    ],
+    "Marketing & Sales": [
+        {
+            "name": "Marketing & Advertising",
+            "type": "EXPENSE",
+            "desc": "Sales: Promoting products/livestock",
+        },
+        {
+            "name": "Sales Commissions",
+            "type": "EXPENSE",
+            "desc": "Sales: Broker or auctioneer fees",
+        },
+        {
+            "name": "Packaging & Branding",
+            "type": "EXPENSE",
+            "desc": "Sales: Labels and design",
+        },
+    ],
+    "Administrative & Finance": [
+        {
+            "name": "Insurance Premiums",
+            "type": "EXPENSE",
+            "desc": "Admin: Livestock and property coverage",
+        },
+        {
+            "name": "Accounting & Legal",
+            "type": "EXPENSE",
+            "desc": "Admin: Professional consultancy",
+        },
+        {
+            "name": "Licenses & Permits",
+            "type": "EXPENSE",
+            "desc": "Admin: Regulatory compliance fees",
+        },
+        {
+            "name": "Bank Fees & Interest",
+            "type": "EXPENSE",
+            "desc": "Admin: Transaction and loan costs",
+        },
+        {
+            "name": "Stationery & Office",
+            "type": "EXPENSE",
+            "desc": "Admin: Printing and office supplies",
+        },
+    ],
+}
+
 
 class Command(BaseCommand):
     help = "Seed initial data: users, entities, and inventory categories"
@@ -115,6 +301,7 @@ class Command(BaseCommand):
             self._create_world_entity()
             self._create_system_entity()
             self._create_product_templates()
+            self._create_default_categories()
 
     def _create_users(self):
         if not User.objects.filter(username="admin").exists():
@@ -163,15 +350,16 @@ class Command(BaseCommand):
         created = 0
         updated = 0
         for name, name_ar, nature, unit, tag, sub_cat in PRODUCT_TEMPLATES:
+            defaults = {
+                "nature": nature,
+                "default_unit": unit,
+                "requires_individual_tag": tag,
+                "sub_category": sub_cat,
+            }
             template, is_new = ProductTemplate.objects.get_or_create(
                 name=name,
                 name_ar=name_ar,
-                defaults={
-                    "nature": nature,
-                    "default_unit": unit,
-                    "requires_individual_tag": tag,
-                    "sub_caytegory": sub_cat,
-                },
+                defaults=defaults,
             )
             if is_new:
                 created += 1
@@ -180,8 +368,8 @@ class Command(BaseCommand):
                 if template.name_ar != name_ar:
                     template.name_ar = name_ar
                     changed = True
-                if template.sub_caytegory != sub_cat:
-                    template.sub_caytegory = sub_cat
+                if template.sub_category != sub_cat:
+                    template.sub_category = sub_cat
                     changed = True
                 if changed:
                     template.save()
@@ -190,10 +378,31 @@ class Command(BaseCommand):
         if created or updated:
             self.stdout.write(
                 self.style.SUCCESS(
-                    f"Created {created} categories, updated {updated} categories."
+                    f"Created {created} product templates, updated {updated} product templates."
                 )
             )
         else:
             self.stdout.write(
-                "All categories already exist and are up to date, skipping."
+                "All product templates already exist and are up to date, skipping."
             )
+
+    def _create_default_categories(self):
+        from apps.app_entity.models import FinancialCategory
+
+        created = 0
+        for aspect, items in default_categories.items():
+            for item in items:
+                _, is_new = FinancialCategory.objects.get_or_create(
+                    aspect=aspect,
+                    name=item["name"],
+                    defaults={"description": item["desc"]},
+                )
+                if is_new:
+                    created += 1
+
+        if created:
+            self.stdout.write(
+                self.style.SUCCESS(f"Created {created} default financial categories.")
+            )
+        else:
+            self.stdout.write("Default financial categories already exist, skipping.")

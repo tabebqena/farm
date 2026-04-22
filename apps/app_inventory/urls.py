@@ -2,6 +2,9 @@ from django.urls import path
 
 from . import views
 
+# TODO view for list product templates
+# Todo
+
 urlpatterns = [
     path(
         "entity/<int:entity_pk>/stock/",
@@ -13,6 +16,7 @@ urlpatterns = [
         views.product_detail,
         name="product_detail",
     ),
+    # Product templates
     path(
         "entity/<int:entity_pk>/product-templates/",
         views.entity_product_templates_list,
@@ -33,6 +37,11 @@ urlpatterns = [
         views.create_product_template,
         name="create_product_template",
     ),
+    # TODO don't add edit view for product templates,
+    # As templates are shared betwenn projects.
+    # Never allow the user to edit the templates based on one
+    # of his current project.
+    # Movement line
     path(
         "operations/<int:operation_pk>/movement/create/",
         views.create_inventory_movement,

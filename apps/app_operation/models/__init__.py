@@ -1,4 +1,3 @@
-from .category import FinancialCategory, default_categories, get_flat_default_categories
 from .operation import Operation
 from .operation_type import OperationType
 from .period import FinancialPeriod
@@ -27,9 +26,6 @@ from .share_allocation import ShareholderAllocation
 __all__ = [
     "OperationType",
     "Operation",
-    "FinancialCategory",
-    "default_categories",
-    "get_flat_default_categories",
     "FinancialPeriod",
     "ShareholderAllocation",
     "get_operation_class",

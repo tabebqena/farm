@@ -846,8 +846,8 @@ msgid "Transaction history integration coming soon..."
 msgstr "قريباً: تكامل سجل المعاملات..."
 
 #: apps/app_entity/templates/app_entity/entity_detail.html:249
-msgid "Operational Categories (Sub-Ledgers)"
-msgstr "الفئات التشغيلية (سجلات فرعية)"
+msgid "Operational Categories"
+msgstr "الفئات التشغيلية"
 
 #: apps/app_entity/templates/app_entity/entity_detail.html:250
 msgid "+ Add Category"

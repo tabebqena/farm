@@ -112,7 +112,7 @@ class BaseModel(models.Model):
             update_fields=kwargs.get("update_fields", None),
         )
 
-        self.post_save(kwargs.get("tasks", []))
+        self.post_save(kwargs.get("post_save_tasks", []))
         return rv
 
     def delete(self, *args, **kwargs):

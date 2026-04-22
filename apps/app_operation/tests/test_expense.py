@@ -5,8 +5,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from apps.app_entity.models import Entity, EntityType
-from apps.app_operation.models import FinancialCategory
+from apps.app_entity.models import Entity, EntityType, FinancialCategory
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import CapitalGainOperation, ExpenseOperation
 from apps.app_transaction.transaction_type import TransactionType
@@ -54,11 +53,16 @@ def _inject_project(system_entity, dest_entity, amount, officer_user):
 
 
 def _make_expense_category(parent_entity, name="Veterinary Consultation"):
-    return FinancialCategory.objects.create(
+    from apps.app_operation.models import FinancialCategoriesEntitiesRelations
+
+    cat, _ = FinancialCategory.objects.get_or_create(
         name=name,
-        parent_entity=parent_entity,
-        category_type="EXPENSE",
+        defaults={"category_type": "EXPENSE", "is_active": True},
     )
+    FinancialCategoriesEntitiesRelations.objects.get_or_create(
+        entity=parent_entity, category=cat, defaults={"max_limit": Decimal("0.00")}
+    )
+    return cat
 
 
 # ---------------------------------------------------------------------------
@@ -179,15 +183,25 @@ class ExpenseCreateTest(TestCase):
         cat = _make_expense_category(self.project_entity)
 
         self.assertEqual(cat.category_type, "EXPENSE")
-        self.assertEqual(cat.parent_entity, self.project_entity)
+        # Verify the relation exists
+        from apps.app_operation.models import FinancialCategoriesEntitiesRelations
+        self.assertTrue(
+            FinancialCategoriesEntitiesRelations.objects.filter(
+                entity=self.project_entity, category=cat
+            ).exists()
+        )
 
     def test_non_expense_category_type_is_distinct_from_expense(self):
-        purchase_cat = FinancialCategory.objects.create(
-            name="Animal Feed Stock",
-            parent_entity=self.project_entity,
-            category_type="PURCHASE",
+        from apps.app_operation.models import FinancialCategoriesEntitiesRelations
+
+        income_cat = FinancialCategory.objects.create(
+            name="Animal Sale Income",
+            category_type="INCOME",
         )
-        self.assertNotEqual(purchase_cat.category_type, "EXPENSE")
+        FinancialCategoriesEntitiesRelations.objects.create(
+            entity=self.project_entity, category=income_cat
+        )
+        self.assertNotEqual(income_cat.category_type, "EXPENSE")
 
     # ------------------------------------------------------------------
     # Source validation
