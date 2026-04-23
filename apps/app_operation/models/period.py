@@ -48,6 +48,11 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
     # ------------------------------------------------------------------
 
     @property
+    def as_of(self) -> date_type:
+        """Reference date: end_date if closed, else today."""
+        return self.end_date if self.end_date is not None else date_type.today()
+
+    @property
     def is_closed(self) -> bool:
         return self.end_date is not None and self.end_date < date_type.today()
 
@@ -148,6 +153,11 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
         ] or Decimal("0.00")
 
     @property
+    def balance(self) -> Decimal:
+        """Entity fund balance as of as_of (end_date if closed, else today)."""
+        return self.entity.balance_at(self.as_of)
+
+    @property
     def end_balance(self) -> Optional[Decimal]:
         """
         Entity fund balance as of end_date (cumulative, not period-only).
@@ -156,6 +166,22 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
         if self.end_date is None:
             return None
         return self.entity.balance_at(self.end_date)
+
+    @property
+    def receivables(self) -> Decimal:
+        """Outstanding receivables as of as_of."""
+        return self.entity.receivables_at(self.as_of)
+
+    @property
+    def payables(self) -> Decimal:
+        """Outstanding payables as of as_of."""
+        return self.entity.payables_at(self.as_of)
+
+    @property
+    def inventory_value(self) -> Decimal:
+        """Net book value of inventory as of as_of, derived from ProductLedgerEntry."""
+        from apps.app_inventory.models import ProductLedgerEntry
+        return ProductLedgerEntry.inventory_value_at(self.entity, self.as_of)
 
     @property
     def remaining_inventory_value(self) -> Decimal:

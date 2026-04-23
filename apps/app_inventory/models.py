@@ -290,6 +290,16 @@ class ProductLedgerEntry(BaseModel):
         )
 
     @classmethod
+    def inventory_value_at(cls, entity, as_of) -> Decimal:
+        """Net book value of inventory for entity as of as_of."""
+        result = (
+            cls.objects.filter(
+                product__product_template__entities=entity, date__lte=as_of
+            ).aggregate(value=Sum("value_delta"))
+        )
+        return result["value"] or Decimal("0.00")
+
+    @classmethod
     def pending_deliveries(cls, entity=None, as_of=None):
         """
         Return InvoiceItems from PURCHASE operations where the delivered quantity

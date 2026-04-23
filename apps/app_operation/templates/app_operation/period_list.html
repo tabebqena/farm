@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block content %}
+  <div class="container mt-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+      <h2>
+        {% trans 'Financial Periods:' %}
+        <a href="{% url 'entity_detail' entity.pk %}">{{ entity.name }}</a>
+      </h2>
+      <a href="{% url 'period_create_view' entity.pk %}" class="btn btn-primary">
+        {% trans 'New Period' %}
+      </a>
+    </div>
+
+    {% if periods %}
+      <!-- Table view for medium+ screens -->
+      <div class="d-none d-md-block">
+        <table class="table table-striped table-hover">
+          <thead class="table-light">
+            <tr>
+              <th>{% trans 'Period' %}</th>
+              <th>{% trans 'Status' %}</th>
+              <th>{% trans 'Balance' %}</th>
+              <th>{% trans 'Receivables' %}</th>
+              <th>{% trans 'Payables' %}</th>
+              <th>{% trans 'Inventory Value' %}</th>
+              <th>{% trans 'Profit/Loss' %}</th>
+              <th>{% trans 'Actions' %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for period in periods %}
+              <tr>
+                <td>
+                  <strong>{{ period.start_date|date:"Y-m-d" }}</strong>
+                  {% if period.end_date %}
+                    → {{ period.end_date|date:"Y-m-d" }}
+                  {% else %}
+                    → {% trans 'Open' %}
+                  {% endif %}
+                </td>
+                <td>
+                  {% if period.is_closed %}
+                    <span class="badge bg-secondary">{% trans 'Closed' %}</span>
+                  {% else %}
+                    <span class="badge bg-success">{% trans 'Open' %}</span>
+                  {% endif %}
+                </td>
+                <td class="text-end">{{ period.balance|floatformat:2 }}</td>
+                <td class="text-end">{{ period.receivables|floatformat:2 }}</td>
+                <td class="text-end">{{ period.payables|floatformat:2 }}</td>
+                <td class="text-end">{{ period.inventory_value|floatformat:2 }}</td>
+                <td class="text-end">
+                  {% if period.amount %}
+                    {% if period.is_profit %}
+                      <span class="text-success">+{{ period.amount|floatformat:2 }}</span>
+                    {% elif period.is_loss %}
+                      <span class="text-danger">{{ period.amount|floatformat:2 }}</span>
+                    {% else %}
+                      {{ period.amount|floatformat:2 }}
+                    {% endif %}
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+                <td>
+                  {% if not period.is_closed %}
+                    <a href="{% url 'period_close_view' period.pk %}" class="btn btn-sm btn-outline-warning">
+                      {% trans 'Close' %}
+                    </a>
+                  {% else %}
+                    <span class="text-muted small">{% trans 'Closed' %}</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Card view for mobile screens -->
+      <div class="d-md-none">
+        {% for period in periods %}
+          <div class="card mb-3">
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-start mb-2">
+                <h5 class="card-title">
+                  {{ period.start_date|date:"Y-m-d" }}
+                  {% if period.end_date %}
+                    → {{ period.end_date|date:"Y-m-d" }}
+                  {% else %}
+                    → {% trans 'Open' %}
+                  {% endif %}
+                </h5>
+                {% if period.is_closed %}
+                  <span class="badge bg-secondary">{% trans 'Closed' %}</span>
+                {% else %}
+                  <span class="badge bg-success">{% trans 'Open' %}</span>
+                {% endif %}
+              </div>
+
+              <div class="row g-3">
+                <div class="col-6">
+                  <small class="text-muted">{% trans 'Balance' %}</small>
+                  <div>{{ period.balance|floatformat:2 }}</div>
+                </div>
+                <div class="col-6">
+                  <small class="text-muted">{% trans 'Receivables' %}</small>
+                  <div>{{ period.receivables|floatformat:2 }}</div>
+                </div>
+                <div class="col-6">
+                  <small class="text-muted">{% trans 'Payables' %}</small>
+                  <div>{{ period.payables|floatformat:2 }}</div>
+                </div>
+                <div class="col-6">
+                  <small class="text-muted">{% trans 'Inventory Value' %}</small>
+                  <div>{{ period.inventory_value|floatformat:2 }}</div>
+                </div>
+              </div>
+
+              {% if not period.is_closed %}
+                <div class="mt-3">
+                  <a href="{% url 'period_close_view' period.pk %}" class="btn btn-sm btn-outline-warning w-100">
+                    {% trans 'Close Period' %}
+                  </a>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="alert alert-info">
+        {% trans 'No financial periods yet.' %}
+        <a href="{% url 'period_create_view' entity.pk %}">{% trans 'Create the first period' %}</a>
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}

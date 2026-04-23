@@ -4,6 +4,21 @@ from . import views
 
 urlpatterns = [
     path(
+        "periods/<int:entity_pk>/",
+        views.period_list_view,
+        name="period_list_view",
+    ),
+    path(
+        "periods/<int:entity_pk>/create/",
+        views.period_create_view,
+        name="period_create_view",
+    ),
+    path(
+        "periods/<int:period_pk>/close/",
+        views.period_close_view,
+        name="period_close_view",
+    ),
+    path(
         "<int:person_pk>/list/",
         views.operation_list_view,
         name="operation_list_view",
@@ -73,6 +88,51 @@ urlpatterns = [
         "<int:pk>/purchase/invoice/submit/",
         views.purchase_submit_view,
         name="purchase_submit",
+    ),
+    path(
+        "<int:pk>/sale/wizard/",
+        views.sale_wizard_view,
+        name="sale_wizard_step1",
+    ),
+    path(
+        "<int:pk>/sale/wizard/cancel/",
+        views.cancel_sale_wizard_view,
+        name="sale_wizard_cancel",
+    ),
+    path(
+        "<int:pk>/sale/wizard/<int:step>/",
+        views.sale_wizard_view,
+        name="sale_wizard_step_new",
+    ),
+    path(
+        "<int:pk>/sale/invoice/",
+        views.sale_invoice_view,
+        name="sale_invoice",
+    ),
+    path(
+        "<int:pk>/sale/invoice/select-template/",
+        views.sale_select_template_view,
+        name="sale_select_template",
+    ),
+    path(
+        "<int:pk>/sale/invoice/add-item/",
+        views.sale_add_item_view,
+        name="sale_add_item",
+    ),
+    path(
+        "<int:pk>/sale/invoice/add-item/<int:idx>/",
+        views.sale_add_item_view,
+        name="sale_edit_item",
+    ),
+    path(
+        "<int:pk>/sale/invoice/delete-item/<int:idx>/",
+        views.sale_delete_item_view,
+        name="sale_delete_item",
+    ),
+    path(
+        "<int:pk>/sale/invoice/submit/",
+        views.sale_submit_view,
+        name="sale_submit",
     ),
     path(
         "<int:pk>/sale/create",
