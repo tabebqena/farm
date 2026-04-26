@@ -97,16 +97,22 @@
                 <th>
                   {% trans 'Direction' %}
                 </th>
-                <th>
+                <th class="d-none d-lg-table-cell">
                   {% trans 'Counterparty' %}
                 </th>
                 <th class="text-end">
                   {% trans 'Amount' %}
                 </th>
-                <th class="text-center">
+                <th class="text-end">
+                  {% trans 'Paid' %}
+                </th>
+                <th class="text-end">
+                  {% trans 'Remaining' %}
+                </th>
+                <th class="text-center d-none d-lg-table-cell">
                   {% trans 'Status' %}
                 </th>
-                <th>
+                <th class="d-none d-lg-table-cell">
                   {% trans 'Actions' %}
                 </th>
               </tr>
@@ -129,7 +135,7 @@
                       <span class="badge text-primary"><i class="bi bi-arrow-left-right"></i></span>
                     {% endif %}
                   </td>
-                  <td>
+                  <td class="d-none d-lg-table-cell">
                     {% if op.destination == entity_person %}
                       <small class="text-muted">{% trans 'From:' %}</small> {{ op.source.name }}
                     {% else %}
@@ -143,7 +149,23 @@
                       -
                     {% endif %}${{ op.amount }}
                   </td>
-                  <td class="text-center">
+                  <td class="text-end">
+                    {% if op.amount_settled or op.amount_repayed %}
+                      ${{ op.amount_settled|default:op.amount_repayed|default:0 }}
+                    {% else %}
+                      <span class="text-muted">-</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-end">
+                    {% if op.amount_remaining_to_repay %}
+                      ${{ op.amount_remaining_to_repay }}
+                    {% elif op.amount_remaining_to_settle %}
+                      ${{ op.amount_remaining_to_settle }}
+                    {% else %}
+                      <span class="text-muted">-</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-center d-none d-lg-table-cell">
                     {% if op.is_reversed %}
                       <span class="badge rounded-pill bg-danger">{% trans 'Reversed' %}</span>
                     {% elif op.is_reversal %}
@@ -152,7 +174,7 @@
                       <span class="badge rounded-pill bg-success">{% trans 'Active' %}</span>
                     {% endif %}
                   </td>
-                  <td>
+                  <td class="d-none d-lg-table-cell">
                     <div class="btn-group">
                       <a href="{% url 'operation_detail_view' op.pk %}" class="btn btn-sm btn-outline-primary">{% trans 'View' %}</a>
                       {% if not op.is_reversed and not op.is_reversal %}
@@ -163,7 +185,7 @@
                 </tr>
               {% empty %}
                 <tr>
-                  <td colspan="7" class="text-center py-5 text-muted">
+                  <td colspan="9" class="text-center py-5 text-muted">
                     {% trans 'No operations found for this person.' %}
                   </td>
                 </tr>
@@ -217,15 +239,32 @@
                   </div>
                 </div>
 
-                <div class="mb-2">
-                  <small class="text-muted d-block mb-1">{% trans 'Amount' %}</small>
-                  <span class="fw-bold">
-                    {% if op.destination == entity_person %}
-                      +
-                    {% else %}
-                      -
-                    {% endif %}${{ op.amount }}
-                  </span>
+                <div class="row g-2 mb-2">
+                  <div class="col-6">
+                    <small class="text-muted d-block mb-1">{% trans 'Amount' %}</small>
+                    <span class="fw-bold d-block">
+                      {% if op.destination == entity_person %}
+                        +
+                      {% else %}
+                        -
+                      {% endif %}${{ op.amount }}
+                    </span>
+                  </div>
+                  {% if op.amount_settled or op.amount_repayed or op.amount_remaining_to_repay or op.amount_remaining_to_settle %}
+                    <div class="col-6">
+                      <small class="text-muted d-block mb-1">{% trans 'Paid / Remaining' %}</small>
+                      <div class="small">
+                        {% if op.amount_settled or op.amount_repayed %}
+                          <span class="badge bg-info-soft text-info">{% trans 'Paid' %}: ${{ op.amount_settled|default:op.amount_repayed|default:0 }}</span>
+                        {% endif %}
+                        {% if op.amount_remaining_to_repay %}
+                          <span class="badge bg-warning-soft text-warning">{% trans 'Remaining' %}: ${{ op.amount_remaining_to_repay }}</span>
+                        {% elif op.amount_remaining_to_settle %}
+                          <span class="badge bg-warning-soft text-warning">{% trans 'Remaining' %}: ${{ op.amount_remaining_to_settle }}</span>
+                        {% endif %}
+                      </div>
+                    </div>
+                  {% endif %}
                 </div>
 
                 <div class="d-flex gap-2">
