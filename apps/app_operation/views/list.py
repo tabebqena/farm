@@ -1,31 +1,49 @@
 from django.db.models import Q
 from django.shortcuts import render
 
+from apps.app_base.debug import DebugContext, debug_view
 from farm.shortcuts import get_object_or_404
 from apps.app_entity.models import Entity
 from apps.app_operation.models.operation import Operation
 from apps.app_operation.models.proxies import PROXY_MAP
 
 
+@debug_view
 def operation_list_view(request, person_pk):
-    # 1. Resolve the Person
-    entity_person = get_object_or_404(
-        Entity,
-        pk=person_pk,
-        error_message="Entity not found or has been deleted."
-    )
+    """List all operations involving a person."""
+    with DebugContext.section("Fetching entity for operation listing", {
+        "entity_pk": person_pk,
+        "user": request.user.username,
+    }):
+        entity_person = get_object_or_404(
+            Entity,
+            pk=person_pk,
+            error_message="Entity not found or has been deleted."
+        )
+        DebugContext.success("Entity loaded", {
+            "entity_id": entity_person.id,
+            "entity_name": entity_person.name,
+        })
 
-    # 2. Fetch all operations where the person is involved
-    all_operations = (
-        Operation.objects.filter(Q(source=entity_person) | Q(destination=entity_person))
-        .order_by("-date", "-created_at")
-    )
+    with DebugContext.section("Fetching operations involving entity", {
+        "entity_id": entity_person.id,
+    }):
+        all_operations = (
+            Operation.objects.filter(Q(source=entity_person) | Q(destination=entity_person))
+            .order_by("-date", "-created_at")
+        )
+        DebugContext.log("Operations query executed", {
+            "count": all_operations.count(),
+        })
 
-    # 3. Cast to proxy classes
-    operations = [
-        PROXY_MAP.get(op.operation_type, Operation).objects.get(pk=op.pk)
-        for op in all_operations
-    ]
+        operations = [
+            PROXY_MAP.get(op.operation_type, Operation).objects.get(pk=op.pk)
+            for op in all_operations
+        ]
+        DebugContext.success("Operations loaded", {
+            "count": len(operations),
+            "entity_id": entity_person.id,
+        })
 
     context = {
         "entity_person": entity_person,

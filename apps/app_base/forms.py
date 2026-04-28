@@ -3,8 +3,10 @@ from django.contrib.auth.models import User
 from django.contrib.auth.forms import UserCreationForm
 from django.core.exceptions import ValidationError
 
+from apps.app_base.form_logging import LoggingFormMixin
 
-class UserRegistrationForm(UserCreationForm):
+
+class UserRegistrationForm(LoggingFormMixin, UserCreationForm):
     email = forms.EmailField(
         required=True,
         help_text='Required. Enter a valid email address.',

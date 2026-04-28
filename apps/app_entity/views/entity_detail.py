@@ -1,25 +1,30 @@
 from django.shortcuts import render
 
+from apps.app_base.debug import DebugContext, debug_view
 from farm.shortcuts import get_object_or_404
 from apps.app_entity.models import Entity
 
 
+@debug_view
 def entity_detail_view(request, pk):
-    # Fetch entity with all its identity links and fund in one hit
-    entity = get_object_or_404(
-        Entity,
-        pk=pk,
-        error_message="Entity not found or has been deleted."
-    )
+    """Display entity detail page."""
+    with DebugContext.section("Fetching entity details", {
+        "entity_pk": pk,
+        "user": request.user.username,
+    }):
+        entity = get_object_or_404(
+            Entity,
+            pk=pk,
+            error_message="Entity not found or has been deleted."
+        )
+        DebugContext.success("Entity loaded", {
+            "entity_id": entity.id,
+            "entity_type": entity.entity_type,
+            "entity_name": entity.name,
+        })
 
     context = {
         "entity": entity,
-        # "vendors": stakeholders.filter(is_vendor=True),
-        # "workers": stakeholders.filter(is_worker=True),
-        # "clients": stakeholders.filter(is_client=True),
-        # "shareholders": stakeholders.filter(is_shareholder=True),
-        # You would later add transaction history here:
-        # 'transactions': entity.transactions.all().order_by('-timestamp')[:10]
     }
 
     return render(request, "app_entity/entity_detail.html", context)

@@ -3,7 +3,8 @@ from decimal import Decimal
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
-from apps.app_entity.models import Entity, EntityType, FinancialCategory
+from apps.app_entity.models import Entity, EntityType
+from apps.app_entity.models.category import FinancialCategory
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import CapitalGainOperation, ExpenseOperation
 from apps.app_transaction.transaction_type import TransactionType
