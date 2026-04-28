@@ -387,7 +387,7 @@ class Command(BaseCommand):
             )
 
     def _create_default_categories(self):
-        from apps.app_entity.models import FinancialCategory
+        from apps.app_entity.models.category import FinancialCategory
 
         created = 0
         for aspect, items in default_categories.items():
