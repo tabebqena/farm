@@ -9,6 +9,7 @@ from django.utils import timezone
 
 from apps.app_operation.models.operation import Operation
 from apps.app_operation.models.proxies import PROXY_MAP
+from apps.app_operation.forms import PaymentForm
 from apps.app_transaction.models import Transaction
 
 
@@ -16,42 +17,37 @@ def record_transaction_payment(request, pk):
     operation = get_object_or_404(Operation, pk=pk)
     operation = Operation.objects.cast(operation)
 
-    date = request.POST.get("date") or timezone.now().date()
-    note = request.POST.get("note") or ""
-    amount_raw = request.POST.get("amount", "0") or "0"
-
     if request.method == "POST":
-        try:
-            amount = Decimal(amount_raw)
-        except Exception:
-            messages.error(request, "Invalid amount value.")
-            return redirect("operation_detail_view", pk=operation.pk)
-
-        try:
-            officer = request.user
-            operation.create_payment_transaction(
-                amount=amount,
-                officer=officer,
-                date=date,
-                note=note,
-            )
-            messages.success(
-                request, f"Payment of {amount} recorded for Operation #{operation.pk}."
-            )
-            return redirect("operation_detail_view", pk=operation.pk)
-        except Exception as e:
-            traceback.print_exc()
-            messages.error(request, f"Error: {str(e)}")
+        form = PaymentForm(request.POST)
+        if form.is_valid():
+            try:
+                officer = request.user
+                operation.create_payment_transaction(
+                    amount=form.cleaned_data["amount"],
+                    officer=officer,
+                    date=form.cleaned_data["date"],
+                    note=form.cleaned_data["note"],
+                )
+                messages.success(
+                    request, f"Payment of {form.cleaned_data['amount']} recorded for Operation #{operation.pk}."
+                )
+                return redirect("operation_detail_view", pk=operation.pk)
+            except Exception as e:
+                traceback.print_exc()
+                messages.error(request, f"Error: {str(e)}")
+        # Form errors will be displayed in template
+    else:
+        form = PaymentForm(initial={
+            "date": timezone.now().date(),
+        })
 
     return render(
         request,
         "app_operation/add_payment_form.html",
         {
+            "form": form,
             "operation": operation,
             "remaining_balance": operation.amount_remaining_to_settle,
-            "date": date,
-            "amount": amount_raw,
-            "note": note,
         },
     )
 
@@ -75,61 +71,50 @@ def record_transaction_repayment(request, pk):
             f"This operation does not accept repayments: {operation.operation_type}"
         )
 
-    # Safe defaults for both GET and POST
-    date = request.POST.get("date") or timezone.now().date()
-    note = request.POST.get("note") or ""
-    amount_raw = request.POST.get("amount", "0") or "0"
+    remaining_amount = operation.amount_remaining_to_repay
 
     if request.method == "POST":
-        try:
-            amount = Decimal(amount_raw)
-        except Exception:
-            messages.error(request, "Invalid amount value.")
-            return redirect("operation_detail_view", pk=operation.pk)
+        form = PaymentForm(request.POST)
+        if form.is_valid():
+            if form.cleaned_data["amount"] > remaining_amount:
+                form.add_error("amount", f"Amount exceeds remaining balance of {remaining_amount}.")
+            else:
+                try:
+                    officer = request.user
+                    transaction_type = data["repayment_transaction_type"]
 
-        remaining_amount = operation.amount_remaining_to_repay
-
-        if amount <= 0:
-            messages.error(request, "Amount must be greater than zero.")
-        elif amount > remaining_amount:
-            messages.error(
-                request,
-                f"Amount {amount} exceeds remaining balance {remaining_amount}.",
-            )
-        else:
-            try:
-                officer = request.user
-                transaction_type = data["repayment_transaction_type"]
-
-                with db_transaction.atomic():
-                    Transaction.create(
-                        source=operation.destination,
-                        target=operation.source,
-                        document=operation,
-                        tx_type=transaction_type,
-                        amount=amount,
-                        officer=officer,
-                        description=f"Repayment of operation #{operation.pk}",
-                        note=note,
-                        date=date,
+                    with db_transaction.atomic():
+                        Transaction.create(
+                            source=operation.destination,
+                            target=operation.source,
+                            document=operation,
+                            tx_type=transaction_type,
+                            amount=form.cleaned_data["amount"],
+                            officer=officer,
+                            description=f"Repayment of operation #{operation.pk}",
+                            note=form.cleaned_data["note"],
+                            date=form.cleaned_data["date"],
+                        )
+                    messages.success(
+                        request,
+                        f"Repayment of {form.cleaned_data['amount']} recorded for Operation #{operation.pk}.",
                     )
-                messages.success(
-                    request,
-                    f"Repayment of {amount} recorded for Operation #{operation.pk}.",
-                )
-                return redirect("operation_detail_view", pk=operation.pk)
-            except Exception as e:
-                traceback.print_exc()
-                messages.error(request, f"Error: {str(e)}")
+                    return redirect("operation_detail_view", pk=operation.pk)
+                except Exception as e:
+                    traceback.print_exc()
+                    messages.error(request, f"Error: {str(e)}")
+        # Form errors will be displayed in template
+    else:
+        form = PaymentForm(initial={
+            "date": timezone.now().date(),
+        })
 
     return render(
         request,
         "app_operation/add_repayment_form.html",
         {
+            "form": form,
             "operation": operation,
-            "remaining_balance": operation.amount_remaining_to_repay,
-            "date": date,
-            "amount": amount_raw,
-            "note": note,
+            "remaining_balance": remaining_amount,
         },
     )

@@ -264,3 +264,34 @@ class SaleItemForm(forms.Form):
 
         cleaned["delivered_qty"] = delivered
         return cleaned
+
+
+class PaymentForm(forms.Form):
+    """Form for recording a payment transaction on an operation."""
+
+    date = forms.DateField(
+        label=_("Date"),
+        widget=forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+    )
+
+    amount = forms.DecimalField(
+        label=_("Payment Amount"),
+        min_value=Decimal("0.01"),
+        decimal_places=2,
+        max_digits=20,
+        widget=forms.NumberInput(
+            attrs={"class": "form-control", "step": "0.01", "placeholder": "0.00"}
+        ),
+    )
+
+    note = forms.CharField(
+        label=_("Note"),
+        required=False,
+        widget=forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+    )
+
+    def clean_amount(self):
+        amount = self.cleaned_data.get("amount")
+        if amount and amount < Decimal("0.01"):
+            raise forms.ValidationError(_("Amount must be at least 0.01."))
+        return amount

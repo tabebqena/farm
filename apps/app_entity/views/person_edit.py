@@ -3,6 +3,7 @@ from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.app_entity.models import Entity, EntityType
+from apps.app_entity.forms import PersonForm
 
 
 def person_edit_view(request, pk):
@@ -13,24 +14,20 @@ def person_edit_view(request, pk):
         return redirect("entity_list")
 
     if request.method == "POST":
-        entity.name = request.POST.get("name")
-        entity.description = request.POST.get("private_description", "")
-        entity.is_worker = request.POST.get("is_worker") == "on"
-        entity.is_vendor = request.POST.get("is_vendor") == "on"
-        entity.is_client = request.POST.get("is_client") == "on"
-        entity.is_shareholder = request.POST.get("is_shareholder") == "on"
-        entity.is_internal = request.POST.get("is_internal") == "on"
-        entity.active = request.POST.get("active") == "on"
+        form = PersonForm(request.POST, instance=entity)
+        if form.is_valid():
+            try:
+                with transaction.atomic():
+                    form.save()
+                    messages.success(
+                        request, f"Identity for {entity.name} updated successfully."
+                    )
+                    return redirect("entity_detail", pk=entity.pk)
+            except Exception as e:
+                messages.error(request, f"Update failed: {str(e)}")
+        # Form errors will be displayed in template
+    else:
+        form = PersonForm(instance=entity)
 
-        try:
-            with transaction.atomic():
-                entity.save()
-                messages.success(
-                    request, f"Identity for {entity.name} updated successfully."
-                )
-                return redirect("entity_detail", pk=entity.pk)
-        except Exception as e:
-            messages.error(request, f"Update failed: {str(e)}")
-
-    context = {"entity": entity, "is_edit": True}
+    context = {"form": form, "entity": entity, "is_edit": True}
     return render(request, "app_entity/person_form.html", context)
