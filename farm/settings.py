@@ -16,6 +16,10 @@ from pathlib import Path
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Ensure logs directory exists
+LOGS_DIR = BASE_DIR / "logs"
+LOGS_DIR.mkdir(exist_ok=True)
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
@@ -59,6 +63,7 @@ MIDDLEWARE = [
     "crum.CurrentRequestUserMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "farm.middlewares.LoginRequiredMiddleware",
+    "farm.middlewares_audit.AuditTrailMiddleware",  # Request/response auditing
 ]
 
 ROOT_URLCONF = "farm.urls"
@@ -174,21 +179,63 @@ LOGGING = {
             "format": "{levelname} {asctime} {module} {message}",
             "style": "{",
         },
+        "detailed": {
+            "format": "{levelname} | {asctime} | {name} | {funcName}:{lineno} | {message}",
+            "style": "{",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+        },
     },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
             "formatter": "verbose",
         },
+        "debug_file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": str(LOGS_DIR / "debug.log"),
+            "maxBytes": 10485760,  # 10MB
+            "backupCount": 10,
+            "formatter": "detailed",
+        },
+        "audit_file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": str(LOGS_DIR / "audit.log"),
+            "maxBytes": 10485760,  # 10MB
+            "backupCount": 20,
+            "formatter": "detailed",
+        },
+        "error_file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": str(LOGS_DIR / "errors.log"),
+            "maxBytes": 10485760,  # 10MB
+            "backupCount": 10,
+            "formatter": "detailed",
+            "level": "ERROR",
+        },
     },
     "root": {
-        "handlers": ["console"],
-        "level": "WARNING",  # default level for everything
+        "handlers": ["console", "debug_file", "error_file"],
+        "level": "DEBUG",
     },
     "loggers": {
-        "apps": {  # covers all your apps since they're under the `apps` package
-            "handlers": ["console"],
-            "level": "DEBUG",  # show debug logs for your own code
+        "farm_debug": {
+            "handlers": ["console", "debug_file"],
+            "level": "DEBUG",
+            "propagate": False,
+        },
+        "farm_audit": {
+            "handlers": ["audit_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "apps": {
+            "handlers": ["console", "debug_file"],
+            "level": "DEBUG",
+            "propagate": False,
+        },
+        "django.db.backends": {
+            "handlers": ["debug_file"],
+            "level": "DEBUG" if DEBUG else "INFO",
             "propagate": False,
         },
     },

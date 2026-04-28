@@ -225,6 +225,57 @@ class Adjustment(
         DebugContext.success("Adjustment validation passed")
         return super().clean()
 
+    def save(self, *args, **kwargs):
+        """Save adjustment with audit logging."""
+        is_new = self.pk is None
+        action = "created" if is_new else "updated"
+        with DebugContext.section(f"Adjustment.save() ({action})", {
+            "operation": str(self.operation),
+            "type": self.type,
+            "amount": float(self.amount),
+        }):
+            result = super().save(*args, **kwargs)
+            DebugContext.success(f"Adjustment {action}", {"pk": self.pk})
+
+            DebugContext.audit(
+                action=f"adjustment_{action}",
+                entity_type="Adjustment",
+                entity_id=self.pk,
+                details={
+                    "operation": str(self.operation),
+                    "type": self.type,
+                    "amount": float(self.amount),
+                },
+                user=str(self.officer)
+            )
+            return result
+
+    def delete(self, *args, **kwargs):
+        """Delete adjustment with audit logging."""
+        with DebugContext.section("Adjustment.delete()", {
+            "pk": self.pk,
+            "operation": str(self.operation),
+            "type": self.type,
+            "amount": float(self.amount),
+        }):
+            DebugContext.warn("Deleting adjustment", {
+                "operation": str(self.operation),
+                "type": self.type,
+            })
+
+            DebugContext.audit(
+                action="adjustment_deleted",
+                entity_type="Adjustment",
+                entity_id=self.pk,
+                details={
+                    "operation": str(self.operation),
+                    "type": self.type,
+                },
+                user=str(self.officer)
+            )
+
+            return super().delete(*args, **kwargs)
+
     @property
     def _reversable_transaction_types(self) -> List[TransactionType]:
         return [self._issuance_transaction_type]  # type: ignore

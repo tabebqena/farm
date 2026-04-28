@@ -3,10 +3,11 @@ from decimal import Decimal
 from django import forms
 from django.utils.translation import gettext_lazy as _
 
+from apps.app_base.form_logging import LoggingFormMixin
 from apps.app_entity.models import Entity, Stakeholder, StakeholderRole
 
 
-class PurchaseWizardStep1Form(forms.Form):
+class PurchaseWizardStep1Form(LoggingFormMixin, forms.Form):
     """Form for purchase wizard step 1: basic info (date, vendor, description)."""
 
     date = forms.DateField(
@@ -37,7 +38,7 @@ class PurchaseWizardStep1Form(forms.Form):
             self.fields["vendor"].queryset = Entity.objects.filter(pk__in=vendor_ids)
 
 
-class PurchaseWizardStep2Form(forms.Form):
+class PurchaseWizardStep2Form(LoggingFormMixin, forms.Form):
     """Form for purchase wizard step 2: declared invoice total."""
 
     total_amount = forms.DecimalField(
@@ -51,7 +52,7 @@ class PurchaseWizardStep2Form(forms.Form):
     )
 
 
-class PurchaseWizardStep3Form(forms.Form):
+class PurchaseWizardStep3Form(LoggingFormMixin, forms.Form):
     """Form for purchase wizard step 3: optional initial payment."""
 
     amount_paid = forms.DecimalField(
@@ -70,7 +71,7 @@ class PurchaseWizardStep3Form(forms.Form):
         return value if value is not None else Decimal("0")
 
 
-class PurchaseItemForm(forms.Form):
+class PurchaseItemForm(LoggingFormMixin, forms.Form):
     """Form for adding or editing a single invoice item in the purchase invoice view."""
 
     product_template_id = forms.IntegerField(widget=forms.HiddenInput)
@@ -136,7 +137,7 @@ class PurchaseItemForm(forms.Form):
         return cleaned
 
 
-class SaleWizardStep1Form(forms.Form):
+class SaleWizardStep1Form(LoggingFormMixin, forms.Form):
     """Form for sale wizard step 1: basic info (date, client, description)."""
 
     date = forms.DateField(
@@ -167,7 +168,7 @@ class SaleWizardStep1Form(forms.Form):
             self.fields["client"].queryset = Entity.objects.filter(pk__in=client_ids)
 
 
-class SaleWizardStep2Form(forms.Form):
+class SaleWizardStep2Form(LoggingFormMixin, forms.Form):
     """Form for sale wizard step 2: declared invoice total."""
 
     total_amount = forms.DecimalField(
@@ -181,7 +182,7 @@ class SaleWizardStep2Form(forms.Form):
     )
 
 
-class SaleWizardStep3Form(forms.Form):
+class SaleWizardStep3Form(LoggingFormMixin, forms.Form):
     """Form for sale wizard step 3: optional initial payment."""
 
     amount_paid = forms.DecimalField(
@@ -200,7 +201,7 @@ class SaleWizardStep3Form(forms.Form):
         return value if value is not None else Decimal("0")
 
 
-class SaleItemForm(forms.Form):
+class SaleItemForm(LoggingFormMixin, forms.Form):
     """Form for adding or editing a single invoice item in the sale invoice view."""
 
     product_template_id = forms.IntegerField(widget=forms.HiddenInput)
@@ -266,7 +267,7 @@ class SaleItemForm(forms.Form):
         return cleaned
 
 
-class PaymentForm(forms.Form):
+class PaymentForm(LoggingFormMixin, forms.Form):
     """Form for recording a payment transaction on an operation."""
 
     date = forms.DateField(

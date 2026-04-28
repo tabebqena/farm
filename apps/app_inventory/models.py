@@ -8,6 +8,7 @@ from django.db import models
 from django.db.models import DecimalField, ExpressionWrapper, F, Q, Sum
 from django.utils.translation import gettext_lazy as _
 
+from apps.app_base.debug import DebugContext
 from apps.app_base.mixins import AmountCleanMixin, ImmutableMixin, OfficerMixin
 from apps.app_base.models import BaseModel
 
@@ -594,17 +595,83 @@ class Product(AmountCleanMixin, BaseModel):
         )
 
     def clean(self) -> None:
+        DebugContext.log("Product.clean()", {
+            "pk": self.pk,
+            "product": self.product_template.name if self.product_template else "",
+            "quantity": self.quantity,
+            "status": self.status if self.pk else "new",
+        })
         super().clean()  # AmountCleanMixin: unit_price > 0
         # M2M is unavailable until the object has been persisted.
         if self.pk is None:
+            DebugContext.success("Product validation passed (not yet persisted)")
             return
         for item in self.invoice_items.select_related("operation").all():
             op_type = item.operation.operation_type
             if not self.product_template.accepts_operation(op_type):
+                DebugContext.error("Product incompatible with operation", data={
+                    "product": self.product_template.name,
+                    "operation_type": op_type,
+                })
                 raise ValidationError(
                     _("Product '%(p)s' is not compatible with operation type %(op)s.")
                     % {"p": self.product_template.name, "op": op_type}
                 )
+        DebugContext.success("Product validation passed")
+
+    def save(self, *args, **kwargs):
+        """Save product with audit logging."""
+        is_new = self.pk is None
+        action = "created" if is_new else "updated"
+        with DebugContext.section(f"Product.save() ({action})", {
+            "product": self.product_template.name if self.product_template else "",
+            "quantity": self.quantity,
+            "unit_price": float(self.unit_price),
+            "status": self.status if self.pk else "new",
+        }):
+            result = super().save(*args, **kwargs)
+            DebugContext.success(f"Product {action}", {"pk": self.pk})
+
+            DebugContext.audit(
+                action=f"product_{action}",
+                entity_type="Product",
+                entity_id=self.pk,
+                details={
+                    "product_template": self.product_template.name if self.product_template else "",
+                    "quantity": self.quantity,
+                    "unit_price": float(self.unit_price),
+                    "status": self.status,
+                },
+                user="system"
+            )
+            return result
+
+    def delete(self, *args, **kwargs):
+        """Delete product with audit logging."""
+        with DebugContext.section("Product.delete()", {
+            "pk": self.pk,
+            "product": self.product_template.name if self.product_template else "",
+            "quantity": self.quantity,
+            "status": self.status,
+        }):
+            DebugContext.warn("Deleting product", {
+                "pk": self.pk,
+                "product": self.product_template.name if self.product_template else "",
+                "status": self.status,
+            })
+
+            DebugContext.audit(
+                action="product_deleted",
+                entity_type="Product",
+                entity_id=self.pk,
+                details={
+                    "product_template": self.product_template.name if self.product_template else "",
+                    "status": self.status,
+                },
+                user="system"
+            )
+
+            return super().delete(*args, **kwargs)
 
     class Meta:
         verbose_name = _("product")
@@ -638,27 +705,121 @@ class InventoryMovement(ImmutableMixin, OfficerMixin, BaseModel):
     def clean(self):
         from apps.app_operation.models.operation_type import OperationType
 
+        DebugContext.log("InventoryMovement.clean()", {
+            "operation": str(self.operation),
+            "operation_type": self.operation.operation_type if self.operation else "",
+            "date": str(self.date),
+        })
+
         if self.operation.operation_type not in (
             OperationType.PURCHASE,
             OperationType.SALE,
         ):
+            DebugContext.error("Invalid operation type for inventory movement", data={
+                "operation_type": self.operation.operation_type,
+                "allowed": ["PURCHASE", "SALE"],
+            })
             raise ValidationError(
                 _("InventoryMovement is only allowed for PURCHASE or SALE operations.")
             )
+        DebugContext.success("InventoryMovement validation passed")
         super().clean()
+
+    def save(self, *args, **kwargs):
+        """Save inventory movement with logging."""
+        is_new = self.pk is None
+        action = "created" if is_new else "updated"
+        with DebugContext.section(f"InventoryMovement.save() ({action})", {
+            "operation": str(self.operation),
+            "date": str(self.date),
+            "line_count": self.lines.count() if not is_new else 0,
+        }):
+            result = super().save(*args, **kwargs)
+            DebugContext.success(f"InventoryMovement {action}", {"pk": self.pk})
+
+            DebugContext.audit(
+                action=f"inventory_movement_{action}",
+                entity_type="InventoryMovement",
+                entity_id=self.pk,
+                details={
+                    "operation": str(self.operation),
+                    "date": str(self.date),
+                },
+                user=str(self.officer)
+            )
+            return result
+
+    def delete(self, *args, **kwargs):
+        """Delete inventory movement with logging."""
+        with DebugContext.section("InventoryMovement.delete()", {
+            "pk": self.pk,
+            "operation": str(self.operation),
+            "date": str(self.date),
+        }):
+            DebugContext.warn("Deleting inventory movement", {
+                "operation": str(self.operation),
+                "date": str(self.date),
+                "line_count": self.lines.count(),
+            })
+
+            DebugContext.audit(
+                action="inventory_movement_deleted",
+                entity_type="InventoryMovement",
+                entity_id=self.pk,
+                details={"operation": str(self.operation)},
+                user=str(self.officer)
+            )
+
+            return super().delete(*args, **kwargs)
 
     def reverse(self, officer, date=None):
         """Reverse every non-yet-reversed line in this movement."""
-        reversal_movement = InventoryMovement.objects.create(
-            operation=self.operation,
-            date=date or today_date.today(),
-            officer=officer,
-            notes=_("Reversal of movement %(pk)s") % {"pk": self.pk},
-        )
-        for line in self.lines.all():
-            if not InventoryMovementLine.objects.filter(reversal_of=line).exists():
-                line.reverse(officer=officer, date=date, movement=reversal_movement)
-        return reversal_movement
+        import uuid
+        txn_id = f"reverse_move_{self.pk}_{uuid.uuid4().hex[:8]}"
+        DebugContext.transaction_start(txn_id, f"Reversing inventory movement {self.pk}", {
+            "operation": str(self.operation),
+            "line_count": self.lines.count(),
+        })
+
+        try:
+            reversal_movement = InventoryMovement.objects.create(
+                operation=self.operation,
+                date=date or today_date.today(),
+                officer=officer,
+                notes=_("Reversal of movement %(pk)s") % {"pk": self.pk},
+            )
+            for line in self.lines.all():
+                if not InventoryMovementLine.objects.filter(reversal_of=line).exists():
+                    line.reverse(officer=officer, date=date, movement=reversal_movement)
+
+            DebugContext.transaction_commit(txn_id, {
+                "original_movement_pk": self.pk,
+                "reversal_movement_pk": reversal_movement.pk,
+                "status": "success"
+            })
+
+            DebugContext.audit(
+                action="inventory_movement_reversed",
+                entity_type="InventoryMovement",
+                entity_id=self.pk,
+                details={
+                    "operation": str(self.operation),
+                    "reversal_pk": reversal_movement.pk,
+                },
+                user=str(officer)
+            )
+
+            return reversal_movement
+        except Exception as e:
+            DebugContext.transaction_rollback(txn_id, str(e), e)
+            DebugContext.audit(
+                action="inventory_movement_reversal_failed",
+                entity_type="InventoryMovement",
+                entity_id=self.pk,
+                details={"error": str(e)},
+                user=str(officer)
+            )
+            raise
 
     def __str__(self):
         return f"InventoryMovement {self.pk} — {self.operation}"

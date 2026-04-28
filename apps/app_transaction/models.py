@@ -13,7 +13,7 @@ from django.forms import ValidationError
 from django.urls import reverse
 from django.utils import timezone
 
-from apps.app_base.debug import DebugContext
+from apps.app_base.debug import DebugContext, debug_transaction
 from apps.app_base.mixins import AmountCleanMixin, ImmutableMixin
 from apps.app_base.models import BaseModel
 from apps.app_transaction.transaction_type import TransactionType
@@ -186,6 +186,21 @@ class Transaction(AmountCleanMixin, ImmutableMixin, BaseModel):
                 date=resolved_date,
             )
             DebugContext.success("Transaction created", {"transaction_pk": tx.pk})
+
+            # Audit log the transaction creation
+            DebugContext.audit(
+                action="transaction_created",
+                entity_type="Transaction",
+                entity_id=tx.pk,
+                details={
+                    "type": str(tx_type),
+                    "amount": float(amount),
+                    "source": str(source),
+                    "target": str(target),
+                    "document": str(document),
+                },
+                user=str(officer or document.officer)
+            )
             return tx
 
     @db_transaction.atomic
@@ -193,6 +208,16 @@ class Transaction(AmountCleanMixin, ImmutableMixin, BaseModel):
         """
         Creates a counter-transaction to neutralize this transaction.
         """
+        import uuid
+        txn_id = f"reverse_txn_{self.pk}_{uuid.uuid4().hex[:8]}"
+        DebugContext.transaction_start(txn_id, f"Reversing transaction {self.pk}", {
+            "original_txn_pk": self.pk,
+            "type": self.type,
+            "amount": float(self.amount),
+            "officer": str(officer),
+            "reason": reason,
+        })
+
         DebugContext.log(f"Transaction.reverse() called", {
             "transaction_pk": self.pk,
             "type": self.type,
@@ -201,21 +226,32 @@ class Transaction(AmountCleanMixin, ImmutableMixin, BaseModel):
             "reason": reason,
         })
 
-        if self.reversal_of:
-            DebugContext.error("Cannot reverse a reversal", data={
-                "transaction_pk": self.pk,
-                "reversal_of_pk": self.reversal_of_id,
-            })
-            raise ValidationError(
-                "Cannot reverse a transaction that is already a reversal."
-            )
+        try:
+            if self.reversal_of:
+                DebugContext.error("Cannot reverse a reversal", data={
+                    "transaction_pk": self.pk,
+                    "reversal_of_pk": self.reversal_of_id,
+                })
+                raise ValidationError(
+                    "Cannot reverse a transaction that is already a reversal."
+                )
 
-        if hasattr(self, "reversed_by") and self.reversed_by:  # type: ignore
-            DebugContext.error("Transaction already reversed", data={
-                "transaction_pk": self.pk,
-                "reversed_by_pk": self.reversed_by.pk,
-            })
-            raise ValidationError("This transaction has already been reversed.")
+            if hasattr(self, "reversed_by") and self.reversed_by:  # type: ignore
+                DebugContext.error("Transaction already reversed", data={
+                    "transaction_pk": self.pk,
+                    "reversed_by_pk": self.reversed_by.pk,
+                })
+                raise ValidationError("This transaction has already been reversed.")
+        except Exception as e:
+            DebugContext.transaction_rollback(txn_id, str(e), e)
+            DebugContext.audit(
+                action="transaction_reversal_failed",
+                entity_type="Transaction",
+                entity_id=self.pk,
+                details={"error": str(e), "reason": reason},
+                user=str(officer)
+            )
+            raise
 
         with DebugContext.section(f"Creating reversal transaction", {
             "original_transaction_pk": self.pk,
@@ -253,6 +289,26 @@ class Transaction(AmountCleanMixin, ImmutableMixin, BaseModel):
 
             setattr(self, "reversed_by", reversal)
             DebugContext.success("Reversal linked to original transaction")
+
+            # Commit the transaction and log audit trail
+            DebugContext.transaction_commit(txn_id, {
+                "original_txn_pk": self.pk,
+                "reversal_txn_pk": reversal.pk,
+                "status": "success"
+            })
+
+            DebugContext.audit(
+                action="transaction_reversed",
+                entity_type="Transaction",
+                entity_id=self.pk,
+                details={
+                    "reversal_pk": reversal.pk,
+                    "reason": reason,
+                    "original_amount": float(self.amount),
+                },
+                user=str(officer)
+            )
+
             return reversal
 
     def get_absolute_url(self):

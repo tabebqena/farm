@@ -1,6 +1,7 @@
 from django import forms
 from django.forms import BaseInlineFormSet, inlineformset_factory
 
+from apps.app_base.form_logging import LoggingFormMixin
 from apps.app_operation.models.operation import Operation
 from .models import (
     InvoiceItem,
@@ -33,7 +34,7 @@ class RequiresTagSelect(forms.Select):
         return option
 
 
-class InvoiceItemCreateForm(forms.ModelForm):
+class InvoiceItemCreateForm(LoggingFormMixin, forms.ModelForm):
     """
     One row = one Product to be created (animal born / purchased).
     `unique_id` is an extra non-model field: required for INDIVIDUAL tracking,
@@ -131,7 +132,7 @@ InvoiceItemCreateFormSet = inlineformset_factory(
 # ---------------------------------------------------------------------------
 
 
-class InvoiceItemSelectForm(forms.ModelForm):
+class InvoiceItemSelectForm(LoggingFormMixin, forms.ModelForm):
     """
     One row = one existing Product being referenced (sold / died / gained / lost).
     `selected_product` is a non-model field — the view resolves the M2M link.
@@ -182,7 +183,7 @@ InvoiceItemSelectFormSet = inlineformset_factory(
 # ---------------------------------------------------------------------------
 
 
-class InventoryMovementLineForm(forms.ModelForm):
+class InventoryMovementLineForm(LoggingFormMixin, forms.ModelForm):
     """
     One row = one InvoiceItem being physically moved (received/dispatched).
     Pass `operation` to filter the `invoice_item` dropdown to only items

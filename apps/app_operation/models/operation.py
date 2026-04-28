@@ -7,7 +7,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
 
-from apps.app_base.debug import DebugContext, debug_model_save
+from apps.app_base.debug import DebugContext, debug_model_save, debug_transaction
 from apps.app_base.mixins import (
     AdjustableMixin,
     AmountCleanMixin,
@@ -251,6 +251,11 @@ class Operation(
     # ------------------------------------------------------------------
 
     def clean(self):
+        DebugContext.log(f"Operation.clean() ({self.operation_type})", {
+            "is_new": self.pk is None,
+            "pk": self.pk,
+            "date": str(self.date),
+        })
         # Only block NEW, non-reversal operations from landing in a closed period.
         if not self.pk and not getattr(self, "reversal_of_id", None):
             entity = self.period_entity
@@ -265,9 +270,14 @@ class Operation(
                     end_date__gt=self.date,  # half-open interval: date < end_date
                 )
                 if closed.exists():
+                    DebugContext.error("Cannot create operation in closed period", data={
+                        "date": str(self.date),
+                        "entity": str(entity),
+                    })
                     raise ValidationError(
                         "Cannot create an operation whose date falls within a closed financial period."
                     )
+        DebugContext.success("Operation validation passed")
         return super().clean()
 
     def save(self, *args, **kwargs):
@@ -323,6 +333,22 @@ class Operation(
         }):
             result = super().save(*args, **kwargs)
             DebugContext.success("Operation saved", {"pk": self.pk})
+
+            # Audit log the operation
+            action = "operation_created" if is_new else "operation_updated"
+            DebugContext.audit(
+                action=action,
+                entity_type="Operation",
+                entity_id=self.pk,
+                details={
+                    "type": self.operation_type,
+                    "source": str(self.source),
+                    "destination": str(self.destination),
+                    "amount": float(self.amount),
+                    "date": str(self.date),
+                },
+                user=str(self.officer)
+            )
             return result
 
     def save_inventory(self, bound_formset):
@@ -362,19 +388,85 @@ class Operation(
         if self.operation_type not in (OperationType.PURCHASE, OperationType.SALE):
             ProductLedgerEntry.record(self)
 
-    def reverse(self, officer, date=None, reason=None):
-        reversal = super().reverse(officer=officer, date=date, reason=reason)
-        if type(self).has_invoice:
-            if self.operation_type in (OperationType.PURCHASE, OperationType.SALE):
-                for movement in self.inventory_movements.prefetch_related(
-                    "lines"
-                ).all():
-                    movement.reverse(officer=officer, date=date)
-            else:
-                from apps.app_inventory.models import ProductLedgerEntry
+    def delete(self, *args, **kwargs):
+        """Delete operation with audit logging."""
+        with DebugContext.section("Operation.delete()", {
+            "pk": self.pk,
+            "type": self.operation_type,
+            "amount": float(self.amount),
+        }):
+            DebugContext.warn("Deleting operation", {
+                "pk": self.pk,
+                "type": self.operation_type,
+                "source": str(self.source),
+                "destination": str(self.destination),
+            })
 
-                ProductLedgerEntry.record(self, negate=True)
-        return reversal
+            DebugContext.audit(
+                action="operation_deleted",
+                entity_type="Operation",
+                entity_id=self.pk,
+                details={
+                    "type": self.operation_type,
+                    "amount": float(self.amount),
+                },
+                user=str(self.officer)
+            )
+
+            return super().delete(*args, **kwargs)
+
+    def reverse(self, officer, date=None, reason=None):
+        """Reverse an operation with full audit trail."""
+        import uuid
+        txn_id = f"reverse_op_{self.pk}_{uuid.uuid4().hex[:8]}"
+        DebugContext.transaction_start(txn_id, f"Reversing operation {self.pk}", {
+            "original_op_pk": self.pk,
+            "operation_type": self.operation_type,
+            "amount": float(self.amount),
+        })
+
+        try:
+            reversal = super().reverse(officer=officer, date=date, reason=reason)
+            if type(self).has_invoice:
+                if self.operation_type in (OperationType.PURCHASE, OperationType.SALE):
+                    for movement in self.inventory_movements.prefetch_related(
+                        "lines"
+                    ).all():
+                        movement.reverse(officer=officer, date=date)
+                else:
+                    from apps.app_inventory.models import ProductLedgerEntry
+
+                    ProductLedgerEntry.record(self, negate=True)
+
+            DebugContext.transaction_commit(txn_id, {
+                "original_op_pk": self.pk,
+                "reversal_op_pk": reversal.pk,
+                "status": "success"
+            })
+
+            DebugContext.audit(
+                action="operation_reversed",
+                entity_type="Operation",
+                entity_id=self.pk,
+                details={
+                    "type": self.operation_type,
+                    "reversal_pk": reversal.pk,
+                    "reason": reason or "",
+                },
+                user=str(officer)
+            )
+
+            return reversal
+        except Exception as e:
+            DebugContext.transaction_rollback(txn_id, str(e), e)
+            DebugContext.audit(
+                action="operation_reversal_failed",
+                entity_type="Operation",
+                entity_id=self.pk,
+                details={"error": str(e), "reason": reason or ""},
+                user=str(officer)
+            )
+            raise
 
     def __str__(self):
         return (

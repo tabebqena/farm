@@ -14,7 +14,6 @@
       <li class="breadcrumb-item active">{{ entity.name }}</li>
     </ol>
   </nav>
-
   {% if entity.is_project %}
     {% if not entity.product_templates.exists or not entity.categories.exists %}
       <div class="mb-3">
@@ -247,74 +246,74 @@
         </div>
       </div>
     </div>
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-      <h5 class="fw-bold mb-0">{% trans 'Product Templates' %}</h5>
-    </div>
-    <div class="card shadow-sm">
-      <div class="card-header fw-bold">
-        {% trans 'Product Templates' %}
-      </div>
-      <div class="card-body p-0">
-        {% if entity.product_templates %}
-          <div class="table-responsive">
-            <table class="table mb-0">
-              <thead class="table-light">
-                <tr>
-                  <th>
-                    {% trans 'Name' %}
-                  </th>
-                  <th>
-                    {% trans 'Nature' %}
-                  </th>
-                  <th>
-                    {% trans 'Default Unit' %}
-                  </th>
-                  <th>
-                    {% trans 'Tracking Mode' %}
-                  </th>
-                  <th class="text-center">
-                    {% trans 'Products' %}
-                  </th>
-                  <th class="text-center">
-                    {% trans 'Invoice Items' %}
-                  </th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for template in entity.product_templates.all %}
-                  <tr>
-                    <td>
-                      <strong>{{ template.name }}</strong>
-                      {% if template.name_ar %}
-                        <br /><small class="text-muted">{{ template.name_ar }}</small>
-                      {% endif %}
-                    </td>
-                    <td>{{ template.get_nature_display }}</td>
-                    <td>{{ template.default_unit }}</td>
-                    <td>{{ template.get_tracking_mode_display }}</td>
-                    <td class="text-center">{{ template.product_set.count }}</td>
-                    <td class="text-center">{{ template.invoices.count }}</td>
-                    <td>
-                      <a href="{% url 'product_template_detail' template.pk %}" class="btn btn-sm btn-outline-primary">{% trans 'View' %}</a>
-                    </td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        {% else %}
-          <div class="text-center text-muted py-4">
-            <p class="mb-3">
-              {% trans 'No product templates assigned to this entity.' %}
-            </p>
-            <a href="{% url 'entity_product_templates_setup' entity.pk %}" class="btn btn-sm btn-primary">{% trans 'Assign Product Templates' %}</a>
-          </div>
-        {% endif %}
-      </div>
-    </div>
-
     {% if entity.is_project %}
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <h5 class="fw-bold mb-0">{% trans 'Product Templates' %}</h5>
+      </div>
+      <div class="card shadow-sm">
+        <div class="card-header fw-bold">
+          {% trans 'Product Templates' %}
+        </div>
+        <div class="card-body p-0">
+          {% if entity.product_templates %}
+            <div class="table-responsive">
+              <table class="table mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>
+                      {% trans 'Name' %}
+                    </th>
+                    <th>
+                      {% trans 'Nature' %}
+                    </th>
+                    <th>
+                      {% trans 'Default Unit' %}
+                    </th>
+                    <th>
+                      {% trans 'Tracking Mode' %}
+                    </th>
+                    <th class="text-center">
+                      {% trans 'Products' %}
+                    </th>
+                    <th class="text-center">
+                      {% trans 'Invoice Items' %}
+                    </th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for template in entity.product_templates.all %}
+                    <tr>
+                      <td>
+                        <strong>{{ template.name }}</strong>
+                        {% if template.name_ar %}
+                          <br /><small class="text-muted">{{ template.name_ar }}</small>
+                        {% endif %}
+                      </td>
+                      <td>{{ template.get_nature_display }}</td>
+                      <td>{{ template.default_unit }}</td>
+                      <td>{{ template.get_tracking_mode_display }}</td>
+                      <td class="text-center">{{ template.product_set.count }}</td>
+                      <td class="text-center">{{ template.invoices.count }}</td>
+                      <td>
+                        <a href="{% url 'product_template_detail' template.pk %}" class="btn btn-sm btn-outline-primary">{% trans 'View' %}</a>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="text-center text-muted py-4">
+              <p class="mb-3">
+                {% trans 'No product templates assigned to this entity.' %}
+              </p>
+              <a href="{% url 'entity_product_templates_setup' entity.pk %}" class="btn btn-sm btn-primary">{% trans 'Assign Product Templates' %}</a>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
       <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <h5 class="fw-bold mb-0">{% trans 'Operational Categories' %}</h5>
         <div class="d-flex gap-2">
