@@ -3,16 +3,21 @@ from decimal import Decimal
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import redirect, render
 from django.utils.translation import gettext_lazy as _
 
+from farm.shortcuts import get_object_or_404
 from apps.app_entity.models import Entity
 from apps.app_operation.models.period import FinancialPeriod
 
 
 @login_required
 def period_detail_view(request, period_pk):
-    period = get_object_or_404(FinancialPeriod, pk=period_pk)
+    period = get_object_or_404(
+        FinancialPeriod,
+        pk=period_pk,
+        error_message="Financial period not found or has been deleted."
+    )
     context = {
         "period": period,
         "entity": period.entity,
@@ -22,7 +27,11 @@ def period_detail_view(request, period_pk):
 
 @login_required
 def period_list_view(request, entity_pk):
-    entity = get_object_or_404(Entity, pk=entity_pk)
+    entity = get_object_or_404(
+        Entity,
+        pk=entity_pk,
+        error_message="Entity not found or has been deleted."
+    )
     periods = entity.financial_periods.all().order_by("-start_date")
     context = {
         "entity": entity,
@@ -33,7 +42,11 @@ def period_list_view(request, entity_pk):
 
 @login_required
 def period_create_view(request, entity_pk):
-    entity = get_object_or_404(Entity, pk=entity_pk)
+    entity = get_object_or_404(
+        Entity,
+        pk=entity_pk,
+        error_message="Entity not found or has been deleted."
+    )
 
     if request.method == "GET":
         context = {"entity": entity}
@@ -56,7 +69,11 @@ def period_create_view(request, entity_pk):
 
 @login_required
 def period_close_view(request, period_pk):
-    period = get_object_or_404(FinancialPeriod, pk=period_pk)
+    period = get_object_or_404(
+        FinancialPeriod,
+        pk=period_pk,
+        error_message="Financial period not found or has been deleted."
+    )
 
     if period.end_date is not None:
         context = {

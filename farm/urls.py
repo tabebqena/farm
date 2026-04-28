@@ -21,6 +21,8 @@ from django.contrib.auth import views as auth_views
 from django.urls import include, path
 from django.views.generic import RedirectView
 
+from . import views as error_views
+
 urlpatterns = [
     # Language-switching endpoint (not wrapped in i18n_patterns)
     path("i18n/", include("django.conf.urls.i18n")),
@@ -31,9 +33,16 @@ urlpatterns += i18n_patterns(
     path("entities/", include("apps.app_entity.urls")),
     path("entities/operations/", include("apps.app_operation.urls")),
     path("inventory/", include("apps.app_inventory.urls")),
+    path("auth/", include("apps.app_base.urls")),
     path("login/", auth_views.LoginView.as_view(), name="login"),
     path("logout/", auth_views.LogoutView.as_view(), name="logout"),
     # Todo: dashboard view
     path("", RedirectView.as_view(pattern_name="entity_list", permanent=False)),
     prefix_default_language=True,
 )
+
+# Custom error handlers
+handler404 = error_views.handler404
+handler500 = error_views.handler500
+handler403 = error_views.handler403
+handler400 = error_views.handler400

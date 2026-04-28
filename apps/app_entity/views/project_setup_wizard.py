@@ -2,9 +2,10 @@ from decimal import Decimal
 
 from django.contrib import messages
 from django.db import transaction
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import redirect, render
 from django.utils.translation import gettext as _
 
+from farm.shortcuts import get_object_or_404
 from apps.app_entity.models import (
     Entity,
     EntityType,
@@ -44,7 +45,12 @@ def project_setup_wizard_view(request, entity_pk=None, step=1):
     # Get or load entity
     entity = None
     if entity_pk:
-        entity = get_object_or_404(Entity, pk=entity_pk, entity_type=EntityType.PROJECT)
+        entity = get_object_or_404(
+            Entity,
+            pk=entity_pk,
+            entity_type=EntityType.PROJECT,
+            error_message="Project not found or has been deleted."
+        )
     elif step == 1:
         # Step 1 with no entity_pk means creating new
         pass

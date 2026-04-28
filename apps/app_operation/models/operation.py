@@ -120,11 +120,15 @@ class Operation(
         Resolves a request into a unified config + entity dict.
         Call on the proxy class: e.g. PurchaseOperation.resolve_request(pk, request)
         """
-        from django.shortcuts import get_object_or_404
+        from farm.shortcuts import get_object_or_404
 
         from apps.app_entity.models import Entity, EntityType
 
-        url_entity = get_object_or_404(Entity, pk=url_pk)
+        url_entity = get_object_or_404(
+            Entity,
+            pk=url_pk,
+            error_message="Entity not found or has been deleted."
+        )
         source_role = cls._source_role
         dest_role = cls._dest_role
 
@@ -137,7 +141,11 @@ class Operation(
 
         secondary_pk = request.POST.get("secondary_entity")
         secondary_entity = (
-            get_object_or_404(Entity, pk=secondary_pk) if secondary_pk else None
+            get_object_or_404(
+                Entity,
+                pk=secondary_pk,
+                error_message="Secondary entity not found or has been deleted."
+            ) if secondary_pk else None
         )
 
         def resolve(role):

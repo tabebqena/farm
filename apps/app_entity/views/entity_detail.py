@@ -1,13 +1,15 @@
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import render
 
+from farm.shortcuts import get_object_or_404
 from apps.app_entity.models import Entity
 
 
 def entity_detail_view(request, pk):
     # Fetch entity with all its identity links and fund in one hit
     entity = get_object_or_404(
-        Entity.objects,
+        Entity,
         pk=pk,
+        error_message="Entity not found or has been deleted."
     )
 
     context = {

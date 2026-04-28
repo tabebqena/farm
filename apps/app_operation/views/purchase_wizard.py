@@ -4,9 +4,10 @@ from decimal import Decimal
 
 from django.contrib import messages
 from django.db import transaction
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import redirect, render
 from django.utils.translation import gettext as _
 
+from farm.shortcuts import get_object_or_404
 from apps.app_base.debug import DebugContext, debug_view
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
 from apps.app_inventory.models import (
@@ -60,7 +61,12 @@ def _items_total(items: list) -> Decimal:
 
 def _load_project(request, pk):
     """Return (project, None) or (None, redirect_response)."""
-    project = get_object_or_404(Entity, pk=pk, entity_type=EntityType.PROJECT)
+    project = get_object_or_404(
+        Entity,
+        pk=pk,
+        entity_type=EntityType.PROJECT,
+        error_message="Project not found or has been deleted."
+    )
     vendor_count = Stakeholder.objects.filter(
         parent=project, role=StakeholderRole.VENDOR, active=True
     ).count()
@@ -318,7 +324,12 @@ def purchase_add_item_view(request, pk, idx=None):
         except (ValueError, TypeError):
             template_pk = 0
 
-    template = get_object_or_404(ProductTemplate, pk=template_pk, entities=project)
+    template = get_object_or_404(
+        ProductTemplate,
+        pk=template_pk,
+        entities=project,
+        error_message="Product template not found or is not assigned to this project."
+    )
 
     if request.method == "POST":
         form = PurchaseItemForm(request.POST, template=template)
@@ -432,7 +443,11 @@ def purchase_submit_view(request, pk):
 @transaction.atomic
 def _do_submit(request, project, session_data: dict):
     date_val = datetime.fromisoformat(session_data["date"]).date()
-    vendor = get_object_or_404(Entity, pk=session_data["vendor_id"])
+    vendor = get_object_or_404(
+        Entity,
+        pk=session_data["vendor_id"],
+        error_message="Vendor not found or has been deleted."
+    )
     desc = session_data.get("description", "")
     total = Decimal(session_data["total_amount"])
     paid = Decimal(session_data.get("amount_paid", "0"))
@@ -460,7 +475,11 @@ def _do_submit(request, project, session_data: dict):
     movement_lines = []
 
     for item_data in items:
-        template = get_object_or_404(ProductTemplate, pk=item_data["product_template_id"])
+        template = get_object_or_404(
+            ProductTemplate,
+            pk=item_data["product_template_id"],
+            error_message="Product template not found or has been deleted."
+        )
 
         # 2. Create InvoiceItem
         from apps.app_inventory.models import InvoiceItem

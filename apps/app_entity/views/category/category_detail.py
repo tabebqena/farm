@@ -1,5 +1,6 @@
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import render
 
+from farm.shortcuts import get_object_or_404
 from apps.app_entity.models import Entity
 from apps.app_entity.models.category import (
     FinancialCategoriesEntitiesRelations,
@@ -11,6 +12,7 @@ def category_relation_detail_view(request, pk):
     relation = get_object_or_404(
         FinancialCategoriesEntitiesRelations,
         pk=pk,
+        error_message="Category assignment not found or has been deleted."
     )
     category = relation.category
     parent = relation.entity

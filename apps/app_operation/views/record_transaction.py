@@ -4,9 +4,10 @@ from decimal import Decimal
 from django.contrib import messages
 from django.db import transaction as db_transaction
 from django.http import HttpResponseBadRequest, HttpResponseNotFound
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import redirect, render
 from django.utils import timezone
 
+from farm.shortcuts import get_object_or_404
 from apps.app_operation.models.operation import Operation
 from apps.app_operation.models.proxies import PROXY_MAP
 from apps.app_operation.forms import PaymentForm
@@ -14,7 +15,11 @@ from apps.app_transaction.models import Transaction
 
 
 def record_transaction_payment(request, pk):
-    operation = get_object_or_404(Operation, pk=pk)
+    operation = get_object_or_404(
+        Operation,
+        pk=pk,
+        error_message="Operation not found or has been deleted."
+    )
     operation = Operation.objects.cast(operation)
 
     if request.method == "POST":

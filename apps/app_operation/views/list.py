@@ -1,6 +1,7 @@
 from django.db.models import Q
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import render
 
+from farm.shortcuts import get_object_or_404
 from apps.app_entity.models import Entity
 from apps.app_operation.models.operation import Operation
 from apps.app_operation.models.proxies import PROXY_MAP
@@ -8,7 +9,11 @@ from apps.app_operation.models.proxies import PROXY_MAP
 
 def operation_list_view(request, person_pk):
     # 1. Resolve the Person
-    entity_person = get_object_or_404(Entity, pk=person_pk)
+    entity_person = get_object_or_404(
+        Entity,
+        pk=person_pk,
+        error_message="Entity not found or has been deleted."
+    )
 
     # 2. Fetch all operations where the person is involved
     all_operations = (

@@ -1,12 +1,17 @@
 from django.contrib import messages
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import redirect, render
 
+from farm.shortcuts import get_object_or_404
 from apps.app_entity.models import Stakeholder
 
 
 def edit_stakeholder_view(request, pk):
     # Fetch the stakeholder relationship
-    stakeholder = get_object_or_404(Stakeholder, pk=pk)
+    stakeholder = get_object_or_404(
+        Stakeholder,
+        pk=pk,
+        error_message="Stakeholder relationship not found or has been deleted."
+    )
     parent = stakeholder.parent
 
     if request.method == "POST":

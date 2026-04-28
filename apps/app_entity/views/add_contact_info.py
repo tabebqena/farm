@@ -1,13 +1,18 @@
 from django.contrib import messages
 from django.db import transaction
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import redirect, render
 from django.utils.translation import gettext as _
 
+from farm.shortcuts import get_object_or_404
 from apps.app_entity.models import ContactInfo, Entity
 
 
 def add_contact_info_view(request, entity_id):
-    entity = get_object_or_404(Entity, pk=entity_id)
+    entity = get_object_or_404(
+        Entity,
+        pk=entity_id,
+        error_message="Entity not found or has been deleted."
+    )
 
     if request.method == "POST":
         contact_type = request.POST.get("contact_type")

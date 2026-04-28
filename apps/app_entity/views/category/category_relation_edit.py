@@ -2,8 +2,9 @@ from decimal import Decimal
 
 from django.contrib import messages
 from django.db import transaction
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import redirect, render
 
+from farm.shortcuts import get_object_or_404
 from apps.app_entity.models.category import (
     FinancialCategoriesEntitiesRelations,
 )
@@ -11,7 +12,11 @@ from apps.app_entity.models.category import (
 
 def category_relation_edit_view(request, pk):
     # 1. Fetch the existing category and relation
-    relation = get_object_or_404(FinancialCategoriesEntitiesRelations, pk=pk)
+    relation = get_object_or_404(
+        FinancialCategoriesEntitiesRelations,
+        pk=pk,
+        error_message="Category assignment not found or has been deleted."
+    )
     category = relation.category
 
     parent = relation.entity

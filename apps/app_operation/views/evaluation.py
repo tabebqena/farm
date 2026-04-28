@@ -5,10 +5,11 @@ from decimal import Decimal
 from django import forms
 from django.contrib import messages
 from django.db import transaction as db_transaction
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
+from farm.shortcuts import get_object_or_404
 from apps.app_entity.models import Entity
 from apps.app_inventory.models import InvoiceItem, Product, ProductLedgerEntry
 from apps.app_operation.models.proxies.op_capital_gain import CapitalGainOperation
@@ -55,10 +56,18 @@ class EvaluationCreateView(OperationCreateView):
     template_name = "app_operation/evaluation_form.html"
 
     def dispatch(self, request, *args, **kwargs):
-        self.project = get_object_or_404(Entity, pk=kwargs["pk"])
+        self.project = get_object_or_404(
+            Entity,
+            pk=kwargs["pk"],
+            error_message="Project not found or has been deleted."
+        )
         self.product_pk = kwargs.get("product_pk")
         if self.product_pk:
-            self.product = get_object_or_404(Product, pk=self.product_pk)
+            self.product = get_object_or_404(
+                Product,
+                pk=self.product_pk,
+                error_message="Product not found or has been deleted."
+            )
         else:
             self.product = None
         from django.views import View

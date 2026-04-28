@@ -1,7 +1,8 @@
 from django.contrib import messages
 from django.http import Http404
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import redirect, render
 
+from farm.shortcuts import get_object_or_404
 from apps.app_entity.models import Entity, Stakeholder
 
 
@@ -9,7 +10,10 @@ def add_stakeholder_base(request, parent_entity_id, role_type):
     # Rule 1: Host must be internal
     try:
         parent_project = get_object_or_404(
-            Entity, pk=parent_entity_id, is_internal=True
+            Entity,
+            pk=parent_entity_id,
+            is_internal=True,
+            error_message="Project not found or is not configured as internal."
         )
     except Http404 as e:
         messages.error(
@@ -20,7 +24,12 @@ def add_stakeholder_base(request, parent_entity_id, role_type):
 
     if request.method == "POST":
         target_id = request.POST.get("target_entity")
-        target_entity = get_object_or_404(Entity, pk=target_id, active=True)
+        target_entity = get_object_or_404(
+            Entity,
+            pk=target_id,
+            active=True,
+            error_message="Entity not found or is not active."
+        )
 
         # Rule 2: Validation based on role_type
         error_msg = None

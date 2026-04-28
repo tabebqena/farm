@@ -1,10 +1,15 @@
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import render
 
+from farm.shortcuts import get_object_or_404
 from apps.app_operation.models import Operation
 
 
 def operation_detail_view(request, pk):
-    operation = get_object_or_404(Operation, pk=pk)
+    operation = get_object_or_404(
+        Operation,
+        pk=pk,
+        error_message="Operation not found or has been deleted."
+    )
     operation = Operation.objects.cast(operation)
 
     # Prefetch related data for performance

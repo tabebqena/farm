@@ -1,7 +1,8 @@
 from django.contrib import messages
 from django.db import transaction
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import redirect, render
 
+from farm.shortcuts import get_object_or_404
 from apps.app_entity.models import Entity
 from apps.app_entity.models.category import (
     FinancialCategoriesEntitiesRelations,
@@ -10,7 +11,11 @@ from apps.app_entity.models.category import (
 
 
 def category_bulk_assign_view(request, parent_entity_id):
-    parent_entity = get_object_or_404(Entity, id=parent_entity_id)
+    parent_entity = get_object_or_404(
+        Entity,
+        id=parent_entity_id,
+        error_message="Entity not found or has been deleted."
+    )
     categories = FinancialCategory.objects.all()
 
     if request.method == "POST":

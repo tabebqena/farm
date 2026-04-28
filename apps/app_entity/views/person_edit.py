@@ -1,13 +1,18 @@
 from django.contrib import messages
 from django.db import transaction
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import redirect, render
 
+from farm.shortcuts import get_object_or_404
 from apps.app_entity.models import Entity, EntityType
 from apps.app_entity.forms import PersonForm
 
 
 def person_edit_view(request, pk):
-    entity = get_object_or_404(Entity, pk=pk)
+    entity = get_object_or_404(
+        Entity,
+        pk=pk,
+        error_message="Person not found or has been deleted."
+    )
 
     if entity.entity_type != EntityType.PERSON:
         messages.error(request, "This entity is not a Person.")

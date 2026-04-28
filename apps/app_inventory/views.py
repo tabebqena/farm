@@ -4,10 +4,11 @@ from datetime import date as today_date
 from django.contrib import messages
 from django.db import transaction as db_transaction
 from django.http import Http404
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import redirect, render
 from django.utils.dateparse import parse_date
 from django.utils.translation import gettext as _
 
+from farm.shortcuts import get_object_or_404
 from apps.app_entity.models import Entity
 from apps.app_inventory.forms import InventoryMovementLineFormSet
 from apps.app_inventory.models import InventoryMovement, Product, ProductTemplate
@@ -26,7 +27,11 @@ def stock_detail(request, entity_pk):
     )
     from apps.app_operation.models.operation_type import OperationType
 
-    entity = get_object_or_404(Entity, pk=entity_pk)
+    entity = get_object_or_404(
+        Entity,
+        pk=entity_pk,
+        error_message="Entity not found or has been deleted."
+    )
 
     # Get portfolio for this entity as of today
     portfolio = ProductLedgerEntry.portfolio_as_of(entity, date.today())
@@ -73,6 +78,7 @@ def product_detail(request, pk):
             "invoice_items__operation", "ledger_entries"
         ),
         pk=pk,
+        error_message="Product not found or has been deleted."
     )
     return render(request, "app_inventory/product_detail.html", {"product": product})
 
@@ -83,7 +89,11 @@ def project_product_templates_setup(request, entity_pk):
     Verifies officer permissions and performs a bulk update within a transaction.
     """
     try:
-        target_entity = get_object_or_404(Entity, pk=entity_pk)
+        target_entity = get_object_or_404(
+            Entity,
+            pk=entity_pk,
+            error_message="Entity not found or has been deleted."
+        )
     except Http404 as e:
         messages.error(request, "Target entity not found")
         raise
@@ -132,6 +142,7 @@ def product_template_detail(request, pk):
             "invoices__operation",
         ),
         pk=pk,
+        error_message="Product template not found or has been deleted."
     )
     return render(
         request, "app_inventory/product_template_detail.html", {"template": template}
@@ -140,7 +151,11 @@ def product_template_detail(request, pk):
 
 def entity_product_templates_list(request, entity_pk):
     """List product templates assigned to an entity."""
-    entity = get_object_or_404(Entity, pk=entity_pk)
+    entity = get_object_or_404(
+        Entity,
+        pk=entity_pk,
+        error_message="Entity not found or has been deleted."
+    )
     templates = (
         entity.product_templates.all()
         .prefetch_related("entities", "product_set", "invoices")
@@ -218,7 +233,11 @@ def create_inventory_movement(request, operation_pk):
         )
         return redirect("entity_list")
 
-    operation = get_object_or_404(Operation, pk=operation_pk)
+    operation = get_object_or_404(
+        Operation,
+        pk=operation_pk,
+        error_message="Operation not found or has been deleted."
+    )
 
     if operation.operation_type not in (OperationType.PURCHASE, OperationType.SALE):
         messages.error(
