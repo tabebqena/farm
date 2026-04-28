@@ -46,7 +46,7 @@
                   <th>
                     {% trans 'Status' %}
                   </th>
-                  <th></th>
+                  {% comment %} <th></th> {% endcomment %}
                 </tr>
               </thead>
               <tbody>
@@ -69,8 +69,25 @@
                         {% endif %}
                       {% endwith %}
                     </td>
-                    <td>
-                      <a href="{% url 'product_detail' product.pk %}" class="btn btn-sm btn-outline-primary">{% trans 'View' %}</a>
+                  </tr>
+                  <tr>
+                    <td colspan="8">
+                      <div class="d-flex flex-column gap-2">
+                        <span class="d-flex justify-content-center">
+                          <a href="{% url 'product_detail' product.pk %}" class="btn btn-sm btn-outline-primary me-5">{% trans 'View' %}</a>
+
+                          {% if product.status == 'ACTIVE' %}
+                            <a href="{% url 'evaluation_create_view' entity.pk product.pk %}" class="btn btn-info me-4" title="{% trans 'Record Evaluation' %}"><i class="bi bi-x-lg bi-statistics"></i> {% trans 'Record Evaluation' %}</a>
+
+                            {% if product.product_template.nature == 'ANIMAL' %}
+                              <a href="{% url 'death_create_view' entity.pk %}" class="btn btn-danger" title="{% trans 'Record Death' %}"><i class="bi bi-x-lg"></i> {% trans 'Record Death' %}</a>
+                            {% endif %}
+                            {% if product.product_template.nature == 'FEED' or product.product_template.nature == 'MEDICINE' %}
+                              <a href="{% url 'operation_create_view' pk=entity.pk op_type='consumption' %}" class="btn btn-warning" title="{% trans 'Record Consumption' %}"><i class="bi bi-fire"></i> {% trans 'Record Consumption' %}</a>
+                            {% endif %}
+                          {% endif %}
+                        </span>
+                      </div>
                     </td>
                   </tr>
                 {% empty %}
@@ -126,7 +143,21 @@
                     </div>
                   </div>
 
-                  <a href="{% url 'product_detail' product.pk %}" class="btn btn-sm btn-outline-primary w-100">{% trans 'View' %}</a>
+                  <div class="d-flex flex-column gap-2">
+                    <a href="{% url 'product_detail' product.pk %}" class="btn btn-sm btn-outline-primary">{% trans 'View' %}</a>
+                    {% if product.status == 'ACTIVE' %}
+                      <div class="d-flex gap-2 flex-column">
+                        <a href="{% url 'evaluation_create_view' entity.pk product.pk %}" class="btn btn-info" title="{% trans 'Record Evaluation' %}"><i class="bi bi-x-lg bi-statistics"></i> {% trans 'Record Evaluation' %}</a>
+
+                        {% if product.product_template.nature == 'ANIMAL' %}
+                          <a href="{% url 'death_create_view' entity.pk %}" class="btn btn-lg btn-danger" title="{% trans 'Record Death' %}"><i class="bi bi-x-lg"></i> {% trans 'Death' %}</a>
+                        {% endif %}
+                        {% if product.product_template.nature == 'FEED' or product.product_template.nature == 'MEDICINE' %}
+                          <a href="{% url 'operation_create_view' pk=entity.pk op_type='consumption' %}" class="btn btn-lg btn-warning" title="{% trans 'Record Consumption' %}"><i class="bi bi-fire"></i> {% trans 'Consume' %}</a>
+                        {% endif %}
+                      </div>
+                    {% endif %}
+                  </div>
                 </div>
               {% endfor %}
             </div>
@@ -174,6 +205,7 @@
                       {% trans 'Product' %}
                     </th>
                     <th></th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -189,6 +221,9 @@
                       </td>
                       <td>
                         <a href="{% url 'product_detail' item.product.pk %}" class="btn btn-sm btn-outline-primary">{% trans 'View Product' %}</a>
+                      </td>
+                      <td>
+                        <a href="{% url 'create_inventory_movement' operation_pk=item.operation.pk %}" class="btn btn-sm btn-outline-success">{% trans 'Create Movement' %}</a>
                       </td>
                     </tr>
                   {% endfor %}
@@ -228,6 +263,7 @@
                     <a href="{% url 'operation_detail_view' item.operation.pk %}" class="btn btn-sm btn-outline-primary flex-grow-1">{% trans 'View Op' %}</a>
                     <a href="{% url 'product_detail' item.product.pk %}" class="btn btn-sm btn-outline-primary flex-grow-1">{% trans 'View Prod' %}</a>
                   </div>
+                  <a href="{% url 'create_inventory_movement' operation_pk=item.operation.pk %}" class="btn btn-sm btn-outline-success w-100 mt-2">{% trans 'Create Movement' %}</a>
                 </div>
               {% endfor %}
             </div>
@@ -265,6 +301,7 @@
                       {% trans 'Operation Date' %}
                     </th>
                     <th></th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -277,6 +314,9 @@
                       <td>{{ item.operation.date }}</td>
                       <td>
                         <a href="{% url 'operation_detail_view' item.operation.pk %}" class="btn btn-sm btn-outline-primary">{% trans 'View' %}</a>
+                      </td>
+                      <td>
+                        <a href="{% url 'create_inventory_movement' operation_pk=item.operation.pk %}" class="btn btn-sm btn-outline-success">{% trans 'Create Movement' %}</a>
                       </td>
                     </tr>
                   {% endfor %}
@@ -312,7 +352,10 @@
                     </div>
                   </div>
 
-                  <a href="{% url 'operation_detail_view' item.operation.pk %}" class="btn btn-sm btn-outline-primary w-100">{% trans 'View' %}</a>
+                  <div class="d-flex gap-2">
+                    <a href="{% url 'operation_detail_view' item.operation.pk %}" class="btn btn-sm btn-outline-primary flex-grow-1">{% trans 'View' %}</a>
+                    <a href="{% url 'create_inventory_movement' operation_pk=item.operation.pk %}" class="btn btn-sm btn-outline-success flex-grow-1">{% trans 'Movement' %}</a>
+                  </div>
                 </div>
               {% endfor %}
             </div>

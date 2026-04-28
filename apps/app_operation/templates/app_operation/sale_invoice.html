@@ -1,0 +1,177 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item">
+                <a href="{% url 'operation_list_view' person_pk=project.pk %}">{{ project.name }}</a>
+            </li>
+            <li class="breadcrumb-item active">{% trans "New Sale" %}</li>
+            <li class="breadcrumb-item active">{% trans "Invoice" %}</li>
+        </ol>
+    </nav>
+
+    <h2 class="mb-4">{% trans "Sale Invoice" %}</h2>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Sale summary card -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span class="fw-bold">{% trans "Sale Summary" %}</span>
+            <a href="{% url 'sale_wizard_step_new' pk=project.pk step=1 %}" class="btn btn-sm btn-outline-secondary">
+                {% trans "Edit Basic Info" %}
+            </a>
+        </div>
+        <div class="card-body d-flex flex-wrap gap-4 align-items-end">
+            <div>
+                <small class="text-muted d-block">{% trans "Date" %}</small>
+                <strong>{{ session_data.date }}</strong>
+            </div>
+            <div>
+                <small class="text-muted d-block">{% trans "Client" %}</small>
+                <strong>{% if client %}{{ client.name }}{% else %}—{% endif %}</strong>
+            </div>
+            <div>
+                <small class="text-muted d-block">{% trans "Declared Total" %}</small>
+                <div class="d-flex align-items-center gap-2">
+                    <strong>${{ session_data.total_amount }}</strong>
+                    <a href="{% url 'sale_wizard_step_new' pk=project.pk step=2 %}?next=invoice"
+                       class="btn btn-sm btn-outline-secondary">{% trans "Edit" %}</a>
+                </div>
+            </div>
+            <div>
+                <small class="text-muted d-block">{% trans "Payment" %}</small>
+                <div class="d-flex align-items-center gap-2">
+                    {% if session_data.amount_paid and session_data.amount_paid != "0" %}
+                        <strong>${{ session_data.amount_paid }}</strong>
+                    {% else %}
+                        <span class="text-muted">{% trans "None" %}</span>
+                    {% endif %}
+                    <a href="{% url 'sale_wizard_step_new' pk=project.pk step=3 %}?next=invoice"
+                       class="btn btn-sm btn-outline-secondary">{% trans "Edit" %}</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Difference alert -->
+    {% if not submit_enabled %}
+    <div class="alert alert-warning">
+        {% if difference > 0 %}
+            {% blocktrans with diff=difference %}Items total is <strong>${{ diff }}</strong> short of the declared total. Add more items or adjust quantities.{% endblocktrans %}
+        {% else %}
+            {% with overdiff=difference|stringformat:"s" %}
+            {% blocktrans with diff=difference %}Items total exceeds the declared total by <strong>${{ diff }}</strong>. Remove or adjust items.{% endblocktrans %}
+            {% endwith %}
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Items table -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span class="fw-bold">{% trans "Invoice Items" %}</span>
+            <a href="{% url 'sale_select_template' pk=project.pk %}" class="btn btn-sm btn-outline-primary">
+                + {% trans "Add Item" %}
+            </a>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>#</th>
+                        <th>{% trans "Product" %}</th>
+                        <th>{% trans "Qty" %}</th>
+                        <th>{% trans "Unit Price" %}</th>
+                        <th>{% trans "Total" %}</th>
+                        <th>{% trans "Delivered" %}</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr>
+                        <td>{{ forloop.counter }}</td>
+                        <td>
+                            {{ item.template_name }}
+                            {% if item.unique_id %}<br><small class="text-muted font-monospace">{{ item.unique_id }}</small>{% endif %}
+                            {% if item.description %}<br><small class="text-muted">{{ item.description }}</small>{% endif %}
+                        </td>
+                        <td>{{ item.quantity }}</td>
+                        <td>${{ item.unit_price }}</td>
+                        <td class="fw-bold">${{ item.total_price }}</td>
+                        <td>{{ item.delivered_qty }}</td>
+                        <td class="text-nowrap">
+                            <a href="{% url 'sale_edit_item' pk=project.pk idx=item.idx %}"
+                               class="btn btn-sm btn-outline-secondary">{% trans "Edit" %}</a>
+                            <form method="post"
+                                  action="{% url 'sale_delete_item' pk=project.pk idx=item.idx %}"
+                                  class="d-inline"
+                                  onsubmit="return confirm('{% trans "Delete this item?" %}')">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-outline-danger">{% trans "Del" %}</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-3">
+                            {% trans "No items yet. Click \"Add Item\" to begin." %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-light">
+                    <tr>
+                        <td colspan="4" class="text-end fw-bold">{% trans "Items Total" %}</td>
+                        <td class="fw-bold">${{ items_total }}</td>
+                        <td colspan="2"></td>
+                    </tr>
+                    <tr>
+                        <td colspan="4" class="text-end">{% trans "Declared Total" %}</td>
+                        <td>${{ session_data.total_amount }}</td>
+                        <td colspan="2"></td>
+                    </tr>
+                    <tr>
+                        <td colspan="4" class="text-end
+                            {% if difference == 0 %}text-success{% else %}text-danger{% endif %}
+                            fw-bold">
+                            {% trans "Difference" %}
+                        </td>
+                        <td class="fw-bold
+                            {% if difference == 0 %}text-success{% else %}text-danger{% endif %}">
+                            ${{ difference }}
+                        </td>
+                        <td colspan="2"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    <!-- Footer actions -->
+    <div class="d-flex justify-content-between align-items-center">
+        <a href="{% url 'sale_wizard_cancel' pk=project.pk %}" class="btn btn-outline-danger">
+            {% trans "Cancel" %}
+        </a>
+        <form method="post" action="{% url 'sale_submit' pk=project.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-success btn-lg"
+                {% if not submit_enabled %}disabled title="{% trans "Resolve the difference before submitting" %}"{% endif %}>
+                {% trans "Submit Sale" %}
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

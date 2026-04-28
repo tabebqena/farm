@@ -9,6 +9,11 @@ urlpatterns = [
         name="period_list_view",
     ),
     path(
+        "periods/<int:period_pk>/detail/",
+        views.period_detail_view,
+        name="period_detail_view",
+    ),
+    path(
         "periods/<int:entity_pk>/create/",
         views.period_create_view,
         name="period_create_view",

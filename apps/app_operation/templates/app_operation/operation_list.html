@@ -157,8 +157,10 @@
                     {% endif %}
                   </td>
                   <td class="text-end">
-                    {% if op.amount_remaining_to_repay %}
-                      ${{ op.amount_remaining_to_repay }}
+                    {% if op.is_repayable %}
+                      {% if op.amount_remaining_to_repay %}
+                        ${{ op.amount_remaining_to_repay }}
+                      {% endif %}
                     {% elif op.amount_remaining_to_settle %}
                       ${{ op.amount_remaining_to_settle }}
                     {% else %}

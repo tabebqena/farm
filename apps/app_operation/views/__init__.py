@@ -3,7 +3,12 @@ from .detail import operation_detail_view
 from .edit import operation_update_view
 from .evaluation import EvaluationCreateView
 from .list import operation_list_view
-from .period import period_close_view, period_create_view, period_list_view
+from .period import (
+    period_close_view,
+    period_create_view,
+    period_detail_view,
+    period_list_view,
+)
 from .purchase_sale import (
     BirthCreateView,
     DeathCreateView,
@@ -42,6 +47,7 @@ __all__ = [
     "EvaluationCreateView",
     "period_list_view",
     "period_create_view",
+    "period_detail_view",
     "period_close_view",
     "purchase_wizard_view",
     "cancel_purchase_wizard_view",

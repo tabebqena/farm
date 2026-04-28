@@ -1,0 +1,28 @@
+{% load i18n %}
+
+<form id="wizard-form" method="post" novalidate>
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ next_param }}">
+
+    <div class="alert alert-light border mb-4">
+        <strong>{% trans "Invoice Total:" %}</strong> <strong>${{ total_amount }}</strong>
+    </div>
+
+    <div class="mb-3">
+        <label for="{{ form.amount_paid.id_for_label }}" class="form-label">
+            {{ form.amount_paid.label }}
+        </label>
+        <div class="input-group">
+            <span class="input-group-text">$</span>
+            {{ form.amount_paid }}
+        </div>
+        {% if form.amount_paid.errors %}
+            <div class="invalid-feedback d-block">{{ form.amount_paid.errors.0 }}</div>
+        {% endif %}
+        <small class="text-muted">{% trans "Leave blank or enter 0 to skip payment for now." %}</small>
+    </div>
+
+    <div class="alert alert-info">
+        <strong>{% trans "Step 3 of 3:" %}</strong> {% trans "Optionally record an immediate payment." %}
+    </div>
+</form>

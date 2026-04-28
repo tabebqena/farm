@@ -444,6 +444,7 @@ class LinkedRePaymentTransactionMixin(
     _repayment_transaction_type: "TransactionType"
     _amount_field_name = "amount"
     _tx_amount_field_name = "amount"
+    is_repayable = False
 
     @property
     def total_repayable_amount(self):
@@ -456,8 +457,8 @@ class LinkedRePaymentTransactionMixin(
         valid_txs = self.get_undeleted_transactions()
         if not valid_txs:
             return Decimal("0")
-
-        valid_txs = valid_txs.filter(type=self._repayment_transaction_type)
+        if hasattr(self, "_repayment_transaction_type"):
+            valid_txs = valid_txs.filter(type=self._repayment_transaction_type)
         to_source = valid_txs.filter(target=self.payment_source_fund).aggregate(
             total=Sum(self._tx_amount_field_name)
         )["total"] or Decimal("0.00")

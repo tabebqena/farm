@@ -31,14 +31,16 @@
           </thead>
           <tbody>
             {% for period in periods %}
-              <tr>
+              <tr style="cursor: pointer;" onclick="window.location='{% url 'period_detail_view' period.pk %}'; return false;">
                 <td>
-                  <strong>{{ period.start_date|date:"Y-m-d" }}</strong>
-                  {% if period.end_date %}
-                    → {{ period.end_date|date:"Y-m-d" }}
-                  {% else %}
-                    → {% trans 'Open' %}
-                  {% endif %}
+                  <a href="{% url 'period_detail_view' period.pk %}">
+                    <strong>{{ period.start_date|date:"Y-m-d" }}</strong>
+                    {% if period.end_date %}
+                      → {{ period.end_date|date:"Y-m-d" }}
+                    {% else %}
+                      → {% trans 'Open' %}
+                    {% endif %}
+                  </a>
                 </td>
                 <td>
                   {% if period.is_closed %}
@@ -82,17 +84,19 @@
       <!-- Card view for mobile screens -->
       <div class="d-md-none">
         {% for period in periods %}
-          <div class="card mb-3">
+          <div class="card mb-3" style="cursor: pointer;" onclick="window.location='{% url 'period_detail_view' period.pk %}'; return false;">
             <div class="card-body">
               <div class="d-flex justify-content-between align-items-start mb-2">
-                <h5 class="card-title">
-                  {{ period.start_date|date:"Y-m-d" }}
-                  {% if period.end_date %}
-                    → {{ period.end_date|date:"Y-m-d" }}
-                  {% else %}
-                    → {% trans 'Open' %}
-                  {% endif %}
-                </h5>
+                <a href="{% url 'period_detail_view' period.pk %}" class="text-decoration-none">
+                  <h5 class="card-title">
+                    {{ period.start_date|date:"Y-m-d" }}
+                    {% if period.end_date %}
+                      → {{ period.end_date|date:"Y-m-d" }}
+                    {% else %}
+                      → {% trans 'Open' %}
+                    {% endif %}
+                  </h5>
+                </a>
                 {% if period.is_closed %}
                   <span class="badge bg-secondary">{% trans 'Closed' %}</span>
                 {% else %}

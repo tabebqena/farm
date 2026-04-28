@@ -1,0 +1,149 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block content %}
+  <div class="container mt-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+      <div>
+        <h2>
+          {% trans 'Financial Period' %}
+          <small class="text-muted">{{ period.start_date|date:"Y-m-d" }}
+            {% if period.end_date %}
+              → {{ period.end_date|date:"Y-m-d" }}
+            {% else %}
+              → {% trans 'Open' %}
+            {% endif %}
+          </small>
+        </h2>
+        <p class="text-muted">
+          <a href="{% url 'entity_detail' entity.pk %}">{{ entity.name }}</a>
+        </p>
+      </div>
+      <div>
+        {% if period.is_closed %}
+          <span class="badge bg-secondary fs-6">{% trans 'Closed' %}</span>
+        {% else %}
+          <span class="badge bg-success fs-6">{% trans 'Open' %}</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="row mb-4">
+      <div class="col-md-6 col-lg-3 mb-3">
+        <div class="card">
+          <div class="card-body">
+            <h6 class="card-title text-muted">{% trans 'Balance' %}</h6>
+            <div class="h5">{{ period.balance|floatformat:2 }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-6 col-lg-3 mb-3">
+        <div class="card">
+          <div class="card-body">
+            <h6 class="card-title text-muted">{% trans 'Receivables' %}</h6>
+            <div class="h5">{{ period.receivables|floatformat:2 }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-6 col-lg-3 mb-3">
+        <div class="card">
+          <div class="card-body">
+            <h6 class="card-title text-muted">{% trans 'Payables' %}</h6>
+            <div class="h5">{{ period.payables|floatformat:2 }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-6 col-lg-3 mb-3">
+        <div class="card">
+          <div class="card-body">
+            <h6 class="card-title text-muted">{% trans 'Inventory Value' %}</h6>
+            <div class="h5">{{ period.inventory_value|floatformat:2 }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% if period.is_closed %}
+      <div class="card mb-4">
+        <div class="card-body">
+          <h5 class="card-title">{% trans 'Period Summary' %}</h5>
+          <dl class="row">
+            <dt class="col-sm-6">{% trans 'Start Date' %}</dt>
+            <dd class="col-sm-6">{{ period.start_date|date:"Y-m-d" }}</dd>
+
+            <dt class="col-sm-6">{% trans 'End Date' %}</dt>
+            <dd class="col-sm-6">{{ period.end_date|date:"Y-m-d" }}</dd>
+
+            <dt class="col-sm-6">{% trans 'End Balance' %}</dt>
+            <dd class="col-sm-6">{{ period.end_balance|floatformat:2 }}</dd>
+
+            <dt class="col-sm-6">{% trans 'End Assets' %}</dt>
+            <dd class="col-sm-6">{{ period.end_assets|floatformat:2 }}</dd>
+
+            <dt class="col-sm-6">{% trans 'End Liabilities' %}</dt>
+            <dd class="col-sm-6">{{ period.end_liabilities|floatformat:2 }}</dd>
+
+            {% if period.amount %}
+              <dt class="col-sm-6">{% trans 'Profit/Loss' %}</dt>
+              <dd class="col-sm-6">
+                {% if period.is_profit %}
+                  <span class="text-success">+{{ period.amount|floatformat:2 }}</span>
+                {% elif period.is_loss %}
+                  <span class="text-danger">{{ period.amount|floatformat:2 }}</span>
+                {% else %}
+                  {{ period.amount|floatformat:2 }}
+                {% endif %}
+              </dd>
+            {% endif %}
+          </dl>
+        </div>
+      </div>
+
+      {% if period.is_profit %}
+        <div class="card mb-4 border-success">
+          <div class="card-body">
+            <h5 class="card-title text-success">{% trans 'Profit Distribution' %}</h5>
+            <p class="card-text">
+              {% blocktrans with amount=period.amount|floatformat:2 distributed=period.distributed|floatformat:2 %}
+                Total profit: {{ amount }}<br>
+                Distributed: {{ distributed }}<br>
+                Remaining: {{ amount|add:"-distributed"|floatformat:2 }}
+              {% endblocktrans %}
+            </p>
+          </div>
+        </div>
+      {% elif period.is_loss %}
+        <div class="card mb-4 border-danger">
+          <div class="card-body">
+            <h5 class="card-title text-danger">{% trans 'Loss Coverage' %}</h5>
+            <p class="card-text">
+              {% blocktrans with amount=period.amount|floatformat:2 covered=period.covered|floatformat:2 %}
+                Total loss: {{ amount }}<br>
+                Covered: {{ covered }}<br>
+                Remaining: {{ amount|add:"-covered"|floatformat:2 }}
+              {% endblocktrans %}
+            </p>
+          </div>
+        </div>
+      {% endif %}
+    {% else %}
+      <div class="alert alert-info">
+        {% trans 'This period is still open. Close it to finalize the period summary.' %}
+      </div>
+    {% endif %}
+
+    <div class="d-flex gap-2">
+      <a href="{% url 'period_list_view' entity.pk %}" class="btn btn-outline-secondary">
+        {% trans 'Back to Periods' %}
+      </a>
+      {% if not period.is_closed %}
+        <a href="{% url 'period_close_view' period.pk %}" class="btn btn-warning">
+          {% trans 'Close Period' %}
+        </a>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

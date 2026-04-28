@@ -8,7 +8,8 @@
           <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
             <h5 class="mb-0">
               <i class="bi bi-calculator me-2"></i>
-              {% trans "Evaluate" %}: {{ product_name }}
+              {% trans "Product Evaluation" %}
+              {% if product_pk %}<span id="product-name-header"></span>{% endif %}
             </h5>
             <span class="badge bg-white text-info">{% trans "Valuation" %}</span>
           </div>
@@ -32,34 +33,57 @@
               {% endfor %}
             {% endif %}
 
-            <!-- Product summary (always visible) -->
-            <div class="border border-info rounded p-3 bg-light mb-4">
-              <div class="row g-2">
-                <div class="col-md-4">
-                  <small class="text-muted">{% trans "Quantity" %}</small>
-                  <div class="fw-bold">{{ quantity }} {{ unit }}</div>
-                </div>
-                <div class="col-md-4">
-                  <small class="text-muted">{% trans "Current unit price" %}</small>
-                  <div class="fw-bold">{{ current_unit_price|floatformat:2 }}</div>
-                </div>
-                <div class="col-md-4">
-                  <small class="text-muted">{% trans "Current total value" %}</small>
-                  <div class="fw-bold">{{ current_value|floatformat:2 }}</div>
-                </div>
-              </div>
-            </div>
-
             <form method="post" id="evaluation-form">
               {% csrf_token %}
+              {% if product_pk %}
+                <input type="hidden" name="product" value="{{ product_pk }}">
+              {% endif %}
 
               <div class="row g-3">
+                <!-- Product selector (hidden if pre-selected) -->
+                <div class="col-md-12" id="product-selector" {% if product_pk %}style="display: none;"{% endif %}>
+                  <label class="form-label" for="{{ form.product.id_for_label }}">
+                    {{ form.product.label }}
+                  </label>
+                  <select name="{{ form.product.name }}" id="{{ form.product.id_for_label }}" class="form-select">
+                    <option value="">{{ form.product.field.empty_label }}</option>
+                    {% for choice_value, choice_label in form.product.field.choices %}
+                      {% if choice_value %}
+                        <option value="{{ choice_value }}" {% if form.product.value == choice_value %}selected{% endif %}>{{ choice_label }}</option>
+                      {% endif %}
+                    {% endfor %}
+                  </select>
+                  {% if form.product.errors %}
+                    <div class="invalid-feedback d-block">{{ form.product.errors|first }}</div>
+                  {% endif %}
+                </div>
+
+                <!-- Product summary (shown when product is selected or pre-selected) -->
+                <div class="col-md-12" id="product-summary" {% if not product_pk %}style="display: none;"{% endif %}>
+                  <div class="border border-info rounded p-3 bg-light">
+                    <div class="row g-2">
+                      <div class="col-md-4">
+                        <small class="text-muted">{% trans "Quantity" %}</small>
+                        <div class="fw-bold"><span id="summary-quantity">—</span> <span id="summary-unit"></span></div>
+                      </div>
+                      <div class="col-md-4">
+                        <small class="text-muted">{% trans "Current unit price" %}</small>
+                        <div class="fw-bold" id="summary-unit-price">—</div>
+                      </div>
+                      <div class="col-md-4">
+                        <small class="text-muted">{% trans "Current total value" %}</small>
+                        <div class="fw-bold" id="summary-total-value">—</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <!-- New unit price -->
                 <div class="col-md-6">
                   <label class="form-label" for="{{ form.new_unit_price.id_for_label }}">
                     {{ form.new_unit_price.label }}
                   </label>
-                  {{ form.new_unit_price }}
+                  <input type="number" name="{{ form.new_unit_price.name }}" id="{{ form.new_unit_price.id_for_label }}" class="form-control" step="0.01" min="0.01" placeholder="0.00">
                   {% if form.new_unit_price.errors %}
                     <div class="invalid-feedback d-block">{{ form.new_unit_price.errors|first }}</div>
                   {% endif %}
@@ -77,7 +101,7 @@
                 <!-- Date -->
                 <div class="col-md-6">
                   <label class="form-label" for="{{ form.date.id_for_label }}">{{ form.date.label }}</label>
-                  {{ form.date }}
+                  <input type="date" name="{{ form.date.name }}" id="{{ form.date.id_for_label }}" class="form-control" value="{{ form.date.value }}">
                   {% if form.date.errors %}
                     <div class="invalid-feedback d-block">{{ form.date.errors|first }}</div>
                   {% endif %}
@@ -86,7 +110,7 @@
                 <!-- Description -->
                 <div class="col-md-12">
                   <label class="form-label" for="{{ form.description.id_for_label }}">{{ form.description.label }}</label>
-                  {{ form.description }}
+                  <textarea name="{{ form.description.name }}" id="{{ form.description.id_for_label }}" class="form-control" rows="2">{{ form.description.value|default:'' }}</textarea>
                   {% if form.description.errors %}
                     <div class="invalid-feedback d-block">{{ form.description.errors|first }}</div>
                   {% endif %}
@@ -110,10 +134,15 @@
   </div>
 
   <script>
-    const currentUnitPrice = {{ current_unit_price }};
-    const quantity = {{ quantity }};
+    const productData = {{ product_data_json|safe }};
+    const preSelectedProductPk = {{ product_pk|default:'null' }};
+    const productSelect = document.getElementById("id_product");
+    const productSummary = document.getElementById("product-summary");
     const newUnitPriceInput = document.getElementById("id_new_unit_price");
     const deltaPreview = document.getElementById("delta-preview");
+
+    let currentUnitPrice = 0;
+    let quantity = 0;
 
     function formatNumber(num) {
       return new Intl.NumberFormat("en-US", {
@@ -122,7 +151,51 @@
       }).format(num);
     }
 
+    function updateProductSummary(productId) {
+      if (!productId || !productData[productId]) {
+        productSummary.style.display = "none";
+        newUnitPriceInput.value = "";
+        deltaPreview.style.display = "none";
+        return;
+      }
+
+      const product = productData[productId];
+      currentUnitPrice = product.current_unit_price;
+      quantity = product.quantity;
+
+      document.getElementById("summary-quantity").textContent = product.quantity;
+      document.getElementById("summary-unit").textContent = product.unit;
+      document.getElementById("summary-unit-price").textContent = formatNumber(product.current_unit_price);
+      document.getElementById("summary-total-value").textContent = formatNumber(product.current_value);
+
+      const headerName = document.getElementById("product-name-header");
+      if (headerName) {
+        headerName.textContent = ": " + product.name;
+      }
+
+      productSummary.style.display = "block";
+      deltaPreview.style.display = "none";
+      newUnitPriceInput.value = "";
+      if (!preSelectedProductPk) {
+        newUnitPriceInput.focus();
+      }
+    }
+
+    productSelect.addEventListener("change", function () {
+      updateProductSummary(this.value);
+    });
+
+    // Initialize with pre-selected product
+    if (preSelectedProductPk && productData[preSelectedProductPk]) {
+      updateProductSummary(preSelectedProductPk);
+    }
+
     newUnitPriceInput.addEventListener("input", function () {
+      if (!productSelect.value && !preSelectedProductPk) {
+        deltaPreview.style.display = "none";
+        return;
+      }
+
       const newPrice = parseFloat(this.value || "0");
       if (!newPrice || newPrice <= 0) {
         deltaPreview.style.display = "none";

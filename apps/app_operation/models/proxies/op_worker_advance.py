@@ -8,6 +8,7 @@ class WorkerAdvanceOperation(Operation):
     _issuance_transaction_type = TransactionType.WORKER_ADVANCE_ISSUANCE
     _payment_transaction_type = TransactionType.WORKER_ADVANCE_PAYMENT
     _repayment_transaction_type = TransactionType.WORKER_ADVANCE_REPAYMENT
+    is_repayable = True
 
     url_str = "worker-advance"
     label = "Worker Advance Issuance"

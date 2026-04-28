@@ -11,7 +11,6 @@ from django.utils.translation import gettext as _
 
 from apps.app_entity.models import Entity
 from apps.app_inventory.models import InvoiceItem, Product, ProductLedgerEntry
-from apps.app_operation.models.proxies import PROXY_MAP
 from apps.app_operation.models.proxies.op_capital_gain import CapitalGainOperation
 from apps.app_operation.models.proxies.op_capital_loss import CapitalLossOperation
 
@@ -48,6 +47,8 @@ class EvaluationForm(forms.Form):
                 .select_related("product_template")
                 .order_by("product_template__name", "pk")
             )
+        if not self.data and "date" not in kwargs.get("initial", {}):
+            self.fields["date"].initial = timezone.now().date()
 
 
 class EvaluationCreateView(OperationCreateView):
@@ -55,14 +56,20 @@ class EvaluationCreateView(OperationCreateView):
 
     def dispatch(self, request, *args, **kwargs):
         self.project = get_object_or_404(Entity, pk=kwargs["pk"])
+        self.product_pk = kwargs.get("product_pk")
+        if self.product_pk:
+            self.product = get_object_or_404(Product, pk=self.product_pk)
+        else:
+            self.product = None
         from django.views import View
 
         return View.dispatch(self, request, *args, **kwargs)
 
     def get(self, request, *args, **kwargs):
-        form = EvaluationForm(
-            project=self.project, initial={"date": timezone.now().date()}
-        )
+        initial = {"date": timezone.now().date()}
+        if self.product:
+            initial["product"] = self.product
+        form = EvaluationForm(project=self.project, initial=initial)
         return render(request, self.template_name, self._build_evaluation_context(form))
 
     def post(self, request, *args, **kwargs):
@@ -123,6 +130,7 @@ class EvaluationCreateView(OperationCreateView):
 
     def _build_evaluation_context(self, form, errors=None):
         product_data = {}
+
         for p in form.fields["product"].queryset:
             cv = p.current_value
             q = p.quantity
@@ -138,5 +146,6 @@ class EvaluationCreateView(OperationCreateView):
             "form": form,
             "today": timezone.now().date(),
             "product_data_json": json.dumps(product_data),
+            "product_pk": self.product_pk,
             "errors": errors or [],
         }

@@ -1,0 +1,38 @@
+{% load i18n %}
+
+<form id="wizard-form" method="post" novalidate>
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ next_param }}">
+
+    <!-- Step 1 summary (read-only) -->
+    <div class="alert alert-light border mb-4">
+        <strong>{% trans "Sale Information:" %}</strong>
+        <ul class="mb-0 mt-2">
+            <li>{% trans "Date:" %} <strong>{{ step1_data.date }}</strong></li>
+            {% if step1_data.client %}
+                <li>{% trans "Client:" %} <strong>{{ step1_data.client.name }}</strong></li>
+            {% endif %}
+            {% if step1_data.description %}
+                <li>{% trans "Description:" %} {{ step1_data.description }}</li>
+            {% endif %}
+        </ul>
+    </div>
+
+    <div class="mb-3">
+        <label for="{{ form.total_amount.id_for_label }}" class="form-label fw-bold">
+            {{ form.total_amount.label }} <span class="text-danger">*</span>
+        </label>
+        <div class="input-group">
+            <span class="input-group-text">$</span>
+            {{ form.total_amount }}
+        </div>
+        {% if form.total_amount.errors %}
+            <div class="invalid-feedback d-block">{{ form.total_amount.errors.0 }}</div>
+        {% endif %}
+        <small class="text-muted">{% trans "Enter the total amount on the client invoice." %}</small>
+    </div>
+
+    <div class="alert alert-info mt-3">
+        <strong>{% trans "Step 2 of 3:" %}</strong> {% trans "Enter the declared total from the client invoice." %}
+    </div>
+</form>

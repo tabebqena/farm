@@ -11,6 +11,16 @@ from apps.app_operation.models.period import FinancialPeriod
 
 
 @login_required
+def period_detail_view(request, period_pk):
+    period = get_object_or_404(FinancialPeriod, pk=period_pk)
+    context = {
+        "period": period,
+        "entity": period.entity,
+    }
+    return render(request, "app_operation/period_detail.html", context)
+
+
+@login_required
 def period_list_view(request, entity_pk):
     entity = get_object_or_404(Entity, pk=entity_pk)
     periods = entity.financial_periods.all().order_by("-start_date")

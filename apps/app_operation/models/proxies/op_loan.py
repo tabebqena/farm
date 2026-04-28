@@ -10,6 +10,7 @@ class LoanOperation(Operation):
     _issuance_transaction_type = TransactionType.LOAN_ISSUANCE
     _payment_transaction_type = TransactionType.LOAN_PAYMENT
     _repayment_transaction_type = TransactionType.LOAN_REPAYMENT
+    is_repayable = True
 
     url_str = "loan"
     label = "Debt Issuance"
