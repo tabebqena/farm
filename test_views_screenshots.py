@@ -30,32 +30,148 @@ VIEWPORTS = {
     "desktop": {"width": 1920, "height": 1080},
 }
 
-# Pages to test
-PAGES_TO_TEST = [
-    {
-        "name": "Login Page",
-        "url": "/en/login/",
-        "checks": ["input[name='username']", "input[name='password']", "button[type='submit']"],
-        "needs_auth": False,
-    },
-    {
-        "name": "Entity List",
-        "url": "/en/entities/",
-        "checks": ["h2", "table", "a"],
-        "needs_auth": True,
-    },
-    {
-        "name": "Inventory",
-        "url": "/en/inventory/",
-        "checks": ["h1", "table"],
-        "needs_auth": True,
-    },
-]
+# Pages to test (will be populated with dynamic URLs)
+def build_test_pages():
+    """Build test pages list with dynamic URLs based on test data"""
+    pages = [
+        # Public/Auth pages
+        {
+            "name": "Login Page",
+            "url": "/en/login/",
+            "checks": ["input[name='username']", "input[name='password']", "button[type='submit']"],
+            "needs_auth": False,
+            "category": "Authentication",
+        },
+
+        # Entity Management
+        {
+            "name": "Entity List",
+            "url": "/en/entities/",
+            "checks": ["h2", "table", "a"],
+            "needs_auth": True,
+            "category": "Entity Management",
+        },
+    ]
+
+    # Add dynamic pages if test data IDs are available
+    if TEST_ENTITY_ID:
+        pages.extend([
+            {
+                "name": "Entity Detail",
+                "url": f"/en/entities/{TEST_ENTITY_ID}/",
+                "checks": ["h2", "div", "a"],
+                "needs_auth": True,
+                "category": "Entity Management",
+            },
+            {
+                "name": "Add Contact Info",
+                "url": f"/en/entities/{TEST_ENTITY_ID}/contact/add/",
+                "checks": ["form", "input", "button[type='submit']"],
+                "needs_auth": True,
+                "category": "Entity Management",
+            },
+        ])
+
+    if TEST_PERSON_ID:
+        pages.extend([
+            {
+                "name": "Person Edit",
+                "url": f"/en/entities/person/edit/{TEST_PERSON_ID}",
+                "checks": ["form", "input", "button[type='submit']"],
+                "needs_auth": True,
+                "category": "Entity Management",
+            },
+            {
+                "name": "Period List",
+                "url": f"/en/entities/operations/periods/{TEST_PERSON_ID}/",
+                "checks": ["table", "a"],
+                "needs_auth": True,
+                "category": "Operations",
+            },
+        ])
+
+    if TEST_PROJECT_ID:
+        pages.extend([
+            {
+                "name": "Project Edit",
+                "url": f"/en/entities/project/edit/{TEST_PROJECT_ID}",
+                "checks": ["form", "input", "button[type='submit']"],
+                "needs_auth": True,
+                "category": "Entity Management",
+            },
+            {
+                "name": "Project Setup Wizard",
+                "url": f"/en/entities/project/{TEST_PROJECT_ID}/setup/1/",
+                "checks": ["form", "button", "div"],
+                "needs_auth": True,
+                "category": "Entity Management",
+            },
+        ])
+
+    # Inventory pages
+    pages.extend([
+        {
+            "name": "Inventory Dashboard",
+            "url": "/en/inventory/",
+            "checks": ["h1", "table"],
+            "needs_auth": True,
+            "category": "Inventory",
+        },
+    ])
+
+    if TEST_ENTITY_ID:
+        pages.append({
+            "name": "Stock Detail",
+            "url": f"/en/inventory/entity/{TEST_ENTITY_ID}/stock/",
+            "checks": ["table"],
+            "needs_auth": True,
+            "category": "Inventory",
+        })
+
+    return pages
+
+PAGES_TO_TEST = []  # Will be populated dynamically
 
 # Test credentials
 # Available users: admin (superuser), officer (staff)
 TEST_USERNAME = "admin"
 TEST_PASSWORD = "admin"
+
+# Test data IDs (will be fetched from database)
+TEST_ENTITY_ID = None
+TEST_PERSON_ID = None
+TEST_PROJECT_ID = None
+
+
+def get_test_data_ids():
+    """Fetch actual IDs from the database for testing"""
+    import os
+    import django
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'farm.settings')
+    django.setup()
+
+    from apps.app_entity.models import Entity
+
+    # Get test entity (any non-system entity)
+    entities = Entity.objects.filter(entity_type__in=['person', 'project']).order_by('pk')
+    if entities.exists():
+        person = entities.filter(entity_type='person').first() or entities.first()
+        if person:
+            global TEST_PERSON_ID
+            TEST_PERSON_ID = person.pk
+
+        project = entities.filter(entity_type='project').first() or entities.first()
+        if project:
+            global TEST_PROJECT_ID
+            TEST_PROJECT_ID = project.pk
+
+    # Get a general entity
+    general = Entity.objects.filter(entity_type='system').first()
+    if general:
+        global TEST_ENTITY_ID
+        TEST_ENTITY_ID = general.pk
+
+    print(f"Test IDs - Entity: {TEST_ENTITY_ID}, Person: {TEST_PERSON_ID}, Project: {TEST_PROJECT_ID}")
 
 
 class ViewTester:
@@ -457,11 +573,21 @@ class ViewTester:
         print("=" * 60)
 
 
+def setup_test_pages():
+    """Setup test pages before async main"""
+    get_test_data_ids()
+    global PAGES_TO_TEST
+    PAGES_TO_TEST = build_test_pages()
+    return PAGES_TO_TEST
+
+
 async def main():
     """Main entry point"""
     print("🏗️  Farm App - Complete UI Test Suite")
     print(f"📍 Testing against: {BASE_URL}")
     print(f"📁 Output directory: {OUTPUT_DIR}\n")
+
+    print(f"📋 Testing {len(PAGES_TO_TEST)} pages\n")
 
     tester = ViewTester()
 
@@ -479,5 +605,6 @@ async def main():
 
 
 if __name__ == "__main__":
+    setup_test_pages()
     exit_code = asyncio.run(main())
     sys.exit(exit_code)
