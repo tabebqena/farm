@@ -108,7 +108,7 @@ class ProductLedgerEntry(BaseModel):
         for item in operation.items.prefetch_related("products").all():
             for product in item.products.all():
                 key = f"{key_prefix}item_{item.pk}_product_{product.pk}"
-                _, created = cls.objects.get_or_create(
+                obj, created = cls.objects.get_or_create(
                     idempotency_key=key,
                     defaults={
                         "product": product,
@@ -175,7 +175,7 @@ class ProductLedgerEntry(BaseModel):
         created_count = skipped_count = 0
         for product in line.invoice_item.products.all():
             key = f"{key_prefix}adj_line_{line.pk}_product_{product.pk}"
-            _, created = cls.objects.get_or_create(
+            obj, created = cls.objects.get_or_create(
                 idempotency_key=key,
                 defaults={
                     "product": product,
@@ -234,7 +234,7 @@ class ProductLedgerEntry(BaseModel):
         created_count = skipped_count = 0
         for product in item.products.all():
             key = f"{key_prefix}movement_line_{source_pk}_product_{product.pk}"
-            _, created = cls.objects.get_or_create(
+            obj, created = cls.objects.get_or_create(
                 idempotency_key=key,
                 defaults={
                     "product": product,
