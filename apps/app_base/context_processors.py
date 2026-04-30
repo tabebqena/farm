@@ -20,4 +20,12 @@ def navigation(request):
     # Get navigation context for the current view
     nav_context = get_navigation_context(current_view_name, view_kwargs)
 
+    # Apply navigation overrides from the view
+    overrides = getattr(request, 'navigation_overrides', {})
+    if overrides:
+        related_url_overrides = overrides.get('related_urls', {})
+        for item in nav_context.get('related_views', []):
+            if item['title'] in related_url_overrides:
+                item['url'] = related_url_overrides[item['title']]
+
     return nav_context

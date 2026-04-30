@@ -1,8 +1,9 @@
 from django.shortcuts import render
+from django.urls import reverse
 
 from apps.app_base.debug import DebugContext, debug_view
 from farm.shortcuts import get_object_or_404
-from apps.app_entity.models import Entity
+from apps.app_entity.models import Entity, EntityType
 
 
 @debug_view
@@ -22,6 +23,13 @@ def entity_detail_view(request, pk):
             "entity_type": entity.entity_type,
             "entity_name": entity.name,
         })
+
+    edit_view = 'project_edit' if entity.entity_type == EntityType.PROJECT else 'person_edit'
+    request.navigation_overrides = {
+        'related_urls': {
+            'Edit': reverse(edit_view, kwargs={'pk': entity.pk}),
+        }
+    }
 
     context = {
         "entity": entity,

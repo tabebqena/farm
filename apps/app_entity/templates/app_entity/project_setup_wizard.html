@@ -25,7 +25,7 @@
 
     {# Step progress indicator #}
     <div class="row justify-content-center mb-4">
-      <div class="col-lg-10">
+      <div class="col-lg-10-">
         <div class="d-flex justify-content-between align-items-center mb-3">
           {% for step_num in step_nums %}
             {% with step_name=step_labels|get_item:step_num|get_item:'name' %}
@@ -33,13 +33,29 @@
                 <div class="step-circle {% if step_num|add:'0' == step %}
                     
                     
+                    
+                    
+                    
+                    
                     active
+
+
+
+
 
 
                   {% elif step_num|add:'0' < step %}
                     
                     
+                    
+                    
+                    
+                    
                     completed
+
+
+
+
 
 
 
@@ -54,7 +70,15 @@
                     
                     
                     
+                    
+                    
+                    
+                    
                     #0d6efd
+
+
+
+
 
 
 
@@ -68,7 +92,15 @@
                     
                     
                     
+                    
+                    
+                    
+                    
                     #198754
+
+
+
+
 
 
 
@@ -82,7 +114,15 @@
                     
                     
                     
+                    
+                    
+                    
+                    
                     #e9ecef
+
+
+
+
 
 
 
@@ -100,7 +140,15 @@
                     
                     
                     
+                    
+                    
+                    
+                    
                     #198754
+
+
+
+
 
 
 
@@ -114,7 +162,15 @@
                     
                     
                     
+                    
+                    
+                    
+                    
                     #e9ecef
+
+
+
+
 
 
 
@@ -131,7 +187,7 @@
 
     {# Step content #}
     <div class="row justify-content-center">
-      <div class="col-lg-10">
+      <div class="col-lg-10-">
         <div class="card form-card shadow-sm border-0">
           <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
             <h5 class="mb-0 fw-bold text-primary">Step {{ step }}: {{ step_labels|get_item:step|get_item:'title' }}</h5>

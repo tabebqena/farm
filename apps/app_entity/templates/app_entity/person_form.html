@@ -153,7 +153,7 @@
                         <div class="flex-grow-1">
                             <strong>{% trans "Error" %}</strong>
                             <ul class="mb-0 mt-2">
-                                {% for error in form.non_field_errors %}
+                                {% for error in form.errors %}
                                     <li>{{ error }}</li>
                                 {% endfor %}
                             </ul>

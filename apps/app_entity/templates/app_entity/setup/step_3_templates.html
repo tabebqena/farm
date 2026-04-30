@@ -23,19 +23,25 @@
           </div>
         </div>
         <div class="card-body py-3">
-          <div class="row row-cols-1 row-cols-md-2 g-2">
-            {% for template in nature.list %}
-              <div class="col">
-                <div class="form-check p-2 border rounded-3 h-100 template-option">
-                  <input class="form-check-input ms-1 me-2" type="checkbox" name="product_templates" value="{{ template.id }}" id="tmpl_{{ template.id }}" {% if template.id in enabled_ids %}checked{% endif %} />
-                  <label class="form-check-label d-block cursor-pointer" for="tmpl_{{ template.id }}">
-                    <span class="d-block fw-bold small">{{ template.name }}{% if template.name_ar %} / {{ template.name_ar }}{% endif %}</span>
-                    <span class="text-muted d-block" style="font-size: 0.75rem;">{% trans 'Tracking:' %} {{ template.get_tracking_mode_display }}</span>
-                  </label>
-                </div>
+          {% regroup nature.list by sub_category as category_list %}
+          {% for category in category_list %}
+            <div class="mb-3">
+              <h6 class="text-muted small fw-bold mb-2 ps-2">{{ category.grouper }}</h6>
+              <div class="row row-cols-1 row-cols-md-2 g-2 ps-2">
+                {% for template in category.list %}
+                  <div class="col">
+                    <div class="form-check p-2 border rounded-3 h-100 template-option">
+                      <input class="form-check-input ms-1 me-2" type="checkbox" name="product_templates" value="{{ template.id }}" id="tmpl_{{ template.id }}" {% if template.id in enabled_ids %}checked{% endif %} />
+                      <label class="form-check-label d-block cursor-pointer" for="tmpl_{{ template.id }}">
+                        <span class="d-block fw-bold small">{{ template.name }}{% if template.name_ar %} / {{ template.name_ar }}{% endif %}</span>
+                        <span class="text-muted d-block" style="font-size: 0.75rem;">{% trans 'Tracking:' %} {{ template.get_tracking_mode_display }}</span>
+                      </label>
+                    </div>
+                  </div>
+                {% endfor %}
               </div>
-            {% endfor %}
-          </div>
+            </div>
+          {% endfor %}
         </div>
       </div>
     {% endfor %}

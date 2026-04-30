@@ -1,0 +1,23 @@
+INFO 2026-04-30 17:58:17,729 debug ⚡ app_operation.signals registered (initial_period signal disabled)
+INFO 2026-04-30 17:58:18,057 debug ⚡ app_operation.signals registered (initial_period signal disabled)
+Watching for file changes with StatReloader
+INFO 2026-04-30 17:58:18,069 autoreload Watching for file changes with StatReloader
+[30/Apr/2026 17:58:18] "GET /en/login/ HTTP/1.1" 200 5383
+[30/Apr/2026 17:58:21] "GET /en/login/ HTTP/1.1" 200 5383
+[30/Apr/2026 17:58:21] "GET /static/css/main.css HTTP/1.1" 200 6431
+[30/Apr/2026 17:58:30] "POST /i18n/setlang/ HTTP/1.1" 302 0
+[30/Apr/2026 17:58:30] "GET /en/login/ HTTP/1.1" 200 5383
+[30/Apr/2026 17:58:31] "GET /en/entities/ HTTP/1.1" 302 0
+[30/Apr/2026 17:58:31] "GET /en/login/?next=/en/entities/ HTTP/1.1" 200 5438
+[30/Apr/2026 17:58:32] "GET /en/entities/ HTTP/1.1" 302 0
+[30/Apr/2026 17:58:32] "GET /en/login/?next=/en/entities/ HTTP/1.1" 200 5438
+[30/Apr/2026 17:58:33] "GET /en/entities/operations/ HTTP/1.1" 302 0
+[30/Apr/2026 17:58:33] "GET /en/login/?next=/en/entities/operations/ HTTP/1.1" 200 5471
+[30/Apr/2026 17:58:34] "GET /en/entities/operations/ HTTP/1.1" 302 0
+[30/Apr/2026 17:58:34] "GET /en/login/?next=/en/entities/operations/ HTTP/1.1" 200 5471
+[30/Apr/2026 17:58:35] "GET /en/inventory/ HTTP/1.1" 302 0
+[30/Apr/2026 17:58:35] "GET /en/login/?next=/en/inventory/ HTTP/1.1" 200 5441
+[30/Apr/2026 17:58:36] "GET /en/inventory/ HTTP/1.1" 302 0
+[30/Apr/2026 17:58:36] "GET /en/login/?next=/en/inventory/ HTTP/1.1" 200 5441
+[30/Apr/2026 17:58:38] "GET /en/login/ HTTP/1.1" 200 5383
+[30/Apr/2026 17:58:38] "GET /static/css/main.css HTTP/1.1" 200 6431

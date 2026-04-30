@@ -4,13 +4,13 @@
 {% block title %}{% trans "Entity Registry" %}{% endblock %}
 
 {% block content %}
-  <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-    <div>
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 gap-sm-3 mb-4">
+    <div class="flex-grow-1">
       <h2 class="fw-bold mb-0">{% trans "Financial Entities" %}</h2>
-      <p class="text-muted mb-0">{% trans "Manage all Persons, Projects, and Categories in one ledger." %}</p>
+      <p class="text-muted mb-0 small d-none d-sm-block">{% trans "Manage all Persons, Projects, and Categories in one ledger." %}</p>
     </div>
-    <div class="dropdown">
-      <button class="btn btn-primary dropdown-toggle px-4 shadow-sm" type="button" data-bs-toggle="dropdown"><i class="bi bi-plus-lg me-2"></i> {% trans "Create New" %}</button>
+    <div class="dropdown flex-shrink-0">
+      <button class="btn btn-primary dropdown-toggle shadow-sm px-3" type="button" data-bs-toggle="dropdown" title="{% trans 'Create New Entity' %}"><i class="bi bi-plus-lg me-1 me-sm-2"></i> <span class="d-none d-sm-inline">{% trans "Create New" %}</span></button>
       <ul class="dropdown-menu dropdown-menu-end shadow border-0">
         <li>
           <a class="dropdown-item" href="{% url 'person_create' %}"><i class="bi bi-person me-2"></i> {% trans "Person" %}</a>
@@ -22,13 +22,11 @@
     </div>
   </div>
 
-  <div class="card border-0 shadow-sm overflow-hidden">
-
-<div class="card border-0 shadow-sm mb-4">
+  <div class="card border-0 shadow-sm mb-4">
     <div class="card-header bg-white py-3">
         <form method="get" id="filterForm">
-            <div class="row align-items-center">
-                <div class="col">
+            <div class="row g-2 align-items-center">
+                <div class="col-12 col-sm">
                     <div class="input-group input-group-sm">
                         <span class="input-group-text bg-light border-end-0"><i class="bi bi-search"></i></span>
                         <input type="text" name="q" class="form-control bg-light border-start-0"
@@ -36,14 +34,14 @@
                     </div>
                 </div>
 
-                <div class="col-auto">
-                    <div class="dropdown d-inline-block">
-                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
+                <div class="col-12 col-sm-auto d-flex gap-2">
+                    <div class="dropdown flex-grow-1 flex-sm-grow-0">
+                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle w-100" type="button"
                                 id="filterDropdown" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
-                            <i class="bi bi-filter me-1"></i> {% trans "Advanced Filters" %}
+                            <i class="bi bi-filter me-1"></i> <span class="d-none d-sm-inline">{% trans "Advanced Filters" %}</span><span class="d-sm-none">{% trans "Filters" %}</span>
                         </button>
 
-                        <div class="dropdown-menu dropdown-menu-end p-4 shadow-lg border-0" aria-labelledby="filterDropdown" style="width: 320px;">
+                        <div class="dropdown-menu dropdown-menu-end p-3 shadow-lg border-0" aria-labelledby="filterDropdown" style="width: 90vw; max-width: 320px;">
 
                             <div class="mb-3">
                                 <label class="form-label small fw-bold text-uppercase text-muted">{% trans "Entity Type" %}</label>
@@ -80,7 +78,7 @@
                         </div>
                     </div>
 
-                    <button type="submit" class="btn btn-sm btn-primary ms-1">
+                    <button type="submit" class="btn btn-sm btn-primary">
                         <i class="bi bi-arrow-right"></i>
                     </button>
                 </div>
@@ -99,7 +97,6 @@
               <th>{% trans "Roles" %}</th>
               <th>{% trans "Fund Status" %}</th>
               <th>{% trans "Internal" %}</th>
-              <th class="text-end pe-4">{% trans "Actions" %}</th>
             </tr>
           </thead>
           <tbody>
@@ -171,16 +168,6 @@
                     <span class="text-muted"><i class="bi bi-globe"></i></span>
                   {% endif %}
                 </td>
-                <td class="text-end pe-4">
-                  <div class="btn-group">
-                    {% if entity.is_person %}
-                      <a href="{% url 'person_edit' pk=entity.pk %}" class="btn btn-sm btn-outline-light text-dark border-0"><i class="bi bi-pencil"></i></a>
-                    {% elif entity.is_project %}
-                       <a href="{% url 'project_edit' pk=entity.pk %}" class="btn btn-sm btn-outline-light text-dark border-0"><i class="bi bi-pencil"></i></a>
-                    {% endif %}
-                    <a href="#" class="btn btn-sm btn-outline-light text-dark border-0"><i class="bi bi-three-dots-vertical"></i></a>
-                  </div>
-                </td>
               </tr>
             {% empty %}
               <tr>
@@ -198,84 +185,84 @@
     <!-- Card view for small screens -->
     <div class="d-md-none">
       {% if entities %}
-        <div class="list-group list-group-flush">
+        <div class="row g-3">
           {% for entity in entities %}
-            <div class="list-group-item">
-              <div class="d-flex align-items-start mb-2">
-                <div class="avatar-sm me-3 bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width: 40px; height: 40px;">
-                  {% if entity.is_person %}
-                    <i class="bi bi-person"></i>
-                  {% elif entity.is_project %}
-                    <i class="bi bi-kanban"></i>
-                  {% else %}
-                    <i class="bi bi-cpu"></i>
-                  {% endif %}
-                </div>
-                <div class="flex-grow-1">
-                  <a href="{{ entity.get_absolute_url }}" class="fw-bold text-decoration-none text-dark d-block">{{ entity.name }}</a>
-                  <small class="text-muted">ID: #{{ entity.id|stringformat:'04d' }}</small>
-                </div>
-              </div>
-
-              <div class="mb-2">
-                <span class="badge bg-light text-dark border me-2">
-                  {% if entity.is_person %}{% trans "Person" %}
-                  {% elif entity.is_project %}{% trans "Project" %}
-                  {% elif entity.is_system %}{% trans "System" %}
-                  {% else %}{% trans "World" %}
-                  {% endif %}
-                </span>
-                {% if entity.is_internal %}
-                  <span class="text-primary"><i class="bi bi-house-door-fill"></i> {% trans "Internal" %}</span>
-                {% else %}
-                  <span class="text-muted"><i class="bi bi-globe"></i> {% trans "External" %}</span>
-                {% endif %}
-              </div>
-
-              <div class="mb-2">
-                <div class="d-flex gap-1 flex-wrap">
-                  {% if entity.is_vendor %}
-                    <span class="badge bg-info-subtle text-info">{% trans "Vendor" %}</span>
-                  {% endif %}
-                  {% if entity.is_client %}
-                    <span class="badge bg-success-subtle text-success">{% trans "Client" %}</span>
-                  {% endif %}
-                  {% if entity.is_worker %}
-                    <span class="badge bg-warning-subtle text-warning">{% trans "Worker" %}</span>
-                  {% endif %}
-                  {% if entity.is_shareholder %}
-                    <span class="badge bg-primary-subtle text-primary">{% trans "Shareholder" %}</span>
-                  {% endif %}
-                  {% if not entity.is_vendor and not entity.is_client and not entity.is_worker and not entity.is_shareholder %}
-                    <span class="text-muted small italic">{% trans "No Roles" %}</span>
-                  {% endif %}
-                </div>
-              </div>
-
-              <div class="mb-2">
-                <small class="text-muted d-block mb-1">{% trans "Fund Status" %}</small>
-                {% if entity %}
-                  <div class="text-dark small fw-semibold">
-                    <i class="bi bi-wallet2 me-1"></i> {{ entity.balance|default:'0.00' }}
+            <div class="col-12">
+              <a href="{{ entity.get_absolute_url }}" class="card h-100 border-0 shadow-sm text-decoration-none text-dark transition-all" style="cursor: pointer;">
+                <div class="card-body p-3">
+                  <div class="d-flex align-items-start mb-3">
+                    <div class="avatar-sm me-3 bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width: 44px; height: 44px; font-size: 1.25rem;">
+                      {% if entity.is_person %}
+                        <i class="bi bi-person"></i>
+                      {% elif entity.is_project %}
+                        <i class="bi bi-kanban"></i>
+                      {% else %}
+                        <i class="bi bi-cpu"></i>
+                      {% endif %}
+                    </div>
+                    <div class="flex-grow-1 min-w-0">
+                      <h6 class="fw-bold mb-1 text-truncate">{{ entity.name }}</h6>
+                      <small class="text-muted d-block">{% trans "ID" %}: #{{ entity.id|stringformat:'04d' }}</small>
+                    </div>
+                    <div class="ms-2 flex-shrink-0">
+                      {% if entity.is_internal %}
+                        <span class="text-primary" title="{% trans 'Internal' %}"><i class="bi bi-house-door-fill"></i></span>
+                      {% else %}
+                        <span class="text-muted" title="{% trans 'External' %}"><i class="bi bi-globe"></i></span>
+                      {% endif %}
+                    </div>
                   </div>
-                  {% if entity.active %}
-                    <span class="text-success small"><i class="bi bi-check-circle-fill"></i> {% trans "Ready" %}</span>
-                  {% else %}
-                    <span class="text-muted small"><i class="bi bi-slash-circle"></i> {% trans "View Only" %}</span>
-                  {% endif %}
-                {% else %}
-                  <span class="text-danger small"><i class="bi bi-exclamation-triangle"></i> {% trans "Missing Fund" %}</span>
-                {% endif %}
-              </div>
 
-              <div class="d-flex gap-2">
-                <a href="{{ entity.get_absolute_url }}" class="btn btn-sm btn-outline-primary flex-grow-1">{% trans "View" %}</a>
-                {% if entity.is_person %}
-                  <a href="{% url 'person_edit' pk=entity.pk %}" class="btn btn-sm btn-outline-secondary flex-grow-1">{% trans "Edit" %}</a>
-                {% elif entity.is_project %}
-                  <a href="{% url 'project_edit' pk=entity.pk %}" class="btn btn-sm btn-outline-secondary flex-grow-1">{% trans "Edit" %}</a>
-                {% endif %}
-              </div>
+                  <div class="mb-3">
+                    <span class="badge bg-light text-dark border">
+                      {% if entity.is_person %}{% trans "Person" %}
+                      {% elif entity.is_project %}{% trans "Project" %}
+                      {% elif entity.is_system %}{% trans "System" %}
+                      {% else %}{% trans "World" %}
+                      {% endif %}
+                    </span>
+                  </div>
+
+                  {% if entity.is_vendor or entity.is_client or entity.is_worker or entity.is_shareholder %}
+                  <div class="mb-3">
+                    <div class="d-flex gap-1 flex-wrap">
+                      {% if entity.is_vendor %}
+                        <span class="badge bg-info-subtle text-info small">{% trans "Vendor" %}</span>
+                      {% endif %}
+                      {% if entity.is_client %}
+                        <span class="badge bg-success-subtle text-success small">{% trans "Client" %}</span>
+                      {% endif %}
+                      {% if entity.is_worker %}
+                        <span class="badge bg-warning-subtle text-warning small">{% trans "Worker" %}</span>
+                      {% endif %}
+                      {% if entity.is_shareholder %}
+                        <span class="badge bg-primary-subtle text-primary small">{% trans "Shareholder" %}</span>
+                      {% endif %}
+                    </div>
+                  </div>
+                  {% endif %}
+
+                  <div class="d-flex justify-content-between align-items-end pt-2 border-top">
+                    <div>
+                      <small class="text-muted d-block mb-1">{% trans "Fund Status" %}</small>
+                      {% if entity %}
+                        <div class="text-dark small fw-semibold">
+                          <i class="bi bi-wallet2 me-1"></i>{{ entity.balance|default:'0.00' }}
+                        </div>
+                      {% else %}
+                        <span class="text-danger small"><i class="bi bi-exclamation-triangle"></i> {% trans "Missing Fund" %}</span>
+                      {% endif %}
+                    </div>
+                    <div class="text-end">
+                      {% if entity.active %}
+                        <span class="text-success small" title="{% trans 'Ready' %}"><i class="bi bi-check-circle-fill"></i></span>
+                      {% else %}
+                        <span class="text-muted small" title="{% trans 'View Only' %}"><i class="bi bi-slash-circle"></i></span>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+              </a>
             </div>
           {% endfor %}
         </div>

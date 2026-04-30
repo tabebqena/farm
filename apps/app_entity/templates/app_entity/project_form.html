@@ -2,7 +2,7 @@
 {% load i18n %}
 
 {% block content %}
-<div class="card form-card shadow-sm border-0">
+<div class="card form-card shadow-sm border-0 project-form">
     <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
         <h5 class="mb-0 fw-bold text-primary">
             {% if is_edit %}{% trans "Edit Project:" %} {{ entity.name }}{% else %}{% trans "Initialize New Project" %}{% endif %}
