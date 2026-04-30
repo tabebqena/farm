@@ -69,6 +69,24 @@ def period_create_view(request, entity_pk):
         )
         DebugContext.success("Entity loaded", {"entity_id": entity.pk})
 
+    if entity.active and entity.financial_periods.exists():
+        error_msg = _("New periods are created automatically when the current period is closed.")
+        DebugContext.warn("Manual period creation attempt for active entity with existing periods", {"entity_id": entity.pk})
+        DebugContext.audit(
+            action="period_creation_blocked_for_active_entity",
+            entity_type="Entity",
+            entity_id=entity.pk,
+            details={"reason": "active_entity_with_existing_periods"},
+            user=request.user.username
+        )
+        periods = entity.financial_periods.all().order_by("-start_date")
+        context = {
+            "entity": entity,
+            "periods": periods,
+            "errors": [error_msg],
+        }
+        return render(request, "app_operation/period_list.html", context, status=400)
+
     if request.method == "GET":
         context = {"entity": entity}
         return render(request, "app_operation/period_form.html", context)
