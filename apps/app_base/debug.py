@@ -6,6 +6,7 @@ Provides structured logging with context awareness, performance tracking, and au
 
 import json
 import logging
+import sys
 import time
 import traceback
 from contextlib import contextmanager
@@ -15,12 +16,25 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 from django.conf import settings
 
+_TEST_MODE_CACHE: Optional[bool] = None
+
+def _in_test_mode() -> bool:
+    global _TEST_MODE_CACHE
+    if _TEST_MODE_CACHE is None:
+        _TEST_MODE_CACHE = (
+            "pytest" in sys.modules
+            or (len(sys.argv) > 1 and sys.argv[1] == "test")
+        )
+    return _TEST_MODE_CACHE
+
 logger = logging.getLogger("farm_debug")
 audit_logger = logging.getLogger("farm_audit")
 
 # Configure audit logger for file-based persistence
 _audit_handler_configured = False
 def _configure_audit_handler():
+    if _in_test_mode():
+        return
     global _audit_handler_configured
     if not _audit_handler_configured:
         log_dir = Path(settings.BASE_DIR) / "logs"
@@ -51,6 +65,9 @@ class DebugContext:
     @contextmanager
     def section(cls, title: str, data: Optional[Dict[str, Any]] = None):
         """Context manager for logging a section with automatic indentation and timing."""
+        if _in_test_mode():
+            yield
+            return
         cls._depth += 1
         indent = cls._indent()
         prefix = f"→ {title}"
@@ -72,6 +89,8 @@ class DebugContext:
     @classmethod
     def log(cls, message: str, data: Optional[Dict[str, Any]] = None, level: str = "info"):
         """Log a message with optional data."""
+        if _in_test_mode():
+            return
         indent = cls._indent()
         prefix = "⚡"
 
@@ -86,6 +105,8 @@ class DebugContext:
     @classmethod
     def error(cls, message: str, exception: Optional[Exception] = None, data: Optional[Dict[str, Any]] = None):
         """Log an error with optional exception and data."""
+        if _in_test_mode():
+            return
         indent = cls._indent()
         prefix = "❌"
 
@@ -105,6 +126,8 @@ class DebugContext:
     @classmethod
     def success(cls, message: str, data: Optional[Dict[str, Any]] = None):
         """Log a success message."""
+        if _in_test_mode():
+            return
         indent = cls._indent()
         prefix = "✓"
         if data:
@@ -123,6 +146,8 @@ class DebugContext:
     @classmethod
     def audit(cls, action: str, entity_type: str, entity_id: Any, details: Optional[Dict[str, Any]] = None, user: Optional[str] = None):
         """Log an audit event for compliance and tracing."""
+        if _in_test_mode():
+            return
         _configure_audit_handler()
         audit_data = {
             "action": action,
@@ -140,6 +165,8 @@ class DebugContext:
     @classmethod
     def transaction_start(cls, transaction_id: str, description: str, data: Optional[Dict[str, Any]] = None):
         """Log the start of a financial or data transaction."""
+        if _in_test_mode():
+            return
         _configure_audit_handler()
         indent = cls._indent()
         msg = f"{indent}🔄 TRANSACTION START | {transaction_id} | {description}"
@@ -160,6 +187,8 @@ class DebugContext:
     @classmethod
     def transaction_commit(cls, transaction_id: str, result: Optional[Dict[str, Any]] = None):
         """Log successful transaction completion."""
+        if _in_test_mode():
+            return
         _configure_audit_handler()
         indent = cls._indent()
         msg = f"{indent}✓ TRANSACTION COMMIT | {transaction_id}"
@@ -179,6 +208,8 @@ class DebugContext:
     @classmethod
     def transaction_rollback(cls, transaction_id: str, reason: str, exception: Optional[Exception] = None):
         """Log transaction failure and rollback."""
+        if _in_test_mode():
+            return
         _configure_audit_handler()
         indent = cls._indent()
         msg = f"{indent}❌ TRANSACTION ROLLBACK | {transaction_id} | {reason}"
