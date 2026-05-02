@@ -5,7 +5,7 @@
     <div class="flex-grow-1">
       <h5 class="alert-heading fw-bold mb-1">{% trans "Operation Voided (Reversed)" %}</h5>
       <p class="mb-0 opacity-75">
-        <i class="bi bi-calendar-event"></i> {% trans "Reversed on" %} {{ operation.reversed_at|date:'M d, Y' }}
+        <i class="bi bi-calendar-event"></i> {% trans "Reversed on" %} {{ operation.reversed_by.date|date:'M d, Y' }}
       </p>
     </div>
     {% if operation.reversed_by %}

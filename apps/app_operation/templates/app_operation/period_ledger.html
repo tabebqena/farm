@@ -1,0 +1,252 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block content %}
+<div class="container mt-4">
+
+  {# ── Page header ─────────────────────────────────────────────── #}
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+      <h2>
+        {% trans 'Cash Ledger' %}
+        <small class="text-muted">
+          {{ period.start_date|date:"Y-m-d" }}
+          {% if period.end_date %} → {{ period.end_date|date:"Y-m-d" }}
+          {% else %} → {% trans 'Open' %}{% endif %}
+        </small>
+      </h2>
+      <p class="text-muted mb-0">
+        <a href="{% url 'entity_detail' entity.pk %}">{{ entity.name }}</a>
+      </p>
+    </div>
+    <div>
+      {% if period.is_closed %}
+        <span class="badge bg-secondary fs-6">{% trans 'Closed' %}</span>
+      {% else %}
+        <span class="badge bg-success fs-6">{% trans 'Open' %}</span>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── Summary strip ───────────────────────────────────────────── #}
+  <div class="row mb-4 g-3">
+    <div class="col-6 col-md-4">
+      <div class="card text-center">
+        <div class="card-body py-2">
+          <small class="text-muted d-block">{% trans 'Opening Balance' %}</small>
+          <span class="fw-bold fs-5">{{ opening_balance|floatformat:2 }}</span>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-4">
+      <div class="card text-center">
+        <div class="card-body py-2">
+          <small class="text-muted d-block">{% trans 'Transactions' %}</small>
+          <span class="fw-bold fs-5">{{ ledger_rows|length }}</span>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-4">
+      <div class="card text-center">
+        <div class="card-body py-2">
+          <small class="text-muted d-block">{% trans 'Closing Balance' %}</small>
+          <span class="fw-bold fs-5{% if closing_balance >= 0 %} text-success{% else %} text-danger{% endif %}">
+            {{ closing_balance|floatformat:2 }}
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ── Desktop table (md+) ─────────────────────────────────────── #}
+  <div class="card shadow-sm d-none d-md-block">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>{% trans 'Date' %}</th>
+            <th>{% trans 'Type' %}</th>
+            <th class="d-none d-lg-table-cell">{% trans 'Description' %}</th>
+            <th>{% trans 'Counterparty' %}</th>
+            <th class="text-end text-danger">{% trans 'Debit (Out)' %}</th>
+            <th class="text-end text-success">{% trans 'Credit (In)' %}</th>
+            <th class="text-end">{% trans 'Balance' %}</th>
+          </tr>
+        </thead>
+        <tbody>
+
+          {# Opening balance row #}
+          <tr class="table-secondary fw-bold">
+            <td>{{ period.start_date|date:"Y-m-d" }}</td>
+            <td colspan="3" class="text-muted fst-italic">
+              {% trans 'Opening Balance' %}
+            </td>
+            <td></td>
+            <td></td>
+            <td class="text-end">{{ opening_balance|floatformat:2 }}</td>
+          </tr>
+
+          {% for row in ledger_rows %}
+            <tr class="{% if row.tx.is_reversed %}table-light text-muted{% elif row.tx.is_reversal %}table-light text-muted{% endif %}">
+              <td class="text-nowrap">{{ row.tx.date|date:"Y-m-d" }}</td>
+              <td>
+                <span class="badge
+                  {% if row.tx.is_reversed %}bg-secondary
+                  {% elif row.tx.is_reversal %}bg-danger
+                  {% elif row.direction == 'credit' %}bg-success-subtle text-success-emphasis
+                  {% else %}bg-danger-subtle text-danger-emphasis{% endif %}">
+                  {% if row.tx.is_reversed %}{% trans 'Voided' %}
+                  {% elif row.tx.is_reversal %}{% trans 'Reversal' %}
+                  {% elif row.direction == 'credit' %}{% trans 'In' %}
+                  {% else %}{% trans 'Out' %}{% endif %}
+                </span>
+                <small class="d-block text-muted">{{ row.tx.type }}</small>
+              </td>
+              <td class="d-none d-lg-table-cell">
+                <small class="text-muted text-break">{{ row.tx.description|truncatechars:60 }}</small>
+              </td>
+              <td>
+                {% if row.counterparty.entity_type in "SYSTEM,WORLD" %}
+                  <span class="text-reset">{{ row.counterparty.name }}</span>
+                {% else %}
+                  <a href="{% url 'entity_detail' row.counterparty.pk %}" class="text-decoration-none text-reset">
+                    {{ row.counterparty.name }}
+                  </a>
+                {% endif %}
+              </td>
+              <td class="text-end">
+                {% if row.direction == 'debit' %}
+                  <span class="text-danger fw-semibold">{{ row.delta|floatformat:2 }}</span>
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              <td class="text-end">
+                {% if row.direction == 'credit' %}
+                  <span class="text-success fw-semibold">{{ row.delta|floatformat:2 }}</span>
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              <td class="text-end fw-bold{% if row.balance >= 0 %} text-dark{% else %} text-danger{% endif %}">
+                {{ row.balance|floatformat:2 }}
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="7" class="text-center py-5 text-muted">
+                {% trans 'No cash transactions in this period.' %}
+              </td>
+            </tr>
+          {% endfor %}
+
+          {# Closing balance row #}
+          {% if ledger_rows %}
+            <tr class="table-secondary fw-bold border-top border-2">
+              <td>{% if period.end_date %}{{ period.end_date|date:"Y-m-d" }}{% else %}{% trans 'Today' %}{% endif %}</td>
+              <td colspan="3" class="text-muted fst-italic">
+                {% trans 'Closing Balance' %}
+              </td>
+              <td></td>
+              <td></td>
+              <td class="text-end{% if closing_balance >= 0 %} text-success{% else %} text-danger{% endif %}">
+                {{ closing_balance|floatformat:2 }}
+              </td>
+            </tr>
+          {% endif %}
+
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {# ── Mobile card list (< md) ─────────────────────────────────── #}
+  <div class="d-md-none">
+
+    {# Opening balance card #}
+    <div class="card mb-2 bg-light">
+      <div class="card-body py-2 d-flex justify-content-between">
+        <span class="text-muted fst-italic">{% trans 'Opening Balance' %}</span>
+        <span class="fw-bold">{{ opening_balance|floatformat:2 }}</span>
+      </div>
+    </div>
+
+    {% for row in ledger_rows %}
+      <div class="card mb-2{% if row.tx.is_reversed or row.tx.is_reversal %} opacity-75{% endif %}">
+        <div class="card-body py-2">
+
+          <div class="d-flex justify-content-between align-items-start mb-1">
+            <div>
+              <span class="fw-semibold small">{{ row.tx.type }}</span>
+              <small class="text-muted d-block">{{ row.tx.date|date:"Y-m-d" }}</small>
+            </div>
+            <span class="badge
+              {% if row.tx.is_reversed %}bg-secondary
+              {% elif row.tx.is_reversal %}bg-danger
+              {% elif row.direction == 'credit' %}bg-success-subtle text-success-emphasis
+              {% else %}bg-danger-subtle text-danger-emphasis{% endif %}">
+              {% if row.tx.is_reversed %}{% trans 'Voided' %}
+              {% elif row.tx.is_reversal %}{% trans 'Reversal' %}
+              {% elif row.direction == 'credit' %}IN
+              {% else %}OUT{% endif %}
+            </span>
+          </div>
+
+          <div class="d-flex justify-content-between align-items-center">
+            <small class="text-muted">
+              {% if row.direction == 'credit' %}{% trans 'From:' %}{% else %}{% trans 'To:' %}{% endif %}
+              {% if row.counterparty.entity_type in "SYSTEM,WORLD" %}
+                {{ row.counterparty.name }}
+              {% else %}
+                <a href="{% url 'entity_detail' row.counterparty.pk %}" class="text-decoration-none text-reset">
+                  {{ row.counterparty.name }}
+                </a>
+              {% endif %}
+            </small>
+            <div class="text-end">
+              {% if row.direction == 'debit' %}
+                <span class="text-danger fw-semibold">−{{ row.delta|floatformat:2 }}</span>
+              {% else %}
+                <span class="text-success fw-semibold">+{{ row.delta|floatformat:2 }}</span>
+              {% endif %}
+              <small class="d-block text-muted">
+                {% trans 'Bal:' %} {{ row.balance|floatformat:2 }}
+              </small>
+            </div>
+          </div>
+
+          {% if row.tx.description %}
+            <small class="text-muted d-block mt-1 text-break">{{ row.tx.description|truncatechars:80 }}</small>
+          {% endif %}
+
+        </div>
+      </div>
+    {% empty %}
+      <div class="text-center py-5 text-muted">
+        {% trans 'No cash transactions in this period.' %}
+      </div>
+    {% endfor %}
+
+    {# Closing balance card #}
+    {% if ledger_rows %}
+      <div class="card mt-2 bg-light">
+        <div class="card-body py-2 d-flex justify-content-between">
+          <span class="text-muted fst-italic">{% trans 'Closing Balance' %}</span>
+          <span class="fw-bold{% if closing_balance >= 0 %} text-success{% else %} text-danger{% endif %}">
+            {{ closing_balance|floatformat:2 }}
+          </span>
+        </div>
+      </div>
+    {% endif %}
+
+  </div>
+
+  {# ── Back link ────────────────────────────────────────────────── #}
+  <div class="mt-4">
+    <a href="{% url 'period_detail_view' period.pk %}" class="btn btn-outline-secondary">
+      {% trans 'Back to Period Detail' %}
+    </a>
+  </div>
+
+</div>
+{% endblock %}

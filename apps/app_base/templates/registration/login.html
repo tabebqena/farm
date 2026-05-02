@@ -7,31 +7,33 @@
       <div class="col-md-4">
         <div class="card shadow border-0">
           <div class="card-body p-4">
-            <h3 class="fw-bold mb-3">{% trans "Login" %}</h3>
+            <h3 class="fw-bold mb-3">{% trans 'Login' %}</h3>
 
             {% if form.errors %}
-              <div class="alert alert-danger small">{% trans "Your username and password didn't match." %}</div>
+              <div class="alert alert-danger small">
+                {% trans "Your username and password didn't match." %}
+              </div>
             {% endif %}
             <form method="post" action="{% url 'login' %}?next={{ request.get_full_path|urlencode }}">
               {% csrf_token %}
               <div class="mb-3">
-                <label class="form-label small fw-bold">{% trans "Username" %}</label>
+                <label class="form-label small fw-bold">{% trans 'Username' %}</label>
                 {{ form.username }}
               </div>
               <div class="mb-3">
-                <label class="form-label small fw-bold">{% trans "Password" %}</label>
+                <label class="form-label small fw-bold">{% trans 'Password' %}</label>
                 {{ form.password }}
               </div>
-              <button type="submit" class="btn btn-primary w-100">{% trans "Sign In" %}</button>
+              <button type="submit" class="btn btn-primary w-100">{% trans 'Sign In' %}</button>
               <input type="hidden" name="next" value="{{ next }}" />
             </form>
 
-            <div class="text-center mt-4">
+            {% comment %} <div class="text-center mt-4">
               <p class="small text-muted mb-0">
                 {% trans "Don't have an account?" %}
-                <a href="{% url 'register' %}" class="text-decoration-none">{% trans "Create one now" %}</a>
+                <a href="{% url 'register' %}" class="text-decoration-none">{% trans 'Create one now' %}</a>
               </p>
-            </div>
+            </div> {% endcomment %}
           </div>
         </div>
       </div>

@@ -45,7 +45,7 @@
               <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'expense' %}">{% trans 'Expense' %}</a>
             </li>
 
-            <li>
+            {% comment %} <li>
               <hr class="dropdown-divider" />
             </li>
             <li>
@@ -53,7 +53,7 @@
             </li>
             <li>
               <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'capital-loss' %}">{% trans 'Capital Loss' %}</a>
-            </li>
+            </li> {% endcomment %}
             <li>
               <hr class="dropdown-divider" />
             </li>
@@ -82,208 +82,150 @@
     </div>
 
     <div class="card shadow-sm">
-      <!-- Table view for medium screens and up -->
-      <div class="d-none d-md-block">
-        <div class="table-responsive">
-          <table class="table table-hover align-middle mb-0">
-            <thead class="table-light">
-              <tr>
-                <th>
-                  {% trans 'Date' %}
-                </th>
-                <th>
-                  {% trans 'Type' %}
-                </th>
-                <th>
-                  {% trans 'Direction' %}
-                </th>
-                <th class="d-none d-lg-table-cell">
-                  {% trans 'Counterparty' %}
-                </th>
-                <th class="text-end">
-                  {% trans 'Amount' %}
-                </th>
-                <th class="text-end">
-                  {% trans 'Paid' %}
-                </th>
-                <th class="text-end">
-                  {% trans 'Remaining' %}
-                </th>
-                <th class="text-center d-none d-lg-table-cell">
-                  {% trans 'Status' %}
-                </th>
-                <th class="d-none d-lg-table-cell">
-                  {% trans 'Actions' %}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for op in operations %}
-                <tr class="{% if op.is_reversed %}table-light text-muted{% endif %}">
-                  <td>{{ op.date }}</td>
-                  <td>
-                    <span class="fw-bold">{{ op.get_operation_type_display }}</span>
-                  </td>
-                  <td>
-                    {% if not op.is_reversed and not op.is_reversal %}
-                      {% if op.destination == entity_person %}
-                        <span class="badge bg-success-soft text-success"><i class="bi bi-arrow-down-left"></i> IN</span>
-                      {% else %}
-                        <span class="badge bg-danger-soft text-danger"><i class="bi bi-arrow-up-right"></i> OUT</span>
-                      {% endif %}
-                    {% else %}
-                      <span class="badge text-primary"><i class="bi bi-arrow-left-right"></i></span>
-                    {% endif %}
-                  </td>
-                  <td class="d-none d-lg-table-cell">
-                    {% if op.destination == entity_person %}
-                      <small class="text-muted">{% trans 'From:' %}</small> {{ op.source.name }}
-                    {% else %}
-                      <small class="text-muted">{% trans 'To:' %}</small> {{ op.destination.name }}
-                    {% endif %}
-                  </td>
-                  <td class="text-end fw-bold">
-                    {% if op.destination == entity_person %}
-                      +
-                    {% else %}
-                      -
-                    {% endif %}${{ op.amount }}
-                  </td>
-                  <td class="text-end">
-                    {% if op.amount_settled or op.amount_repayed %}
-                      ${{ op.amount_settled|default:op.amount_repayed|default:0 }}
-                    {% else %}
-                      <span class="text-muted">-</span>
-                    {% endif %}
-                  </td>
-                  <td class="text-end">
-                    {% if op.is_repayable %}
-                      {% if op.amount_remaining_to_repay %}
-                        ${{ op.amount_remaining_to_repay }}
-                      {% endif %}
-                    {% elif op.amount_remaining_to_settle %}
-                      ${{ op.amount_remaining_to_settle }}
-                    {% else %}
-                      <span class="text-muted">-</span>
-                    {% endif %}
-                  </td>
-                  <td class="text-center d-none d-lg-table-cell">
-                    {% if op.is_reversed %}
-                      <span class="badge rounded-pill bg-danger">{% trans 'Reversed' %}</span>
-                    {% elif op.is_reversal %}
-                      <span class="badge rounded-pill bg-danger">{% trans 'Reversal' %}</span>
-                    {% else %}
-                      <span class="badge rounded-pill bg-success">{% trans 'Active' %}</span>
-                    {% endif %}
-                  </td>
-                  <td class="d-none d-lg-table-cell">
-                    <div class="btn-group">
-                      <a href="{% url 'operation_detail_view' op.pk %}" class="btn btn-sm btn-outline-primary">{% trans 'View' %}</a>
-                      {% if not op.is_reversed and not op.is_reversal %}
-                        <a href="{% url 'operation_update_view' op.pk %}" class="btn btn-sm btn-outline-secondary">{% trans 'Edit' %}</a>
-                      {% endif %}
-                    </div>
-                  </td>
-                </tr>
-              {% empty %}
-                <tr>
-                  <td colspan="9" class="text-center py-5 text-muted">
-                    {% trans 'No operations found for this person.' %}
-                  </td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Card view for small screens -->
-      <div class="d-md-none">
-        {% if operations %}
-          <div class="list-group list-group-flush">
-            {% for op in operations %}
-              <div class="list-group-item {% if op.is_reversed %}bg-light opacity-75{% endif %}">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                  <div class="flex-grow-1">
-                    <div class="fw-bold">{{ op.get_operation_type_display }}</div>
-                    <small class="text-muted">{{ op.date }}</small>
-                  </div>
-                  <div class="text-end">
-                    {% if op.is_reversed %}
-                      <span class="badge rounded-pill bg-danger">{% trans 'Reversed' %}</span>
-                    {% elif op.is_reversal %}
-                      <span class="badge rounded-pill bg-danger">{% trans 'Reversal' %}</span>
-                    {% else %}
-                      <span class="badge rounded-pill bg-success">{% trans 'Active' %}</span>
-                    {% endif %}
-                  </div>
-                </div>
-
-                <div class="mb-2">
-                  <small class="text-muted d-block mb-1">{% trans 'Direction & Counterparty' %}</small>
-                  <div class="d-flex align-items-center gap-2">
-                    {% if not op.is_reversed and not op.is_reversal %}
-                      {% if op.destination == entity_person %}
-                        <span class="badge bg-success-soft text-success"><i class="bi bi-arrow-down-left"></i> IN</span>
-                      {% else %}
-                        <span class="badge bg-danger-soft text-danger"><i class="bi bi-arrow-up-right"></i> OUT</span>
-                      {% endif %}
-                    {% else %}
-                      <span class="badge text-primary"><i class="bi bi-arrow-left-right"></i></span>
-                    {% endif %}
-                    <span class="small text-break">
-                      {% if op.destination == entity_person %}
-                        <span class="text-muted">{% trans 'From:' %}</span> {{ op.source.name }}
-                      {% else %}
-                        <span class="text-muted">{% trans 'To:' %}</span> {{ op.destination.name }}
-                      {% endif %}
-                    </span>
-                  </div>
-                </div>
-
-                <div class="row g-2 mb-2">
-                  <div class="col-6">
-                    <small class="text-muted d-block mb-1">{% trans 'Amount' %}</small>
-                    <span class="fw-bold d-block">
-                      {% if op.destination == entity_person %}
-                        +
-                      {% else %}
-                        -
-                      {% endif %}${{ op.amount }}
-                    </span>
-                  </div>
-                  {% if op.amount_settled or op.amount_repayed or op.amount_remaining_to_repay or op.amount_remaining_to_settle %}
-                    <div class="col-6">
-                      <small class="text-muted d-block mb-1">{% trans 'Paid / Remaining' %}</small>
-                      <div class="small">
-                        {% if op.amount_settled or op.amount_repayed %}
-                          <span class="badge bg-info-soft text-info">{% trans 'Paid' %}: ${{ op.amount_settled|default:op.amount_repayed|default:0 }}</span>
-                        {% endif %}
-                        {% if op.amount_remaining_to_repay %}
-                          <span class="badge bg-warning-soft text-warning">{% trans 'Remaining' %}: ${{ op.amount_remaining_to_repay }}</span>
-                        {% elif op.amount_remaining_to_settle %}
-                          <span class="badge bg-warning-soft text-warning">{% trans 'Remaining' %}: ${{ op.amount_remaining_to_settle }}</span>
-                        {% endif %}
-                      </div>
-                    </div>
-                  {% endif %}
-                </div>
-
-                <div class="d-flex gap-2">
-                  <a href="{% url 'operation_detail_view' op.pk %}" class="btn btn-sm btn-outline-primary flex-grow-1">{% trans 'View' %}</a>
+      <div class="list-group list-group-flush">
+        {% for op in operations %}
+          <div class="list-group-item {% if op.is_reversed %}bg-light opacity-75{% endif %}">
+            <div class="row g-2 align-items-center">
+              <div class="col-12 col-md-3">
+                <small class="text-muted d-md-none">{% trans 'Type' %}: </small>
+                <div class="fw-bold">{{ op.get_operation_type_display }}</div>
+                <small class="text-muted">{{ op.date }}</small>
+              </div>
+              <div class="col-12 col-md-3">
+                <small class="text-muted d-md-none">{% trans 'Direction & Counterparty' %}</small>
+                <div class="d-flex align-items-center gap-2">
                   {% if not op.is_reversed and not op.is_reversal %}
-                    <a href="{% url 'operation_update_view' op.pk %}" class="btn btn-sm btn-outline-secondary flex-grow-1">{% trans 'Edit' %}</a>
+                    {% if op.destination == entity_person %}
+                      <span class="badge bg-success-soft text-success"><i class="bi bi-arrow-down-left"></i> IN</span>
+                    {% else %}
+                      <span class="badge bg-danger-soft text-danger"><i class="bi bi-arrow-up-right"></i> OUT</span>
+                    {% endif %}
+                  {% else %}
+                    <span class="badge text-primary"><i class="bi bi-arrow-left-right"></i></span>
                   {% endif %}
+                  <span class="small text-break">
+                    {% if op.destination == entity_person %}
+                      <span class="text-muted">{% trans 'From:' %}</span> {{ op.source.name }}
+                    {% else %}
+                      <span class="text-muted">{% trans 'To:' %}</span> {{ op.destination.name }}
+                    {% endif %}
+                  </span>
                 </div>
               </div>
-            {% endfor %}
+              <div class="col-6 col-md-2 text-end">
+                <small class="text-muted d-md-none d-block">{% trans 'Amount' %}</small>
+                <span class="fw-bold d-block">
+                  {% if op.destination == entity_person %}+{% else %}-{% endif %}${{ op.amount }}
+                </span>
+              </div>
+              {% if op.amount_settled or op.amount_repayed or op.amount_remaining_to_repay or op.amount_remaining_to_settle %}
+                <div class="col-6 col-md-2">
+                  <small class="text-muted d-md-none d-block">{% trans 'Paid/Rem' %}</small>
+                  <div class="small">
+                    {% if op.amount_settled or op.amount_repayed %}
+                      <span class="badge bg-info-soft text-info">P: ${{ op.amount_settled|default:op.amount_repayed|default:0 }}</span>
+                    {% endif %}
+                    {% if op.amount_remaining_to_repay %}
+                      <span class="badge bg-warning-soft text-warning d-block">R: ${{ op.amount_remaining_to_repay }}</span>
+                    {% elif op.amount_remaining_to_settle %}
+                      <span class="badge bg-warning-soft text-warning d-block">R: ${{ op.amount_remaining_to_settle }}</span>
+                    {% endif %}
+                  </div>
+                </div>
+              {% else %}
+                <div class="col-6 col-md-2">
+                  <small class="text-muted d-md-none d-block">{% trans 'Status' %}</small>
+                </div>
+              {% endif %}
+              <div class="col-6 col-md-2 text-md-center">
+                {% if op.is_reversed %}
+                  <span class="badge rounded-pill bg-danger">{% trans 'Reversed' %}</span>
+                {% elif op.is_reversal %}
+                  <span class="badge rounded-pill bg-danger">{% trans 'Reversal' %}</span>
+                {% else %}
+                  <span class="badge rounded-pill bg-success">{% trans 'Active' %}</span>
+                {% endif %}
+              </div>
+              <div class="col-12 col-md-2 d-flex gap-1">
+                <a href="{% url 'operation_detail_view' op.pk %}" class="btn btn-sm btn-outline-primary flex-grow-1">{% trans 'View' %}</a>
+                {% if not op.is_reversed and not op.is_reversal %}
+                  <a href="{% url 'operation_update_view' op.pk %}" class="btn btn-sm btn-outline-secondary flex-grow-1">{% trans 'Edit' %}</a>
+                {% endif %}
+              </div>
+            </div>
           </div>
-        {% else %}
-          <div class="text-center py-5 text-muted">
+        {% empty %}
+          <div class="list-group-item text-center py-5 text-muted">
             {% trans 'No operations found for this person.' %}
           </div>
-        {% endif %}
+        {% endfor %}
       </div>
+
+      <!-- Pagination Controls -->
+      {% if page_obj.has_other_pages %}
+        <nav aria-label="Page navigation" class="mt-4">
+          <ul class="pagination justify-content-center mb-0">
+            {% if page_obj.has_previous %}
+              <li class="page-item">
+                <a class="page-link" href="?page=1" aria-label="First page">
+                  <span aria-hidden="true">&laquo;&laquo;</span>
+                </a>
+              </li>
+              <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}" aria-label="Previous page">
+                  <span aria-hidden="true">&laquo;</span>
+                </a>
+              </li>
+            {% else %}
+              <li class="page-item disabled">
+                <span class="page-link">&laquo;&laquo;</span>
+              </li>
+              <li class="page-item disabled">
+                <span class="page-link">&laquo;</span>
+              </li>
+            {% endif %}
+
+            {% for num in paginator.page_range %}
+              {% if page_obj.number == num %}
+                <li class="page-item active" aria-current="page">
+                  <span class="page-link">
+                    {{ num }}
+                    <span class="visually-hidden">(current)</span>
+                  </span>
+                </li>
+              {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                <li class="page-item">
+                  <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                </li>
+              {% endif %}
+            {% endfor %}
+
+            {% if page_obj.has_next %}
+              <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}" aria-label="Next page">
+                  <span aria-hidden="true">&raquo;</span>
+                </a>
+              </li>
+              <li class="page-item">
+                <a class="page-link" href="?page={{ paginator.num_pages }}" aria-label="Last page">
+                  <span aria-hidden="true">&raquo;&raquo;</span>
+                </a>
+              </li>
+            {% else %}
+              <li class="page-item disabled">
+                <span class="page-link">&raquo;</span>
+              </li>
+              <li class="page-item disabled">
+                <span class="page-link">&raquo;&raquo;</span>
+              </li>
+            {% endif %}
+          </ul>
+        </nav>
+        <div class="text-center mt-2 text-muted small">
+          {% trans 'Page' %} {{ page_obj.number }} {% trans 'of' %} {{ paginator.num_pages }} |
+          {% blocktrans count counter=paginator.count %}{{ counter }} operation{% plural %}{{ counter }} operations{% endblocktrans %}
+        </div>
+      {% endif %}
     </div>
   </div>
 {% endblock %}

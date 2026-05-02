@@ -83,9 +83,14 @@
                   <label class="form-label" for="{{ form.new_unit_price.id_for_label }}">
                     {{ form.new_unit_price.label }}
                   </label>
-                  <input type="number" name="{{ form.new_unit_price.name }}" id="{{ form.new_unit_price.id_for_label }}" class="form-control" step="0.01" min="0.01" placeholder="0.00">
+                  <div class="input-group amount-input-group">
+                    <span class="input-group-text">$</span>
+                    <input type="number" name="{{ form.new_unit_price.name }}" id="{{ form.new_unit_price.id_for_label }}" class="form-control amount-input" step="0.01" min="0.01" placeholder="0.00" inputmode="decimal">
+                  </div>
                   {% if form.new_unit_price.errors %}
-                    <div class="invalid-feedback d-block">{{ form.new_unit_price.errors|first }}</div>
+                    <div class="invalid-feedback d-block small text-danger">
+                      <i class="bi bi-exclamation-circle me-1"></i>{{ form.new_unit_price.errors|first }}
+                    </div>
                   {% endif %}
                 </div>
 

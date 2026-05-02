@@ -28,39 +28,141 @@
       </div>
     </div>
 
-    <div class="row mb-4">
-      <div class="col-md-6 col-lg-3 mb-3">
-        <div class="card">
-          <div class="card-body">
-            <h6 class="card-title text-muted">{% trans 'Balance' %}</h6>
-            <div class="h5">{{ period.balance|floatformat:2 }}</div>
+    <!-- BALANCE SECTION -->
+    <div class="card mb-4">
+      <div class="card-header bg-light">
+        <h5 class="mb-0">{% trans 'Cash & Balance' %}</h5>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6 col-lg-3 mb-3">
+            <div>
+              <small class="text-muted">{% trans 'Previous Balance' %}</small>
+              <div class="h6">{{ period.previous_balance|floatformat:2 }}</div>
+            </div>
+          </div>
+          <div class="col-md-6 col-lg-3 mb-3">
+            <div>
+              <small class="text-muted">{% trans 'Cash In' %}</small>
+              <div class="h6 text-success">{{ period.cash_in|floatformat:2 }}</div>
+            </div>
+          </div>
+          <div class="col-md-6 col-lg-3 mb-3">
+            <div>
+              <small class="text-muted">{% trans 'Cash Out' %}</small>
+              <div class="h6 text-danger">{{ period.cash_out|floatformat:2 }}</div>
+            </div>
+          </div>
+          <div class="col-md-6 col-lg-3 mb-3">
+            <div>
+              <small class="text-muted">{% if period.is_closed %}{% trans 'End Balance' %}{% else %}{% trans 'Current Balance' %}{% endif %}</small>
+              <div class="h6">{{ period.end_balance|default:period.balance|floatformat:2 }}</div>
+            </div>
           </div>
         </div>
       </div>
+    </div>
 
-      <div class="col-md-6 col-lg-3 mb-3">
-        <div class="card">
-          <div class="card-body">
-            <h6 class="card-title text-muted">{% trans 'Receivables' %}</h6>
-            <div class="h5">{{ period.receivables|floatformat:2 }}</div>
+    <!-- PAYABLES SECTION -->
+    <div class="card mb-4">
+      <div class="card-header bg-light">
+        <h5 class="mb-0">{% trans 'Payables' %}</h5>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6 col-lg-3 mb-3">
+            <div>
+              <small class="text-muted">{% trans 'Previous' %}</small>
+              <div class="h6">{{ period.payables_previous|floatformat:2 }}</div>
+            </div>
+          </div>
+          <div class="col-md-6 col-lg-3 mb-3">
+            <div>
+              <small class="text-muted">{% trans 'In (New)' %}</small>
+              <div class="h6 text-danger">{{ period.payables_in|floatformat:2 }}</div>
+            </div>
+          </div>
+          <div class="col-md-6 col-lg-3 mb-3">
+            <div>
+              <small class="text-muted">{% trans 'Out (Paid)' %}</small>
+              <div class="h6 text-success">{{ period.payables_out|floatformat:2 }}</div>
+            </div>
+          </div>
+          <div class="col-md-6 col-lg-3 mb-3">
+            <div>
+              <small class="text-muted">{% if period.is_closed %}{% trans 'End' %}{% else %}{% trans 'Current' %}{% endif %}</small>
+              <div class="h6">{{ period.payables_end|default:period.payables|floatformat:2 }}</div>
+            </div>
           </div>
         </div>
       </div>
+    </div>
 
-      <div class="col-md-6 col-lg-3 mb-3">
-        <div class="card">
-          <div class="card-body">
-            <h6 class="card-title text-muted">{% trans 'Payables' %}</h6>
-            <div class="h5">{{ period.payables|floatformat:2 }}</div>
+    <!-- RECEIVABLES SECTION -->
+    <div class="card mb-4">
+      <div class="card-header bg-light">
+        <h5 class="mb-0">{% trans 'Receivables' %}</h5>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6 col-lg-3 mb-3">
+            <div>
+              <small class="text-muted">{% trans 'Previous' %}</small>
+              <div class="h6">{{ period.receivables_previous|floatformat:2 }}</div>
+            </div>
+          </div>
+          <div class="col-md-6 col-lg-3 mb-3">
+            <div>
+              <small class="text-muted">{% trans 'In (New)' %}</small>
+              <div class="h6 text-danger">{{ period.receivables_in|floatformat:2 }}</div>
+            </div>
+          </div>
+          <div class="col-md-6 col-lg-3 mb-3">
+            <div>
+              <small class="text-muted">{% trans 'Out (Collected)' %}</small>
+              <div class="h6 text-success">{{ period.receivables_out|floatformat:2 }}</div>
+            </div>
+          </div>
+          <div class="col-md-6 col-lg-3 mb-3">
+            <div>
+              <small class="text-muted">{% if period.is_closed %}{% trans 'End' %}{% else %}{% trans 'Current' %}{% endif %}</small>
+              <div class="h6">{{ period.receivables_end|default:period.receivables|floatformat:2 }}</div>
+            </div>
           </div>
         </div>
       </div>
+    </div>
 
-      <div class="col-md-6 col-lg-3 mb-3">
-        <div class="card">
-          <div class="card-body">
-            <h6 class="card-title text-muted">{% trans 'Inventory Value' %}</h6>
-            <div class="h5">{{ period.inventory_value|floatformat:2 }}</div>
+    <!-- INVENTORY SECTION -->
+    <div class="card mb-4">
+      <div class="card-header bg-light">
+        <h5 class="mb-0">{% trans 'Inventory Value' %}</h5>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6 col-lg-3 mb-3">
+            <div>
+              <small class="text-muted">{% trans 'Previous' %}</small>
+              <div class="h6">{{ period.inventory_value_previous|floatformat:2 }}</div>
+            </div>
+          </div>
+          <div class="col-md-6 col-lg-3 mb-3">
+            <div>
+              <small class="text-muted">{% trans 'In (Added)' %}</small>
+              <div class="h6 text-success">{{ period.inventory_value_in|floatformat:2 }}</div>
+            </div>
+          </div>
+          <div class="col-md-6 col-lg-3 mb-3">
+            <div>
+              <small class="text-muted">{% trans 'Out (Sold)' %}</small>
+              <div class="h6 text-danger">{{ period.inventory_value_out|floatformat:2 }}</div>
+            </div>
+          </div>
+          <div class="col-md-6 col-lg-3 mb-3">
+            <div>
+              <small class="text-muted">{% if period.is_closed %}{% trans 'End' %}{% else %}{% trans 'Current' %}{% endif %}</small>
+              <div class="h6">{{ period.inventory_value_end|default:period.inventory_value|floatformat:2 }}</div>
+            </div>
           </div>
         </div>
       </div>
@@ -85,6 +187,9 @@
 
             <dt class="col-sm-6">{% trans 'End Liabilities' %}</dt>
             <dd class="col-sm-6">{{ period.end_liabilities|floatformat:2 }}</dd>
+
+            <dt class="col-sm-6">{% trans 'End Inventory' %}</dt>
+            <dd class="col-sm-6">{{ period.inventory_value_end|floatformat:2 }}</dd>
 
             {% if period.amount %}
               <dt class="col-sm-6">{% trans 'Profit/Loss' %}</dt>
@@ -135,9 +240,12 @@
       </div>
     {% endif %}
 
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 flex-wrap">
       <a href="{% url 'period_list_view' entity.pk %}" class="btn btn-outline-secondary">
         {% trans 'Back to Periods' %}
+      </a>
+      <a href="{% url 'period_ledger_view' period.pk %}" class="btn btn-outline-primary">
+        <i class="bi bi-journal-text me-1"></i>{% trans 'View Ledger' %}
       </a>
       {% if not period.is_closed %}
         <a href="{% url 'period_close_view' period.pk %}" class="btn btn-warning">

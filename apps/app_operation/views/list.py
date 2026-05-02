@@ -1,3 +1,4 @@
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.db.models import Q
 from django.shortcuts import render
 
@@ -45,8 +46,19 @@ def operation_list_view(request, person_pk):
             "entity_id": entity_person.id,
         })
 
+    paginator = Paginator(operations, 25)
+    page_number = request.GET.get('page', 1)
+    try:
+        page_obj = paginator.page(page_number)
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
+
     context = {
         "entity_person": entity_person,
-        "operations": operations,
+        "operations": page_obj.object_list,
+        "page_obj": page_obj,
+        "paginator": paginator,
     }
     return render(request, "app_operation/operation_list.html", context)

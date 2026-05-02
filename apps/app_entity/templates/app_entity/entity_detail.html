@@ -51,7 +51,6 @@
     </span>
     <span class="d-flex align-items-center">
       {% if entity.is_project %}
-        <span class="ms-2 gap-2"><a class="btn btn-outline-secondary" href="{% url 'entity_product_templates_list' entity.pk %}"><i class="bi bi-box-seam me-2"></i>{% trans 'Product Templates' %}</a></span>
         <span class="ms-2 gap-2"><a class="btn btn-outline-secondary" href="{% url 'stock_detail' entity.pk %}"><i class="bi bi-archive me-2"></i>{% trans 'Stock' %}</a></span>
       {% endif %}
     </span>
@@ -179,15 +178,22 @@
 
                     <div class="list-group list-group-flush">
                       {% for sh in entity.stakeholders.all %}
-                        <div class="list-group-item d-flex align-items-center py-3">
-                          <div class="avatar-circle me-3 bg-primary-subtle text-primary fw-bold">{{ sh.target.get_display_name|slice:':1' }}</div>
-                          <div class="flex-grow-1">
-                            <div class="d-flex align-items-center">
-                              <a href="{% url 'entity_detail' sh.target.id %}" class="fw-bold text-dark text-decoration-none me-2">{{ sh.target.get_display_name }}</a>
-                              <a href="{% url 'edit_stakeholder' sh.id %}" class="text-muted small"><i class="bi bi-pencil-square"></i></a>
+                        <div class="list-group-item d-flex align-items-center justify-content-between py-3 px-3 border-bottom">
+                          <div class="d-flex align-items-center flex-grow-1">
+                            <div class="avatar-circle me-3 bg-primary-subtle text-primary fw-bold" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 50%;">{{ sh.target.get_display_name|slice:':1' }}</div>
+                            <div class="flex-grow-1">
+                              <div class="d-flex align-items-center gap-2 mb-1">
+                                <a href="{% url 'entity_detail' sh.target.id %}" class="fw-bold text-dark text-decoration-none">{{ sh.target.get_display_name }}</a>
+                                {% if sh.target.active %}
+                                  <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size: 0.65rem;">{% trans 'Active' %}</span>
+                                {% else %}
+                                  <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle" style="font-size: 0.65rem;">{% trans 'Inactive' %}</span>
+                                {% endif %}
+                              </div>
+                              <span class="badge bg-light text-muted border small">{{ sh.get_role_display }}</span>
                             </div>
-                            <span class="badge bg-light text-muted border small">{{ sh.get_role_display }}</span>
                           </div>
+                          <a href="{% url 'edit_stakeholder' sh.id %}" class="btn btn-sm btn-outline-secondary ms-3"><i class="bi bi-pencil-square me-1"></i>{% trans 'Edit' %}</a>
                         </div>
                       {% empty %}
                         <div class="p-3">
@@ -206,20 +212,32 @@
               {% if entity.is_person %}
                 <div class="tab-pane fade show" id="memberships">
                   {% for membership in entity.memberships.all %}
-                    <div class="list-group-item d-flex align-items-center py-3">
-                      <div class="me-3 text-secondary fs-4">
-                        <i class="bi bi-briefcase"></i>
-                      </div>
-                      <div class="flex-grow-1">
-                        <div class="d-flex align-items-center">
-                          <a href="{% url 'entity_detail' membership.parent.id %}" class="fw-bold text-dark text-decoration-none me-2">{{ membership.parent.get_display_name }}</a>
-                          <a href="{% url 'edit_stakeholder' membership.id %}" class="text-muted small"><i class="bi bi-pencil-square"></i></a>
+                    <div class="card border shadow-sm mb-3">
+                      <div class="card-body d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center flex-grow-1">
+                          <div class="me-3 text-secondary fs-4" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+                            <i class="bi bi-briefcase"></i>
+                          </div>
+                          <div class="flex-grow-1">
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                              <a href="{% url 'entity_detail' membership.parent.id %}" class="fw-bold text-dark text-decoration-none">{{ membership.parent.get_display_name }}</a>
+                              {% if membership.parent.active %}
+                                <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size: 0.65rem;">{% trans 'Active' %}</span>
+                              {% else %}
+                                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle" style="font-size: 0.65rem;">{% trans 'Inactive' %}</span>
+                              {% endif %}
+                            </div>
+                            <div class="d-flex gap-3 flex-wrap">
+                              <div>
+                                <span class="badge bg-light text-muted border small">{{ membership.get_role_display }}</span>
+                              </div>
+                              <div class="small text-muted">
+                                {% trans 'Joined' %}: <span class="fw-medium">{{ membership.created_at|date:'M Y' }}</span>
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                        <span class="badge bg-light text-muted border small">{{ sh.get_role_display }}</span>
-                      </div>
-                      <div class="text-end">
-                        <span class="small text-muted d-block">{% trans 'Joined' %}</span>
-                        <span class="small fw-medium">{{ membership.created_at|date:'M Y' }}</span>
+                        <a href="{% url 'edit_stakeholder' membership.id %}" class="btn btn-sm btn-outline-secondary ms-3"><i class="bi bi-pencil-square me-1"></i>{% trans 'Edit' %}</a>
                       </div>
                     </div>
                   {% empty %}
@@ -235,103 +253,105 @@
       </div>
     </div>
     {% if entity.is_project %}
-      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
         <h5 class="fw-bold mb-0">{% trans 'Product Templates' %}</h5>
+        <a href="{% url 'entity_product_templates_setup' entity.pk %}" class="btn btn-sm btn-secondary">{% trans '+ Add / Edit Templates' %}</a>
       </div>
-      <div class="card shadow-sm">
-        <div class="card-header fw-bold">
-          {% trans 'Product Templates' %}
-        </div>
-        <div class="card-body p-0">
-          {% if entity.product_templates %}
-            <div class="table-responsive">
-              <table class="table mb-0">
-                <thead class="table-light">
-                  <tr>
-                    <th>
-                      {% trans 'Name' %}
-                    </th>
-                    <th>
-                      {% trans 'Nature' %}
-                    </th>
-                    <th>
-                      {% trans 'Default Unit' %}
-                    </th>
-                    <th>
-                      {% trans 'Tracking Mode' %}
-                    </th>
-                    <th class="text-center">
-                      {% trans 'Products' %}
-                    </th>
-                    <th class="text-center">
-                      {% trans 'Invoice Items' %}
-                    </th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for template in entity.product_templates.all %}
-                    <tr>
-                      <td>
-                        <strong>{{ template.name }}</strong>
-                        {% if template.name_ar %}
-                          <br /><small class="text-muted">{{ template.name_ar }}</small>
-                        {% endif %}
-                      </td>
-                      <td>{{ template.get_nature_display }}</td>
-                      <td>{{ template.default_unit }}</td>
-                      <td>{{ template.get_tracking_mode_display }}</td>
-                      <td class="text-center">{{ template.product_set.count }}</td>
-                      <td class="text-center">{{ template.invoices.count }}</td>
-                      <td>
-                        <a href="{% url 'product_template_detail' template.pk %}" class="btn btn-sm btn-outline-primary">{% trans 'View' %}</a>
-                      </td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
-          {% else %}
-            <div class="text-center text-muted py-4">
-              <p class="mb-3">
-                {% trans 'No product templates assigned to this entity.' %}
-              </p>
-              <a href="{% url 'entity_product_templates_setup' entity.pk %}" class="btn btn-sm btn-primary">{% trans 'Assign Product Templates' %}</a>
-            </div>
-          {% endif %}
-        </div>
-      </div>
-
-      <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-          <h6 class="mb-0 fw-bold text-uppercase small text-muted">{% trans 'Operational Categories' %}</h6>
-          <a href="{% url 'category_bulk_assign_view' entity.id %}" class="btn btn-sm btn-secondary">{% trans '+ Add Categories' %}</a>
-        </div>
-        <div class="list-group list-group-flush">
-          {% for cat in entity.financial_categories_entities_relations.all %}
-            <a href="{% url 'category_relation_detail_view' pk=cat.pk %}" class="list-group-item d-flex justify-content-between align-items-center py-3">
-              <div>
-                <span class="fw-bold {% if cat.is_active %}text-dark{% else %}text-muted{% endif %}">{{ cat.category.name }}</span>
-                <span class="ms-2 badge {% if cat.is_active %}bg-success{% else %}bg-danger{% endif %}">{% if cat.is_active %}Active{% else %}Inactive{% endif %}</span>
-                <small class="text-muted d-block mt-1">{{ cat.category.category_type }}</small>
-              </div>
-              <div class="text-end">
-                <div class="fw-bold">{{ cat.balance }}</div>
-                <small class="text-muted d-block">{% trans 'Limit:' %} {{ cat.max_limit }}</small>
-              </div>
-            </a>
-          {% empty %}
-            <div class="list-group-item py-4">
-              <div class="alert alert-warning d-flex align-items-center mb-0" role="alert">
-                <i class="bi bi-exclamation-triangle-fill me-2 flex-shrink-0"></i>
-                <div>
-                  {% trans 'No expense categories defined for this entity.' %} <a href="{% url 'category_bulk_assign_view' entity.id %}" class="alert-link">{% trans 'Add one now.' %}</a>
+      {% if entity.product_templates %}
+        <div class="row g-3">
+          {% for template in entity.product_templates.all %}
+            <div class="col-lg-4 col-md-6">
+              <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                  <h6 class="fw-bold mb-3 text-truncate">{{ template.name }}</h6>
+                  {% if template.name_ar %}
+                    <small class="text-muted d-block mb-2 text-truncate">{{ template.name_ar }}</small>
+                  {% endif %}
+                  <div class="mb-3">
+                    <div class="small text-muted">{% trans 'Nature' %}</div>
+                    <div class="fw-bold">{{ template.get_nature_display }}</div>
+                  </div>
+                  <div class="row g-2 mb-3">
+                    <div class="col-6">
+                      <div class="small text-muted">{% trans 'Default Unit' %}</div>
+                      <div class="fw-bold">{{ template.default_unit }}</div>
+                    </div>
+                    <div class="col-6">
+                      <div class="small text-muted">{% trans 'Tracking Mode' %}</div>
+                      <div class="fw-bold text-truncate">{{ template.get_tracking_mode_display }}</div>
+                    </div>
+                  </div>
+                  <div class="row g-2 mb-3">
+                    <div class="col-6 text-center">
+                      <div class="small text-muted">{% trans 'Products' %}</div>
+                      <div class="fw-bold fs-5">{{ template.product_set.count }}</div>
+                    </div>
+                    <div class="col-6 text-center">
+                      <div class="small text-muted">{% trans 'Invoice Items' %}</div>
+                      <div class="fw-bold fs-5">{{ template.invoices.count }}</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="card-footer bg-white border-top p-3">
+                  <a href="{% url 'product_template_detail' template.pk %}?from_entity={{ entity.pk }}" class="btn btn-sm btn-outline-primary w-100">{% trans 'View Details' %}</a>
                 </div>
               </div>
             </div>
           {% endfor %}
         </div>
+      {% else %}
+        <div class="alert alert-info d-flex align-items-center" role="alert">
+          <i class="bi bi-info-circle-fill me-2 flex-shrink-0"></i>
+          <div>
+            {% trans 'No product templates assigned to this entity.' %} <a href="{% url 'entity_product_templates_setup' entity.pk %}" class="alert-link">{% trans 'Assign Product Templates' %}</a>
+          </div>
+        </div>
+      {% endif %}
+
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4 mt-4">
+        <h5 class="fw-bold mb-0">{% trans 'Operational Categories' %}</h5>
+        <a href="{% url 'category_bulk_assign_view' entity.id %}" class="btn btn-sm btn-secondary">{% trans '+ Add / Edit Categories' %}</a>
       </div>
+      {% if entity.financial_categories_entities_relations.all %}
+        <div class="row g-3">
+          {% for cat in entity.financial_categories_entities_relations.all %}
+            <div class="col-lg-4 col-md-6">
+              <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                  <div class="d-flex align-items-start justify-content-between mb-3">
+                    <h6 class="fw-bold mb-0 flex-grow-1 text-truncate">{{ cat.category.name }}</h6>
+                    <span class="badge ms-2 flex-shrink-0 {% if cat.is_active %}bg-success{% else %}bg-danger{% endif %}">
+                      {% if cat.is_active %}Active{% else %}Inactive{% endif %}
+                    </span>
+                  </div>
+                  <small class="text-muted d-block mb-3">{{ cat.category.category_type }}</small>
+                  <div class="mb-3">
+                    <div class="small text-muted">{% trans 'Current Balance' %}</div>
+                    <div class="fw-bold fs-5">{{ cat.balance }}</div>
+                  </div>
+                  <div class="mb-3">
+                    <div class="small text-muted">{% trans 'Limit' %}</div>
+                    <div class="fw-bold">{{ cat.max_limit }}</div>
+                  </div>
+                </div>
+                <div class="card-footer bg-white border-top p-3">
+                  <div class="d-flex gap-2">
+                    <a href="{% url 'category_relation_detail_view' pk=cat.pk %}" class="btn btn-sm btn-outline-secondary flex-grow-1"><i class="bi bi-info-circle me-1"></i>{% trans 'View' %}</a>
+                    <a href="{% url 'category_relation_edit_view' pk=cat.pk %}" class="btn btn-sm btn-outline-primary flex-grow-1"><i class="bi bi-pencil-square me-1"></i>{% trans 'Edit' %}</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="alert alert-warning d-flex align-items-center" role="alert">
+          <i class="bi bi-exclamation-triangle-fill me-2 flex-shrink-0"></i>
+          <div>
+            {% trans 'No expense categories defined for this entity.' %} <a href="{% url 'category_bulk_assign_view' entity.id %}" class="alert-link">{% trans 'Add one now.' %}</a>
+          </div>
+        </div>
+      {% endif %}
     {% endif %}
   </div>
 {% endblock %}

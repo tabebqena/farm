@@ -16,16 +16,19 @@ def category_relation_detail_view(request, pk):
         relation = get_object_or_404(
             FinancialCategoriesEntitiesRelations,
             pk=pk,
-            error_message="Category assignment not found or has been deleted."
+            error_message="Category assignment not found or has been deleted.",
         )
         category = relation.category
         parent = relation.entity
-        DebugContext.success("Category relation loaded", {
-            "relation_id": relation.id,
-            "category_id": category.id,
-            "parent_id": parent.id,
-            "max_limit": float(relation.max_limit) if relation.max_limit else None,
-        })
+        DebugContext.success(
+            "Category relation loaded",
+            {
+                "relation_id": relation.id,
+                "category_id": category.id,
+                "parent_id": parent.id,
+                "max_limit": float(relation.max_limit) if relation.max_limit else None,
+            },
+        )
 
     # Calculate usage percentage for progress bar
     usage_percentage = 0
@@ -36,4 +39,4 @@ def category_relation_detail_view(request, pk):
         "relation": relation,
         "usage_percentage": usage_percentage,
     }
-    return render(request, "app_entity/category/category_detail.html", context)
+    return render(request, "app_entity/category/category_relation_detail.html", context)

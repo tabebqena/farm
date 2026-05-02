@@ -462,7 +462,7 @@ def _do_submit(request, project, session_data: dict):
         )
 
     # 1. Create operation
-    op = PurchaseOperation.objects.create(
+    op = PurchaseOperation(
         source=project,
         destination=vendor,
         amount=total,
@@ -471,6 +471,7 @@ def _do_submit(request, project, session_data: dict):
         officer=request.user,
         operation_type="PURCHASE",
     )
+    op.save()
 
     movement_lines = []
 

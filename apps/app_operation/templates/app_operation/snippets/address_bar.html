@@ -1,6 +1,10 @@
 {% load i18n %}
 <div>
-  <h2 class="mb-2">{{ operation.get_operation_type_display }}</h2>
+  <div class="d-flex align-items-center gap-2 mb-2">
+    <i class="bi {{ operation.theme_icon }} fs-4 text-{{ operation.theme_color }}"></i>
+    <h2 class="mb-0">{{ operation.get_operation_type_display }}</h2>
+    <span class="badge bg-{{ operation.theme_color }} ms-1">{{ operation.operation_type }}</span>
+  </div>
   <p class="text-muted mb-3">{% trans "Voucher #" %}{{ operation.pk }} | {% trans "Date:" %} {{ operation.date }}</p>
 </div>
 <div class="d-flex flex-wrap gap-2">

@@ -258,10 +258,12 @@ class Operation(
         })
         # Only block NEW, non-reversal operations from landing in a closed period.
         if not self.pk and not getattr(self, "reversal_of_id", None):
-            entity = self.period_entity
-            if entity:
-                from .period import FinancialPeriod
+            from .period import FinancialPeriod
 
+            # Check both source and destination entities.
+            for entity in [self.source, self.destination]:
+                if not entity:
+                    continue
                 closed = FinancialPeriod.objects.filter(
                     entity=entity,
                     end_date__isnull=False,

@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 
 class FinancialCategory(BaseModel):
-
     name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True, null=True)
     category_type = models.CharField(max_length=10, default="EXPENSE", editable=False)

@@ -40,13 +40,3 @@
         <strong>{% trans "Step 2 of 4:" %}</strong> {% trans "Add the items included in this purchase" %}
     </div>
 </form>
-
-<script>
-document.getElementById('wizard-form').addEventListener('submit', function () {
-    var isDesktop = window.matchMedia('(min-width: 768px)').matches;
-    var selectorToDisable = isDesktop ? '#item-formset-body-mobile' : '#item-formset-body';
-    document.querySelectorAll(selectorToDisable + ' input, ' + selectorToDisable + ' select').forEach(function (el) {
-        el.disabled = true;
-    });
-});
-</script>

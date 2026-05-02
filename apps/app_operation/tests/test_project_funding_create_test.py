@@ -312,6 +312,51 @@ class ProjectFundingCreateTest(TestCase):
         self.assertFalse(ProjectFundingOperation.check_balance_on_payment)
 
     # ------------------------------------------------------------------
+    # Closed period validation
+    # ------------------------------------------------------------------
+
+    def test_operation_blocked_when_destination_in_closed_period(self):
+        """Regression: validate destination entity's period, not just source's."""
+        from apps.app_operation.models.period import FinancialPeriod
+        from datetime import timedelta
+
+        # Create a closed period for the project
+        today = date.today()
+        closed_period = FinancialPeriod.objects.create(
+            entity=self.project_entity,
+            start_date=today - timedelta(days=10),
+            end_date=today - timedelta(days=1),  # Closed: end_date is in the past
+        )
+
+        # Shareholder's period is open (no period, so will be assigned to an open one)
+        # Try to fund the project from the shareholder
+        op = self._make_op(date=today - timedelta(days=5))
+
+        # Should fail because the project is in a closed period
+        with self.assertRaises(ValidationError):
+            op.save()
+
+    def test_operation_blocked_when_source_in_closed_period(self):
+        """Validate source entity's period too."""
+        from apps.app_operation.models.period import FinancialPeriod
+        from datetime import timedelta
+
+        # Create a closed period for the funder
+        today = date.today()
+        closed_period = FinancialPeriod.objects.create(
+            entity=self.funder_entity,
+            start_date=today - timedelta(days=10),
+            end_date=today - timedelta(days=1),  # Closed: end_date is in the past
+        )
+
+        # Try to fund the project from the shareholder (in closed period)
+        op = self._make_op(date=today - timedelta(days=5))
+
+        # Should fail because the funder is in a closed period
+        with self.assertRaises(ValidationError):
+            op.save()
+
+    # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
 

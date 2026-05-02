@@ -14,49 +14,66 @@ def edit_contact_info_view(request, pk):
         contact = get_object_or_404(
             ContactInfo,
             pk=pk,
-            error_message="Contact information not found or has been deleted."
+            error_message="Contact information not found or has been deleted.",
         )
         entity = contact.entity
-        DebugContext.success("Contact loaded", {
-            "contact_id": contact.id,
-            "entity_id": entity.id,
-            "contact_type": contact.contact_type,
-        })
+        DebugContext.success(
+            "Contact loaded",
+            {
+                "contact_id": contact.id,
+                "entity_id": entity.id,
+                "contact_type": contact.contact_type,
+            },
+        )
 
     if request.method == "POST":
-        with DebugContext.section("Processing contact information update", {
-            "contact_id": contact.id,
-            "entity_id": entity.id,
-            "user": request.user.username,
-        }):
+        with DebugContext.section(
+            "Processing contact information update",
+            {
+                "contact_id": contact.id,
+                "entity_id": entity.id,
+                "user": request.user.username,
+            },
+        ):
             label = request.POST.get("label")
             value = request.POST.get("value")
             is_primary = request.POST.get("is_primary") == "on"
 
-            DebugContext.log("Contact form data extracted", {
-                "label": label,
-                "is_primary": is_primary,
-                "value_length": len(str(value)) if value else 0,
-            })
+            DebugContext.log(
+                "Contact form data extracted",
+                {
+                    "label": label,
+                    "is_primary": is_primary,
+                    "value_length": len(str(value)) if value else 0,
+                },
+            )
 
             try:
                 with DebugContext.section("Saving contact info changes"):
                     with transaction.atomic():
                         if is_primary:
-                            DebugContext.log("Demoting existing primary contacts for entity", {
-                                "entity_id": entity.id,
-                            })
-                            entity.contacts.filter(is_primary=True).update(is_primary=False)
-
+                            DebugContext.log(
+                                "Demoting existing primary contacts for entity",
+                                {
+                                    "entity_id": entity.id,
+                                },
+                            )
+                            primaries = entity.contacts.filter(is_primary=True).all()
+                            for p in primaries:
+                                p.is_primary = False
+                                p.save()
                         contact.label = label
                         contact.value = value
                         contact.is_primary = is_primary
                         contact.save()
 
-                DebugContext.success("Contact information updated", {
-                    "contact_id": contact.id,
-                    "is_primary": is_primary,
-                })
+                DebugContext.success(
+                    "Contact information updated",
+                    {
+                        "contact_id": contact.id,
+                        "is_primary": is_primary,
+                    },
+                )
                 DebugContext.audit(
                     action="contact_info_updated",
                     entity_type="ContactInfo",
@@ -66,7 +83,7 @@ def edit_contact_info_view(request, pk):
                         "label": label,
                         "is_primary": is_primary,
                     },
-                    user=request.user.username
+                    user=request.user.username,
                 )
 
                 messages.success(
@@ -87,7 +104,7 @@ def edit_contact_info_view(request, pk):
                     entity_type="ContactInfo",
                     entity_id=contact.id,
                     details=error_details,
-                    user=request.user.username
+                    user=request.user.username,
                 )
                 messages.error(request, f"Update Error: {str(e)}")
 

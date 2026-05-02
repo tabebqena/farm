@@ -24,6 +24,11 @@ urlpatterns = [
         name="period_close_view",
     ),
     path(
+        "periods/<int:period_pk>/ledger/",
+        views.period_ledger_view,
+        name="period_ledger_view",
+    ),
+    path(
         "<int:person_pk>/list/",
         views.operation_list_view,
         name="operation_list_view",

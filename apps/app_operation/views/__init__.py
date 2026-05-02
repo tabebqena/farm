@@ -7,6 +7,7 @@ from .period import (
     period_close_view,
     period_create_view,
     period_detail_view,
+    period_ledger_view,
     period_list_view,
 )
 from .purchase_sale import (
@@ -49,6 +50,7 @@ __all__ = [
     "period_create_view",
     "period_detail_view",
     "period_close_view",
+    "period_ledger_view",
     "purchase_wizard_view",
     "cancel_purchase_wizard_view",
     "purchase_invoice_view",

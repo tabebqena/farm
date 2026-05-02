@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans 'User Profile' %}{% endblock %}
+
+{% block content %}
+  <div class="container py-5">
+    <div class="row justify-content-center">
+      <div class="col-md-6">
+        <!-- Header with user info and logout -->
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 pb-3 border-bottom">
+          <div>
+            <h2 class="fw-bold mb-1">
+              {% if user.get_full_name %}
+                {{ user.get_full_name }}
+              {% else %}
+                {{ user.username }}
+              {% endif %}
+            </h2>
+            <p class="text-muted small mb-0">@{{ user.username }}</p>
+          </div>
+          <form method="post" action="{% url 'logout' %}" style="display: inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-danger btn-sm">{% trans 'Sign Out' %}</button>
+          </form>
+        </div>
+
+        <!-- Profile form card -->
+        <div class="card border-0 shadow-sm mb-4">
+          <div class="card-body p-4">
+            <h5 class="card-title fw-bold mb-3">{% trans 'Account Details' %}</h5>
+
+            {% if form.errors %}
+              <div class="alert alert-danger small mb-3">
+                {% for field, errors in form.errors.items %}
+                  <strong>{{ field }}:</strong>
+                  {% for error in errors %}
+                    <div>{{ error }}</div>
+                  {% endfor %}
+                {% endfor %}
+              </div>
+            {% endif %}
+
+            <form method="post">
+              {% csrf_token %}
+
+              <!-- Username (read-only) -->
+              <div class="mb-3">
+                <label class="form-label small fw-bold">{% trans 'Username' %}</label>
+                <input type="text" class="form-control" value="{{ user.username }}" disabled />
+                <small class="text-muted">{% trans 'Cannot be changed' %}</small>
+              </div>
+
+              <!-- First Name -->
+              <div class="mb-3">
+                <label class="form-label small fw-bold">{{ form.first_name.label }}</label>
+                {{ form.first_name }}
+              </div>
+
+              <!-- Last Name -->
+              <div class="mb-3">
+                <label class="form-label small fw-bold">{{ form.last_name.label }}</label>
+                {{ form.last_name }}
+              </div>
+
+              <!-- Email -->
+              <div class="mb-3">
+                <label class="form-label small fw-bold">{{ form.email.label }}</label>
+                {{ form.email }}
+              </div>
+
+              <!-- Save button -->
+              <button type="submit" class="btn btn-primary w-100">{% trans 'Save Changes' %}</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Member since footer -->
+        <div class="text-center">
+          <p class="small text-muted">
+            {% trans 'Member since' %} <strong>{{ user.date_joined|date:"M d, Y" }}</strong>
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

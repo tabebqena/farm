@@ -264,6 +264,90 @@ body {
 
 
 /* ================================================================
+   Amount Input Fields
+   ================================================================ */
+.amount-input {
+    font-family: 'Courier New', monospace;
+    font-size: 1.1rem;
+    font-weight: 600;
+    text-align: right;
+    letter-spacing: 0.05em;
+    padding: 0.75rem 1rem;
+    border-width: 2px;
+}
+
+.amount-input:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(44, 62, 80, 0.25);
+    background-color: #f0f8ff;
+}
+
+.amount-input.is-invalid {
+    border-color: #dc3545;
+    background-color: #fff5f5;
+}
+
+.amount-input.is-invalid:focus {
+    box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+}
+
+.amount-input:disabled,
+.amount-input[readonly] {
+    background-color: #f5f5f5;
+    color: #666;
+    border-style: dashed;
+    cursor: not-allowed;
+    font-weight: 500;
+}
+
+.amount-input-group .input-group-text {
+    font-weight: bold;
+    font-size: 1.1rem;
+    min-width: 3rem;
+    justify-content: center;
+}
+
+.amount-total {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--primary-color);
+    font-family: 'Courier New', monospace;
+    text-align: right;
+}
+
+/* Amount Input Control Buttons (+/-) */
+.amount-input-wrapper {
+    width: 100%;
+}
+
+.amount-btn-minus,
+.amount-btn-plus {
+    padding: 0.5rem 0.75rem;
+    font-size: 1rem;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+}
+
+.amount-btn-minus:hover,
+.amount-btn-plus:hover {
+    background-color: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.amount-btn-minus:active,
+.amount-btn-plus:active {
+    transform: scale(0.95);
+}
+
+.amount-btn-minus:disabled,
+.amount-btn-plus:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+
+/* ================================================================
    RTL Support - Icon Flipping
    ================================================================ */
 [dir="rtl"] .bi-chevron-left,

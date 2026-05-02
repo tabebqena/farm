@@ -10,205 +10,106 @@
       </button>
     </div>
 
-    <!-- Table view for medium screens and up -->
-    <div class="d-none d-md-block border rounded table-responsive">
-      <table class="table table-hover align-middle mb-0 table-sm" id="items-table">
-        <thead class="table-light">
-          <tr>
-            <th>{% trans 'Product' %}</th>
-            <th style="width: 70px">{% trans 'Qty' %}</th>
-            <th style="width: 110px">{% trans 'Unit Price' %}</th>
-            <th style="width: 90px">{% trans 'Total' %}</th>
-            <th style="width: 36px"></th>
-          </tr>
-        </thead>
-        <tbody id="item-formset-body">
-          {% for item_form in formset %}
-            <tr class="item-row{% if item_form.product.errors or item_form.quantity.errors or item_form.unit_price.errors %} table-danger{% endif %}">
-              <td>
-                {% for field in item_form.hidden_fields %}
-                  {{ field }}
-                {% endfor %}
-                {{ item_form.product }}
-                {% if item_form.product.errors %}
-                  <div class="invalid-feedback d-block small">
-                    {% for error in item_form.product.errors %}
-                      {{ error }}
-                    {% endfor %}
-                  </div>
-                {% endif %}
-                {% if item_form.description %}
-                  <div class="mt-1">{{ item_form.description }}</div>
-                {% endif %}
-                <div class="unique-id-wrapper mt-1" style="display:none">
-                  {{ item_form.unique_id }}
-                  {% if item_form.unique_id.errors %}
-                    <div class="invalid-feedback d-block small">
-                      {% for error in item_form.unique_id.errors %}{{ error }}{% endfor %}
-                    </div>
-                  {% endif %}
-                </div>
-              </td>
-              <td>
-                <input type="number" name="{{ item_form.quantity.html_name }}" class="form-control form-control-sm qty-input{% if item_form.quantity.errors %} is-invalid{% endif %}" step="0.01" value="{{ item_form.quantity.value|default:'1' }}" required />
-                {% if item_form.quantity.errors %}
-                  <div class="invalid-feedback d-block small">
-                    {% for error in item_form.quantity.errors %}
-                      {{ error }}
-                    {% endfor %}
-                  </div>
-                {% endif %}
-              </td>
-              <td>
-                <input type="number" name="{{ item_form.unit_price.html_name }}" class="form-control form-control-sm price-input{% if item_form.unit_price.errors %} is-invalid{% endif %}" step="0.01" value="{{ item_form.unit_price.value|default:'' }}" placeholder="0.00" required />
-                {% if item_form.unit_price.errors %}
-                  <div class="invalid-feedback d-block small">
-                    {% for error in item_form.unit_price.errors %}
-                      {{ error }}
-                    {% endfor %}
-                  </div>
-                {% endif %}
-              </td>
-              <td class="row-total fw-bold text-muted small">0.00</td>
-              <td class="text-center">
-                {% if item_form.DELETE %}
-                  <div style="display:none">{{ item_form.DELETE }}</div>
-                {% endif %}
-                <button type="button" class="btn btn-link text-danger p-0 remove-row"><i class="bi bi-trash"></i></button>
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-        <tfoot>
-          <tr>
-            <td colspan="3" class="text-end fw-bold pe-2 small">
-              {% trans 'Grand Total' %}
-            </td>
-            <td class="grand-total-display fw-bold small">$ 0.00</td>
-            <td></td>
-          </tr>
-        </tfoot>
-      </table>
-      {% if formset.errors %}
-        {{ formset.errors }}
-      {% endif %}
-    </div>
-
-    <!-- Card view for small screens -->
-    <div class="d-md-none">
-      <div class="list-group list-group-flush" id="item-formset-body-mobile">
-        {% for item_form in formset %}
-          <div class="list-group-item item-row-mobile{% if item_form.product.errors or item_form.quantity.errors or item_form.unit_price.errors %} border-danger{% endif %}">
-            <div class="mb-3">
-              <label class="form-label small text-muted">{% trans 'Product' %}</label>
-              {% for field in item_form.hidden_fields %}
-                {{ field }}
-              {% endfor %}
+    <!-- Formset Items -->
+    <div id="item-formset-body">
+      {% for item_form in formset %}
+        <div class="card mb-2 item-row{% if item_form.product.errors or item_form.quantity.errors or item_form.unit_price.errors %} border-danger{% endif %}">
+          <div class="card-body py-2 px-3">
+            {% for field in item_form.hidden_fields %}
+              {{ field }}
+            {% endfor %}
+            <div class="mb-2">
               {{ item_form.product }}
               {% if item_form.product.errors %}
                 <div class="invalid-feedback d-block small">
-                  {% for error in item_form.product.errors %}
-                    {{ error }}
+                  {% for e in item_form.product.errors %}
+                    {{ e }}
                   {% endfor %}
                 </div>
               {% endif %}
               {% if item_form.description %}
-                <div class="mt-2 small">{{ item_form.description }}</div>
+                <div class="mt-1">{{ item_form.description }}</div>
               {% endif %}
-              <div class="unique-id-wrapper mt-2" style="display:none">
+              <div class="unique-id-wrapper mt-1" style="display:none">
                 {{ item_form.unique_id }}
                 {% if item_form.unique_id.errors %}
                   <div class="invalid-feedback d-block small">
-                    {% for error in item_form.unique_id.errors %}{{ error }}{% endfor %}
+                    {% for e in item_form.unique_id.errors %}
+                      {{ e }}
+                    {% endfor %}
                   </div>
                 {% endif %}
               </div>
             </div>
-
-            <div class="row g-2 mb-3">
-              <div class="col-6">
-                <label class="form-label small text-muted">{% trans 'Qty' %}</label>
-                <input type="number" name="{{ item_form.quantity.html_name }}" class="form-control form-control-sm qty-input{% if item_form.quantity.errors %} is-invalid{% endif %}" step="0.01" value="{{ item_form.quantity.value|default:'1' }}" required />
+            <div class="row g-2 align-items-end">
+              <div class="col-4 col-md-3">
+                <label class="form-label small text-muted mb-1">{% trans 'Qty' %}</label>
+                <input type="number" name="{{ item_form.quantity.html_name }}" class="form-control form-control-sm amount-input qty-input{% if item_form.quantity.errors %} is-invalid{% endif %}" step="1" value="{{ item_form.quantity.value|default:'1' }}" inputmode="decimal" required />
                 {% if item_form.quantity.errors %}
-                  <div class="invalid-feedback d-block small">
-                    {% for error in item_form.quantity.errors %}
-                      {{ error }}
+                  <div class="invalid-feedback d-block small text-danger">
+                    <i class="bi bi-exclamation-circle me-1"></i>{% for e in item_form.quantity.errors %}
+                      {{ e }}
                     {% endfor %}
                   </div>
                 {% endif %}
               </div>
-              <div class="col-6">
-                <label class="form-label small text-muted">{% trans 'Unit Price' %}</label>
-                <input type="number" name="{{ item_form.unit_price.html_name }}" class="form-control form-control-sm price-input{% if item_form.unit_price.errors %} is-invalid{% endif %}" step="0.01" value="{{ item_form.unit_price.value|default:'' }}" placeholder="0.00" required />
+              <div class="col-5 col-md-4">
+                <label class="form-label small text-muted mb-1">{% trans 'Unit Price' %}</label>
+                <input type="number" name="{{ item_form.unit_price.html_name }}" class="form-control form-control-sm amount-input price-input{% if item_form.unit_price.errors %} is-invalid{% endif %}" step="0.01" value="{{ item_form.unit_price.value|default:'' }}" placeholder="0.00" inputmode="decimal" required />
                 {% if item_form.unit_price.errors %}
-                  <div class="invalid-feedback d-block small">
-                    {% for error in item_form.unit_price.errors %}
-                      {{ error }}
+                  <div class="invalid-feedback d-block small text-danger">
+                    <i class="bi bi-exclamation-circle me-1"></i>{% for e in item_form.unit_price.errors %}
+                      {{ e }}
                     {% endfor %}
                   </div>
                 {% endif %}
               </div>
-            </div>
-
-            <div class="mb-3 p-2 bg-light rounded">
-              <div class="small text-muted">{% trans 'Total' %}</div>
-              <div class="fw-bold row-total">0.00</div>
-            </div>
-
-            <div class="d-flex gap-2">
-              {% if item_form.DELETE %}
-                <div style="display:none">{{ item_form.DELETE }}</div>
-              {% endif %}
-              <button type="button" class="btn btn-sm btn-outline-danger flex-grow-1 remove-row">
-                <i class="bi bi-trash"></i> {% trans 'Delete' %}
-              </button>
-            </div>
-          </div>
-        {% endfor %}
-      </div>
-
-      <!-- Mobile Footer Total -->
-      <div class="card mt-3">
-        <div class="card-body">
-          <div class="row">
-            <div class="col">
-              <small class="text-muted d-block">{% trans 'Grand Total' %}</small>
-              <div class="grand-total-display fw-bold h5">$ 0.00</div>
+              <div class="col-3 col-md-3">
+                <label class="form-label small text-muted mb-1">{% trans 'Total' %}</label>
+                <div class="row-total fw-bold text-muted small font-monospace pt-1">0.00</div>
+              </div>
+              <div class="col-12 col-md-2 d-flex justify-content-end align-items-center mt-1">
+                {% if item_form.DELETE %}
+                  <div style="display:none">{{ item_form.DELETE }}</div>
+                {% endif %}
+                <button type="button" class="btn btn-sm btn-outline-danger remove-row"><i class="bi bi-trash"></i></button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-
-      {% if formset.errors %}
-        <div class="alert alert-danger mt-3">
-          {{ formset.errors }}
-        </div>
-      {% endif %}
+      {% endfor %}
     </div>
+    <div class="d-flex justify-content-end align-items-center mt-2 pe-1">
+      <span class="small text-muted me-2">{% trans 'Grand Total' %}</span>
+      <span class="grand-total-display amount-total font-monospace fw-bold">$ 0.00</span>
+    </div>
+    {% if formset.errors %}
+      <div class="alert alert-danger mt-3">{{ formset.errors }}</div>
+    {% endif %}
   </div>
 {% endif %}
 
 <script>
-(function () {
-  function toggleUniqueId(selectEl) {
-    var row = selectEl.closest('.item-row, .item-row-mobile');
-    if (!row) return;
-    var wrapper = row.querySelector('.unique-id-wrapper');
-    if (!wrapper) return;
-    var opt = selectEl.options[selectEl.selectedIndex];
-    var requires = opt && opt.dataset.requiresTag === 'true';
-    wrapper.style.display = requires ? '' : 'none';
-    var input = wrapper.querySelector('input');
-    if (input) input.required = requires;
-  }
-
-  document.addEventListener('DOMContentLoaded', function () {
-    document.querySelectorAll('.product-select').forEach(toggleUniqueId);
-    document.addEventListener('change', function (e) {
-      if (e.target.classList.contains('product-select')) {
-        toggleUniqueId(e.target);
-      }
-    });
-  });
-})();
+  ;(function () {
+    function toggleUniqueId(selectEl) {
+      var row = selectEl.closest('.item-row')
+      if (!row) return
+      var wrapper = row.querySelector('.unique-id-wrapper')
+      if (!wrapper) return
+      var opt = selectEl.options[selectEl.selectedIndex]
+      var requires = opt && opt.dataset.requiresTag === 'true'
+      wrapper.style.display = requires ? '' : 'none'
+      var input = wrapper.querySelector('input')
+      if (input) input.required = requires
+    }
+  
+    document.addEventListener('DOMContentLoaded', function () {
+      document.querySelectorAll('.product-select').forEach(toggleUniqueId)
+      document.addEventListener('change', function (e) {
+        if (e.target.classList.contains('product-select')) {
+          toggleUniqueId(e.target)
+        }
+      })
+    })
+  })()
 </script>

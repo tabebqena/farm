@@ -23,55 +23,55 @@
   - Test: Load existing data, update, validation
   
 ### Project Management
-- [ ] `project_edit_view` - Edit project
+- [*] `project_edit_view` - Edit project
   - URL: `/entities/project/edit/<int:pk>`
   - Test: Form functionality, update project details
   
-- [ ] `project_setup_wizard_view` - Project setup wizard
+- [*] `project_setup_wizard_view` - Project setup wizard
   - URL: `/entities/project/setup/`
   - URL: `/entities/project/<int:entity_pk>/setup/<int:step>/`
   - Test: All wizard steps, step navigation, data persistence
   
 ### Contact Management
-- [ ] `add_contact_info_view` - Add contact information
+- [*] `add_contact_info_view` - Add contact information
   - URL: `/entities/<int:entity_id>/contact/add/`
   - Test: Form, validation, creation
   
-- [ ] `edit_contact_info_view` - Edit contact information
+- [*] `edit_contact_info_view` - Edit contact information
   - URL: `/entities/contact/<int:pk>/edit/`
   - Test: Load data, update, validation
   
 ### Stakeholder Management
-- [ ] `add_vendor_view` - Add vendor stakeholder
+- [*] `add_vendor_view` - Add vendor stakeholder
   - URL: `/entities/project/<int:pk>/add-vendor/`
   - Test: Add vendor, validation
   
-- [ ] `add_client_view` - Add client stakeholder
+- [*] `add_client_view` - Add client stakeholder
   - URL: `/entities/project/<int:pk>/add-client/`
   - Test: Add client, validation
   
-- [ ] `add_worker_view` - Add worker stakeholder
+- [*] `add_worker_view` - Add worker stakeholder
   - URL: `/entities/project/<int:pk>/add-worker/`
   - Test: Add worker, validation
   
-- [ ] `add_shareholder_view` - Add shareholder
+- [*] `add_shareholder_view` - Add shareholder
   - URL: `/entities/project/<int:pk>/add-shareholder/`
   - Test: Add shareholder, validation
   
-- [ ] `edit_stakeholder_view` - Edit stakeholder
+- [*] `edit_stakeholder_view` - Edit stakeholder
   - URL: `/entities/stakeholder/<int:pk>/edit/`
   - Test: Load stakeholder, update, validation
   
 ### Category Management
-- [ ] `category_relation_edit_view` - Edit category relation
+- [*] `category_relation_edit_view` - Edit category relation
   - URL: `/entities/category/edit/<int:pk>`
   - Test: Edit category assignment
   
-- [ ] `category_relation_detail_view` - View category relation
+- [*] `category_relation_detail_view` - View category relation
   - URL: `/entities/category/detail/<int:pk>`
   - Test: Display category details
   
-- [ ] `category_bulk_assign_view` - Bulk assign categories
+- [*] `category_bulk_assign_view` - Bulk assign categories
   - URL: `/entities/<int:parent_entity_id>/category/bulk-assign/`
   - Test: Bulk assignment functionality
 
@@ -80,26 +80,27 @@
 ## Operation Management Views (28 views)
 
 ### Period Management
-- [ ] `period_list_view` - List periods
+- [*] `period_list_view` - List periods
   - URL: `/entities/operations/periods/<int:entity_pk>/`
   - Test: Display periods, filtering
   
-- [ ] `period_detail_view` - View period details
+- [*] `period_detail_view` - View period details
   - URL: `/entities/operations/periods/<int:period_pk>/detail/`
   - Test: Display period summary, transactions
   
-- [ ] `period_create_view` - Create new period
+- [*] `period_create_view` - Create new period
   - URL: `/entities/operations/periods/<int:entity_pk>/create/`
   - Test: Create period, validation
   
-- [ ] `period_close_view` - Close period
+- [*] `period_close_view` - Close period
   - URL: `/entities/operations/periods/<int:period_pk>/close/`
   - Test: Close period, prevent post-closure operations
   
 ### Operation List & Detail
-- [ ] `operation_list_view` - List operations
+- [*] `operation_list_view` - List operations
   - URL: `/entities/operations/<int:person_pk>/list/`
   - Test: Display operations, filtering, pagination
+  TODO: pagination not tested
   
 - [ ] `operation_detail_view` - View operation details
   - URL: `/entities/operations/<int:pk>/detail/`
@@ -131,12 +132,12 @@
   - Test: Create various operation types
   
 ### Purchase Flow (9 views)
-- [ ] `purchase_wizard_view` - Purchase wizard
+- [*] `purchase_wizard_view` - Purchase wizard
   - URL: `/entities/operations/<int:pk>/purchase/wizard/`
   - URL: `/entities/operations/<int:pk>/purchase/wizard/<int:step>/`
   - Test: All wizard steps, data persistence
   
-- [ ] `cancel_purchase_wizard_view` - Cancel purchase wizard
+- [*] `cancel_purchase_wizard_view` - Cancel purchase wizard
   - URL: `/entities/operations/<int:pk>/purchase/wizard/cancel/`
   - Test: Cancel flow, cleanup
   
@@ -205,15 +206,17 @@
   - URL: `/entities/operations/payment/<int:pk>/create`
   - Test: Record payment transaction
 
+### Ledger view
+
 ---
 
 ## Inventory Management Views (7 views)
 
-- [ ] `stock_detail` - View stock
+- [*] `stock_detail` - View stock
   - URL: `/inventory/entity/<int:entity_pk>/stock/`
   - Test: Display stock levels, products
   
-- [ ] `product_detail` - View product details
+- [*] `product_detail` - View product details
   - URL: `/inventory/products/<int:pk>/`
   - Test: Display product info, ledger entries
   
@@ -241,18 +244,14 @@
 
 ## Authentication Views (1 view)
 
-- [ ] `register` - User registration
-  - URL: `/auth/register/`
-  - Test: Registration form, validation, user creation
-
 ---
 
 ## Testing Notes
 
 ### Before Starting
-- [ ] Start development server: `python manage.py runserver`
-- [ ] Create test data (entities, products, operations)
-- [ ] Have test users/credentials ready
+- [*] Start development server: `python manage.py runserver`
+- [*] Create test data (entities, products, operations)
+- [*] Have test users/credentials ready
 
 ### For Each View Test
 - [ ] Verify page loads without errors

@@ -144,8 +144,21 @@ def product_template_detail(request, pk):
         pk=pk,
         error_message="Product template not found or has been deleted."
     )
+
+    context = {"template": template}
+
+    # Handle back button - check if user came from a specific entity
+    from_entity_id = request.GET.get("from_entity")
+    if from_entity_id:
+        from_entity = get_object_or_404(
+            Entity,
+            pk=from_entity_id,
+            error_message="Entity not found or has been deleted."
+        )
+        context["from_entity"] = from_entity
+
     return render(
-        request, "app_inventory/product_template_detail.html", {"template": template}
+        request, "app_inventory/product_template_detail.html", context
     )
 
 

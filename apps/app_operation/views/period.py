@@ -1,6 +1,9 @@
+from datetime import date
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.db import transaction
 from django.shortcuts import redirect, render
 from django.utils.translation import gettext_lazy as _
@@ -37,7 +40,11 @@ def period_detail_view(request, period_pk):
         "period": period,
         "entity": period.entity,
     }
-    return render(request, "app_operation/period_detail.html", context)
+    return render(
+        request,
+        "app_operation/period_detail.html",
+        context,
+    )
 
 
 @login_required
@@ -51,17 +58,29 @@ def period_list_view(request, entity_pk):
         entity = get_object_or_404(
             Entity, pk=entity_pk, error_message="Entity not found or has been deleted."
         )
-        periods = entity.financial_periods.all().order_by("-start_date")
+        all_periods = entity.financial_periods.all().order_by("-start_date")
         DebugContext.success(
             "Periods loaded",
             {
                 "entity_id": entity.pk,
-                "period_count": periods.count(),
+                "period_count": all_periods.count(),
             },
         )
+
+    paginator = Paginator(all_periods, 25)
+    page_number = request.GET.get('page', 1)
+    try:
+        page_obj = paginator.page(page_number)
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
+
     context = {
         "entity": entity,
-        "periods": periods,
+        "periods": page_obj.object_list,
+        "page_obj": page_obj,
+        "paginator": paginator,
     }
     return render(request, "app_operation/period_list.html", context)
 
@@ -203,7 +222,53 @@ def period_close_view(request, period_pk):
         return render(request, "app_operation/period_close.html", context, status=400)
 
     if request.method == "GET":
-        context = {"period": period}
+        warnings = []
+
+        if period.receivables > 0:
+            warnings.append(
+                _("Outstanding receivables: {amount}").format(
+                    amount=period.receivables
+                )
+            )
+
+        if period.payables > 0:
+            warnings.append(
+                _("Outstanding payables: {amount}").format(amount=period.payables)
+            )
+
+        if period.outstanding_loan_credited > 0:
+            warnings.append(
+                _("Outstanding loans given: {amount}").format(
+                    amount=period.outstanding_loan_credited
+                )
+            )
+
+        if period.outstanding_loan_received > 0:
+            warnings.append(
+                _("Outstanding loans received: {amount}").format(
+                    amount=period.outstanding_loan_received
+                )
+            )
+
+        if period.outstanding_worker_advance_paid > 0:
+            warnings.append(
+                _("Outstanding worker advances paid: {amount}").format(
+                    amount=period.outstanding_worker_advance_paid
+                )
+            )
+
+        if period.outstanding_worker_advance_received > 0:
+            warnings.append(
+                _("Outstanding worker advances received: {amount}").format(
+                    amount=period.outstanding_worker_advance_received
+                )
+            )
+
+        context = {
+            "period": period,
+            "today": date.today(),
+            "warnings": warnings,
+        }
         return render(request, "app_operation/period_close.html", context)
 
     if request.method == "POST":
@@ -215,12 +280,16 @@ def period_close_view(request, period_pk):
             },
         ):
             try:
-                end_date = request.POST.get("end_date")
-                if not end_date:
+                end_date_str = request.POST.get("end_date")
+                if not end_date_str:
                     raise ValidationError(_("End date is required."))
 
+                end_date = date.fromisoformat(end_date_str)
+
                 with transaction.atomic():
-                    with DebugContext.section("Closing period", {"end_date": end_date}):
+                    with DebugContext.section(
+                        "Closing period", {"end_date": str(end_date)}
+                    ):
                         period.close(end_date)
                         DebugContext.success(
                             "Period closed successfully",
@@ -258,3 +327,59 @@ def period_close_view(request, period_pk):
                 return render(
                     request, "app_operation/period_close.html", context, status=400
                 )
+
+
+@login_required
+@debug_view
+def period_ledger_view(request, period_pk):
+    """Show running-balance cash ledger for a financial period."""
+    from django.db.models import Q
+    from apps.app_transaction.models import Transaction
+    from apps.app_transaction.transaction_type import TransactionType
+
+    with DebugContext.section("Fetching period for ledger", {"period_pk": period_pk}):
+        period = get_object_or_404(
+            FinancialPeriod,
+            pk=period_pk,
+            error_message="Financial period not found.",
+        )
+
+    entity = period.entity
+    date_q = Q(date__date__gte=period.start_date)
+    if period.end_date:
+        date_q &= Q(date__date__lt=period.end_date)
+
+    raw_txs = (
+        Transaction.objects.filter(
+            Q(source=entity) | Q(target=entity),
+            type__in=TransactionType.payment_types(),
+        )
+        .filter(date_q)
+        .select_related("source", "target", "reversal_of")
+        .prefetch_related("reversed_by")
+        .order_by("date", "created_at")
+    )
+
+    running = period.previous_balance
+    ledger_rows = []
+    for tx in raw_txs:
+        if tx.target_id == entity.pk:
+            direction, delta = "credit", tx.amount
+        else:
+            direction, delta = "debit", -tx.amount
+        running += delta
+        ledger_rows.append({
+            "tx": tx,
+            "direction": direction,
+            "delta": tx.amount,
+            "balance": running,
+            "counterparty": tx.source if direction == "credit" else tx.target,
+        })
+
+    return render(request, "app_operation/period_ledger.html", {
+        "period": period,
+        "entity": entity,
+        "opening_balance": period.previous_balance,
+        "closing_balance": running,
+        "ledger_rows": ledger_rows,
+    })

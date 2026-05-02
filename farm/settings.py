@@ -165,9 +165,10 @@ MESSAGE_TAGS = {
     messages.ERROR: "danger",  # This fixes the coloring issue
 }
 
+CURRENCY_SYMBOL = "$"
 
 LOGIN_URL = "login"  # Name of your login URL pattern
-LOGIN_REDIRECT_URL = "entity_list"  # Where to go after success
+LOGIN_REDIRECT_URL = "profile"  # Where to go after success
 # Where to send users after they log out
 LOGOUT_REDIRECT_URL = "login"
 

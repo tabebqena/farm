@@ -72,6 +72,20 @@ class InvoiceItemCreateForm(LoggingFormMixin, forms.ModelForm):
                     "placeholder": "Description (optional)",
                 }
             ),
+            "quantity": forms.NumberInput(
+                attrs={
+                    "class": "form-control form-control-sm amount-input qty-input",
+                    "step": "0.01",
+                    "inputmode": "decimal",
+                }
+            ),
+            "unit_price": forms.NumberInput(
+                attrs={
+                    "class": "form-control form-control-sm amount-input price-input",
+                    "step": "0.01",
+                    "inputmode": "decimal",
+                }
+            ),
         }
 
     def __init__(self, *args, project=None, **kwargs):
@@ -156,6 +170,20 @@ class InvoiceItemSelectForm(LoggingFormMixin, forms.ModelForm):
                     "placeholder": "Description (optional)",
                 }
             ),
+            "quantity": forms.NumberInput(
+                attrs={
+                    "class": "form-control form-control-sm amount-input qty-input",
+                    "step": "0.01",
+                    "inputmode": "decimal",
+                }
+            ),
+            "unit_price": forms.NumberInput(
+                attrs={
+                    "class": "form-control form-control-sm amount-input price-input",
+                    "step": "0.01",
+                    "inputmode": "decimal",
+                }
+            ),
         }
 
     def clean(self):
@@ -203,9 +231,10 @@ class InventoryMovementLineForm(LoggingFormMixin, forms.ModelForm):
         widgets = {
             "quantity": forms.NumberInput(
                 attrs={
-                    "class": "form-control form-control-sm",
+                    "class": "form-control form-control-sm amount-input",
                     "step": "0.01",
                     "placeholder": "0.00",
+                    "inputmode": "decimal",
                 }
             ),
         }

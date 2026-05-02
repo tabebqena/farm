@@ -76,60 +76,84 @@ class OperationCreateView(View):
 
     @method_decorator(debug_view)
     def dispatch(self, request, *args, **kwargs):
-        with DebugContext.section("Setting up operation creation view", {
-            "op_type": kwargs.get("op_type"),
-            "pk": kwargs.get("pk"),
-            "user": request.user.username,
-        }):
+        with DebugContext.section(
+            "Setting up operation creation view",
+            {
+                "op_type": kwargs.get("op_type"),
+                "pk": kwargs.get("pk"),
+                "user": request.user.username,
+            },
+        ):
             proxy_cls = get_canonical_type(kwargs["op_type"])
             if not proxy_cls:
-                error_msg = _("Unsupported operation %(op_type)s") % {"op_type": kwargs["op_type"]}
+                error_msg = _("Unsupported operation %(op_type)s") % {
+                    "op_type": kwargs["op_type"]
+                }
                 DebugContext.error(error_msg, None, {"op_type": kwargs["op_type"]})
                 DebugContext.audit(
                     action="invalid_operation_type",
                     entity_type="Operation",
                     entity_id=None,
                     details={"op_type": kwargs["op_type"]},
-                    user=request.user.username
+                    user=request.user.username,
                 )
                 return HttpResponseBadRequest(error_msg)
             # proxy_cls is narrowed to type[Operation] from here on
             self.proxy_cls = proxy_cls
             self._setup_view(kwargs["pk"], request)
-            DebugContext.success("View setup complete", {"op_type": self.canonical_op_type})
+            DebugContext.success(
+                "View setup complete", {"op_type": self.canonical_op_type}
+            )
         return super().dispatch(request, *args, **kwargs)
 
     # ---- HTTP handlers ------------------------------------------------------
 
     def get(self, request, *args, **kwargs):
-        with DebugContext.section("Rendering operation creation form", {
-            "op_type": self.canonical_op_type,
-            "has_invoice": self.has_invoice,
-        }):
+        with DebugContext.section(
+            "Rendering operation creation form",
+            {
+                "op_type": self.canonical_op_type,
+                "has_invoice": self.has_invoice,
+            },
+        ):
             formset = self._make_formset() if self.has_invoice else None
-            DebugContext.success("Form rendered", {"formset_count": len(formset) if formset else 0})
-            return render(request, self.template_name, self._build_context(formset=formset))
+            DebugContext.success(
+                "Form rendered", {"formset_count": len(formset) if formset else 0}
+            )
+            return render(
+                request, self.template_name, self._build_context(formset=formset)
+            )
 
     def post(self, request, *args, **kwargs):
-        with DebugContext.section("Processing operation creation", {
-            "op_type": self.canonical_op_type,
-            "user": request.user.username,
-        }):
+        with DebugContext.section(
+            "Processing operation creation",
+            {
+                "op_type": self.canonical_op_type,
+                "user": request.user.username,
+            },
+        ):
             date, description, selected_category_id = self._parse_post_fields()
-            formset = self._make_formset(data=request.POST) if self.has_invoice else None
+            formset = (
+                self._make_formset(data=request.POST) if self.has_invoice else None
+            )
 
             if formset and not formset.is_valid():
                 error_msg = _("Please check the items table for errors.")
-                DebugContext.warn("Formset validation failed", {
-                    "formset_errors": formset.errors if formset else None,
-                    "has_invoice": self.has_invoice,
-                })
+                DebugContext.warn(
+                    "Formset validation failed",
+                    {
+                        "formset_errors": formset.errors if formset else None,
+                        "has_invoice": self.has_invoice,
+                    },
+                )
                 DebugContext.audit(
                     action="operation_formset_validation_failed",
                     entity_type="Operation",
                     entity_id=None,
-                    details={"formset_errors": str(formset.errors) if formset else None},
-                    user=request.user.username
+                    details={
+                        "formset_errors": str(formset.errors) if formset else None
+                    },
+                    user=request.user.username,
                 )
                 messages.error(request, error_msg)
                 return render(
@@ -147,27 +171,39 @@ class OperationCreateView(View):
             errors = []
             try:
                 with db_transaction.atomic():
-                    with DebugContext.section("Creating operation transaction", {
-                        "op_type": self.canonical_op_type,
-                        "date": str(date),
-                    }):
+                    with DebugContext.section(
+                        "Creating operation transaction",
+                        {
+                            "op_type": self.canonical_op_type,
+                            "date": str(date),
+                        },
+                    ):
                         amount = self._compute_amount(formset)
                         op = self._create_operation(amount, date, description)
-                        DebugContext.success("Operation created", {
-                            "operation_id": op.pk,
-                            "amount": str(amount),
-                        })
+                        DebugContext.success(
+                            "Operation created",
+                            {
+                                "operation_id": op.pk,
+                                "amount": str(amount),
+                            },
+                        )
                         self._process_payment(op, amount)
                         if formset:
                             self._process_invoice(op)
-                        DebugContext.success("Transaction processing complete", {
-                            "operation_id": op.pk,
-                        })
+                        DebugContext.success(
+                            "Transaction processing complete",
+                            {
+                                "operation_id": op.pk,
+                            },
+                        )
 
-                DebugContext.success("Operation saved successfully", {
-                    "operation_id": op.pk,
-                    "operation_type": op.operation_type,
-                })
+                DebugContext.success(
+                    "Operation saved successfully",
+                    {
+                        "operation_id": op.pk,
+                        "operation_type": op.operation_type,
+                    },
+                )
                 DebugContext.audit(
                     action="operation_created",
                     entity_type="Operation",
@@ -177,11 +213,12 @@ class OperationCreateView(View):
                         "amount": str(amount),
                         "date": str(date),
                     },
-                    user=request.user.username
+                    user=request.user.username,
                 )
                 messages.success(
                     request,
-                    _("%(label)s recorded successfully.") % {"label": self.data["label"]},
+                    _("%(label)s recorded successfully.")
+                    % {"label": self.data["label"]},
                 )
                 return redirect("operation_detail_view", pk=op.pk)
 
@@ -199,7 +236,7 @@ class OperationCreateView(View):
                     entity_type="Operation",
                     entity_id=None,
                     details=error_details,
-                    user=request.user.username
+                    user=request.user.username,
                 )
                 messages.error(
                     request, _("Transaction Error: %(error)s") % {"error": str(e)}
@@ -253,7 +290,7 @@ class OperationCreateView(View):
         return Decimal(self.request.POST.get("amount") or "0")
 
     def _create_operation(self, amount, date, description):
-        return self.proxy_cls.objects.create(
+        op = self.proxy_cls(
             operation_type=self.canonical_op_type,
             source=self.data["source_entity"],
             destination=self.data["dest_entity"],
@@ -262,6 +299,8 @@ class OperationCreateView(View):
             description=description,
             officer=self.request.user,
         )
+        op.save()
+        return op
 
     def _process_payment(self, op, amount):
         if not self.data.get("can_pay"):
@@ -308,8 +347,8 @@ class OperationCreateView(View):
         if self.proxy_cls.has_category:
             categories = FinancialCategory.objects.filter(
                 entities_relations__entity=self.data["url_entity"],
+                entities_relations__is_active=True,
                 category_type=self.proxy_cls.category_type,
-                is_active=True,
             )
         return {
             "primary": self.data["url_entity"],

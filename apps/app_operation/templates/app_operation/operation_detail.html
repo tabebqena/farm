@@ -22,62 +22,41 @@
               {% trans 'Invoice Items' %}
             </div>
             <div class="card-body p-0">
-              <div class="table-responsive">
-                <table class="table table-sm mb-0">
-                  <thead class="table-light">
-                    <tr>
-                      <th class="d-none d-md-table-cell">
-                        {% trans 'Product' %}
-                      </th>
-                      <th class="d-md-none">
-                        {% trans 'Item' %}
-                      </th>
-                      <th class="d-none d-lg-table-cell">
-                        {% trans 'Description' %}
-                      </th>
-                      <th class="text-end">
-                        {% trans 'Qty' %}
-                      </th>
-                      <th class="d-none d-sm-table-cell text-end">
-                        {% trans 'Unit Price' %}
-                      </th>
-                      <th class="text-end">
-                        {% trans 'Total' %}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {% for item in items %}
-                      <tr>
-                        <td class="d-none d-md-table-cell">
-                          <a href="{% url 'product_detail' item.pk %}" class="text-decoration-none">{{ item.product.name }}</a>
-                        </td>
-                        <td class="d-md-none">
-                          <a href="{% url 'product_detail' item.pk %}" class="text-decoration-none text-break">{{ item.product.name|truncatewords:3 }}</a>
-                        </td>
-                        <td class="d-none d-lg-table-cell text-muted small">{{ item.description|truncatewords:5 }}</td>
-                        <td class="text-end">{{ item.quantity }}</td>
-                        <td class="d-none d-sm-table-cell text-end small">{{ item.unit_price }}</td>
-                        <td class="text-end fw-bold">{{ item.total_price }}</td>
-                      </tr>
-                    {% empty %}
-                      <tr>
-                        <td colspan="6" class="text-center text-muted py-3">
-                          {% trans 'No items.' %}
-                        </td>
-                      </tr>
-                    {% endfor %}
-                  </tbody>
-                  <tfoot class="table-light">
-                    <tr>
-                      <td colspan="4" class="d-sm-table-cell text-end fw-bold">
-                        {% trans 'Total' %}
-                      </td>
-                      <td class="d-none d-sm-table-cell"></td>
-                      <td class="text-end fw-bold">{{ operation.amount }}</td>
-                    </tr>
-                  </tfoot>
-                </table>
+              <div class="list-group list-group-flush">
+                {% for item in items %}
+                  <div class="list-group-item">
+                    <div class="row g-2 align-items-center">
+                      <div class="col-12 col-md-5">
+                        <small class="text-muted d-md-none">{% trans 'Product' %}: </small>
+                        <a href="{% url 'product_detail' item.pk %}" class="text-decoration-none">{{ item.product.name }}</a>
+                      </div>
+                      <div class="col-12 col-md-3 d-none d-lg-block">
+                        <small class="text-muted">{% trans 'Description' %}: </small>
+                        <span class="text-muted small">{{ item.description|truncatewords:5 }}</span>
+                      </div>
+                      <div class="col-4 col-md-1 text-end">
+                        <small class="text-muted d-md-none d-block">{% trans 'Qty' %}</small>
+                        <span>{{ item.quantity }}</span>
+                      </div>
+                      <div class="col-4 col-md-1 text-end d-none d-sm-block">
+                        <small class="text-muted d-md-none d-block">{% trans 'Price' %}</small>
+                        <span class="small">{{ item.unit_price }}</span>
+                      </div>
+                      <div class="col-4 col-md-2 text-end">
+                        <small class="text-muted d-md-none d-block">{% trans 'Total' %}</small>
+                        <span class="fw-bold">{{ item.total_price }}</span>
+                      </div>
+                    </div>
+                  </div>
+                {% empty %}
+                  <div class="list-group-item text-center text-muted py-3">
+                    {% trans 'No items.' %}
+                  </div>
+                {% endfor %}
+              </div>
+              <div class="d-flex justify-content-end fw-bold py-2 px-3 border-top bg-light">
+                <span class="me-3">{% trans 'Total' %}</span>
+                <span>{{ operation.amount }}</span>
               </div>
             </div>
           </div>
@@ -98,36 +77,15 @@
               <h6 class="mb-0">{% trans 'Related Operations' %}</h6>
             </div>
             <div class="card-body">
-              <div class="row g-3">
-                <div class="col-md-6">
-                  <h6 class="text-muted mb-3">{% trans 'Adjustments' %}</h6>
-                  <ul class="list-unstyled">
-                    <li>
-                      <a href="#" class="btn btn-sm btn-outline-secondary text-decoration-none">
-                        <i class="bi bi-receipt me-2"></i>
-                        {% trans 'Account-based Adjustment' %}
-                      </a>
-                    </li>
-                    <li class="mt-2">
-                      <a href="#" class="btn btn-sm btn-outline-secondary text-decoration-none">
-                        <i class="bi bi-file-earmark-text me-2"></i>
-                        {% trans 'Invoice Item Adjustment' %}
-                      </a>
-                    </li>
-                  </ul>
-                </div>
-                <div class="col-md-6">
-                  <h6 class="text-muted mb-3">{% trans 'Inventory' %}</h6>
-                  <ul class="list-unstyled">
-                    <li>
-                      <a href="{% url 'create_inventory_movement' operation.pk %}" class="btn btn-sm btn-outline-secondary text-decoration-none">
-                        <i class="bi bi-box-seam me-2"></i>
-                        {% trans 'Good Movements' %}
-                      </a>
-                    </li>
-                  </ul>
-                </div>
-              </div>
+              <h6 class="text-muted mb-3">{% trans 'Inventory' %}</h6>
+              <ul class="list-unstyled">
+                <li>
+                  <a href="{% url 'create_inventory_movement' operation.pk %}" class="btn btn-sm btn-outline-secondary text-decoration-none">
+                    <i class="bi bi-box-seam me-2"></i>
+                    {% trans 'Good Movements' %}
+                  </a>
+                </li>
+              </ul>
             </div>
           </div>
         {% endif %}

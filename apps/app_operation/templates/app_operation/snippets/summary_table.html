@@ -2,7 +2,7 @@
 <ul class="list-group list-group-flush">
   <li class="list-group-item d-flex justify-content-between flex-wrap gap-2">
     <span>{% trans "Initial Amount" %}</span>
-    <span class="fw-bold text-primary">${{ operation.amount }}</span>
+    <span class="fw-bold text-primary">{{ currency }}{{ operation.amount }}</span>
   </li>
   <li class="list-group-item">
     <small class="text-muted d-block mb-1">{% trans "Source (Creditor)" %}</small>
@@ -28,4 +28,29 @@
     <small class="text-muted d-block mb-1">{% trans "Officer" %}</small>
     <span class="d-block text-break">{{ operation.officer.get_full_name|default:operation.officer.username }}</span>
   </li>
+  <li class="list-group-item d-flex justify-content-between flex-wrap gap-2">
+    <span>{% trans "Period" %}</span>
+    <span class="fw-bold">{{ operation.period }}</span>
+  </li>
+  {% if operation.has_category and operation.category %}
+  <li class="list-group-item d-flex justify-content-between flex-wrap gap-2">
+    <span>{% trans "Category" %}</span>
+    <span class="fw-bold">{{ operation.category }}</span>
+  </li>
+  {% endif %}
+  {% if operation.is_partially_payable %}
+  <li class="list-group-item">
+    <small class="text-muted d-block mb-1">{% trans "Payments" %}</small>
+    <div class="d-flex justify-content-between mb-2">
+      <span class="text-muted small">{% trans "Paid" %}</span>
+      <span class="text-success fw-bold">{{ currency }}{{ paid_amount }}</span>
+    </div>
+    <div class="d-flex justify-content-between">
+      <span class="text-muted small">{% trans "Outstanding" %}</span>
+      <span class="{% if outstanding_balance > 0 %}text-danger{% else %}text-success{% endif %} fw-bold">
+        {{ currency }}{{ outstanding_balance }}
+      </span>
+    </div>
+  </li>
+  {% endif %}
 </ul>

@@ -1,175 +1,80 @@
 {% load i18n %}
 <div class="card-header bg-dark text-white">{% trans "Operational Ledger" %}</div>
 
-<!-- Table view for medium screens and up -->
-<div class="d-none d-md-block table-responsive">
-  <table class="table table-hover align-middle mb-0">
-    <thead class="table-light">
-      <tr>
-        <th>{% trans "Transaction Detail" %}</th>
-        <th>{% trans "Account Flow" %}</th>
-        <th class="text-end">{% trans "Amount" %}</th>
-        <th class="text-center">{% trans "Status" %}</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for tx in transactions %}
-        <tr class="{% if tx.is_reversed or tx.reversal_of %}table-light opacity-75{% endif %}">
-          <td>
-            <span class="fw-bold d-block">
-              {% if tx.is_reversed %}
-                <i class="bi bi-arrow-counterclockwise text-danger"></i> {% trans "Reversal Entry" %}
-              {% elif tx.reversal_of %}
-                <i class="bi bi-x-circle text-muted"></i> <del>{% trans "Original (Voided)" %}</del>
-              {% elif 'repayment' in tx.type.lower %}
-                <i class="bi bi-arrow-return-left text-success"></i> {% trans "Repayment" %}
-              {% elif 'payment' in tx.type.lower %}
-                <i class="bi bi-cash-stack text-warning"></i> {% trans "Cash Payment" %}
-              {% elif 'issuance' in tx.type.lower %}
-                <i class="bi bi-bank text-primary"></i> {% trans "Issuance" %}
+<div class="list-group list-group-flush">
+  {% for tx in transactions %}
+    <div class="list-group-item {% if tx.is_reversed or tx.reversal_of %}bg-light opacity-75{% endif %}">
+      <div class="row g-2 align-items-start">
+        <div class="col-12 col-md-4">
+          <span class="fw-bold d-block">
+            {% if tx.is_reversed %}
+              <i class="bi bi-arrow-counterclockwise text-danger"></i> {% trans "Reversal Entry" %}
+            {% elif tx.reversal_of %}
+              <i class="bi bi-x-circle text-muted"></i> <del>{% trans "Original (Voided)" %}</del>
+            {% elif 'repayment' in tx.type.lower %}
+              <i class="bi bi-arrow-return-left text-success"></i> {% trans "Repayment" %}
+            {% elif 'payment' in tx.type.lower %}
+              <i class="bi bi-cash-stack text-warning"></i> {% trans "Cash Payment" %}
+            {% elif 'issuance' in tx.type.lower %}
+              <i class="bi bi-bank text-primary"></i> {% trans "Issuance" %}
+            {% else %}
+              <i class="bi bi-journal-text text-secondary"></i> {{ tx.type|default:'Ledger Entry' }}
+            {% endif %}
+          </span>
+          <small class="text-muted">{{ tx.date|date:'M d, Y' }}</small>
+        </div>
+        <div class="col-12 col-md-4">
+          <small class="text-muted d-md-none">{% trans "Account Flow" %}</small>
+          <div class="small">
+            <span class="{% if tx.target == operation.source %}fw-bold text-success{% else %}text-muted{% endif %}">
+              {% if tx.source.entity_type in 'system,world' %}
+                {{ tx.source.name }}
               {% else %}
-                <i class="bi bi-journal-text text-secondary"></i> {{ tx.type|default:'Ledger Entry' }}
+                <a href="{% url 'entity_detail' tx.source.pk %}" class="text-decoration-none text-reset">{{ tx.source.name }}</a>
               {% endif %}
             </span>
-            <small class="text-muted">{{ tx.date|date:'M d, Y' }}</small>
-          </td>
-
-          <td>
-            <div class="small">
-              <span class="{% if tx.target == operation.source %}fw-bold text-success{% else %}text-muted{% endif %}">
-                {% if tx.source.entity_type in 'system,world' %}
-                  {{ tx.source.name }}
-                {% else %}
-                  <a href="{% url 'entity_detail' tx.source.pk %}" class="text-decoration-none text-reset">{{ tx.source.name }}</a>
-                {% endif %}
-              </span>
-              <i class="bi bi-arrow-right px-1"></i>
-              <span class="{% if tx.target == operation.source %}fw-bold text-primary{% else %}text-muted{% endif %}">
-                {% if tx.target.entity_type in 'system,world' %}
-                  {{ tx.target.name }}
-                {% else %}
-                  <a href="{% url 'entity_detail' tx.target.pk %}" class="text-decoration-none text-reset">{{ tx.target.name }}</a>
-                {% endif %}
-              </span>
-            </div>
-          </td>
-          <td class="text-end fw-bold">
-            {% if tx.is_reversed or tx.reversal_of %}
-              <span class="text-muted"><del>${{ tx.amount }}</del></span>
-            {% elif tx.target == operation.source and not 'Issuance' in tx.label %}
-              <span class="text-success">+ ${{ tx.amount }}</span>
-            {% else %}
-              <span class="text-dark">${{ tx.amount }}</span>
-            {% endif %}
-          </td>
-
-          <td class="text-center">
-            {% if tx.is_reversed %}
-              <span class="badge rounded-pill bg-danger">{% trans "REVERSAL" %}</span>
-            {% elif tx.reversal_of %}
-              <span class="badge rounded-pill bg-secondary">{% trans "VOIDED" %}</span>
-            {% elif tx.target == operation.source and not 'issuance' in tx.type.lower %}
-              <span class="badge rounded-pill bg-success">{% trans "RECOVERY" %}</span>
-            {% elif 'repayment' in tx.type.lower %}
-              <span class="badge rounded-pill bg-warning text-dark">{% trans "REPAYMENT" %}</span>
-            {% elif 'payment' in tx.type.lower %}
-              <span class="badge rounded-pill bg-warning text-dark">{% trans "PAYMENT" %}</span>
-            {% else %}
-              <span class="badge rounded-pill bg-primary">{% trans "ISSUANCE" %}</span>
-            {% endif %}
-          </td>
-        </tr>
-      {% empty %}
-        <tr>
-          <td colspan="4" class="text-center py-4 text-muted">{% trans "No transactions found for this operation." %}</td>
-        </tr>
-      {% endfor %}
-    </tbody>
-    <tfoot class="table-secondary"></tfoot>
-  </table>
-</div>
-
-<!-- Card view for small screens -->
-<div class="d-md-none">
-  {% if transactions %}
-    <div class="list-group list-group-flush">
-      {% for tx in transactions %}
-        <div class="list-group-item {% if tx.is_reversed or tx.reversal_of %}bg-light opacity-75{% endif %}">
-          <div class="d-flex justify-content-between align-items-start mb-2">
-            <div>
-              <span class="fw-bold d-block">
-                {% if tx.is_reversed %}
-                  <i class="bi bi-arrow-counterclockwise text-danger"></i> {% trans "Reversal Entry" %}
-                {% elif tx.reversal_of %}
-                  <i class="bi bi-x-circle text-muted"></i> <del>{% trans "Original (Voided)" %}</del>
-                {% elif 'repayment' in tx.type.lower %}
-                  <i class="bi bi-arrow-return-left text-success"></i> {% trans "Repayment" %}
-                {% elif 'payment' in tx.type.lower %}
-                  <i class="bi bi-cash-stack text-warning"></i> {% trans "Cash Payment" %}
-                {% elif 'issuance' in tx.type.lower %}
-                  <i class="bi bi-bank text-primary"></i> {% trans "Issuance" %}
-                {% else %}
-                  <i class="bi bi-journal-text text-secondary"></i> {{ tx.type|default:'Ledger Entry' }}
-                {% endif %}
-              </span>
-              <small class="text-muted">{{ tx.date|date:'M d, Y' }}</small>
-            </div>
-            <div>
-              {% if tx.is_reversed %}
-                <span class="badge rounded-pill bg-danger">{% trans "REVERSAL" %}</span>
-              {% elif tx.reversal_of %}
-                <span class="badge rounded-pill bg-secondary">{% trans "VOIDED" %}</span>
-              {% elif tx.target == operation.source and not 'issuance' in tx.type.lower %}
-                <span class="badge rounded-pill bg-success">{% trans "RECOVERY" %}</span>
-              {% elif 'repayment' in tx.type.lower %}
-                <span class="badge rounded-pill bg-warning text-dark">{% trans "REPAYMENT" %}</span>
-              {% elif 'payment' in tx.type.lower %}
-                <span class="badge rounded-pill bg-warning text-dark">{% trans "PAYMENT" %}</span>
+            <i class="bi bi-arrow-right px-1"></i>
+            <span class="{% if tx.target == operation.source %}fw-bold text-primary{% else %}text-muted{% endif %}">
+              {% if tx.target.entity_type in 'system,world' %}
+                {{ tx.target.name }}
               {% else %}
-                <span class="badge rounded-pill bg-primary">{% trans "ISSUANCE" %}</span>
-              {% endif %}
-            </div>
-          </div>
-
-          <div class="mb-2">
-            <small class="text-muted">{% trans "Account Flow" %}</small>
-            <div class="small">
-              <span class="{% if tx.target == operation.source %}fw-bold text-success{% else %}text-muted{% endif %}">
-                {% if tx.source.entity_type in 'system,world' %}
-                  {{ tx.source.name }}
-                {% else %}
-                  <a href="{% url 'entity_detail' tx.source.pk %}" class="text-decoration-none text-reset">{{ tx.source.name }}</a>
-                {% endif %}
-              </span>
-              <i class="bi bi-arrow-right px-1"></i>
-              <span class="{% if tx.target == operation.source %}fw-bold text-primary{% else %}text-muted{% endif %}">
-                {% if tx.target.entity_type in 'system,world' %}
-                  {{ tx.target.name }}
-                {% else %}
-                  <a href="{% url 'entity_detail' tx.target.pk %}" class="text-decoration-none text-reset">{{ tx.target.name }}</a>
-                {% endif %}
-              </span>
-            </div>
-          </div>
-
-          <div class="text-end">
-            <small class="text-muted d-block">{% trans "Amount" %}</small>
-            <span class="fw-bold">
-              {% if tx.is_reversed or tx.reversal_of %}
-                <span class="text-muted"><del>${{ tx.amount }}</del></span>
-              {% elif tx.target == operation.source and not 'Issuance' in tx.label %}
-                <span class="text-success">+ ${{ tx.amount }}</span>
-              {% else %}
-                <span class="text-dark">${{ tx.amount }}</span>
+                <a href="{% url 'entity_detail' tx.target.pk %}" class="text-decoration-none text-reset">{{ tx.target.name }}</a>
               {% endif %}
             </span>
           </div>
         </div>
-      {% endfor %}
+        <div class="col-6 col-md-2 text-md-end">
+          <small class="text-muted d-md-none d-block">{% trans "Amount" %}</small>
+          <span class="fw-bold d-block">
+            {% if tx.is_reversed or tx.reversal_of %}
+              <span class="text-muted"><del>{{ currency }}{{ tx.amount }}</del></span>
+            {% elif tx.target == operation.source and not 'Issuance' in tx.label %}
+              <span class="text-success">+ {{ currency }}{{ tx.amount }}</span>
+            {% else %}
+              <span class="text-dark">{{ currency }}{{ tx.amount }}</span>
+            {% endif %}
+          </span>
+        </div>
+        <div class="col-6 col-md-2 text-md-center">
+          {% if tx.is_reversed %}
+            <span class="badge rounded-pill bg-danger">{% trans "REVERSAL" %}</span>
+          {% elif tx.reversal_of %}
+            <span class="badge rounded-pill bg-secondary">{% trans "VOIDED" %}</span>
+          {% elif tx.target == operation.source and not 'issuance' in tx.type.lower %}
+            <span class="badge rounded-pill bg-success">{% trans "RECOVERY" %}</span>
+          {% elif 'repayment' in tx.type.lower %}
+            <span class="badge rounded-pill bg-warning text-dark">{% trans "REPAYMENT" %}</span>
+          {% elif 'payment' in tx.type.lower %}
+            <span class="badge rounded-pill bg-warning text-dark">{% trans "PAYMENT" %}</span>
+          {% else %}
+            <span class="badge rounded-pill bg-primary">{% trans "ISSUANCE" %}</span>
+          {% endif %}
+        </div>
+      </div>
     </div>
-  {% else %}
-    <div class="text-center py-4 text-muted">
+  {% empty %}
+    <div class="list-group-item text-center py-4 text-muted">
       {% trans "No transactions found for this operation." %}
     </div>
-  {% endif %}
+  {% endfor %}
 </div>

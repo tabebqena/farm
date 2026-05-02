@@ -9,14 +9,14 @@
           <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
             <h5 class="mb-0">
               <i class="bi bi-boxes me-2"></i>
-              {% trans "Record Inventory Movement" %}
+              {% trans 'Record Inventory Movement' %}
             </h5>
             <span class="badge bg-white text-primary">{{ operation.get_operation_type_display }}</span>
           </div>
 
           <div class="card-body p-4">
             <div class="alert alert-info mb-4">
-              <strong>{% trans "Operation:" %}</strong> {{ operation.get_operation_type_display }} #{{ operation.pk }}
+              <strong>{% trans 'Operation:' %}</strong> {{ operation.get_operation_type_display }} #{{ operation.pk }}
               {% if operation.description %}
                 <br />
                 <small>{{ operation.description }}</small>
@@ -28,36 +28,23 @@
 
               <div class="row g-4 mb-4">
                 <div class="col-md-6">
-                  <label for="id_date" class="form-label fw-bold">{% trans "Date" %}</label>
-                  <input
-                    type="date"
-                    id="id_date"
-                    name="date"
-                    class="form-control"
-                    value="{% now 'Y-m-d' %}"
-                    required
-                  />
+                  <label for="id_date" class="form-label fw-bold">{% trans 'Date' %}</label>
+                  <input type="date" id="id_date" name="date" class="form-control" value="{% now 'Y-m-d' %}" required />
                 </div>
               </div>
 
               <div class="mb-4">
-                <label for="id_notes" class="form-label fw-bold">{% trans "Notes" %}</label>
-                <textarea
-                  id="id_notes"
-                  name="notes"
-                  class="form-control"
-                  rows="3"
-                  placeholder="{% trans 'Optional notes about this movement' %}"
-                ></textarea>
+                <label for="id_notes" class="form-label fw-bold">{% trans 'Notes' %}</label>
+                <textarea id="id_notes" name="notes" class="form-control" rows="3" placeholder="{% trans 'Optional notes about this movement' %}"></textarea>
               </div>
 
               <div class="mb-4">
                 {{ formset.management_form }}
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                  <label class="form-label fw-bold mb-0">{% trans "Items to Move" %}</label>
+                  <label class="form-label fw-bold mb-0">{% trans 'Items to Move' %}</label>
                   <button type="button" class="btn btn-sm btn-outline-primary" id="add-item-row">
                     <i class="bi bi-plus-lg"></i>
-                    {% trans "Add Item" %}
+                    {% trans 'Add Item' %}
                   </button>
                 </div>
 
@@ -65,17 +52,21 @@
                   <table class="table table-hover align-middle mb-0 table-sm" id="items-table">
                     <thead class="table-light">
                       <tr>
-                        <th>{% trans "Invoice Item" %}</th>
-                        <th style="width: 100px">{% trans "Invoice Qty" %}</th>
-                        <th style="width: 100px">{% trans "Move Qty" %}</th>
+                        <th>
+                          {% trans 'Invoice Item' %}
+                        </th>
+                        <th style="width: 100px">
+                          {% trans 'Invoice Qty' %}
+                        </th>
+                        <th style="width: 100px">
+                          {% trans 'Move Qty' %}
+                        </th>
                         <th style="width: 36px"></th>
                       </tr>
                     </thead>
                     <tbody id="item-formset-body">
                       {% for line_form in formset %}
-                        <tr
-                          class="item-row{% if line_form.invoice_item.errors or line_form.quantity.errors %} table-danger{% endif %}"
-                        >
+                        <tr class="item-row{% if line_form.invoice_item.errors or line_form.quantity.errors %} table-danger{% endif %}">
                           {% for field in line_form.hidden_fields %}
                             {{ field }}
                           {% endfor %}
@@ -90,27 +81,13 @@
                             {% endif %}
                           </td>
                           <td>
-                            <input
-                              type="text"
-                              class="form-control form-control-sm"
-                              readonly
-                              placeholder="—"
-                              id="invoice-qty-display"
-                            />
+                            <input type="text" class="form-control form-control-sm" readonly placeholder="—" id="invoice-qty-display" />
                           </td>
                           <td>
-                            <input
-                              type="number"
-                              name="{{ line_form.quantity.html_name }}"
-                              class="form-control form-control-sm qty-input{% if line_form.quantity.errors %} is-invalid{% endif %}"
-                              step="0.01"
-                              min="0.01"
-                              value="{{ line_form.quantity.value|default:'' }}"
-                              placeholder="0.00"
-                              required
-                            />
+                            <input type="number" name="{{ line_form.quantity.html_name }}" class="form-control form-control-sm qty-input{% if line_form.quantity.errors %} is-invalid{% endif %}" min="0" value="{{ line_form.quantity.value|default:'' }}" placeholder="0.00" inputmode="decimal" required />
                             {% if line_form.quantity.errors %}
-                              <div class="invalid-feedback d-block small">
+                              <div class="invalid-feedback d-block small text-danger">
+                                <i class="bi bi-exclamation-circle me-1"></i>
                                 {% for error in line_form.quantity.errors %}
                                   {{ error }}
                                 {% endfor %}
@@ -121,30 +98,22 @@
                             {% if line_form.DELETE %}
                               <div style="display: none">{{ line_form.DELETE }}</div>
                             {% endif %}
-                            <button type="button" class="btn btn-link text-danger p-0 remove-row">
-                              <i class="bi bi-trash"></i>
-                            </button>
+                            <button type="button" class="btn btn-link text-danger p-0 remove-row"><i class="bi bi-trash"></i></button>
                           </td>
                         </tr>
                       {% endfor %}
                     </tbody>
                   </table>
                   {% if formset.errors %}
-                    <div class="alert alert-danger mt-2 mb-0">
-                      {{ formset.errors }}
-                    </div>
+                    <div class="alert alert-danger mt-2 mb-0">{{ formset.errors }}</div>
                   {% endif %}
                 </div>
               </div>
 
               <hr class="my-4" />
               <div class="d-flex justify-content-between align-items-center">
-                <a href="{% url 'operation_detail_view' operation.pk %}" class="btn btn-link text-muted">
-                  {% trans "Cancel" %}
-                </a>
-                <button type="submit" class="btn btn-primary px-5 fw-bold shadow-sm">
-                  {% trans "Record Movement" %}
-                </button>
+                <a href="{% url 'operation_detail_view' operation.pk %}" class="btn btn-link text-muted">{% trans 'Cancel' %}</a>
+                <button type="submit" class="btn btn-primary px-5 fw-bold shadow-sm">{% trans 'Record Movement' %}</button>
               </div>
             </form>
           </div>
@@ -154,62 +123,54 @@
   </div>
 
   <script>
-    document.addEventListener("DOMContentLoaded", function () {
-      const addButton = document.getElementById("add-item-row");
-      const formsetBody = document.getElementById("item-formset-body");
-      const totalForms = document.getElementById("id_lines-TOTAL_FORMS");
-      const formsetPrefix = "lines";
-
+    document.addEventListener('DOMContentLoaded', function () {
+      const addButton = document.getElementById('add-item-row')
+      const formsetBody = document.getElementById('item-formset-body')
+      const totalForms = document.getElementById('id_lines-TOTAL_FORMS')
+      const formsetPrefix = 'lines'
+    
       if (addButton) {
-        addButton.addEventListener("click", function (e) {
-          e.preventDefault();
-          const formCount = parseInt(totalForms.value);
-          const newForm = document.querySelector(`.item-row`).cloneNode(true);
-
+        addButton.addEventListener('click', function (e) {
+          e.preventDefault()
+          const formCount = parseInt(totalForms.value)
+          const newForm = document.querySelector(`.item-row`).cloneNode(true)
+    
           // Clear inputs
-          newForm
-            .querySelectorAll("input[type='number'], input[type='text'], select")
-            .forEach((input) => {
-              input.value = "";
-            });
-
+          newForm.querySelectorAll("input[type='number'], input[type='text'], select").forEach((input) => {
+            input.value = ''
+          })
+    
           // Update field names
-          newForm.querySelectorAll("[name]").forEach((field) => {
-            const oldName = field.getAttribute("name");
+          newForm.querySelectorAll('[name]').forEach((field) => {
+            const oldName = field.getAttribute('name')
             if (oldName) {
-              const newName = oldName.replace(
-                new RegExp(`^${formsetPrefix}-(\\d+)-`),
-                `${formsetPrefix}-${formCount}-`
-              );
-              field.setAttribute("name", newName);
+              const newName = oldName.replace(new RegExp(`^${formsetPrefix}-(\\d+)-`), `${formsetPrefix}-${formCount}-`)
+              field.setAttribute('name', newName)
               if (field.id) {
-                field.id = field.id.replace(
-                  new RegExp(`^id_${formsetPrefix}_(\\d+)_`),
-                  `id_${formsetPrefix}_${formCount}_`
-                );
+                field.id = field.id.replace(new RegExp(`^id_${formsetPrefix}_(\\d+)_`), `id_${formsetPrefix}_${formCount}_`)
               }
             }
-          });
-
-          formsetBody.appendChild(newForm);
-          totalForms.value = formCount + 1;
-        });
+          })
+    
+          formsetBody.appendChild(newForm)
+          totalForms.value = formCount + 1
+        })
       }
-
+    
       // Remove row
-      document.addEventListener("click", function (e) {
-        if (e.target.closest(".remove-row")) {
-          e.preventDefault();
-          const row = e.target.closest(".item-row");
-          const deleteCheckbox = row.querySelector("[name*='-DELETE']");
+      document.addEventListener('click', function (e) {
+        if (e.target.closest('.remove-row')) {
+          e.preventDefault()
+          const row = e.target.closest('.item-row')
+          const deleteCheckbox = row.querySelector("[name*='-DELETE']")
           if (deleteCheckbox) {
-            deleteCheckbox.checked = true;
-            row.style.display = "none";
+            deleteCheckbox.checked = true
+            row.style.display = 'none'
           } else {
-            row.remove();
+            row.remove()
           }
         }
-      });
-    });
+      })
+    })
   </script>
 {% endblock %}

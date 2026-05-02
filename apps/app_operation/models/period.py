@@ -153,6 +153,13 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
         ] or Decimal("0.00")
 
     @property
+    def previous_balance(self) -> Decimal:
+        """Entity fund balance as of start_date (beginning balance for this period)."""
+        from datetime import timedelta
+        day_before = self.start_date - timedelta(days=1)
+        return self.entity.balance_at(day_before)
+
+    @property
     def balance(self) -> Decimal:
         """Entity fund balance as of as_of (end_date if closed, else today)."""
         return self.entity.balance_at(self.as_of)
@@ -176,6 +183,86 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
     def payables(self) -> Decimal:
         """Outstanding payables as of as_of."""
         return self.entity.payables_at(self.as_of)
+
+    @property
+    def cash_in(self) -> Decimal:
+        """Total incoming cash payments as of as_of."""
+        from apps.app_transaction.transaction_type import TransactionType
+        return self._incoming_tx_sum(TransactionType.payment_types(), self.as_of)
+
+    @property
+    def cash_out(self) -> Decimal:
+        """Total outgoing cash payments as of as_of."""
+        from apps.app_transaction.transaction_type import TransactionType
+        return self._outgoing_tx_sum(TransactionType.payment_types(), self.as_of)
+
+    @property
+    def payables_previous(self) -> Decimal:
+        """Outstanding payables at start_date."""
+        return self.entity.payables_at(self.start_date)
+
+    @property
+    def payables_in(self) -> Decimal:
+        """New payables during the period."""
+        return self.payables - self.payables_previous
+
+    @property
+    def payables_out(self) -> Decimal:
+        """Payables paid during the period (negative of payables_in)."""
+        return max(Decimal("0.00"), self.payables_previous - self.payables)
+
+    @property
+    def payables_end(self) -> Optional[Decimal]:
+        """Outstanding payables at end_date (only if period is closed)."""
+        if self.end_date is None:
+            return None
+        return self.entity.payables_at(self.end_date)
+
+    @property
+    def receivables_previous(self) -> Decimal:
+        """Outstanding receivables at start_date."""
+        return self.entity.receivables_at(self.start_date)
+
+    @property
+    def receivables_in(self) -> Decimal:
+        """New receivables during the period."""
+        return self.receivables - self.receivables_previous
+
+    @property
+    def receivables_out(self) -> Decimal:
+        """Receivables collected during the period."""
+        return max(Decimal("0.00"), self.receivables_previous - self.receivables)
+
+    @property
+    def receivables_end(self) -> Optional[Decimal]:
+        """Outstanding receivables at end_date (only if period is closed)."""
+        if self.end_date is None:
+            return None
+        return self.entity.receivables_at(self.end_date)
+
+    @property
+    def inventory_value_previous(self) -> Decimal:
+        """Inventory value at start_date."""
+        from apps.app_inventory.models import ProductLedgerEntry
+        return ProductLedgerEntry.inventory_value_at(self.entity, self.start_date)
+
+    @property
+    def inventory_value_in(self) -> Decimal:
+        """Inventory added during the period."""
+        return self.inventory_value - self.inventory_value_previous
+
+    @property
+    def inventory_value_out(self) -> Decimal:
+        """Inventory reduced/sold during the period."""
+        return max(Decimal("0.00"), self.inventory_value_previous - self.inventory_value)
+
+    @property
+    def inventory_value_end(self) -> Optional[Decimal]:
+        """Inventory value at end_date (only if period is closed)."""
+        if self.end_date is None:
+            return None
+        from apps.app_inventory.models import ProductLedgerEntry
+        return ProductLedgerEntry.inventory_value_at(self.entity, self.end_date)
 
     @property
     def inventory_value(self) -> Decimal:

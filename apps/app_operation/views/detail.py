@@ -1,4 +1,6 @@
 from django.shortcuts import render
+from django.conf import settings
+from decimal import Decimal
 
 from apps.app_base.debug import DebugContext, debug_view
 from farm.shortcuts import get_object_or_404
@@ -41,10 +43,28 @@ def operation_detail_view(request, pk):
             "operation_id": operation.pk,
         })
 
+    with DebugContext.section("Computing payment balance", {
+        "operation_id": operation.pk,
+    }):
+        active_txs = [tx for tx in transactions if not getattr(tx, 'is_reversed', False) and not getattr(tx, 'reversal_of', None)]
+        paid_amount = sum(
+            tx.amount for tx in active_txs
+            if 'payment' in tx.type.lower() or 'repayment' in tx.type.lower()
+        ) or Decimal('0.00')
+        outstanding_balance = (operation.effective_amount or operation.amount) - paid_amount
+        DebugContext.log("Payment balance computed", {
+            "paid_amount": float(paid_amount),
+            "outstanding_balance": float(outstanding_balance),
+            "operation_id": operation.pk,
+        })
+
     context = {
         "operation": operation,
         "transactions": transactions,
         "items": items,
         "is_reversed": operation.is_reversed,
+        "paid_amount": paid_amount,
+        "outstanding_balance": outstanding_balance,
+        "currency": getattr(settings, 'CURRENCY_SYMBOL', '$'),
     }
     return render(request, "app_operation/operation_detail.html", context)

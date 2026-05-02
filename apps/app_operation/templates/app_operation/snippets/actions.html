@@ -5,13 +5,20 @@
     {% include 'app_operation/snippets/summary_table.html' %}
   </div>
 
-  {% if not operation.is_reversed and not operation.is_reversed %}
+  {% if not operation.is_reversed and not operation.is_reversal %}
     {% if operation.max_payment_transaction_count < 0 %}
       <div class="card border-success shadow-sm mb-3 mb-lg-4">
         <div class="card-body">
           <h6 class="text-success fw-bold">{% trans "Record Payment" %}</h6>
           <p class="small text-muted">{% trans "Record a payment transaction." %}</p>
-          <a href="{% url 'record_transaction_payment' operation.pk %}" class="btn btn-success w-100"><i class="bi bi-cash-coin me-1"></i> {% trans "Record Payment" %}</a>
+          {% if operation.is_fully_settled %}
+            <button type="button" class="btn btn-success w-100" disabled>
+              <i class="bi bi-cash-coin me-1"></i> {% trans "Record Payment" %}
+            </button>
+            <p class="small text-muted mt-2">{% trans "This operation is fully settled." %}</p>
+          {% else %}
+            <a href="{% url 'record_transaction_payment' operation.pk %}" class="btn btn-success w-100"><i class="bi bi-cash-coin me-1"></i> {% trans "Record Payment" %}</a>
+          {% endif %}
         </div>
       </div>
     {% endif %}

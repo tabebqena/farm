@@ -47,7 +47,7 @@ class PurchaseWizardStep2Form(LoggingFormMixin, forms.Form):
         decimal_places=2,
         max_digits=20,
         widget=forms.NumberInput(
-            attrs={"class": "form-control", "step": "0.01", "placeholder": "0.00"}
+            attrs={"class": "form-control amount-input", "step": "0.01", "placeholder": "0.00", "inputmode": "decimal"}
         ),
     )
 
@@ -62,7 +62,7 @@ class PurchaseWizardStep3Form(LoggingFormMixin, forms.Form):
         max_digits=20,
         required=False,
         widget=forms.NumberInput(
-            attrs={"class": "form-control", "step": "0.01", "placeholder": "0.00"}
+            attrs={"class": "form-control amount-input", "step": "0.01", "placeholder": "0.00", "inputmode": "decimal"}
         ),
     )
 
@@ -87,7 +87,7 @@ class PurchaseItemForm(LoggingFormMixin, forms.Form):
         min_value=Decimal("0.01"),
         decimal_places=2,
         max_digits=10,
-        widget=forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
+        widget=forms.NumberInput(attrs={"class": "form-control amount-input", "step": "0.01", "inputmode": "decimal"}),
     )
 
     unit_price = forms.DecimalField(
@@ -95,7 +95,7 @@ class PurchaseItemForm(LoggingFormMixin, forms.Form):
         min_value=Decimal("0.01"),
         decimal_places=2,
         max_digits=15,
-        widget=forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
+        widget=forms.NumberInput(attrs={"class": "form-control amount-input", "step": "0.01", "inputmode": "decimal"}),
     )
 
     unique_id = forms.CharField(
@@ -112,7 +112,7 @@ class PurchaseItemForm(LoggingFormMixin, forms.Form):
         required=False,
         initial=Decimal("0"),
         help_text=_("Quantity physically received (0 = none yet)"),
-        widget=forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
+        widget=forms.NumberInput(attrs={"class": "form-control amount-input", "step": "0.01", "inputmode": "decimal"}),
     )
 
     def __init__(self, *args, template=None, **kwargs):
@@ -177,7 +177,7 @@ class SaleWizardStep2Form(LoggingFormMixin, forms.Form):
         decimal_places=2,
         max_digits=20,
         widget=forms.NumberInput(
-            attrs={"class": "form-control", "step": "0.01", "placeholder": "0.00"}
+            attrs={"class": "form-control amount-input", "step": "0.01", "placeholder": "0.00", "inputmode": "decimal"}
         ),
     )
 
@@ -192,7 +192,7 @@ class SaleWizardStep3Form(LoggingFormMixin, forms.Form):
         max_digits=20,
         required=False,
         widget=forms.NumberInput(
-            attrs={"class": "form-control", "step": "0.01", "placeholder": "0.00"}
+            attrs={"class": "form-control amount-input", "step": "0.01", "placeholder": "0.00", "inputmode": "decimal"}
         ),
     )
 
@@ -217,7 +217,7 @@ class SaleItemForm(LoggingFormMixin, forms.Form):
         min_value=Decimal("0.01"),
         decimal_places=2,
         max_digits=10,
-        widget=forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
+        widget=forms.NumberInput(attrs={"class": "form-control amount-input", "step": "0.01", "inputmode": "decimal"}),
     )
 
     unit_price = forms.DecimalField(
@@ -225,7 +225,7 @@ class SaleItemForm(LoggingFormMixin, forms.Form):
         min_value=Decimal("0.01"),
         decimal_places=2,
         max_digits=15,
-        widget=forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
+        widget=forms.NumberInput(attrs={"class": "form-control amount-input", "step": "0.01", "inputmode": "decimal"}),
     )
 
     unique_id = forms.CharField(
@@ -242,7 +242,7 @@ class SaleItemForm(LoggingFormMixin, forms.Form):
         required=False,
         initial=Decimal("0"),
         help_text=_("Quantity physically delivered (0 = none yet)"),
-        widget=forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
+        widget=forms.NumberInput(attrs={"class": "form-control amount-input", "step": "0.01", "inputmode": "decimal"}),
     )
 
     def __init__(self, *args, template=None, **kwargs):
@@ -281,7 +281,7 @@ class PaymentForm(LoggingFormMixin, forms.Form):
         decimal_places=2,
         max_digits=20,
         widget=forms.NumberInput(
-            attrs={"class": "form-control", "step": "0.01", "placeholder": "0.00"}
+            attrs={"class": "form-control amount-input", "step": "0.01", "placeholder": "0.00", "inputmode": "decimal"}
         ),
     )
 
