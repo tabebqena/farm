@@ -14,11 +14,6 @@ urlpatterns = [
         name="period_detail_view",
     ),
     path(
-        "periods/<int:entity_pk>/create/",
-        views.period_create_view,
-        name="period_create_view",
-    ),
-    path(
         "periods/<int:period_pk>/close/",
         views.period_close_view,
         name="period_close_view",

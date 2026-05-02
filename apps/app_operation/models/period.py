@@ -438,6 +438,8 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
             raise ValidationError("end_date must be strictly greater than start_date.")
 
     def clean(self):
+        if self.pk is None and self.entity_id and not self.entity.active:
+            raise ValidationError("Cannot create a financial period for an inactive entity.")
         if self.amount is not None and self.entity_id:
             if not self.entity.is_project:
                 raise ValidationError(

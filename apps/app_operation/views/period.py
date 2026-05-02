@@ -1,6 +1,5 @@
 from datetime import date
 
-from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
@@ -84,101 +83,6 @@ def period_list_view(request, entity_pk):
     }
     return render(request, "app_operation/period_list.html", context)
 
-
-@login_required
-@debug_view
-def period_create_view(request, entity_pk):
-    """Create a new financial period."""
-    with DebugContext.section(
-        "Fetching entity for period creation",
-        {"entity_pk": entity_pk, "user": request.user.username},
-    ):
-        entity = get_object_or_404(
-            Entity, pk=entity_pk, error_message="Entity not found or has been deleted."
-        )
-        DebugContext.success("Entity loaded", {"entity_id": entity.pk})
-
-    if entity.active and entity.financial_periods.exists():
-        error_msg = _(
-            "New periods are created automatically when the current period is closed."
-        )
-        DebugContext.warn(
-            "Manual period creation attempt for active entity with existing periods",
-            {"entity_id": entity.pk},
-        )
-        DebugContext.audit(
-            action="period_creation_blocked_for_active_entity",
-            entity_type="Entity",
-            entity_id=entity.pk,
-            details={"reason": "active_entity_with_existing_periods"},
-            user=request.user.username,
-        )
-        messages.error(request, error_msg)
-        return redirect("period_list_view", entity_pk=entity.pk)
-
-    if request.method == "GET":
-        context = {"entity": entity}
-        return render(
-            request,
-            "app_operation/period_form.html",
-            context,
-        )
-
-    if request.method == "POST":
-        with DebugContext.section(
-            "Processing period creation",
-            {
-                "entity_pk": entity_pk,
-                "user": request.user.username,
-            },
-        ):
-            try:
-                start_date = request.POST.get("start_date")
-                if not start_date:
-                    raise ValidationError(_("Start date is required."))
-
-                with DebugContext.section(
-                    "Creating financial period", {"start_date": start_date}
-                ):
-                    period = FinancialPeriod(entity=entity, start_date=start_date)
-                    period.full_clean()
-                    period.save()
-
-                    DebugContext.success(
-                        "Period created successfully",
-                        {
-                            "period_id": period.pk,
-                            "start_date": str(period.start_date),
-                        },
-                    )
-                    DebugContext.audit(
-                        action="period_created",
-                        entity_type="FinancialPeriod",
-                        entity_id=period.pk,
-                        details={
-                            "entity_id": entity.pk,
-                            "start_date": str(period.start_date),
-                        },
-                        user=request.user.username,
-                    )
-                return redirect("period_list_view", entity_pk=entity.pk)
-            except ValidationError as e:
-                error_details = {
-                    "validation_errors": str(e.messages),
-                    "entity_id": entity.pk,
-                }
-                DebugContext.warn("Period creation validation failed", error_details)
-                DebugContext.audit(
-                    action="period_creation_validation_failed",
-                    entity_type="FinancialPeriod",
-                    entity_id=None,
-                    details=error_details,
-                    user=request.user.username,
-                )
-                context = {"entity": entity, "errors": e.messages}
-                return render(
-                    request, "app_operation/period_form.html", context, status=400
-                )
 
 
 @login_required

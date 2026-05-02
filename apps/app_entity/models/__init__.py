@@ -1,4 +1,5 @@
 import typing
+from datetime import date as date_type
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
@@ -701,19 +702,33 @@ class Entity(ImmutableMixin, BaseModel):
         ):
             with db_transaction.atomic():
                 rv = super().save(*args, **kwargs)
-                if is_new:
-                    if self.is_world or self.is_system:
-                        ...
-                    else:
-                        FinancialPeriod.objects.create(
-                            entity=self,
-                            start_date=self.created_at.date(),
-                        )
+                if not (self.is_world or self.is_system):
+                    open_period = self.financial_periods.filter(end_date__isnull=True).first()
+                    if self.active and open_period is None:
+                        start_date = self.created_at.date() if is_new else date_type.today()
+                        FinancialPeriod.objects.create(entity=self, start_date=start_date)
                         DebugContext.log(
                             "Financial period created",
                             {
                                 "entity_pk": self.pk,
-                                "start_date": str(self.created_at.date()),
+                                "start_date": str(start_date),
+                                "reason": "entity_activation" if not is_new else "entity_creation",
+                            },
+                        )
+                    elif not self.active and open_period is not None:
+                        from datetime import timedelta
+                        end_date = date_type.today()
+                        if end_date <= open_period.start_date:
+                            end_date = open_period.start_date + timedelta(days=1)
+                        open_period.end_date = end_date
+                        open_period.save()
+                        DebugContext.log(
+                            "Financial period closed",
+                            {
+                                "entity_pk": self.pk,
+                                "period_pk": open_period.pk,
+                                "end_date": str(end_date),
+                                "reason": "entity_deactivation",
                             },
                         )
 

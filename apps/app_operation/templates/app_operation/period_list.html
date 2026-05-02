@@ -158,8 +158,7 @@
     {% endif %}
   {% else %}
     <div class="alert alert-info">
-      {% trans 'No financial periods yet.' %}
-      <a href="{% url 'period_create_view' entity.pk %}">{% trans 'Create the first period' %}</a>
+      {% trans 'No financial periods yet. Periods are created automatically when an entity is activated.' %}
     </div>
   {% endif %}
 {% endblock %}
