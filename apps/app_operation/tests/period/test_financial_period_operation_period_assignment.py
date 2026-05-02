@@ -138,9 +138,9 @@ class OperationPeriodAssignmentTest(TestCase):
     def test_operation_raises_when_no_open_period(self):
         """With an inactive entity, close() creates no next period; the following operation must fail."""
         self.receiver.active = False
-        self.receiver.save()
+        self.receiver.save()  # This will close the current period
         period = self._receiver_period()
-        period.close(TOMORROW)  # inactive entity → no next period created
+
         with self.assertRaises(ValidationError):
             self._make_injection(date=TOMORROW)
 

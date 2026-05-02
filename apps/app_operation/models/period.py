@@ -1,4 +1,5 @@
 from datetime import date as date_type
+from datetime import timedelta
 from decimal import Decimal
 from typing import Optional
 
@@ -18,15 +19,13 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
     A period is "open" while end_date is None or end_date is in the future; it becomes
     "closed" once end_date is set AND end_date is before today.
     Once set, end_date cannot be changed (enforced by ImmutableMixin ALLOW_SET logic).
-    amount records the profit (>0) or loss (<0) for this period once finalised.
-    amount can be set once (from None) on a closed project period; it is then immutable.
+    amount is a calculated property that derives profit (>0) or loss (<0) for closed project periods.
     """
 
     _immutable_fields = {
         "entity": {},
         "start_date": {},
         "end_date": {"ALLOW_SET": True, "NULL_VALUES": (None,)},
-        "amount": {"ALLOW_SET": True, "NULL_VALUES": (None,)},
     }
 
     entity = models.ForeignKey(
@@ -36,7 +35,6 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
     )
     start_date = models.DateField()
     end_date = models.DateField(null=True, blank=True)
-    amount = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
 
     class Meta:
         verbose_name = "Financial Period"
@@ -51,6 +49,13 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
     def as_of(self) -> date_type:
         """Reference date: end_date if closed, else today."""
         return self.end_date if self.end_date is not None else date_type.today()
+
+    @property
+    def amount(self) -> Optional[Decimal]:
+        """Profit/loss for this period (only for closed project periods)."""
+        if not self.is_closed or not self.entity.is_project:
+            return None
+        return self.entity.profit_loss(self)
 
     @property
     def is_closed(self) -> bool:
@@ -93,14 +98,14 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
     @property
     def remaining_distributable(self) -> Decimal:
         """How much profit is still available to distribute."""
-        if not self.is_profit:
+        if not self.is_profit or self.amount is None:
             return Decimal("0.00")
         return self.amount - self.distributed
 
     @property
     def remaining_coverable(self) -> Decimal:
         """How much loss is still available to be covered (positive number)."""
-        if not self.is_loss:
+        if not self.is_loss or self.amount is None:
             return Decimal("0.00")
         return abs(self.amount) - self.covered
 
@@ -395,15 +400,6 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
     # Business actions
     # ------------------------------------------------------------------
 
-    def compute_profit_loss(self) -> "FinancialPeriod":
-        """
-        Derive amount from entity.profit_loss(self) and save.
-        The period must be closed and the entity must be a project.
-        """
-        self.amount = self.entity.profit_loss(self)
-        self.save()
-        return self
-
     def close(self, end_date: Optional[date_type] = None) -> "FinancialPeriod | None":
         """
         Close this period by setting end_date.
@@ -414,7 +410,7 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
         if self.end_date is not None:
             raise ValidationError("This period is already closed.")
         if end_date is None:
-            end_date = date_type.today()
+            end_date = date_type.today() + timedelta(days=1)
 
         if end_date < self.start_date:
             raise ValidationError(
@@ -439,16 +435,9 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
 
     def clean(self):
         if self.pk is None and self.entity_id and not self.entity.active:
-            raise ValidationError("Cannot create a financial period for an inactive entity.")
-        if self.amount is not None and self.entity_id:
-            if not self.entity.is_project:
-                raise ValidationError(
-                    "Only project entities can have a profit/loss amount."
-                )
-            if not self.is_closed:
-                raise ValidationError(
-                    "Cannot set profit/loss amount on an open period. Close the period first."
-                )
+            raise ValidationError(
+                "Cannot create a financial period for an inactive entity."
+            )
         if self.entity_id and self.start_date:
             self._validate_no_overlap()
         return super().clean()

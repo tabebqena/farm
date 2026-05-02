@@ -1,15 +1,11 @@
 from datetime import date, timedelta
-from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
-from django.db.models import QuerySet as DjangoQuerySet
 from django.test import TestCase
 
 from apps.app_entity.models import Entity, EntityType
-from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.period import FinancialPeriod
-from apps.app_operation.models.proxies import CashInjectionOperation
 
 User = get_user_model()
 
@@ -138,10 +134,11 @@ class FinancialPeriodModelTest(TestCase):
 
     def test_non_overlapping_sequential_periods_allowed(self):
         period = self._get_auto_period()
-        period.close(TOMORROW, False)
-        # New period starts the day after the closed one ended — no overlap.
-        new_period = FinancialPeriod(entity=self.entity, start_date=TOMORROW)
-        new_period.save()
+        period.close(TOMORROW)
+        # New period automatically created after the closed one ended — no overlap.
+        new_period = FinancialPeriod.objects.get(
+            entity=self.entity, start_date=TOMORROW
+        )
         self.assertIsNotNone(new_period.pk)
 
     # --- is_closed boundaries ---

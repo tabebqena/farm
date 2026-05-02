@@ -5,7 +5,6 @@ from .evaluation import EvaluationCreateView
 from .list import operation_list_view
 from .period import (
     period_close_view,
-    period_create_view,
     period_detail_view,
     period_ledger_view,
     period_list_view,
@@ -53,7 +52,6 @@ __all__ = [
     "DeathCreateView",
     "EvaluationCreateView",
     "period_list_view",
-    "period_create_view",
     "period_detail_view",
     "period_close_view",
     "period_ledger_view",

@@ -1,5 +1,6 @@
 from datetime import date, timedelta
 from decimal import Decimal
+from unittest.mock import PropertyMock, patch
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
@@ -64,15 +65,6 @@ def _force_close_period(period):
     period.refresh_from_db()
 
 
-def _set_period_amount(period, amount):
-    """Set amount on a period, bypassing immutability for test setup."""
-    DjangoQuerySet.update(
-        FinancialPeriod.all_objects.filter(pk=period.pk),
-        amount=amount,
-    )
-    period.refresh_from_db()
-
-
 def _seed_capital_gain(system, destination, amount, officer):
     CapitalGainOperation(
         source=system,
@@ -118,15 +110,23 @@ class PeriodProfitLossPropertiesTest(TestCase):
             self.world, self.shareholder, Decimal("2000.00"), self.officer
         )
 
-        # Close the auto-created period so amount can be set against it
+        # Close the auto-created period so amount can be calculated
         self.period = FinancialPeriod.objects.get(entity=self.project_entity)
         _force_close_period(self.period)
         # Open a new period so the entity remains active for new operations
         FinancialPeriod(entity=self.project_entity, start_date=TODAY).save()
 
     def _make_plan(self, amount):
-        _set_period_amount(self.period, amount)
+        """Patch the period's amount property to return the given amount."""
+        # Patch the amount property on the FinancialPeriod class
+        patch.object(
+            FinancialPeriod, 'amount', new_callable=PropertyMock, return_value=amount
+        ).start()
         return self.period
+
+    def tearDown(self):
+        """Stop all patches."""
+        patch.stopall()
 
     # --- is_profit / is_loss ---
 
