@@ -82,6 +82,20 @@
     </div>
 
     <div class="card shadow-sm">
+      <!-- Legend for column meanings -->
+      <div class="card-body bg-light border-bottom">
+        <div class="row g-3 small">
+          <div class="col-12 col-md-6">
+            <div><strong>{% trans 'Column Legend:' %}</strong></div>
+          </div>
+          <div class="col-12 col-md-6">
+            <div class="d-flex gap-3 flex-wrap">
+              <span><strong>P:</strong> {% trans 'Paid/Settled' %}</span>
+              <span><strong>R:</strong> {% trans 'Remaining' %}</span>
+            </div>
+          </div>
+        </div>
+      </div>
       <div class="list-group list-group-flush">
         {% for op in operations %}
           <div class="list-group-item {% if op.is_reversed %}bg-light opacity-75{% endif %}">

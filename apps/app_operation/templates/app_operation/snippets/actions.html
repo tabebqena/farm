@@ -33,6 +33,21 @@
       </div>
     {% endif %}
 
+    <div class="card border-info shadow-sm mb-3">
+      <div class="card-body">
+        <h6 class="text-info fw-bold">{% trans "Adjustments" %}</h6>
+        <p class="small text-muted">{% trans "Correct the financial amount of this operation." %}</p>
+        <a href="{% url 'record_accounting_adjustment' operation.pk %}" class="btn btn-sm btn-outline-info w-100 mb-2">
+          {% trans "Record Adjustment" %}
+        </a>
+        {% if items %}
+          <a href="{% url 'record_item_adjustment' operation.pk %}" class="btn btn-sm btn-outline-secondary w-100">
+            {% trans "Adjust Invoice Items" %}
+          </a>
+        {% endif %}
+      </div>
+    </div>
+
     <div class="card border-warning shadow-sm">
       <div class="card-body">
         <h6>{% trans "Correction" %}</h6>

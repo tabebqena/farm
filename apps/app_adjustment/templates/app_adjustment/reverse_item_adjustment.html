@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block content %}
+  <div class="container mt-5">
+    <div class="row justify-content-center">
+      <div class="col-md-6">
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb">
+            <li class="breadcrumb-item">
+              <a href="{% url 'operation_detail_view' operation.pk %}">{% trans "Voucher #" %}{{ operation.pk }}</a>
+            </li>
+            <li class="breadcrumb-item active">{% trans "Reverse Item Adjustment" %}</li>
+          </ol>
+        </nav>
+
+        <div class="card border-danger shadow">
+          <div class="card-header bg-danger text-white py-3">
+            <h5 class="mb-0"><i class="bi bi-arrow-counterclockwise me-2"></i>{% trans "Reverse Item Adjustment" %}</h5>
+          </div>
+
+          <div class="card-body">
+            <div class="alert alert-warning border-warning">
+              <h6 class="alert-heading fw-bold"><i class="bi bi-exclamation-triangle"></i> {% trans "Critical Action" %}</h6>
+              <small>{% trans "This will reverse the item adjustment and create counter-transactions." %}</small>
+            </div>
+
+            <div class="bg-light p-3 rounded mb-4 border">
+              <div class="row g-2">
+                <div class="col-6 small text-muted">{% trans "Items Adjusted:" %}</div>
+                <div class="col-6 small fw-bold text-end">{{ item_adjustment.lines.count }}</div>
+
+                <div class="col-6 small text-muted">{% trans "Date:" %}</div>
+                <div class="col-6 small text-end">{{ item_adjustment.date }}</div>
+
+                {% if item_adjustment.adjustment %}
+                  <div class="col-6 small text-muted">{% trans "Financial Impact:" %}</div>
+                  <div class="col-6 small fw-bold text-end">${{ item_adjustment.adjustment.amount }}</div>
+                {% endif %}
+
+                {% if item_adjustment.reason %}
+                  <div class="col-6 small text-muted">{% trans "Reason:" %}</div>
+                  <div class="col-6 small text-end">{{ item_adjustment.reason }}</div>
+                {% endif %}
+              </div>
+            </div>
+
+            <form method="post">
+              {% csrf_token %}
+
+              <div class="mb-4">
+                <label for="reversal_reason" class="form-label fw-bold">{% trans "Reversal Reason" %} <span class="text-danger">*</span></label>
+                <select name="reversal_reason_shortcut" class="form-select mb-2" onchange="document.getElementById('reversal_reason').value = this.value">
+                  <option value="">-- {% trans "Choose a standard reason" %} --</option>
+                  <option value="Data Entry Error">{% trans "Data Entry Error" %}</option>
+                  <option value="Incorrect Items">{% trans "Incorrect Items" %}</option>
+                  <option value="Client/Person Request">{% trans "Client/Person Request" %}</option>
+                </select>
+                <textarea name="reversal_reason" id="reversal_reason" class="form-control" rows="4" placeholder="{% trans 'Provide a detailed explanation for the audit trail...' %}" required></textarea>
+              </div>
+
+              <div class="d-grid gap-2">
+                <button type="submit" class="btn btn-danger btn-lg"><i class="bi bi-shield-lock-fill me-2"></i>{% trans "Execute Reversal" %}</button>
+                <a href="{% url 'operation_detail_view' operation.pk %}" class="btn btn-link text-muted">{% trans "Keep Adjustment & Go Back" %}</a>
+              </div>
+            </form>
+          </div>
+          <div class="card-footer bg-light text-center">
+            <small class="text-muted">{% trans "Logged as:" %} <strong>{{ request.user.entity.name }}</strong></small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

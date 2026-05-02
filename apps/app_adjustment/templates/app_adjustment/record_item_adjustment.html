@@ -1,0 +1,159 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% block content %}
+  <div class="container-fluid px-2 px-sm-4 mt-4">
+    <div class="row">
+      <div class="col-12">
+        <div class="card shadow-sm">
+          <div class="card-header bg-secondary text-white">
+            <h5 class="mb-0">{% trans "Adjust Invoice Items for" %} {{ operation.get_operation_type_display }} #{{ operation.pk }}</h5>
+          </div>
+          <div class="card-body">
+            <div class="mb-4">
+              <label class="text-muted small d-block">{% trans "Operation" %}</label>
+              <span class="fw-bold">{{ operation }}</span>
+            </div>
+
+            <form method="post" novalidate>
+              {% csrf_token %}
+
+              <!-- Items Table -->
+              <div class="table-responsive mb-4">
+                <table class="table table-bordered table-hover">
+                  <thead class="table-light">
+                    <tr>
+                      <th>{% trans "Product" %}</th>
+                      <th class="text-center">{% trans "Original Qty" %}</th>
+                      <th class="text-center">{% trans "New Qty" %}</th>
+                      <th class="text-center">{% trans "Original Price" %}</th>
+                      <th class="text-center">{% trans "New Price" %}</th>
+                      <th class="text-center">{% trans "Remove" %}</th>
+                      <th class="text-end">{% trans "Delta" %}</th>
+                    </tr>
+                  </thead>
+                  <tbody id="itemsTable">
+                    {% for item in items %}
+                      <tr data-item-id="{{ item.pk }}" data-original-qty="{{ item.quantity }}" data-original-price="{{ item.unit_price }}">
+                        <td class="align-middle">
+                          <a href="{% url 'product_detail' item.pk %}" target="_blank">{{ item.product.name }}</a>
+                        </td>
+                        <td class="text-center align-middle">{{ item.quantity }}</td>
+                        <td class="text-center">
+                          <input
+                            type="number"
+                            class="form-control form-control-sm new-quantity"
+                            name="item_{{ item.pk }}_new_quantity"
+                            placeholder="{{ item.quantity }}"
+                            step="0.01"
+                            min="0.01"
+                          />
+                        </td>
+                        <td class="text-center align-middle">${{ item.unit_price }}</td>
+                        <td class="text-center">
+                          <input
+                            type="number"
+                            class="form-control form-control-sm new-price"
+                            name="item_{{ item.pk }}_new_unit_price"
+                            placeholder="{{ item.unit_price }}"
+                            step="0.01"
+                            min="0.01"
+                          />
+                        </td>
+                        <td class="text-center">
+                          <input
+                            type="checkbox"
+                            class="form-check-input is-removed"
+                            name="item_{{ item.pk }}_is_removed"
+                          />
+                        </td>
+                        <td class="text-end align-middle">
+                          <span class="delta fw-bold">$0.00</span>
+                        </td>
+                      </tr>
+                    {% empty %}
+                      <tr>
+                        <td colspan="7" class="text-center text-muted py-4">{% trans "No items found" %}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                  <tfoot class="table-light">
+                    <tr>
+                      <th colspan="6" class="text-end">{% trans "Total Delta:" %}</th>
+                      <th class="text-end"><span class="fw-bold" id="totalDelta">$0.00</span></th>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              <!-- Metadata Fields -->
+              <div class="row mb-3">
+                <div class="col-md-6">
+                  <label class="form-label fw-bold">{% trans "Date" %} <span class="text-danger">*</span></label>
+                  <input type="date" class="form-control" name="date" value="{{ today|date:'Y-m-d' }}" required />
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label fw-bold">{% trans "Reason" %}</label>
+                <textarea class="form-control" name="reason" rows="3" placeholder="{% trans 'Optional explanation for the adjustments' %}"></textarea>
+              </div>
+
+              <button type="submit" class="btn btn-secondary w-100">{% trans "Record Item Adjustment" %}</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const itemsTable = document.getElementById('itemsTable');
+      const totalDeltaSpan = document.getElementById('totalDelta');
+
+      // Function to update delta for a single row
+      function updateRowDelta(row) {
+        const originalQty = parseFloat(row.dataset.originalQty);
+        const originalPrice = parseFloat(row.dataset.originalPrice);
+        const newQtyInput = row.querySelector('.new-quantity');
+        const newPriceInput = row.querySelector('.new-price');
+        const isRemovedCheckbox = row.querySelector('.is-removed');
+        const deltaSpan = row.querySelector('.delta');
+
+        let newQty = newQtyInput.value ? parseFloat(newQtyInput.value) : originalQty;
+        let newPrice = newPriceInput.value ? parseFloat(newPriceInput.value) : originalPrice;
+
+        let delta = 0;
+        if (isRemovedCheckbox.checked) {
+          // If removed, delta is negative of original total
+          delta = -(originalQty * originalPrice);
+          newQtyInput.disabled = true;
+          newPriceInput.disabled = true;
+        } else {
+          delta = (newQty * newPrice) - (originalQty * originalPrice);
+          newQtyInput.disabled = false;
+          newPriceInput.disabled = false;
+        }
+
+        deltaSpan.textContent = delta >= 0 ? `$${delta.toFixed(2)}` : `-$${Math.abs(delta).toFixed(2)}`;
+        return delta;
+      }
+
+      // Function to update total delta
+      function updateTotalDelta() {
+        let total = 0;
+        document.querySelectorAll('#itemsTable tbody tr').forEach(row => {
+          total += updateRowDelta(row);
+        });
+        totalDeltaSpan.textContent = total >= 0 ? `$${total.toFixed(2)}` : `-$${Math.abs(total).toFixed(2)}`;
+      }
+
+      // Add event listeners to all input fields
+      itemsTable.addEventListener('input', updateTotalDelta);
+      itemsTable.addEventListener('change', updateTotalDelta);
+
+      // Initial calculation
+      updateTotalDelta();
+    });
+  </script>
+{% endblock %}

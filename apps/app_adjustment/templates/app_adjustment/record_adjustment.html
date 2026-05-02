@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% block content %}
+  <div class="row justify-content-center">
+    <div class="col-12 col-sm-10 col-md-7 col-lg-5">
+      <div class="card border-info shadow-sm">
+        <div class="card-header bg-info text-white">
+          <h5 class="mb-0">{% trans "Record Adjustment for" %} {{ operation.get_operation_type_display }} #{{ operation.pk }}</h5>
+        </div>
+        <div class="card-body">
+          <div class="mb-4">
+            <label class="text-muted small d-block">{% trans "Operation" %}</label>
+            <span class="fw-bold">{{ operation }}</span>
+          </div>
+
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger alert-dismissible fade show mb-3" role="alert">
+              <div class="d-flex align-items-start">
+                <i class="bi bi-exclamation-triangle-fill me-3 fs-5"></i>
+                <div class="flex-grow-1">
+                  <strong>{% trans "Error" %}</strong>
+                  <ul class="mb-0 mt-2">
+                    {% for error in form.non_field_errors %}
+                      <li>{{ error }}</li>
+                    {% endfor %}
+                  </ul>
+                </div>
+              </div>
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          {% endif %}
+
+          <form method="post" novalidate>
+            {% csrf_token %}
+
+            <div class="mb-3">
+              <label for="{{ form.type.id_for_label }}" class="form-label fw-bold">
+                {{ form.type.label }}
+                <span class="text-danger">*</span>
+              </label>
+              {{ form.type }}
+              {% if form.type.errors %}
+                <div class="invalid-feedback d-block small text-danger">
+                  <i class="bi bi-exclamation-circle me-1"></i>{{ form.type.errors.0 }}
+                </div>
+              {% endif %}
+            </div>
+
+            <div class="mb-3">
+              <label for="{{ form.amount.id_for_label }}" class="form-label fw-bold">
+                {{ form.amount.label }}
+                <span class="text-danger">*</span>
+              </label>
+              <div class="input-group amount-input-group">
+                <span class="input-group-text">$</span>
+                {{ form.amount }}
+              </div>
+              {% if form.amount.errors %}
+                <div class="invalid-feedback d-block small text-danger">
+                  <i class="bi bi-exclamation-circle me-1"></i>{{ form.amount.errors.0 }}
+                </div>
+              {% endif %}
+            </div>
+
+            <div class="mb-3">
+              <label for="{{ form.reason.id_for_label }}" class="form-label fw-bold">
+                {{ form.reason.label }}
+              </label>
+              {{ form.reason }}
+              {% if form.reason.errors %}
+                <div class="invalid-feedback d-block">
+                  {{ form.reason.errors.0 }}
+                </div>
+              {% endif %}
+              <small class="text-muted d-block mt-1" id="reasonHint">{% trans "Required for general adjustment types" %}</small>
+            </div>
+
+            <div class="mb-3">
+              <label for="{{ form.date.id_for_label }}" class="form-label fw-bold">
+                {{ form.date.label }}
+                <span class="text-danger">*</span>
+              </label>
+              {{ form.date }}
+              {% if form.date.errors %}
+                <div class="invalid-feedback d-block">
+                  {{ form.date.errors.0 }}
+                </div>
+              {% endif %}
+            </div>
+
+            <button type="submit" class="btn btn-info w-100">{% trans "Record Adjustment" %}</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

@@ -43,6 +43,14 @@ def operation_detail_view(request, pk):
             "operation_id": operation.pk,
         })
 
+        adjustments = list(operation.adjustments.filter(reversal_of__isnull=True).order_by("date"))
+        item_adjustments = list(operation.item_adjustments.filter(reversal_of__isnull=True).order_by("date"))
+        DebugContext.log("Adjustments fetched", {
+            "adjustment_count": len(adjustments),
+            "item_adjustment_count": len(item_adjustments),
+            "operation_id": operation.pk,
+        })
+
     with DebugContext.section("Computing payment balance", {
         "operation_id": operation.pk,
     }):
@@ -62,6 +70,8 @@ def operation_detail_view(request, pk):
         "operation": operation,
         "transactions": transactions,
         "items": items,
+        "adjustments": adjustments,
+        "item_adjustments": item_adjustments,
         "is_reversed": operation.is_reversed,
         "paid_amount": paid_amount,
         "outstanding_balance": outstanding_balance,

@@ -4,7 +4,6 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from apps.app_entity.models import Entity, EntityType
-from apps.app_entity.models.category import FinancialCategory
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import CapitalGainOperation, ExpenseOperation
 from apps.app_transaction.transaction_type import TransactionType
@@ -52,7 +51,8 @@ def _inject_project(system_entity, dest_entity, amount, officer_user):
 
 
 def _make_expense_category(parent_entity, name="Veterinary Consultation"):
-    from apps.app_operation.models import FinancialCategoriesEntitiesRelations
+    from apps.app_entity.models.category import FinancialCategoriesEntitiesRelations, FinancialCategory
+
 
     cat, _ = FinancialCategory.objects.get_or_create(
         name=name,
@@ -67,7 +67,6 @@ def _make_expense_category(parent_entity, name="Veterinary Consultation"):
 # ---------------------------------------------------------------------------
 # ExpenseCreateTest
 # ---------------------------------------------------------------------------
-
 
 
 class ExpenseCreateTest(TestCase):
@@ -180,11 +179,16 @@ class ExpenseCreateTest(TestCase):
         self.assertTrue(ExpenseOperation.category_required)
 
     def test_expense_category_can_be_created_with_expense_type(self):
+        from apps.app_entity.models.category import FinancialCategoriesEntitiesRelations, FinancialCategory
+
         cat = _make_expense_category(self.project_entity)
 
         self.assertEqual(cat.category_type, "EXPENSE")
         # Verify the relation exists
-        from apps.app_operation.models import FinancialCategoriesEntitiesRelations
+        from apps.app_operation.models.period import (
+            
+        )
+
         self.assertTrue(
             FinancialCategoriesEntitiesRelations.objects.filter(
                 entity=self.project_entity, category=cat
@@ -192,8 +196,9 @@ class ExpenseCreateTest(TestCase):
         )
 
     def test_non_expense_category_type_is_distinct_from_expense(self):
-        from apps.app_operation.models import FinancialCategoriesEntitiesRelations
+        from apps.app_entity.models.category import FinancialCategoriesEntitiesRelations, FinancialCategory
 
+        
         income_cat = FinancialCategory.objects.create(
             name="Animal Sale Income",
             category_type="INCOME",

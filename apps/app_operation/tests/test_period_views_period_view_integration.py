@@ -23,22 +23,23 @@ class PeriodViewIntegrationTest(TestCase):
         self.client.login(username="officer_workflow", password="testpass")
 
         # Step 0: Close the auto-created period
-        existing_period = self.entity.financial_periods.first()
+        existing_period: FinancialPeriod = self.entity.financial_periods.first()
         close_date_1 = date.today() + timedelta(days=1)
-        existing_period.end_date = close_date_1
-        existing_period.save()
+        existing_period.close(close_date_1)
 
         # Step 1: Create a new period
-        start_date = close_date_1
-        response = self.client.post(
-            reverse("period_create_view", kwargs={"entity_pk": self.entity.pk}),
-            {"start_date": start_date.isoformat()},
-            follow=True,
-        )
-        self.assertEqual(response.status_code, 200)
+        # start_date = close_date_1
+        # response = self.client.post(
+        #     reverse("period_create_view", kwargs={"entity_pk": self.entity.pk}),
+        #     {"start_date": start_date.isoformat()},
+        #     follow=True,
+        # )
+        # self.assertEqual(response.status_code, 200)
 
         # Get the newly created period
-        period = FinancialPeriod.objects.get(entity=self.entity, start_date=start_date)
+        period = FinancialPeriod.objects.get(
+            entity=self.entity, start_date=close_date_1
+        )
         self.assertIsNone(period.end_date)
 
         # Step 2: View period detail

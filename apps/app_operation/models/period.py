@@ -156,6 +156,7 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
     def previous_balance(self) -> Decimal:
         """Entity fund balance as of start_date (beginning balance for this period)."""
         from datetime import timedelta
+
         day_before = self.start_date - timedelta(days=1)
         return self.entity.balance_at(day_before)
 
@@ -188,12 +189,14 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
     def cash_in(self) -> Decimal:
         """Total incoming cash payments as of as_of."""
         from apps.app_transaction.transaction_type import TransactionType
+
         return self._incoming_tx_sum(TransactionType.payment_types(), self.as_of)
 
     @property
     def cash_out(self) -> Decimal:
         """Total outgoing cash payments as of as_of."""
         from apps.app_transaction.transaction_type import TransactionType
+
         return self._outgoing_tx_sum(TransactionType.payment_types(), self.as_of)
 
     @property
@@ -244,6 +247,7 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
     def inventory_value_previous(self) -> Decimal:
         """Inventory value at start_date."""
         from apps.app_inventory.models import ProductLedgerEntry
+
         return ProductLedgerEntry.inventory_value_at(self.entity, self.start_date)
 
     @property
@@ -254,7 +258,9 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
     @property
     def inventory_value_out(self) -> Decimal:
         """Inventory reduced/sold during the period."""
-        return max(Decimal("0.00"), self.inventory_value_previous - self.inventory_value)
+        return max(
+            Decimal("0.00"), self.inventory_value_previous - self.inventory_value
+        )
 
     @property
     def inventory_value_end(self) -> Optional[Decimal]:
@@ -262,12 +268,14 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
         if self.end_date is None:
             return None
         from apps.app_inventory.models import ProductLedgerEntry
+
         return ProductLedgerEntry.inventory_value_at(self.entity, self.end_date)
 
     @property
     def inventory_value(self) -> Decimal:
         """Net book value of inventory as of as_of, derived from ProductLedgerEntry."""
         from apps.app_inventory.models import ProductLedgerEntry
+
         return ProductLedgerEntry.inventory_value_at(self.entity, self.as_of)
 
     @property
@@ -396,9 +404,7 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
         self.save()
         return self
 
-    def close(
-        self, end_date: Optional[date_type] = None, auto_create_next=True
-    ) -> "FinancialPeriod | None":
+    def close(self, end_date: Optional[date_type] = None) -> "FinancialPeriod | None":
         """
         Close this period by setting end_date.
         If the entity is still active, automatically opens the next period
@@ -417,7 +423,7 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
 
         self.end_date = end_date
         self.save()
-        if self.entity.active and auto_create_next:
+        if self.entity.active:
             next_period = FinancialPeriod(entity=self.entity, start_date=end_date)
             next_period.save()
             return next_period

@@ -2,5 +2,10 @@
     "html.format.templating": true,
     "djangoTemplateExtension.wrapDjangoTagsInComments": false,
     "todo-tree.tree.showBadges": false,
-    "todo-tree.tree.disableCompactFolders": true
+    "todo-tree.tree.disableCompactFolders": true,
+    "python.testing.pytestArgs": [
+        "."
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true
 }

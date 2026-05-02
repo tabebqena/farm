@@ -53,12 +53,15 @@ def _inject_project(system_entity, dest_entity, amount, officer_user):
     ).save()
 
 
-def _make_expense_category(parent_entity, name="Veterinary Consultation"):
-    from apps.app_operation.models import FinancialCategoriesEntitiesRelations
+def _make_expense_category(
+    parent_entity, name="Veterinary Consultation", aspect="Medications"
+):
+    from apps.app_entity.models.category import FinancialCategoriesEntitiesRelations
 
     cat, _ = FinancialCategory.objects.get_or_create(
         name=name,
-        defaults={"category_type": "EXPENSE", "is_active": True},
+        aspect=aspect,
+        defaults={"category_type": "EXPENSE"},
     )
     FinancialCategoriesEntitiesRelations.objects.get_or_create(
         entity=parent_entity, category=cat, defaults={"max_limit": Decimal("0.00")}
@@ -185,7 +188,8 @@ class ExpenseCreateTest(TestCase):
 
         self.assertEqual(cat.category_type, "EXPENSE")
         # Verify the relation exists
-        from apps.app_operation.models import FinancialCategoriesEntitiesRelations
+        from apps.app_entity.models.category import FinancialCategoriesEntitiesRelations
+
         self.assertTrue(
             FinancialCategoriesEntitiesRelations.objects.filter(
                 entity=self.project_entity, category=cat
@@ -193,10 +197,11 @@ class ExpenseCreateTest(TestCase):
         )
 
     def test_non_expense_category_type_is_distinct_from_expense(self):
-        from apps.app_operation.models import FinancialCategoriesEntitiesRelations
+        from apps.app_entity.models.category import FinancialCategoriesEntitiesRelations
 
         income_cat = FinancialCategory.objects.create(
             name="Animal Sale Income",
+            aspect="Sale",
             category_type="INCOME",
         )
         FinancialCategoriesEntitiesRelations.objects.create(

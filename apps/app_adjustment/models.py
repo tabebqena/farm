@@ -78,6 +78,12 @@ class AdjustmentType(models.TextChoices):
     )
 
     # ==========================
+    # EXPENSE ADJUSTMENTS
+    # ==========================
+    EXPENSE_GENERAL_INCREASE = "EXP_G_INC", _("Expense: Increase")
+    EXPENSE_GENERAL_REDUCTION = "EXP_G_RED", _("Expense: Decrease")
+
+    # ==========================
     # INVOICE ITEM CORRECTIONS
     # ==========================
     PURCHASE_ITEM_CORRECTION_INCREASE = "PUR_ITEM_INC", _(
@@ -112,6 +118,8 @@ class AdjustmentType(models.TextChoices):
             AdjustmentType.PURCHASE_GENERAL_REDUCTION,
             AdjustmentType.SALE_GENERAL_INCREASE,
             AdjustmentType.SALE_GENERAL_REDUCTION,
+            AdjustmentType.EXPENSE_GENERAL_INCREASE,
+            AdjustmentType.EXPENSE_GENERAL_REDUCTION,
         )
 
     @classmethod
@@ -136,6 +144,7 @@ class AdjustmentType(models.TextChoices):
             AdjustmentType.SALE_WRITE_OFF,
             AdjustmentType.PURCHASE_GENERAL_REDUCTION,
             AdjustmentType.SALE_GENERAL_REDUCTION,
+            AdjustmentType.EXPENSE_GENERAL_REDUCTION,
             AdjustmentType.PURCHASE_ITEM_CORRECTION_DECREASE,
             AdjustmentType.SALE_ITEM_CORRECTION_DECREASE,
         )

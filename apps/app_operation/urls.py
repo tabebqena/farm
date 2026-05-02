@@ -165,6 +165,26 @@ urlpatterns = [
         name="record_transaction_payment",
     ),
     path(
+        "<int:pk>/adjustment/create",
+        views.record_accounting_adjustment,
+        name="record_accounting_adjustment",
+    ),
+    path(
+        "<int:pk>/adjustment/items/create",
+        views.record_item_adjustment,
+        name="record_item_adjustment",
+    ),
+    path(
+        "adjustment/<int:adjustment_id>/reverse/",
+        views.reverse_adjustment,
+        name="reverse_adjustment",
+    ),
+    path(
+        "adjustment/item/<int:item_adjustment_id>/reverse/",
+        views.reverse_item_adjustment,
+        name="reverse_item_adjustment",
+    ),
+    path(
         "<int:pk>/detail/",
         views.operation_detail_view,
         name="operation_detail_view",

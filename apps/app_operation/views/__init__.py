@@ -36,6 +36,12 @@ from .sale_wizard import (
 )
 from .record_transaction import record_transaction_payment, record_transaction_repayment
 from .reverse import operation_reverse_view
+from .adjustment import (
+    record_accounting_adjustment,
+    record_item_adjustment,
+    reverse_adjustment,
+    reverse_item_adjustment,
+)
 
 __all__ = [
     "operation_list_view",
@@ -69,4 +75,8 @@ __all__ = [
     "operation_reverse_view",
     "record_transaction_repayment",
     "record_transaction_payment",
+    "record_accounting_adjustment",
+    "record_item_adjustment",
+    "reverse_adjustment",
+    "reverse_item_adjustment",
 ]
