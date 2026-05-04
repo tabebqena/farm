@@ -1,0 +1,157 @@
+{% load i18n %}
+
+{# ── Section: Repayment Transactions ── #}
+<div class="border-bottom bg-warning-subtle bg-opacity-10">
+  <div class="d-flex align-items-center px-3 pt-3 pb-2">
+    <span class="flex-grow-1">
+      <i class="bi bi-arrow-return-left me-2 text-warning"></i>
+      <span class="fw-semibold">{{ operation.repayment_label|default:_('Repayment Transactions') }}</span>
+      <span class="badge bg-warning text-dark ms-2">{{ repayment_transactions|length }}</span>
+    </span>
+    <a href="{% url 'record_transaction_repayment' operation.pk %}" class="btn btn-outline-warning bg-white"><i class="bi bi-cash-coin me-1"></i> {% trans 'Record Repayment' %}</a>
+  </div>
+
+  {% if repayment_transactions %}
+    <div class="table-responsive">
+      <table class="table table-sm table-borderless mb-0">
+        <thead class="table-warning">
+          <tr>
+            <th class="py-2 ps-3">
+              {% trans 'Date' %}
+            </th>
+            <th class="py-2 text-end">
+              {% trans 'Amount' %}
+            </th>
+            <th class="py-2">
+              {% trans 'Description' %}
+            </th>
+            <th class="py-2 text-center">
+              {% trans 'Status' %}
+            </th>
+            <th class="py-2 text-center pe-3">
+              {% trans 'Actions' %}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for tx in repayment_transactions %}
+            <tr class="{% if tx.is_reversed %}table-danger{% endif %}">
+              <td class="py-2 ps-3 text-nowrap">{{ tx.date|date:'Y-m-d' }}</td>
+              <td class="py-2 text-end text-nowrap fw-semibold">{{ currency }}{{ tx.amount }}</td>
+              <td class="py-2">
+                {% if tx.description|length > 50 %}
+                  <span class="tx-description-short">{{ tx.description|truncatechars:50 }}</span>
+                  <span class="tx-description-full d-none">{{ tx.description }}</span>
+                  <button class="btn btn-sm btn-link p-0 text-muted tx-toggle-btn" data-bs-toggle="collapse" data-bs-target="#repay-desc-{{ tx.pk }}" aria-expanded="false" title="{% trans 'Toggle full description' %}"><i class="bi bi-arrows-expand"></i></button>
+                  <div class="collapse" id="repay-desc-{{ tx.pk }}">
+                    <span class="text-muted small">{{ tx.description }}</span>
+                  </div>
+                {% else %}
+                  {{ tx.description }}
+                {% endif %}
+              </td>
+              <td class="py-2 text-center">
+                {% if tx.is_reversed %}
+                  <span class="badge bg-danger">{% trans 'REVERSED' %}</span>
+                {% elif tx.is_reversal %}
+                  <span class="badge bg-secondary">{% trans 'REVERSAL' %}</span>
+                {% else %}
+                  <span class="badge bg-success">{% trans 'ACTIVE' %}</span>
+                {% endif %}
+              </td>
+              <td class="py-2 text-center text-nowrap pe-3">
+                {% if not tx.is_reversed and not tx.is_reversal %}
+                  <a href="{% url 'transaction_reverse_view' tx.pk %}" class="btn btn-sm btn-outline-danger" title="{% trans 'Reverse this transaction' %}"><i class="bi bi-arrow-counterclockwise"></i></a>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="px-3 pb-3">
+      <div class="text-center py-3 text-muted">
+        <i class="bi bi-inbox me-1"></i>
+        {% trans 'No repayment transactions have been recorded for this operation.' %}
+      </div>
+      {% if not operation.is_fully_repayed %}
+        <div class="text-center pb-2">
+          <a href="{% url 'record_transaction_repayment' operation.pk %}" class="btn btn-warning"><i class="bi bi-arrow-return-left me-1"></i> {% trans 'Record Repayment' %}</a>
+        </div>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  {# ── Repayment Summary ── #}
+  <div class="repayment-summary border-top border-warning border-opacity-25">
+    <table class="table table-borderless mb-0">
+      <tbody>
+        <tr>
+          <td class="ps-3 py-3 text-muted small fw-semibold" style="width: 40%;">
+            {% trans 'Total Repaid' %}
+          </td>
+          <td class="py-3 text-end fw-bold fs-5 pe-3">{{ currency }}{{ operation.amount_repayed }}</td>
+        </tr>
+        {% if operation.is_overpaid_repayed %}
+          <tr>
+            <td class="ps-3 py-2 text-muted small fw-semibold">
+              <i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>{% trans 'Over-repayment' %}
+            </td>
+            <td class="py-2 text-end fw-semibold text-warning pe-3">+{{ currency }}{{ over_repayment_amount }}</td>
+          </tr>
+        {% endif %}
+        <tr class="{% if operation.is_fully_repayed %}border-top border-2{% endif %}">
+          <td class="ps-3 py-3 fw-bold
+                    {% if operation.is_fully_repayed %}
+              
+              
+              
+                      text-success
+
+
+
+            {% else %}
+              
+              
+              
+                      text-danger
+
+
+
+            {% endif %}">
+            {% if operation.is_fully_repayed %}
+              <i class="bi bi-check-circle-fill me-1"></i> {% trans 'Fully Repaid' %}
+            {% else %}
+              {% trans 'Remaining to Repay' %}
+            {% endif %}
+          </td>
+          <td class="py-3 text-end fw-bold fs-5 pe-3
+                    {% if operation.is_fully_repayed %}
+              
+              
+              
+                      text-success
+
+
+
+            {% else %}
+              
+              
+              
+                      text-danger
+
+
+
+            {% endif %}">
+            {% if operation.is_fully_repayed %}
+              <span class="badge bg-success fs-6 px-3 py-2">{{ currency }}0.00</span>
+            {% else %}
+              {{ currency }}{{ operation.amount_remaining_to_repay }}
+            {% endif %}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

@@ -24,10 +24,10 @@ from apps.app_operation.models.operation_type import OperationType
 @debug_view
 def record_accounting_adjustment(request, pk):
     """Record a simple accounting adjustment on a PURCHASE, SALE, or EXPENSE operation."""
-    operation = get_object_or_404(Operation, pk=pk)
+    operation: Operation = get_object_or_404(Operation, pk=pk)
 
     # Cast to proxy to check operation-specific config
-    proxy_operation = operation.cast()
+    proxy_operation = Operation.objects.cast(operation)
 
     # Guards: operation type and reversal status
     if operation.operation_type not in (
@@ -53,9 +53,7 @@ def record_accounting_adjustment(request, pk):
             operation_type=operation.operation_type,
         )
         context = {"form": form, "operation": operation}
-        return render(
-            request, "app_adjustment/record_adjustment.html", context
-        )
+        return render(request, "app_adjustment/record_adjustment.html", context)
 
     # POST
     form = AccountingAdjustmentForm(
@@ -65,9 +63,7 @@ def record_accounting_adjustment(request, pk):
     if not form.is_valid():
         context = {"form": form, "operation": operation}
         messages.error(request, _("Please correct the errors below."))
-        return render(
-            request, "app_adjustment/record_adjustment.html", context
-        )
+        return render(request, "app_adjustment/record_adjustment.html", context)
 
     try:
         # Create and save the adjustment
@@ -95,9 +91,7 @@ def record_accounting_adjustment(request, pk):
             request.POST, operation_type=operation.operation_type
         )
         context = {"form": form, "operation": operation}
-        return render(
-            request, "app_adjustment/record_adjustment.html", context
-        )
+        return render(request, "app_adjustment/record_adjustment.html", context)
 
 
 @debug_view
@@ -106,13 +100,15 @@ def record_item_adjustment(request, pk):
     operation = get_object_or_404(Operation, pk=pk)
 
     # Cast to proxy to check operation-specific config
-    proxy_operation = operation.cast()
+    proxy_operation = Operation.objects.cast(operation)
 
     # Guards: operation type and has_invoice
     if operation.operation_type not in (OperationType.PURCHASE, OperationType.SALE):
         messages.warning(
             request,
-            _("Invoice item adjustments are only allowed on Purchase or Sale operations."),
+            _(
+                "Invoice item adjustments are only allowed on Purchase or Sale operations."
+            ),
         )
         return redirect("operation_detail_view", pk=pk)
 
@@ -138,9 +134,7 @@ def record_item_adjustment(request, pk):
             "items": items,
             "today": timezone.now().date(),
         }
-        return render(
-            request, "app_adjustment/record_item_adjustment.html", context
-        )
+        return render(request, "app_adjustment/record_item_adjustment.html", context)
 
     # POST: parse per-item changes and create InvoiceItemAdjustment
     date = request.POST.get("date")
@@ -149,6 +143,7 @@ def record_item_adjustment(request, pk):
     # Validate date
     try:
         from django.forms.fields import DateField as DjangoDateField
+
         date_field = DjangoDateField()
         date = date_field.clean(date)
     except forms.ValidationError as e:
@@ -158,9 +153,7 @@ def record_item_adjustment(request, pk):
             "items": items,
             "today": timezone.now().date(),
         }
-        return render(
-            request, "app_adjustment/record_item_adjustment.html", context
-        )
+        return render(request, "app_adjustment/record_item_adjustment.html", context)
 
     # Collect changed items
     changed_items_data = []
@@ -227,9 +220,7 @@ def record_item_adjustment(request, pk):
             "items": items,
             "today": timezone.now().date(),
         }
-        return render(
-            request, "app_adjustment/record_item_adjustment.html", context
-        )
+        return render(request, "app_adjustment/record_item_adjustment.html", context)
 
     # Determine the item adjustment type based on operation type
     if operation.operation_type == OperationType.PURCHASE:
@@ -278,9 +269,7 @@ def record_item_adjustment(request, pk):
             "items": items,
             "today": timezone.now().date(),
         }
-        return render(
-            request, "app_adjustment/record_item_adjustment.html", context
-        )
+        return render(request, "app_adjustment/record_item_adjustment.html", context)
 
 
 @debug_view
@@ -289,16 +278,22 @@ def reverse_adjustment(request, adjustment_id):
     adjustment = get_object_or_404(Adjustment, pk=adjustment_id)
     operation = adjustment.operation
 
-    with DebugContext.section("Fetching adjustment for reversal", {
-        "adjustment_pk": adjustment_id,
-        "operation_pk": operation.pk,
-        "user": request.user.username,
-    }):
-        DebugContext.success("Adjustment loaded", {
-            "adjustment_id": adjustment.pk,
-            "type": adjustment.type,
-            "amount": float(adjustment.amount),
-        })
+    with DebugContext.section(
+        "Fetching adjustment for reversal",
+        {
+            "adjustment_pk": adjustment_id,
+            "operation_pk": operation.pk,
+            "user": request.user.username,
+        },
+    ):
+        DebugContext.success(
+            "Adjustment loaded",
+            {
+                "adjustment_id": adjustment.pk,
+                "type": adjustment.type,
+                "amount": float(adjustment.amount),
+            },
+        )
 
     # Safety checks
     if adjustment.is_reversed:
@@ -314,7 +309,9 @@ def reverse_adjustment(request, adjustment_id):
         return redirect("operation_detail_view", pk=operation.pk)
 
     if operation.is_reversed or operation.is_reversal:
-        error_msg = _("Cannot reverse an adjustment on a reversed or reversal operation.")
+        error_msg = _(
+            "Cannot reverse an adjustment on a reversed or reversal operation."
+        )
         DebugContext.warn(error_msg, {"operation_id": operation.pk})
         messages.warning(request, error_msg)
         return redirect("operation_detail_view", pk=operation.pk)
@@ -322,10 +319,13 @@ def reverse_adjustment(request, adjustment_id):
     officer = request.user
 
     if request.method == "POST":
-        with DebugContext.section("Processing adjustment reversal", {
-            "adjustment_id": adjustment.pk,
-            "officer": officer.username,
-        }):
+        with DebugContext.section(
+            "Processing adjustment reversal",
+            {
+                "adjustment_id": adjustment.pk,
+                "officer": officer.username,
+            },
+        ):
             reason = request.POST.get("reversal_reason", "").strip()
 
             if not reason:
@@ -341,10 +341,13 @@ def reverse_adjustment(request, adjustment_id):
                             reason=reason,
                         )
 
-                    DebugContext.success("Adjustment reversed successfully", {
-                        "adjustment_id": adjustment.pk,
-                        "type": adjustment.type,
-                    })
+                    DebugContext.success(
+                        "Adjustment reversed successfully",
+                        {
+                            "adjustment_id": adjustment.pk,
+                            "type": adjustment.type,
+                        },
+                    )
                     DebugContext.audit(
                         action="adjustment_reversed",
                         entity_type="Adjustment",
@@ -355,12 +358,10 @@ def reverse_adjustment(request, adjustment_id):
                             "reason": reason,
                             "officer": officer.username,
                         },
-                        user=request.user.username
+                        user=request.user.username,
                     )
 
-                    messages.success(
-                        request, _("Adjustment reversed successfully.")
-                    )
+                    messages.success(request, _("Adjustment reversed successfully."))
                     return redirect("operation_detail_view", pk=operation.pk)
 
                 except Exception as e:
@@ -371,13 +372,15 @@ def reverse_adjustment(request, adjustment_id):
                         "officer": officer.username,
                         "traceback": traceback.format_exc(),
                     }
-                    DebugContext.error("Adjustment reversal failed", e, data=error_details)
+                    DebugContext.error(
+                        "Adjustment reversal failed", e, data=error_details
+                    )
                     DebugContext.audit(
                         action="adjustment_reversal_failed",
                         entity_type="Adjustment",
                         entity_id=adjustment.pk,
                         details=error_details,
-                        user=request.user.username
+                        user=request.user.username,
                     )
                     traceback.print_exc()
                     messages.error(request, _("Reversal failed: {}").format(str(e)))
@@ -395,15 +398,21 @@ def reverse_item_adjustment(request, item_adjustment_id):
     item_adjustment = get_object_or_404(InvoiceItemAdjustment, pk=item_adjustment_id)
     operation = item_adjustment.operation
 
-    with DebugContext.section("Fetching item adjustment for reversal", {
-        "item_adjustment_pk": item_adjustment_id,
-        "operation_pk": operation.pk,
-        "user": request.user.username,
-    }):
-        DebugContext.success("Item adjustment loaded", {
-            "item_adjustment_id": item_adjustment.pk,
-            "type": item_adjustment.type,
-        })
+    with DebugContext.section(
+        "Fetching item adjustment for reversal",
+        {
+            "item_adjustment_pk": item_adjustment_id,
+            "operation_pk": operation.pk,
+            "user": request.user.username,
+        },
+    ):
+        DebugContext.success(
+            "Item adjustment loaded",
+            {
+                "item_adjustment_id": item_adjustment.pk,
+                "type": item_adjustment.type,
+            },
+        )
 
     # Safety checks
     if item_adjustment.is_reversed:
@@ -419,7 +428,9 @@ def reverse_item_adjustment(request, item_adjustment_id):
         return redirect("operation_detail_view", pk=operation.pk)
 
     if operation.is_reversed or operation.is_reversal:
-        error_msg = _("Cannot reverse an item adjustment on a reversed or reversal operation.")
+        error_msg = _(
+            "Cannot reverse an item adjustment on a reversed or reversal operation."
+        )
         DebugContext.warn(error_msg, {"operation_id": operation.pk})
         messages.warning(request, error_msg)
         return redirect("operation_detail_view", pk=operation.pk)
@@ -427,10 +438,13 @@ def reverse_item_adjustment(request, item_adjustment_id):
     officer = request.user
 
     if request.method == "POST":
-        with DebugContext.section("Processing item adjustment reversal", {
-            "item_adjustment_id": item_adjustment.pk,
-            "officer": officer.username,
-        }):
+        with DebugContext.section(
+            "Processing item adjustment reversal",
+            {
+                "item_adjustment_id": item_adjustment.pk,
+                "officer": officer.username,
+            },
+        ):
             reason = request.POST.get("reversal_reason", "").strip()
 
             if not reason:
@@ -446,10 +460,13 @@ def reverse_item_adjustment(request, item_adjustment_id):
                             reason=reason,
                         )
 
-                    DebugContext.success("Item adjustment reversed successfully", {
-                        "item_adjustment_id": item_adjustment.pk,
-                        "type": item_adjustment.type,
-                    })
+                    DebugContext.success(
+                        "Item adjustment reversed successfully",
+                        {
+                            "item_adjustment_id": item_adjustment.pk,
+                            "type": item_adjustment.type,
+                        },
+                    )
                     DebugContext.audit(
                         action="item_adjustment_reversed",
                         entity_type="InvoiceItemAdjustment",
@@ -459,7 +476,7 @@ def reverse_item_adjustment(request, item_adjustment_id):
                             "reason": reason,
                             "officer": officer.username,
                         },
-                        user=request.user.username
+                        user=request.user.username,
                     )
 
                     messages.success(
@@ -475,13 +492,15 @@ def reverse_item_adjustment(request, item_adjustment_id):
                         "officer": officer.username,
                         "traceback": traceback.format_exc(),
                     }
-                    DebugContext.error("Item adjustment reversal failed", e, data=error_details)
+                    DebugContext.error(
+                        "Item adjustment reversal failed", e, data=error_details
+                    )
                     DebugContext.audit(
                         action="item_adjustment_reversal_failed",
                         entity_type="InvoiceItemAdjustment",
                         entity_id=item_adjustment.pk,
                         details=error_details,
-                        user=request.user.username
+                        user=request.user.username,
                     )
                     traceback.print_exc()
                     messages.error(request, _("Reversal failed: {}").format(str(e)))

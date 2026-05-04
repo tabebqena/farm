@@ -1,0 +1,86 @@
+{% load i18n %}
+{# Payment Transactions Table #}
+<hr class="my-3" />
+<div class="payment-transactions">
+  <div class="d-flex align-items-center mb-2">
+    <i class="bi bi-credit-card me-2"></i>
+    <span class="fw-semibold">{% trans 'Payment Transactions' %}</span>
+    <span class="badge bg-secondary ms-2">{{ payment_transactions|length }}</span>
+  </div>
+  {% if payment_transactions %}
+    <div class="table-responsive">
+      <table class="table table-sm table-borderless mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="py-1 ps-2">
+              {% trans 'Date' %}
+            </th>
+            <th class="py-1">
+              {% trans 'Amount' %}
+            </th>
+            <th class="py-1">
+              {% trans 'Description' %}
+            </th>
+            <th class="py-1 text-center">
+              {% trans 'Status' %}
+            </th>
+            <th class="py-1 text-center">
+              {% trans 'Actions' %}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for tx in payment_transactions %}
+            <tr class="{% if tx.is_reversed %}table-danger{% endif %}">
+              <td class="py-1 ps-2 text-nowrap">{{ tx.date|date:'Y-m-d' }}</td>
+              <td class="py-1 text-nowrap">{{ currency }}{{ tx.amount }}</td>
+              <td class="py-1">
+                {% if tx.description|length > 50 %}
+                  <span class="tx-description-short">{{ tx.description|truncatechars:50 }}</span>
+                  <span class="tx-description-full d-none">{{ tx.description }}</span>
+                  <button class="btn btn-sm btn-link p-0 text-muted tx-toggle-btn" data-bs-toggle="collapse" data-bs-target="#tx-desc-{{ tx.pk }}" aria-expanded="false" title="{% trans 'Toggle full description' %}"><i class="bi bi-arrows-expand"></i></button>
+                  <div class="collapse" id="tx-desc-{{ tx.pk }}">
+                    <span class="text-muted small">{{ tx.description }}</span>
+                  </div>
+                {% else %}
+                  {{ tx.description }}
+                {% endif %}
+              </td>
+              <td class="py-1 text-center">
+                {% if tx.is_reversed %}
+                  <span class="badge bg-danger">{% trans 'REVERSED' %}</span>
+                {% elif tx.is_reversal %}
+                  <span class="badge bg-secondary">{% trans 'REVERSAL' %}</span>
+                {% else %}
+                  <span class="badge bg-success">{% trans 'ACTIVE' %}</span>
+                {% endif %}
+              </td>
+              <td class="py-1 text-center text-nowrap">
+                {% if not tx.is_reversed and not tx.is_reversal %}
+                  <a href="{% url 'transaction_reverse_view' tx.pk %}" class="btn btn-sm btn-outline-danger" title="{% trans 'Reverse this transaction' %}"><i class="bi bi-arrow-counterclockwise"></i></a>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="text-center">
+      {% trans 'No payment transactions has been recorded for this operation.' %}
+    </div>
+    <div class="card border-success shadow-sm mb-3 mb-lg-4">
+      <div class="card-body">
+        {% if operation.is_fully_settled %}
+          <p class="small text-muted mt-2">
+            {% trans 'This operation is fully settled.' %}
+          </p>
+        {% else %}
+          <div class="d-flex align-items-center justify-content-center gap-2 flex-wrap w-100">
+            <a href="{% url 'record_transaction_payment' operation.pk %}" class="btn btn-success w-25"><i class="bi bi-cash-coin me-1"></i> {% trans 'Record Payment' %}</a>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+</div>

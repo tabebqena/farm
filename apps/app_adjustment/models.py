@@ -186,15 +186,26 @@ class Adjustment(
     # Source always pays target — consistent with all other operation types.
     @property
     def payment_source_fund(self):
+        op = self._cast_operation()
         if AdjustmentType.is_reduction(self.type):
-            return self.operation.payment_target_fund
-        return self.operation.payment_source_fund
+            return op.payment_target_fund
+        return op.payment_source_fund
 
     @property
     def payment_target_fund(self):
+        op = self._cast_operation()
         if AdjustmentType.is_reduction(self.type):
-            return self.operation.payment_source_fund
-        return self.operation.payment_target_fund
+            return op.payment_source_fund
+        return op.payment_target_fund
+
+    def _cast_operation(self):
+        """Return self.operation cast to its proper proxy subclass."""
+        op = self.operation
+        from apps.app_operation.models.proxies import PROXY_MAP
+        proxy_cls = PROXY_MAP.get(op.operation_type)
+        if proxy_cls:
+            op.__class__ = proxy_cls
+        return op
 
     @property
     def _issuance_transaction_type(self):

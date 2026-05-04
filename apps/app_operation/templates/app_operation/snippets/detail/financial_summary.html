@@ -1,0 +1,32 @@
+{% load i18n %}
+{# Invoice-Style Financial Summary #}
+<div class="row g-2 g-sm-3 g-md-4">
+  <div class="col-12 order-first order-lg-0">
+    <div class="card shadow-sm mb-3 border-0">
+      {# ── Header ── #}
+      <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2">
+        <span class="fw-bold flex-grow-1"><i class="bi bi-receipt me-1"></i> {% trans 'Invoice Summary' %}</span>
+        <div class="d-flex gap-1">
+          {% if operation.max_payment_transaction_count < 0 %}
+            <a href="{% url 'record_transaction_payment' operation.pk %}" class="btn btn-sm btn-outline-success text-white border-success"><i class="bi bi-cash-coin me-1"></i>{% trans 'Record Payment' %}</a>
+          {% endif %}
+          {% if operation.is_adjustable %}
+            <a href="{% url 'record_accounting_adjustment' operation.pk %}" class="btn btn-sm btn-outline-light"><i class="bi bi-pencil-square me-1"></i>{% trans 'Accounting Adj.' %}</a>
+          {% endif %}
+        </div>
+      </div>
+      <div class="card-body p-0">
+        {% include 'app_operation/snippets/detail/invoice_total_amount.html' %}
+        {% if not is_one_shot_operation %}
+          {% include 'app_operation/snippets/detail/invoice_payment_transaction.html' %}
+          {% include 'app_operation/snippets/detail/invoice_settlement_summary.html' %}
+        {% endif %}
+
+        {% if operation.has_repayment %}
+          {% comment %} <hr class="my-3" /> {% endcomment %}
+          {% include 'app_operation/snippets/detail/invoice_repayment_summary.html' %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>

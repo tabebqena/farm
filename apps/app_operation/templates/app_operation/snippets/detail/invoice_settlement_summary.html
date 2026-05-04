@@ -1,0 +1,113 @@
+{% load i18n %}
+
+{# ── Section 3: Settlement Summary ── #}
+<div class="settlement-summary">
+  <table class="table table-borderless mb-0">
+    <tbody>
+      <tr>
+        <td class="ps-3 py-3 text-muted small fw-semibold" style="width: 40%;">
+          {% trans 'Total Paid' %}
+        </td>
+        <td class="py-3 text-end fw-bold fs-5 pe-3">{{ currency }}{{ operation.amount_settled }}</td>
+      </tr>
+      {% if operation.is_overpayed_settled %}
+        <tr>
+          <td class="ps-3 py-2 text-muted small fw-semibold">
+            <i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>{% trans 'Overpayment' %}
+          </td>
+          <td class="py-2 text-end fw-semibold text-warning pe-3">+{{ currency }}{{ overpayment_amount }}</td>
+        </tr>
+      {% endif %}
+      <tr class="{% if operation.is_fully_settled %}border-top border-2{% endif %}">
+        <td class="ps-3 py-3 fw-bold
+                  {% if operation.is_fully_settled %}
+            
+            
+            
+            
+                    
+                    
+                    
+                    
+                    text-success
+
+
+
+
+
+
+
+
+          {% else %}
+            
+            
+            
+            
+                    
+                    
+                    
+                    
+                    text-danger
+
+
+
+
+
+
+
+
+          {% endif %}">
+          {% if operation.is_fully_settled %}
+            <i class="bi bi-check-circle-fill me-1"></i> {% trans 'Fully Paid' %}
+          {% else %}
+            {% trans 'Remaining Balance' %}
+          {% endif %}
+        </td>
+        <td class="py-3 text-end fw-bold fs-5 pe-3
+                  {% if operation.is_fully_settled %}
+            
+            
+            
+            
+                    
+                    
+                    
+                    
+                    text-success
+
+
+
+
+
+
+
+
+          {% else %}
+            
+            
+            
+            
+                    
+                    
+                    
+                    
+                    text-danger
+
+
+
+
+
+
+
+
+          {% endif %}">
+          {% if operation.is_fully_settled %}
+            <span class="badge bg-success fs-6 px-3 py-2">Remaining: {{ currency }}0.00</span>
+          {% else %}
+            {{ currency }}{{ operation.amount_remaining_to_settle }}
+          {% endif %}
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>

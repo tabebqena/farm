@@ -26,6 +26,9 @@ class PurchaseOperation(Operation):
     creates_assets = True
     category_type = "PURCHASE"
 
+    is_adjustable = True
+    is_items_adjustable = True
+
     class Meta:
         proxy = True
         verbose_name = "Purchase"

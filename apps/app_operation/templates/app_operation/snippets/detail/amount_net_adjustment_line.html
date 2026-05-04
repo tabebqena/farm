@@ -1,0 +1,28 @@
+{% load i18n %}
+<div class="d-flex align-items-center justify-content-around gap-2 flex-wrap w-100">
+  <span class="fw-bold fs-5">{{ currency }}{{ operation.amount }}</span>
+  {% if adjustments %}
+    <span class="text-muted">|</span>
+    <a href="#adjustments-list" class="text-decoration-none">
+      <span class="fw-bold fs-5 {% if net_adjustment < 0 %}
+          
+          text-danger
+
+        {% elif net_adjustment > 0 %}
+          
+          text-success
+
+        {% endif %}">
+        {% if net_adjustment < 0 %}
+          {{ currency }}{{ net_adjustment }}
+        {% elif net_adjustment > 0 %}
+          +{{ currency }}{{ net_adjustment }}
+        {% else %}
+          {{ currency }}{{ net_adjustment }}
+        {% endif %}
+      </span>
+    </a>
+    <span class="text-muted">|</span>
+    <span class="fw-bold fs-5 text-primary">{{ currency }}{{ operation.effective_amount }}</span>
+  {% endif %}
+</div>

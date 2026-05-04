@@ -47,4 +47,14 @@ urlpatterns = [
         views.create_inventory_movement,
         name="create_inventory_movement",
     ),
+    path(
+        "movement-lines/<int:pk>/reverse/",
+        views.reverse_inventory_movement_line,
+        name="reverse_inventory_movement_line",
+    ),
+    path(
+        "movements/<int:pk>/reverse/",
+        views.reverse_inventory_movement,
+        name="reverse_inventory_movement",
+    ),
 ]

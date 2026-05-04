@@ -160,7 +160,7 @@ urlpatterns = [
         name="record_transaction_payment",
     ),
     path(
-        "<int:pk>/adjustment/create",
+        "<int:pk>/adjustment-create",
         views.record_accounting_adjustment,
         name="record_accounting_adjustment",
     ),

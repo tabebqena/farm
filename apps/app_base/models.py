@@ -246,7 +246,7 @@ class ReversableModel(HasRelatedTransactions, BaseModel):
             )
 
         if hasattr(self, "adjustments"):
-            adjs = self.adjustments.filter(  # type:ignore
+            adjs = self.adjustments.filter(  # type: ignore
                 deleted_at__isnull=True,
                 reversed_by__isnull=True,
             ).all()
@@ -266,6 +266,8 @@ class ReversableModel(HasRelatedTransactions, BaseModel):
             or _("reversal of %(model)s (%(pk)s)")
             % {"model": self.__class__.__name__, "pk": self.pk},
         )
+        print("Reversal kwargs", kwargs)
+        print("*" * 200)
         # We clone the object and link it back via reversal_of
         with db_transaction.atomic():
             reversal_record = self.__class__(**kwargs)

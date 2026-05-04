@@ -95,6 +95,7 @@ class Operation(
     _dest_role: str | None = None
     can_pay: bool = False
     is_partially_payable: bool = False
+    _is_one_shot_operation: bool = False
     has_category: bool = False
     category_required: bool = False
     has_repayment: bool = False
@@ -104,6 +105,8 @@ class Operation(
     theme_icon: str = "bi-box-arrow-up-right"
     creates_assets = False
     category_type = None
+    is_adjustable = False
+    is_items_adjustable = False
 
     class Meta:
         verbose_name = "Operation"
@@ -125,9 +128,7 @@ class Operation(
         from apps.app_entity.models import Entity, EntityType
 
         url_entity = get_object_or_404(
-            Entity,
-            pk=url_pk,
-            error_message="Entity not found or has been deleted."
+            Entity, pk=url_pk, error_message="Entity not found or has been deleted."
         )
         source_role = cls._source_role
         dest_role = cls._dest_role
@@ -144,8 +145,10 @@ class Operation(
             get_object_or_404(
                 Entity,
                 pk=secondary_pk,
-                error_message="Secondary entity not found or has been deleted."
-            ) if secondary_pk else None
+                error_message="Secondary entity not found or has been deleted.",
+            )
+            if secondary_pk
+            else None
         )
 
         def resolve(role):
@@ -251,11 +254,14 @@ class Operation(
     # ------------------------------------------------------------------
 
     def clean(self):
-        DebugContext.log(f"Operation.clean() ({self.operation_type})", {
-            "is_new": self.pk is None,
-            "pk": self.pk,
-            "date": str(self.date),
-        })
+        DebugContext.log(
+            f"Operation.clean() ({self.operation_type})",
+            {
+                "is_new": self.pk is None,
+                "pk": self.pk,
+                "date": str(self.date),
+            },
+        )
         # Only block NEW, non-reversal operations from landing in a closed period.
         if not self.pk and not getattr(self, "reversal_of_id", None):
             from .period import FinancialPeriod
@@ -272,10 +278,13 @@ class Operation(
                     end_date__gt=self.date,  # half-open interval: date < end_date
                 )
                 if closed.exists():
-                    DebugContext.error("Cannot create operation in closed period", data={
-                        "date": str(self.date),
-                        "entity": str(entity),
-                    })
+                    DebugContext.error(
+                        "Cannot create operation in closed period",
+                        data={
+                            "date": str(self.date),
+                            "entity": str(entity),
+                        },
+                    )
                     raise ValidationError(
                         "Cannot create an operation whose date falls within a closed financial period."
                     )
@@ -312,7 +321,9 @@ class Operation(
 
         def _validate_invoice_items(op):
             items = op.items.all()
-            DebugContext.log(f"Validating {items.count()} invoice items", {"operation_pk": op.pk})
+            DebugContext.log(
+                f"Validating {items.count()} invoice items", {"operation_pk": op.pk}
+            )
             for item in items:
                 item.full_clean()
             DebugContext.success(f"All {items.count()} invoice items validated")
@@ -325,14 +336,17 @@ class Operation(
             )
         )
 
-        with DebugContext.section(f"Operation.save() ({self.operation_type})", {
-            "is_new": is_new,
-            "pk": self.pk,
-            "source": str(self.source),
-            "destination": str(self.destination),
-            "amount": float(self.amount),
-            "date": str(self.date),
-        }):
+        with DebugContext.section(
+            f"Operation.save() ({self.operation_type})",
+            {
+                "is_new": is_new,
+                "pk": self.pk,
+                "source": str(self.source),
+                "destination": str(self.destination),
+                "amount": float(self.amount),
+                "date": str(self.date),
+            },
+        ):
             result = super().save(*args, **kwargs)
             DebugContext.success("Operation saved", {"pk": self.pk})
 
@@ -349,7 +363,7 @@ class Operation(
                     "amount": float(self.amount),
                     "date": str(self.date),
                 },
-                user=str(self.officer)
+                user=str(self.officer),
             )
             return result
 
@@ -392,17 +406,23 @@ class Operation(
 
     def delete(self, *args, **kwargs):
         """Delete operation with audit logging."""
-        with DebugContext.section("Operation.delete()", {
-            "pk": self.pk,
-            "type": self.operation_type,
-            "amount": float(self.amount),
-        }):
-            DebugContext.warn("Deleting operation", {
+        with DebugContext.section(
+            "Operation.delete()",
+            {
                 "pk": self.pk,
                 "type": self.operation_type,
-                "source": str(self.source),
-                "destination": str(self.destination),
-            })
+                "amount": float(self.amount),
+            },
+        ):
+            DebugContext.warn(
+                "Deleting operation",
+                {
+                    "pk": self.pk,
+                    "type": self.operation_type,
+                    "source": str(self.source),
+                    "destination": str(self.destination),
+                },
+            )
 
             DebugContext.audit(
                 action="operation_deleted",
@@ -412,7 +432,7 @@ class Operation(
                     "type": self.operation_type,
                     "amount": float(self.amount),
                 },
-                user=str(self.officer)
+                user=str(self.officer),
             )
 
             return super().delete(*args, **kwargs)
@@ -420,12 +440,17 @@ class Operation(
     def reverse(self, officer, date=None, reason=None):
         """Reverse an operation with full audit trail."""
         import uuid
+
         txn_id = f"reverse_op_{self.pk}_{uuid.uuid4().hex[:8]}"
-        DebugContext.transaction_start(txn_id, f"Reversing operation {self.pk}", {
-            "original_op_pk": self.pk,
-            "operation_type": self.operation_type,
-            "amount": float(self.amount),
-        })
+        DebugContext.transaction_start(
+            txn_id,
+            f"Reversing operation {self.pk}",
+            {
+                "original_op_pk": self.pk,
+                "operation_type": self.operation_type,
+                "amount": float(self.amount),
+            },
+        )
 
         try:
             reversal = super().reverse(officer=officer, date=date, reason=reason)
@@ -440,11 +465,14 @@ class Operation(
 
                     ProductLedgerEntry.record(self, negate=True)
 
-            DebugContext.transaction_commit(txn_id, {
-                "original_op_pk": self.pk,
-                "reversal_op_pk": reversal.pk,
-                "status": "success"
-            })
+            DebugContext.transaction_commit(
+                txn_id,
+                {
+                    "original_op_pk": self.pk,
+                    "reversal_op_pk": reversal.pk,
+                    "status": "success",
+                },
+            )
 
             DebugContext.audit(
                 action="operation_reversed",
@@ -455,7 +483,7 @@ class Operation(
                     "reversal_pk": reversal.pk,
                     "reason": reason or "",
                 },
-                user=str(officer)
+                user=str(officer),
             )
 
             return reversal
@@ -466,7 +494,7 @@ class Operation(
                 entity_type="Operation",
                 entity_id=self.pk,
                 details={"error": str(e), "reason": reason or ""},
-                user=str(officer)
+                user=str(officer),
             )
             raise
 

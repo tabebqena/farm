@@ -290,11 +290,11 @@ class LinkedPaymentTransactionMixin(
         # I don't know
         # So comment now.
         # We define 'refund' as money moving back to the Payer
-        # from_receiver = valid_txs.filter(source=self.payment_target_fund).aggregate(
-        #     total=Sum(self._amount_field_name)
-        # )["total"] or Decimal("0.00")
+        from_receiver = valid_txs.filter(source=self.payment_target_fund).aggregate(
+            total=Sum(self._amount_field_name)
+        )["total"] or Decimal("0.00")
 
-        return to_receiver  # - from_receiver
+        return to_receiver - from_receiver
 
     @property
     def total_settlable_amount(self):

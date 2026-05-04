@@ -9,9 +9,15 @@ from django.utils.dateparse import parse_date
 from django.utils.translation import gettext as _
 
 from farm.shortcuts import get_object_or_404
+from apps.app_base.debug import DebugContext, debug_view
 from apps.app_entity.models import Entity
 from apps.app_inventory.forms import InventoryMovementLineFormSet
-from apps.app_inventory.models import InventoryMovement, Product, ProductTemplate
+from apps.app_inventory.models import (
+    InventoryMovement,
+    InventoryMovementLine,
+    Product,
+    ProductTemplate,
+)
 from apps.app_operation.models.operation_type import OperationType
 
 
@@ -325,4 +331,80 @@ def create_inventory_movement(request, operation_pk):
             "operation": operation,
             "formset": formset,
         },
+    )
+
+
+@debug_view
+def reverse_inventory_movement_line(request, pk):
+    """
+    Reverse a single InventoryMovementLine.
+    Wraps the model's `reverse()` method in an HTTP request/response cycle.
+    """
+    if not request.user.is_staff:
+        messages.error(request, _("You must be an officer to reverse movement lines."))
+        return redirect("entity_list")
+
+    line = get_object_or_404(
+        InventoryMovementLine,
+        pk=pk,
+        error_message="Movement line not found or has been deleted.",
+    )
+
+    if InventoryMovementLine.objects.filter(reversal_of=line).exists():
+        messages.warning(request, _("This movement line has already been reversed."))
+        return redirect("operation_detail_view", pk=line.movement.operation_id)
+
+    if request.method == "POST":
+        try:
+            with db_transaction.atomic():
+                line.reverse(officer=request.user)
+            messages.success(request, _("Movement line reversed successfully."))
+            return redirect("operation_detail_view", pk=line.movement.operation_id)
+        except Exception as e:
+            traceback.print_exc()
+            messages.error(
+                request,
+                _("Error reversing movement line: %(error)s") % {"error": str(e)},
+            )
+
+    return render(
+        request,
+        "app_inventory/reverse_movement_line_confirm.html",
+        {"line": line, "operation": line.movement.operation},
+    )
+
+
+@debug_view
+def reverse_inventory_movement(request, pk):
+    """
+    Reverse an entire InventoryMovement (all its non-reversed lines).
+    Wraps the model's `reverse()` method in an HTTP request/response cycle.
+    """
+    if not request.user.is_staff:
+        messages.error(request, _("You must be an officer to reverse movements."))
+        return redirect("entity_list")
+
+    movement = get_object_or_404(
+        InventoryMovement,
+        pk=pk,
+        error_message="Inventory movement not found or has been deleted.",
+    )
+
+    if request.method == "POST":
+        try:
+            with db_transaction.atomic():
+                movement.reverse(officer=request.user)
+            messages.success(request, _("Inventory movement reversed successfully."))
+            return redirect("operation_detail_view", pk=movement.operation_id)
+        except Exception as e:
+            traceback.print_exc()
+            messages.error(
+                request,
+                _("Error reversing movement: %(error)s") % {"error": str(e)},
+            )
+
+    return render(
+        request,
+        "app_inventory/reverse_movement_confirm.html",
+        {"movement": movement, "operation": movement.operation},
     )

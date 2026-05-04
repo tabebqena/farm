@@ -1,0 +1,48 @@
+{% load i18n %}
+
+{# Invoice Items — shown when the operation has an invoice and items exist #}
+{% if items %}
+  <div class="card mb-3 shadow-sm">
+    <div class="card-header fw-bold bg-dark text-white d-flex justify-content-between align-items-center">
+      {% trans 'Invoice Items' %}
+    </div>
+    <div class="card-body p-0">
+      <div class="list-group list-group-flush">
+        {% for item in items %}
+          <div class="list-group-item">
+            <div class="row g-2 align-items-center">
+              <div class="col-12 col-md-5">
+                <small class="text-muted d-md-none">{% trans 'Product' %}:</small>
+                <a href="{% url 'product_detail' item.pk %}" class="text-decoration-none">{{ item.product.name }}</a>
+              </div>
+              <div class="col-12 col-md-3 d-none d-lg-block">
+                <small class="text-muted">{% trans 'Description' %}:</small>
+                <span class="text-muted small">{{ item.description|truncatewords:5 }}</span>
+              </div>
+              <div class="col-4 col-md-1 text-end">
+                <small class="text-muted d-md-none d-block">{% trans 'Qty' %}</small>
+                <span>{{ item.quantity }}</span>
+              </div>
+              <div class="col-4 col-md-1 text-end d-none d-sm-block">
+                <small class="text-muted d-md-none d-block">{% trans 'Price' %}</small>
+                <span class="small">{{ item.unit_price }}</span>
+              </div>
+              <div class="col-4 col-md-2 text-end">
+                <small class="text-muted d-md-none d-block">{% trans 'Total' %}</small>
+                <span class="fw-bold">{{ item.total_price }}</span>
+              </div>
+            </div>
+          </div>
+        {% empty %}
+          <div class="list-group-item text-center text-muted py-3">
+            {% trans 'No items.' %}
+          </div>
+        {% endfor %}
+      </div>
+      <div class="d-flex justify-content-end fw-bold py-2 px-3 border-top bg-light">
+        <span class="me-3">{% trans 'Total' %}</span>
+        <span>{{ operation.amount }}</span>
+      </div>
+    </div>
+  </div>
+{% endif %}

@@ -1,0 +1,22 @@
+[run]
+source = apps, farm
+omit =
+    */migrations/*
+    */tests/*
+    */test_*.py
+    */*_tests.py
+    */apps.py
+    farm/settings.py
+    farm/wsgi.py
+    farm/asgi.py
+    manage.py
+    test_config.py
+    test_views_screenshots.py
+
+[report]
+fail_under = 100
+show_missing = True
+skip_covered = True
+
+[html]
+directory = htmlcov

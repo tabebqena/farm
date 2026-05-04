@@ -26,6 +26,9 @@ class ExpenseOperation(Operation):
 
     category_type = "EXPENSE"
 
+    is_adjustable = True
+    is_items_adjustable = False
+
     class Meta:
         proxy = True
         verbose_name = "Expense"

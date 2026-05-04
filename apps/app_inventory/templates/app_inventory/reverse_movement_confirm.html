@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block content %}
+<div class="container-fluid px-2 px-sm-4 mt-4">
+  <div class="card shadow-sm border-danger">
+    <div class="card-header bg-danger text-white">
+      <h5 class="mb-0"><i class="bi bi-arrow-counterclockwise me-2"></i>{% trans 'Reverse Entire Movement' %}</h5>
+    </div>
+    <div class="card-body">
+      <p class="mb-3">{% trans 'Are you sure you want to reverse this entire inventory movement? All non-reversed lines will be reversed.' %}</p>
+      <table class="table table-bordered">
+        <tr>
+          <th>{% trans 'Movement' %}</th>
+          <td>#{{ movement.pk }}</td>
+        </tr>
+        <tr>
+          <th>{% trans 'Date' %}</th>
+          <td>{{ movement.date }}</td>
+        </tr>
+        <tr>
+          <th>{% trans 'Lines' %}</th>
+          <td>{{ movement.lines.count }}</td>
+        </tr>
+        <tr>
+          <th>{% trans 'Operation' %}</th>
+          <td>#{{ operation.pk }} — {{ operation.get_operation_type_display }}</td>
+        </tr>
+      </table>
+
+      <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle me-2"></i>
+        {% trans 'This action will create a new reversal movement with negating ledger entries.' %}
+      </div>
+
+      <form method="post">
+        {% csrf_token %}
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-danger">
+            <i class="bi bi-check-circle me-1"></i>{% trans 'Confirm Reversal' %}
+          </button>
+          <a href="{% url 'operation_detail_view' operation.pk %}" class="btn btn-outline-secondary">
+            {% trans 'Cancel' %}
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
