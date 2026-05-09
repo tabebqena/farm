@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 from django.db import transaction
@@ -5,7 +7,7 @@ from django.db import transaction
 User = get_user_model()
 
 PRODUCT_TEMPLATES = [
-    # (name, name_ar, nature, default_unit, requires_individual_tag, sub_category)
+    # (name, name_ar, nature, default_unit, has_tag, sub_category)
     # --- ANIMAL ---
     ("Fattening Cattle", "ماشية تسمين", "ANIMAL", "Head", True, "Cattle"),
     ("Dairy Cows", "أبقار حليب", "ANIMAL", "Head", True, "Cattle"),
@@ -350,11 +352,18 @@ class Command(BaseCommand):
         created = 0
         updated = 0
         for name, name_ar, nature, unit, tag, sub_cat in PRODUCT_TEMPLATES:
+            # Derive minimum_quantity from nature
+            if nature == "ANIMAL" or nature == "PRODUCT":
+                min_qty = Decimal("1")
+            else:  # FEED or MEDICINE
+                min_qty = Decimal("0.01")
+
             defaults = {
                 "nature": nature,
                 "default_unit": unit,
-                "requires_individual_tag": tag,
+                "has_tag": tag,
                 "sub_category": sub_cat,
+                "minimum_quantity": min_qty,
             }
             template, is_new = ProductTemplate.objects.get_or_create(
                 name=name,
@@ -370,6 +379,9 @@ class Command(BaseCommand):
                     changed = True
                 if template.sub_category != sub_cat:
                     template.sub_category = sub_cat
+                    changed = True
+                if template.minimum_quantity != min_qty:
+                    template.minimum_quantity = min_qty
                     changed = True
                 if changed:
                     template.save()

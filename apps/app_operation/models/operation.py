@@ -7,7 +7,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
 
-from apps.app_base.debug import DebugContext, debug_model_save, debug_transaction
+from apps.app_base.debug import DebugContext
 from apps.app_base.mixins import (
     AdjustableMixin,
     AmountCleanMixin,
@@ -108,6 +108,38 @@ class Operation(
     is_adjustable = False
     is_items_adjustable = False
 
+    # ------------------------------------------------------------------
+    # Eligibility helpers
+    # ------------------------------------------------------------------
+
+    @property
+    def can_create_movement(self) -> bool:
+        """Whether this operation supports inventory movements."""
+        from .operation_type import OperationType
+
+        return self.operation_type in (OperationType.PURCHASE, OperationType.SALE)
+
+    @property
+    def can_adjust(self) -> bool:
+        """Whether accounting adjustments are allowed on this operation."""
+        from .operation_type import OperationType
+
+        return self.operation_type in (
+            OperationType.PURCHASE,
+            OperationType.SALE,
+            OperationType.EXPENSE,
+        )
+
+    @property
+    def can_item_adjust(self) -> bool:
+        """Whether invoice-item adjustments are allowed on this operation."""
+        return self.can_create_movement and type(self).has_invoice
+
+    @property
+    def can_repay(self) -> bool:
+        """Whether this operation supports repayments (e.g. loans, worker advances)."""
+        return type(self).has_repayment
+
     class Meta:
         verbose_name = "Operation"
         verbose_name_plural = "Operations"
@@ -123,9 +155,8 @@ class Operation(
         Resolves a request into a unified config + entity dict.
         Call on the proxy class: e.g. PurchaseOperation.resolve_request(pk, request)
         """
-        from farm.shortcuts import get_object_or_404
-
         from apps.app_entity.models import Entity, EntityType
+        from farm.shortcuts import get_object_or_404
 
         url_entity = get_object_or_404(
             Entity, pk=url_pk, error_message="Entity not found or has been deleted."
@@ -367,6 +398,94 @@ class Operation(
             )
             return result
 
+    # ------------------------------------------------------------------
+    # Payment processing
+    # ------------------------------------------------------------------
+
+    def process_payment(self, amount_paid, officer, date=None, description=None):
+        """
+        Validate and record a payment transaction for this operation.
+
+        Checks:
+        - Payment only applies if the proxy class sets ``can_pay = True``.
+        - Paid amount must not exceed the operation total.
+        - If the proxy does not allow partial payment (``is_partially_payable``),
+          the paid amount must equal the full total.
+        - Creates the payment transaction via ``create_payment_transaction()``.
+        """
+        from decimal import Decimal
+
+        from django.utils.translation import gettext as _
+
+        if not type(self).can_pay:
+            return
+
+        amount_paid = (
+            Decimal(amount_paid)
+            if not isinstance(amount_paid, Decimal)
+            else amount_paid
+        )
+
+        if amount_paid > self.amount:
+            raise ValueError(
+                _("Error: paid amount %(paid)s is more than the total %(total)s")
+                % {"paid": amount_paid, "total": self.amount}
+            )
+        if not type(self).is_partially_payable and amount_paid < self.amount:
+            raise ValueError(
+                _("You can't pay less than %(amount)s for this operation.")
+                % {"amount": self.amount}
+            )
+        if amount_paid > 0:
+            self.create_payment_transaction(
+                amount_paid,
+                officer,
+                date=date or self.date,
+                description=description
+                or _("Instant payment for the operation %(op_type)s %(pk)s")
+                % {"op_type": self.operation_type, "pk": self.pk},
+            )
+
+    # ------------------------------------------------------------------
+    # Inventory / invoice helpers
+    # ------------------------------------------------------------------
+
+    def get_items_data(self):
+        """
+        Build a list of dicts with movement summaries for each invoice item.
+        Used by the detail view to display received/delivered quantities.
+        """
+        from decimal import Decimal
+
+        from django.db.models import Sum
+
+        from apps.app_inventory.models import InventoryMovementLine
+
+        items = getattr(self, "_cached_items", None)
+        items_data = []
+        if items is not None:
+            for item in items:
+                agg = InventoryMovementLine.objects.filter(
+                    invoice_item=item,
+                    reversal_of__isnull=True,
+                ).aggregate(total=Sum("quantity"))
+                moved_qty = agg["total"] or Decimal("0.00")
+                remaining_qty = item.quantity - moved_qty
+                movement_lines = InventoryMovementLine.objects.filter(
+                    invoice_item=item,
+                    reversal_of__isnull=True,
+                ).select_related("product")
+                items_data.append(
+                    {
+                        "item": item,
+                        "moved_qty": moved_qty,
+                        "remaining_qty": remaining_qty,
+                        "is_fully_moved": remaining_qty <= Decimal("0.00"),
+                        "movement_lines": movement_lines,
+                    }
+                )
+        return items_data
+
     def save_inventory(self, bound_formset):
         """
         Called inside an atomic block after the formset is saved.
@@ -374,22 +493,22 @@ class Operation(
         - select-mode (SALE/DEATH/CAPITAL_GAIN/CAPITAL_LOSS): link the chosen Product via M2M.
         Writes ledger entries once all product↔item links are established.
         """
-        from apps.app_inventory.models import Product, ProductLedgerEntry
+        from apps.app_inventory.models import InvoiceItem, ProductLedgerEntry
 
         if type(self).creates_assets:
+            owning_entity = self.period_entity or self.destination
             for form in bound_formset.forms:
                 item = form.instance
                 if not item.pk:
                     continue
                 uid = form.cleaned_data.get("unique_id", "").strip() or None
-                product = Product.objects.create(
-                    entity=self.destination,
-                    product_template=item.product,
+                InvoiceItem.create_products_for_item(
+                    invoice_item=item,
+                    entity=owning_entity,
                     quantity=item.quantity,
                     unit_price=item.unit_price,
                     unique_id=uid,
                 )
-                product.invoice_items.add(item)
         else:
             for form in bound_formset.forms:
                 item = form.instance

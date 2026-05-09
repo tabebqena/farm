@@ -1,12 +1,11 @@
-from django.shortcuts import render
-from django.conf import settings
-from django.db.models import Sum, Q
 from decimal import Decimal
 
+from django.conf import settings
+from django.shortcuts import render
+
 from apps.app_base.debug import DebugContext, debug_view
-from farm.shortcuts import get_object_or_404
 from apps.app_operation.models import Operation
-from apps.app_inventory.models import InventoryMovementLine
+from farm.shortcuts import get_object_or_404
 
 
 @debug_view
@@ -23,7 +22,6 @@ def operation_detail_view(request, pk):
             Operation, pk=pk, error_message="Operation not found or has been deleted."
         )
         operation = Operation.objects.cast(operation)
-        print(dir(operation))
         DebugContext.success(
             "Operation loaded",
             {
@@ -49,11 +47,10 @@ def operation_detail_view(request, pk):
         )
 
         items = operation.items.all() if type(operation).has_invoice else None
-        item_count = items.count() if items else 0
         DebugContext.log(
             "Invoice items fetched",
             {
-                "count": item_count,
+                "count": len(items) if items else 0,
                 "has_invoice": type(operation).has_invoice,
                 "operation_id": operation.pk,
             },
@@ -81,27 +78,7 @@ def operation_detail_view(request, pk):
             "has_invoice": type(operation).has_invoice,
         },
     ):
-        items_data = []
-        if items is not None:
-            for item in items:
-                moved_qty = InventoryMovementLine.objects.filter(
-                    invoice_item=item,
-                    reversal_of__isnull=True,
-                ).aggregate(total=Sum("quantity"))["total"] or Decimal("0.00")
-                remaining_qty = item.quantity - moved_qty
-                movement_lines = InventoryMovementLine.objects.filter(
-                    invoice_item=item,
-                    reversal_of__isnull=True,
-                ).select_related("movement")
-                items_data.append(
-                    {
-                        "item": item,
-                        "moved_qty": moved_qty,
-                        "remaining_qty": remaining_qty,
-                        "is_fully_moved": remaining_qty <= Decimal("0.00"),
-                        "movement_lines": movement_lines,
-                    }
-                )
+        items_data = operation.get_items_data()
         DebugContext.log(
             "Items data computed",
             {
@@ -116,12 +93,6 @@ def operation_detail_view(request, pk):
             "operation_id": operation.pk,
         },
     ):
-        active_txs = [
-            tx
-            for tx in transactions
-            if not getattr(tx, "is_reversed", False)
-            and not getattr(tx, "reversal_of", None)
-        ]
         paid_amount = float(operation.amount_settled)
         outstanding_balance = float(operation.amount_remaining_to_settle)
         DebugContext.log(
@@ -133,18 +104,18 @@ def operation_detail_view(request, pk):
             },
         )
 
-        net_adjustment = (
-            operation.effective_amount or Decimal("0.00")
-        ) - operation.amount
+        net_adjustment = float(
+            (operation.effective_amount or Decimal("0.00")) - operation.amount
+        )
         DebugContext.log(
             "Net adjustment computed",
             {
-                "net_adjustment": float(net_adjustment),
+                "net_adjustment": net_adjustment,
                 "operation_id": operation.pk,
             },
         )
 
-        overpayment_amount = (
+        overpayment_amount = float(
             operation.amount_settled - operation.total_settlable_amount
             if operation.is_overpayed_settled
             else Decimal("0.00")
@@ -152,42 +123,12 @@ def operation_detail_view(request, pk):
         DebugContext.log(
             "Overpayment computed",
             {
-                "overpayment_amount": float(overpayment_amount),
+                "overpayment_amount": overpayment_amount,
                 "operation_id": operation.pk,
             },
         )
 
-        payment_transactions = [
-            tx
-            for tx in transactions
-            if getattr(operation, "_payment_transaction_type", None)
-            and tx.type == operation._payment_transaction_type
-        ]
-        DebugContext.log(
-            "Payment transactions filtered",
-            {
-                "count": len(payment_transactions),
-                "payment_type": getattr(operation, "_payment_transaction_type", None),
-                "operation_id": operation.pk,
-            },
-        )
-
-        repayment_transactions = [
-            tx
-            for tx in transactions
-            if getattr(operation, "_repayment_transaction_type", None)
-            and tx.type == operation._repayment_transaction_type
-        ]
-        DebugContext.log(
-            "Repayment transactions filtered",
-            {
-                "count": len(repayment_transactions),
-                "repayment_type": getattr(operation, "_repayment_transaction_type", None),
-                "operation_id": operation.pk,
-            },
-        )
-
-        over_repayment_amount = (
+        over_repayment_amount = float(
             operation.amount_repayed - operation.total_repayable_amount
             if operation.is_overpaid_repayed
             else Decimal("0.00")
@@ -195,7 +136,7 @@ def operation_detail_view(request, pk):
         DebugContext.log(
             "Over-repayment computed",
             {
-                "over_repayment_amount": float(over_repayment_amount),
+                "over_repayment_amount": over_repayment_amount,
                 "operation_id": operation.pk,
             },
         )
@@ -203,7 +144,7 @@ def operation_detail_view(request, pk):
     context = {
         "operation": operation,
         "transactions": transactions,
-        "payment_transactions": payment_transactions,
+        "payment_transactions": operation.payment_transactions,
         "items": items,
         "items_data": items_data,
         "adjustments": adjustments,
@@ -214,7 +155,7 @@ def operation_detail_view(request, pk):
         "outstanding_balance": outstanding_balance,
         "net_adjustment": net_adjustment,
         "overpayment_amount": overpayment_amount,
-        "repayment_transactions": repayment_transactions,
+        "repayment_transactions": operation.repayment_transactions,
         "over_repayment_amount": over_repayment_amount,
         "currency": getattr(settings, "CURRENCY_SYMBOL", "$"),
     }

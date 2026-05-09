@@ -9,7 +9,7 @@ from django.forms import ValidationError
 from django.utils.translation import gettext_lazy as _
 
 from apps.app_adjustment._item_type import InvoiceItemAdjustmentType
-from apps.app_base.debug import DebugContext, debug_model_save
+from apps.app_base.debug import DebugContext
 from apps.app_base.mixins import (
     AmountCleanMixin,
     ImmutableMixin,
@@ -202,6 +202,7 @@ class Adjustment(
         """Return self.operation cast to its proper proxy subclass."""
         op = self.operation
         from apps.app_operation.models.proxies import PROXY_MAP
+
         proxy_cls = PROXY_MAP.get(op.operation_type)
         if proxy_cls:
             op.__class__ = proxy_cls
@@ -222,25 +223,34 @@ class Adjustment(
         }.get(self.operation.operation_type)
 
     def clean(self):
-        DebugContext.log(f"Adjustment.clean() for operation {self.operation.pk}", {
-            "type": self.type,
-            "operation_type": self.operation.operation_type,
-            "amount": float(self.amount),
-        })
+        DebugContext.log(
+            f"Adjustment.clean() for operation {self.operation.pk}",
+            {
+                "type": self.type,
+                "operation_type": self.operation.operation_type,
+                "amount": float(self.amount),
+            },
+        )
         if self.operation.operation_type not in (
             OperationType.PURCHASE,
             OperationType.SALE,
             OperationType.EXPENSE,
         ):
-            DebugContext.error("Invalid operation type for adjustment", data={
-                "operation_type": self.operation.operation_type,
-                "allowed": ["PURCHASE", "SALE", "EXPENSE"],
-            })
+            DebugContext.error(
+                "Invalid operation type for adjustment",
+                data={
+                    "operation_type": self.operation.operation_type,
+                    "allowed": ["PURCHASE", "SALE", "EXPENSE"],
+                },
+            )
             raise ValidationError(_("This operation cannot be adjusted."))
         if AdjustmentType.is_general(self.type) and not self.reason:
-            DebugContext.warn("General adjustment type requires reason", {
-                "type": self.type,
-            })
+            DebugContext.warn(
+                "General adjustment type requires reason",
+                {
+                    "type": self.type,
+                },
+            )
             raise ValidationError(_("Reason is required in general adjustment types."))
         DebugContext.success("Adjustment validation passed")
         return super().clean()
@@ -249,11 +259,14 @@ class Adjustment(
         """Save adjustment with audit logging."""
         is_new = self.pk is None
         action = "created" if is_new else "updated"
-        with DebugContext.section(f"Adjustment.save() ({action})", {
-            "operation": str(self.operation),
-            "type": self.type,
-            "amount": float(self.amount),
-        }):
+        with DebugContext.section(
+            f"Adjustment.save() ({action})",
+            {
+                "operation": str(self.operation),
+                "type": self.type,
+                "amount": float(self.amount),
+            },
+        ):
             result = super().save(*args, **kwargs)
             DebugContext.success(f"Adjustment {action}", {"pk": self.pk})
 
@@ -266,22 +279,28 @@ class Adjustment(
                     "type": self.type,
                     "amount": float(self.amount),
                 },
-                user=str(self.officer)
+                user=str(self.officer),
             )
             return result
 
     def delete(self, *args, **kwargs):
         """Delete adjustment with audit logging."""
-        with DebugContext.section("Adjustment.delete()", {
-            "pk": self.pk,
-            "operation": str(self.operation),
-            "type": self.type,
-            "amount": float(self.amount),
-        }):
-            DebugContext.warn("Deleting adjustment", {
+        with DebugContext.section(
+            "Adjustment.delete()",
+            {
+                "pk": self.pk,
                 "operation": str(self.operation),
                 "type": self.type,
-            })
+                "amount": float(self.amount),
+            },
+        ):
+            DebugContext.warn(
+                "Deleting adjustment",
+                {
+                    "operation": str(self.operation),
+                    "type": self.type,
+                },
+            )
 
             DebugContext.audit(
                 action="adjustment_deleted",
@@ -291,7 +310,7 @@ class Adjustment(
                     "operation": str(self.operation),
                     "type": self.type,
                 },
-                user=str(self.officer)
+                user=str(self.officer),
             )
 
             return super().delete(*args, **kwargs)
@@ -406,34 +425,49 @@ class InvoiceItemAdjustment(
         and link it back. Must be called inside an atomic block, after all lines
         have been saved.
         """
-        DebugContext.log(f"InvoiceItemAdjustment.finalize() called", {
-            "item_adjustment_pk": self.pk,
-            "type": self.type,
-            "operation_pk": self.operation.pk,
-        })
+        DebugContext.log(
+            f"InvoiceItemAdjustment.finalize() called",
+            {
+                "item_adjustment_pk": self.pk,
+                "type": self.type,
+                "operation_pk": self.operation.pk,
+            },
+        )
 
         if self.adjustment_id is not None:
-            DebugContext.error("Item adjustment already finalized", data={
-                "item_adjustment_pk": self.pk,
-                "adjustment_pk": self.adjustment_id,
-            })
+            DebugContext.error(
+                "Item adjustment already finalized",
+                data={
+                    "item_adjustment_pk": self.pk,
+                    "adjustment_pk": self.adjustment_id,
+                },
+            )
             raise ValidationError(_("This item adjustment has already been finalized."))
 
         lines = self.lines.all()
-        DebugContext.log(f"Computing net delta from {lines.count()} lines", {
-            "line_count": lines.count(),
-        })
+        DebugContext.log(
+            f"Computing net delta from {lines.count()} lines",
+            {
+                "line_count": lines.count(),
+            },
+        )
 
         total_delta = sum(line.value_delta for line in lines)
-        DebugContext.log(f"Net delta computed", {
-            "total_delta": float(total_delta),
-            "is_increase": total_delta > 0,
-        })
+        DebugContext.log(
+            f"Net delta computed",
+            {
+                "total_delta": float(total_delta),
+                "is_increase": total_delta > 0,
+            },
+        )
 
         if total_delta == 0:
-            DebugContext.error("Net adjustment is zero", {
-                "line_count": lines.count(),
-            })
+            DebugContext.error(
+                "Net adjustment is zero",
+                {
+                    "line_count": lines.count(),
+                },
+            )
             raise ValidationError(_("Net adjustment is zero — nothing to record."))
 
         # Direction (increase vs decrease) is encoded in the type, not an effect field.
@@ -463,17 +497,23 @@ class InvoiceItemAdjustment(
         }
 
         adj_type = adj_type_map[self.type]
-        DebugContext.log(f"Adjustment type mapped", {
-            "input_type": self.type,
-            "output_type": adj_type,
-            "is_increase": is_increase,
-        })
+        DebugContext.log(
+            f"Adjustment type mapped",
+            {
+                "input_type": self.type,
+                "output_type": adj_type,
+                "is_increase": is_increase,
+            },
+        )
 
-        with DebugContext.section(f"Creating Adjustment record", {
-            "type": adj_type,
-            "amount": float(abs(total_delta)),
-            "operation_pk": self.operation.pk,
-        }):
+        with DebugContext.section(
+            f"Creating Adjustment record",
+            {
+                "type": adj_type,
+                "amount": float(abs(total_delta)),
+                "operation_pk": self.operation.pk,
+            },
+        ):
             adj = Adjustment(
                 operation=self.operation,
                 type=adj_type,
@@ -489,10 +529,13 @@ class InvoiceItemAdjustment(
 
         self.adjustment = adj
         self.save(update_fields=["adjustment"])
-        DebugContext.success("InvoiceItemAdjustment finalized", {
-            "item_adjustment_pk": self.pk,
-            "adjustment_pk": adj.pk,
-        })
+        DebugContext.success(
+            "InvoiceItemAdjustment finalized",
+            {
+                "item_adjustment_pk": self.pk,
+                "adjustment_pk": adj.pk,
+            },
+        )
 
     def reverse(self, officer, date, reason=""):
         """
@@ -503,23 +546,32 @@ class InvoiceItemAdjustment(
         """
         from apps.app_inventory.models import ProductLedgerEntry
 
-        DebugContext.log(f"InvoiceItemAdjustment.reverse() called", {
-            "item_adjustment_pk": self.pk,
-            "adjustment_pk": self.adjustment_id,
-            "officer": str(officer),
-            "date": str(date),
-        })
+        DebugContext.log(
+            f"InvoiceItemAdjustment.reverse() called",
+            {
+                "item_adjustment_pk": self.pk,
+                "adjustment_pk": self.adjustment_id,
+                "officer": str(officer),
+                "date": str(date),
+            },
+        )
 
         if self.adjustment is None:
-            DebugContext.error("Cannot reverse un-finalized item adjustment", data={
-                "item_adjustment_pk": self.pk,
-            })
+            DebugContext.error(
+                "Cannot reverse un-finalized item adjustment",
+                data={
+                    "item_adjustment_pk": self.pk,
+                },
+            )
             raise ValidationError(_("Cannot reverse an un-finalized item adjustment."))
 
-        with DebugContext.section(f"Reversing InvoiceItemAdjustment", {
-            "item_adjustment_pk": self.pk,
-            "line_count": self.lines.count(),
-        }):
+        with DebugContext.section(
+            f"Reversing InvoiceItemAdjustment",
+            {
+                "item_adjustment_pk": self.pk,
+                "line_count": self.lines.count(),
+            },
+        ):
             with db_transaction.atomic():
                 DebugContext.log("Reversing linked Adjustment")
                 self.adjustment.reverse(officer=officer, date=date, reason=reason)
@@ -621,21 +673,109 @@ class InvoiceItemAdjustmentLine(
             )
         return super().clean()
 
+    def _sync_products(self):
+        """
+        Create or soft-delete Product records based on the adjustment direction.
+
+        **Increase** (quantity_delta > 0): Create additional Products for the
+        invoice item using ``InvoiceItem.create_products_for_item()``, which
+        branches on the template's tracking mode.
+
+        **Decrease** (quantity_delta < 0): Soft-delete unmoved Products.
+        If any Product linked to this invoice item has already been moved
+        (has non-reversed InventoryMovementLines), raise ValidationError —
+        the user must reverse those movements first.
+        """
+        qty_delta = self.quantity_delta
+        if qty_delta == 0:
+            return
+
+        from django.utils import timezone
+
+        from apps.app_inventory.models import (
+            InventoryMovementLine,
+            InvoiceItem,
+        )
+
+        item = self.invoice_item
+        products = list(item.products.all())
+
+        if qty_delta > 0:
+            # --- INCREASE: create additional products ---
+            delta_qty = int(abs(qty_delta))
+            unit_price = (
+                self.new_unit_price
+                if self.new_unit_price is not None
+                else item.unit_price
+            )
+            InvoiceItem.create_products_for_item(
+                invoice_item=item,
+                entity=item.operation.period_entity,
+                quantity=Decimal(delta_qty),
+                unit_price=unit_price,
+                unique_id=None,
+            )
+            DebugContext.success(
+                "Created %d additional product(s) via adjustment increase",
+                {"count": delta_qty, "invoice_item_pk": item.pk},
+            )
+        else:
+            # --- DECREASE: validate no moved products, then soft-delete ---
+            abs_delta = int(abs(qty_delta))
+            moved_pks = set(
+                InventoryMovementLine.objects.filter(
+                    invoice_item=item,
+                    reversal_of__isnull=True,
+                ).values_list("product_id", flat=True)
+            )
+            if moved_pks:
+                raise ValidationError(
+                    _(
+                        "Cannot decrease quantity: invoice item %(item)s has %(count)d "
+                        "product(s) with inventory movements. Reverse the movements first."
+                    )
+                    % {"item": item.pk, "count": len(moved_pks)}
+                )
+
+            # Soft-delete products (quantity=1 each) up to abs_delta
+            deleted = 0
+            for product in products:
+                if deleted >= abs_delta:
+                    break
+                if not product.deleted_at:
+                    product.deleted_at = timezone.now()
+                    product.save(update_fields=["deleted_at"])
+                    deleted += 1
+            DebugContext.success(
+                "Soft-deleted %d product(s) via adjustment decrease",
+                {"count": deleted, "invoice_item_pk": item.pk},
+            )
+
     def save(self, *args, **kwargs):
-        DebugContext.log(f"InvoiceItemAdjustmentLine.save()", {
-            "pk": self.pk,
-            "adjustment_pk": self.adjustment_id,
-            "invoice_item_pk": self.invoice_item_id,
-            "is_removed": self.is_removed,
-            "quantity_delta": float(self.quantity_delta) if self.quantity_delta else None,
-            "value_delta": float(self.value_delta) if self.value_delta else None,
-        })
+        DebugContext.log(
+            f"InvoiceItemAdjustmentLine.save()",
+            {
+                "pk": self.pk,
+                "adjustment_pk": self.adjustment_id,
+                "invoice_item_pk": self.invoice_item_id,
+                "is_removed": self.is_removed,
+                "quantity_delta": (
+                    float(self.quantity_delta) if self.quantity_delta else None
+                ),
+                "value_delta": float(self.value_delta) if self.value_delta else None,
+            },
+        )
         super().save(*args, **kwargs)
         from apps.app_inventory.models import ProductLedgerEntry
 
         DebugContext.log("Recording ProductLedgerEntry for adjustment line")
         ProductLedgerEntry.record_adjustment_line(self)
-        DebugContext.success("ProductLedgerEntry recorded", {"adjustment_line_pk": self.pk})
+        DebugContext.success(
+            "ProductLedgerEntry recorded", {"adjustment_line_pk": self.pk}
+        )
+
+        # Sync Product lifecycle based on adjustment direction
+        self._sync_products()
 
     class Meta:
         verbose_name = _("invoice item adjustment line")

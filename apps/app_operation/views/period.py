@@ -2,15 +2,15 @@ from datetime import date
 
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
-from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db import transaction
 from django.shortcuts import redirect, render
 from django.utils.translation import gettext_lazy as _
 
 from apps.app_base.debug import DebugContext, debug_view
-from farm.shortcuts import get_object_or_404
 from apps.app_entity.models import Entity
 from apps.app_operation.models.period import FinancialPeriod
+from farm.shortcuts import get_object_or_404
 
 
 @login_required
@@ -67,7 +67,7 @@ def period_list_view(request, entity_pk):
         )
 
     paginator = Paginator(all_periods, 25)
-    page_number = request.GET.get('page', 1)
+    page_number = request.GET.get("page", 1)
     try:
         page_obj = paginator.page(page_number)
     except PageNotAnInteger:
@@ -82,7 +82,6 @@ def period_list_view(request, entity_pk):
         "paginator": paginator,
     }
     return render(request, "app_operation/period_list.html", context)
-
 
 
 @login_required
@@ -107,7 +106,7 @@ def period_close_view(request, period_pk):
             },
         )
 
-    if period.end_date is not None:
+    if not period.can_close:
         error_msg = _("This period is already closed.")
         DebugContext.warn(
             "Close attempt on already closed period", {"period_id": period.pk}
@@ -126,47 +125,7 @@ def period_close_view(request, period_pk):
         return render(request, "app_operation/period_close.html", context, status=400)
 
     if request.method == "GET":
-        warnings = []
-
-        if period.receivables > 0:
-            warnings.append(
-                _("Outstanding receivables: {amount}").format(
-                    amount=period.receivables
-                )
-            )
-
-        if period.payables > 0:
-            warnings.append(
-                _("Outstanding payables: {amount}").format(amount=period.payables)
-            )
-
-        if period.outstanding_loan_credited > 0:
-            warnings.append(
-                _("Outstanding loans given: {amount}").format(
-                    amount=period.outstanding_loan_credited
-                )
-            )
-
-        if period.outstanding_loan_received > 0:
-            warnings.append(
-                _("Outstanding loans received: {amount}").format(
-                    amount=period.outstanding_loan_received
-                )
-            )
-
-        if period.outstanding_worker_advance_paid > 0:
-            warnings.append(
-                _("Outstanding worker advances paid: {amount}").format(
-                    amount=period.outstanding_worker_advance_paid
-                )
-            )
-
-        if period.outstanding_worker_advance_received > 0:
-            warnings.append(
-                _("Outstanding worker advances received: {amount}").format(
-                    amount=period.outstanding_worker_advance_received
-                )
-            )
+        warnings = period.closure_warnings()
 
         context = {
             "period": period,
@@ -238,6 +197,7 @@ def period_close_view(request, period_pk):
 def period_ledger_view(request, period_pk):
     """Show running-balance cash ledger for a financial period."""
     from django.db.models import Q
+
     from apps.app_transaction.models import Transaction
     from apps.app_transaction.transaction_type import TransactionType
 
@@ -272,18 +232,24 @@ def period_ledger_view(request, period_pk):
         else:
             direction, delta = "debit", -tx.amount
         running += delta
-        ledger_rows.append({
-            "tx": tx,
-            "direction": direction,
-            "delta": tx.amount,
-            "balance": running,
-            "counterparty": tx.source if direction == "credit" else tx.target,
-        })
+        ledger_rows.append(
+            {
+                "tx": tx,
+                "direction": direction,
+                "delta": tx.amount,
+                "balance": running,
+                "counterparty": tx.source if direction == "credit" else tx.target,
+            }
+        )
 
-    return render(request, "app_operation/period_ledger.html", {
-        "period": period,
-        "entity": entity,
-        "opening_balance": period.previous_balance,
-        "closing_balance": running,
-        "ledger_rows": ledger_rows,
-    })
+    return render(
+        request,
+        "app_operation/period_ledger.html",
+        {
+            "period": period,
+            "entity": entity,
+            "opening_balance": period.previous_balance,
+            "closing_balance": running,
+            "ledger_rows": ledger_rows,
+        },
+    )

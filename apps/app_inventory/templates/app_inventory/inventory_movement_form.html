@@ -9,7 +9,13 @@
           <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
             <h5 class="mb-0">
               <i class="bi bi-boxes me-2"></i>
-              {% trans 'Record Inventory Movement' %}
+              {% if operation.operation_type == 'PURCHASE' %}
+                {% trans 'Receive Purchased Items' %}
+              {% elif operation.operation_type == 'SALE' %}
+                {% trans 'Dispatch Sold Items' %}
+              {% else %}
+                {% trans 'Record Inventory Movement' %}
+              {% endif %}
             </h5>
             <span class="badge bg-white text-primary">{{ operation.get_operation_type_display }}</span>
           </div>
@@ -53,12 +59,18 @@
                     <thead class="table-light">
                       <tr>
                         <th>
-                          {% trans 'Invoice Item' %}
+                          {% trans 'Product' %}
                         </th>
-                        <th style="width: 100px">
+                        <th style="width: 110px" class="text-center">
                           {% trans 'Invoice Qty' %}
                         </th>
-                        <th style="width: 100px">
+                        <th style="width: 110px" class="text-center">
+                          {% trans 'Already Moved' %}
+                        </th>
+                        <th style="width: 110px" class="text-center">
+                          {% trans 'Max Allowed' %}
+                        </th>
+                        <th style="width: 110px">
                           {% trans 'Move Qty' %}
                         </th>
                         <th style="width: 36px"></th>
@@ -66,12 +78,17 @@
                     </thead>
                     <tbody id="item-formset-body">
                       {% for line_form in formset %}
-                        <tr class="item-row{% if line_form.invoice_item.errors or line_form.quantity.errors %} table-danger{% endif %}">
+                        <tr class="item-row{% if line_form.invoice_item.errors or line_form.quantity.errors %} table-danger{% endif %}"
+                            data-invoice-item-id="{{ line_form.invoice_item.value|default:'' }}">
                           {% for field in line_form.hidden_fields %}
                             {{ field }}
                           {% endfor %}
                           <td>
-                            {{ line_form.invoice_item }}
+                            <div class="d-flex align-items-center">
+                              <div class="flex-grow-1">
+                                {{ line_form.invoice_item }}
+                              </div>
+                            </div>
                             {% if line_form.invoice_item.errors %}
                               <div class="invalid-feedback d-block small">
                                 {% for error in line_form.invoice_item.errors %}
@@ -80,11 +97,30 @@
                               </div>
                             {% endif %}
                           </td>
-                          <td>
-                            <input type="text" class="form-control form-control-sm" readonly placeholder="—" id="invoice-qty-display" />
+                          <td class="text-center">
+                            <div class="invoice-qty-display card card-body bg-light py-2 px-3 mb-0">
+                              <span class="fw-bold fs-6 invoice-qty-value" data-original-qty="0">—</span>
+                            </div>
+                          </td>
+                          <td class="text-center">
+                            <div class="already-moved-display card card-body bg-light py-2 px-3 mb-0">
+                              <span class="fw-bold fs-6 already-moved-value">—</span>
+                            </div>
+                          </td>
+                          <td class="text-center">
+                            <div class="max-allowed-display card card-body bg-light py-2 px-3 mb-0
+                              {% if operation.operation_type == 'PURCHASE' %}border-success
+                              {% elif operation.operation_type == 'SALE' %}border-danger
+                              {% endif %}">
+                              <span class="fw-bold fs-6 max-allowed-value">—</span>
+                            </div>
                           </td>
                           <td>
-                            <input type="number" name="{{ line_form.quantity.html_name }}" class="form-control form-control-sm qty-input{% if line_form.quantity.errors %} is-invalid{% endif %}" min="0" value="{{ line_form.quantity.value|default:'' }}" placeholder="0.00" inputmode="decimal" required />
+                            <input type="number" name="{{ line_form.quantity.html_name }}"
+                                   class="form-control form-control-sm qty-input{% if line_form.quantity.errors %} is-invalid{% endif %}"
+                                   min="0" max="0"
+                                   value="{{ line_form.quantity.value|default:'' }}"
+                                   placeholder="0.00" inputmode="decimal" step="0.01" required />
                             {% if line_form.quantity.errors %}
                               <div class="invalid-feedback d-block small text-danger">
                                 <i class="bi bi-exclamation-circle me-1"></i>
@@ -124,53 +160,144 @@
 
   <script>
     document.addEventListener('DOMContentLoaded', function () {
-      const addButton = document.getElementById('add-item-row')
-      const formsetBody = document.getElementById('item-formset-body')
-      const totalForms = document.getElementById('id_lines-TOTAL_FORMS')
-      const formsetPrefix = 'lines'
-    
-      if (addButton) {
-        addButton.addEventListener('click', function (e) {
-          e.preventDefault()
-          const formCount = parseInt(totalForms.value)
-          const newForm = document.querySelector(`.item-row`).cloneNode(true)
-    
-          // Clear inputs
-          newForm.querySelectorAll("input[type='number'], input[type='text'], select").forEach((input) => {
-            input.value = ''
-          })
-    
-          // Update field names
-          newForm.querySelectorAll('[name]').forEach((field) => {
-            const oldName = field.getAttribute('name')
-            if (oldName) {
-              const newName = oldName.replace(new RegExp(`^${formsetPrefix}-(\\d+)-`), `${formsetPrefix}-${formCount}-`)
-              field.setAttribute('name', newName)
-              if (field.id) {
-                field.id = field.id.replace(new RegExp(`^id_${formsetPrefix}_(\\d+)_`), `id_${formsetPrefix}_${formCount}_`)
-              }
-            }
-          })
-    
-          formsetBody.appendChild(newForm)
-          totalForms.value = formCount + 1
-        })
+      // -------------------------------------------------------------------
+      // Data: invoice item details passed from the server
+      // -------------------------------------------------------------------
+      const invoiceItemData = {{ invoice_items_json|safe }};
+
+      // -------------------------------------------------------------------
+      // Helpers
+      // -------------------------------------------------------------------
+      function getItemData(invoiceItemId) {
+        const id = String(invoiceItemId);
+        if (invoiceItemData.hasOwnProperty(id)) {
+          return invoiceItemData[id];
+        }
+        if (invoiceItemData.hasOwnProperty(parseInt(id, 10))) {
+          return invoiceItemData[parseInt(id, 10)];
+        }
+        return null;
       }
-    
-      // Remove row
-      document.addEventListener('click', function (e) {
-        if (e.target.closest('.remove-row')) {
-          e.preventDefault()
-          const row = e.target.closest('.item-row')
-          const deleteCheckbox = row.querySelector("[name*='-DELETE']")
-          if (deleteCheckbox) {
-            deleteCheckbox.checked = true
-            row.style.display = 'none'
-          } else {
-            row.remove()
+
+      function updateRowDisplay(row) {
+        const selectEl = row.querySelector('select[name$="-invoice_item"]');
+        if (!selectEl) return;
+
+        const selectedId = selectEl.value;
+        const data = selectedId ? getItemData(selectedId) : null;
+
+        const qtySpan = row.querySelector('.invoice-qty-value');
+        const movedSpan = row.querySelector('.already-moved-value');
+        const maxSpan = row.querySelector('.max-allowed-value');
+        const qtyInput = row.querySelector('.qty-input');
+
+        if (data) {
+          qtySpan.textContent = data.quantity;
+          qtySpan.dataset.originalQty = data.quantity;
+          movedSpan.textContent = data.already_moved;
+          maxSpan.textContent = data.max_allowed;
+
+          if (qtyInput) {
+            qtyInput.max = data.max_allowed;
+            qtyInput.placeholder = data.max_allowed;
+            // Clamp current value if it exceeds the new max
+            const cur = parseFloat(qtyInput.value);
+            if (!isNaN(cur) && cur > data.max_allowed) {
+              qtyInput.value = data.max_allowed;
+            }
+          }
+        } else {
+          qtySpan.textContent = '—';
+          qtySpan.dataset.originalQty = '0';
+          movedSpan.textContent = '—';
+          maxSpan.textContent = '—';
+          if (qtyInput) {
+            qtyInput.max = 0;
+            qtyInput.placeholder = '0.00';
           }
         }
-      })
-    })
+      }
+
+      function updateAllRows() {
+        document.querySelectorAll('.item-row').forEach(updateRowDisplay);
+      }
+
+      // -------------------------------------------------------------------
+      // Attachment: update on invoice_item <select> change
+      // -------------------------------------------------------------------
+      document.getElementById('item-formset-body').addEventListener('change', function (e) {
+        const select = e.target.closest('select[name$="-invoice_item"]');
+        if (select) {
+          const row = select.closest('.item-row');
+          if (row) updateRowDisplay(row);
+        }
+      });
+
+      // -------------------------------------------------------------------
+      // Add row
+      // -------------------------------------------------------------------
+      const addButton = document.getElementById('add-item-row');
+      const formsetBody = document.getElementById('item-formset-body');
+      const totalForms = document.getElementById('id_lines-TOTAL_FORMS');
+      const formsetPrefix = 'lines';
+
+      if (addButton) {
+        addButton.addEventListener('click', function (e) {
+          e.preventDefault();
+          const formCount = parseInt(totalForms.value);
+          const newForm = document.querySelector('.item-row').cloneNode(true);
+
+          // Clear inputs
+          newForm.querySelectorAll("input[type='number'], input[type='text'], select").forEach(function (input) {
+            input.value = '';
+          });
+
+          // Reset display cards
+          const qtySpan = newForm.querySelector('.invoice-qty-value');
+          if (qtySpan) { qtySpan.textContent = '—'; qtySpan.dataset.originalQty = '0'; }
+          const movedSpan = newForm.querySelector('.already-moved-value');
+          if (movedSpan) movedSpan.textContent = '—';
+          const maxSpan = newForm.querySelector('.max-allowed-value');
+          if (maxSpan) maxSpan.textContent = '—';
+
+          // Update field names
+          newForm.querySelectorAll('[name]').forEach(function (field) {
+            const oldName = field.getAttribute('name');
+            if (oldName) {
+              const newName = oldName.replace(new RegExp('^' + formsetPrefix + '-(\\d+)-'), formsetPrefix + '-' + formCount + '-');
+              field.setAttribute('name', newName);
+              if (field.id) {
+                field.id = field.id.replace(new RegExp('^id_' + formsetPrefix + '_(\\d+)_'), 'id_' + formsetPrefix + '_' + formCount + '_');
+              }
+            }
+          });
+
+          formsetBody.appendChild(newForm);
+          totalForms.value = formCount + 1;
+        });
+      }
+
+      // -------------------------------------------------------------------
+      // Remove row
+      // -------------------------------------------------------------------
+      document.addEventListener('click', function (e) {
+        if (e.target.closest('.remove-row')) {
+          e.preventDefault();
+          const row = e.target.closest('.item-row');
+          const deleteCheckbox = row.querySelector("[name*='-DELETE']");
+          if (deleteCheckbox) {
+            deleteCheckbox.checked = true;
+            row.style.display = 'none';
+          } else {
+            row.remove();
+          }
+        }
+      });
+
+      // -------------------------------------------------------------------
+      // Initial update
+      // -------------------------------------------------------------------
+      updateAllRows();
+    });
   </script>
 {% endblock %}

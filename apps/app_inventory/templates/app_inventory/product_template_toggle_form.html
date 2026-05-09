@@ -57,7 +57,7 @@
                               <span class="fw-bold small">
                                 {% if LANGUAGE_CODE == 'ar' and templ.name_ar %}{{ templ.name_ar }}{% else %}{{ templ.name }}{% endif %}
                               </span>
-                              {% if templ.requires_individual_tag %}
+                              {% if templ.has_tag %}
                                 <i class="bi bi-tag-fill small text-warning ms-1" title="{% trans 'Requires Individual Tagging' %}"></i>
                               {% endif %}
                               <span class="text-muted d-block" style="font-size: 0.75rem;">

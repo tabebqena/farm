@@ -39,9 +39,7 @@ class InvoiceItemTest(TestCase):
         self.template = make_product_template()
 
     def test_total_price(self):
-        item = make_invoice_item(
-            self.op, self.template, Decimal("3"), Decimal("50.00")
-        )
+        item = make_invoice_item(self.op, self.template, Decimal("3"), Decimal("50.00"))
         self.assertEqual(item.total_price, Decimal("150.00"))
 
     def test_total_price_fractional_quantity(self):
@@ -53,7 +51,7 @@ class InvoiceItemTest(TestCase):
     def test_clean_unit_price_negative_raises(self):
         item = InvoiceItem(
             operation=self.op,
-            product=self.template,
+            product_template=self.template,
             quantity=Decimal("1"),
             unit_price=Decimal("-10.00"),
         )
@@ -64,7 +62,7 @@ class InvoiceItemTest(TestCase):
         # clean_unit_price only blocks negatives; zero unit price passes it
         item = InvoiceItem(
             operation=self.op,
-            product=self.template,
+            product_template=self.template,
             quantity=Decimal("1"),
             unit_price=Decimal("0.00"),
         )
@@ -75,7 +73,7 @@ class InvoiceItemTest(TestCase):
         # AmountCleanMixin checks _amount_name="quantity" > 0
         item = InvoiceItem(
             operation=self.op,
-            product=self.template,
+            product_template=self.template,
             quantity=Decimal("0"),
             unit_price=Decimal("10.00"),
         )
@@ -85,7 +83,7 @@ class InvoiceItemTest(TestCase):
     def test_clean_quantity_negative_raises(self):
         item = InvoiceItem(
             operation=self.op,
-            product=self.template,
+            product_template=self.template,
             quantity=Decimal("-1"),
             unit_price=Decimal("10.00"),
         )
@@ -95,7 +93,7 @@ class InvoiceItemTest(TestCase):
     def test_clean_valid_passes(self):
         item = InvoiceItem(
             operation=self.op,
-            product=self.template,
+            product_template=self.template,
             quantity=Decimal("2"),
             unit_price=Decimal("10.00"),
         )
@@ -105,7 +103,7 @@ class InvoiceItemTest(TestCase):
         # total_price is a pure multiplication; zero unit_price is allowed
         item = InvoiceItem(
             operation=self.op,
-            product=self.template,
+            product_template=self.template,
             quantity=Decimal("5"),
             unit_price=Decimal("0.00"),
         )
@@ -114,7 +112,7 @@ class InvoiceItemTest(TestCase):
     def test_clean_unit_price_positive_does_not_raise(self):
         item = InvoiceItem(
             operation=self.op,
-            product=self.template,
+            product_template=self.template,
             quantity=Decimal("1"),
             unit_price=Decimal("100.00"),
         )
@@ -125,7 +123,7 @@ class InvoiceItemTest(TestCase):
         # must be caught by calling clean_unit_price() explicitly.
         item = InvoiceItem(
             operation=self.op,
-            product=self.template,
+            product_template=self.template,
             quantity=Decimal("1"),
             unit_price=Decimal("-5.00"),
         )

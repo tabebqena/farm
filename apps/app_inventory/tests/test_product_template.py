@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.test import TestCase
 
 from apps.app_entity.models import EntityType
@@ -22,9 +24,13 @@ class ProductTemplateTest(TestCase):
         t = make_product_template()
         self.assertEqual(t.default_unit, "Head")
 
-    def test_requires_individual_tag_defaults_false(self):
+    def test_has_tag_defaults_false(self):
         t = make_product_template()
-        self.assertFalse(t.requires_individual_tag)
+        self.assertFalse(t.has_tag)
+
+    def test_minimum_quantity_default(self):
+        t = make_product_template()
+        self.assertEqual(t.minimum_quantity, Decimal("1.00"))
 
     def test_entities_m2m(self):
         t = make_product_template()

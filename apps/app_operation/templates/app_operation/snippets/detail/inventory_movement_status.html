@@ -3,17 +3,19 @@
 {# Inventory Movement Status — shown when the operation has invoice items #}
 {% if items %}
   <div class="card mb-3 shadow-sm">
-    <div class="card-header fw-bold d-flex justify-content-between align-items-center">
+    <div class="card-header fw-bold d-flex justify-content-between align-items-center bg-black text-white">
       <span>{% trans 'Inventory Movement Status' %}</span>
-      <a href="{% url 'create_inventory_movement' operation.pk %}" class="btn btn-sm btn-outline-secondary">
-        <i class="bi bi-box-seam me-1"></i>{% trans 'Record Movement' %}
-      </a>
+      <a href="{% url 'create_inventory_movement' operation.pk %}" class="btn btn-sm btn-outline-secondary text-white"><i class="bi bi-box-seam me-1"></i>{% trans 'Record Movement' %}</a>
     </div>
     <div class="card-body p-0">
       {# Table header row — hidden on small screens #}
       <div class="d-none d-md-flex border-bottom bg-light small fw-bold text-muted px-3 py-2">
-        <div class="col-3">{% trans 'Product' %}</div>
-        <div class="col-2 text-end">{% trans 'Unit Price' %}</div>
+        <div class="col-3">
+          {% trans 'Product' %}
+        </div>
+        <div class="col-2 text-end">
+          {% trans 'Unit Price' %}
+        </div>
         <div class="col-2 text-end">
           {% if operation.operation_type == 'PURCHASE' %}
             {% trans 'Received' %}
@@ -21,8 +23,12 @@
             {% trans 'Delivered' %}
           {% endif %}
         </div>
-        <div class="col-2 text-end">{% trans 'Remaining' %}</div>
-        <div class="col-3 text-end">{% trans 'Actions' %}</div>
+        <div class="col-2 text-end">
+          {% trans 'Remaining' %}
+        </div>
+        <div class="col-3 text-end">
+          {% trans 'Actions' %}
+        </div>
       </div>
       {# Table body rows #}
       <div class="list-group list-group-flush">
@@ -32,17 +38,21 @@
               {# Product #}
               <div class="col-12 col-md-3">
                 <small class="text-muted d-md-none">{% trans 'Product' %}:</small>
-                <a href="{% url 'product_detail' entry.item.pk %}" class="text-decoration-none">{{ entry.item.product.name }}</a>
+                <a href="{% url 'product_detail' entry.item.pk %}" class="text-decoration-none">{{ entry.item.product_template.name }}</a>
               </div>
               {# Unit Price #}
               <div class="col-4 col-md-2 text-end">
                 <small class="text-muted d-md-none d-block">{% trans 'Price' %}</small>
                 <span class="small">{{ entry.item.unit_price }}</span>
               </div>
-              {# Moved qty (Received/Delivered) #}
+              {# Net moved qty (Received/Delivered) #}
               <div class="col-4 col-md-2 text-end">
                 <small class="text-muted d-md-none d-block">
-                  {% if operation.operation_type == 'PURCHASE' %}{% trans 'Rcv' %}{% else %}{% trans 'Dlv' %}{% endif %}
+                  {% if entry.is_inbound %}
+                    {% trans 'Rcv' %}
+                  {% else %}
+                    {% trans 'Dlv' %}
+                  {% endif %}
                 </small>
                 <span class="text-success fw-semibold">{{ entry.moved_qty }}</span>
               </div>
@@ -60,49 +70,83 @@
                 {% if entry.remaining_qty > 0 %}
                   <a href="{% url 'create_inventory_movement' operation.pk %}" class="btn btn-sm btn-success w-100 w-md-auto mb-1">
                     <i class="bi bi-plus-circle me-1"></i>
-                    {% if operation.operation_type == 'PURCHASE' %}
+                    {% if entry.is_inbound %}
                       {% trans 'Receive' %}
                     {% else %}
                       {% trans 'Deliver' %}
                     {% endif %}
                   </a>
                 {% else %}
-                  <span class="badge bg-success bg-opacity-10 text-success small px-2 py-1">
-                    <i class="bi bi-check-circle me-1"></i>{% trans 'Complete' %}
-                  </span>
+                  <span class="badge bg-success bg-opacity-10 text-success small px-2 py-1"><i class="bi bi-check-circle me-1"></i>{% trans 'Complete' %}</span>
                 {% endif %}
-                {# Show movement lines with reverse button #}
-                {% if entry.movement_lines %}
+                {# Show movement lines grouped by group_key #}
+                {% if entry.grouped_lines %}
                   <div class="mt-1">
-                    <button class="btn btn-sm btn-outline-info w-100 w-md-auto" type="button" data-bs-toggle="collapse" data-bs-target="#movement-lines-{{ entry.item.pk }}" aria-expanded="false">
-                      <i class="bi bi-list me-1"></i>{% trans 'Movements' %} ({{ entry.movement_lines|length }})
-                    </button>
+                    <button class="btn btn-sm btn-outline-info w-100 w-md-auto" type="button" data-bs-toggle="collapse" data-bs-target="#movement-lines-{{ entry.item.pk }}" aria-expanded="false"><i class="bi bi-list me-1"></i>{% trans 'Movements' %}({{ entry.movement_lines|length }})</button>
                   </div>
                 {% endif %}
               </div>
             </div>
-            {# Collapsible movement lines detail #}
-            {% if entry.movement_lines %}
+            {# Collapsible movement lines detail — grouped by group_key, including reversals #}
+            {% if entry.grouped_lines %}
               <div class="collapse border-top mt-2 pt-2" id="movement-lines-{{ entry.item.pk }}">
                 <div class="small">
-                  {% for ml in entry.movement_lines %}
-                    <div class="d-flex justify-content-between align-items-center py-1 border-bottom">
+                  {% for group in entry.grouped_lines %}
+                    {# Group header — show group_key info #}
+                    <div class="d-flex justify-content-between align-items-center py-1 px-2 bg-light bg-opacity-25 rounded mb-1">
                       <div>
-                        <span class="text-muted">#{{ ml.movement.pk }}</span>
-                        <span class="mx-2">{{ ml.movement.date }}</span>
-                        <span class="fw-semibold">{{ ml.quantity }}</span>
-                        {% if ml.reversed_by %}
-                          <span class="badge bg-danger bg-opacity-10 text-danger ms-1">{% trans 'Reversed' %}</span>
+                        {% if group.group_key %}
+                          <span class="badge bg-secondary me-2">{{ group.group_key }}</span>
+                          <span class="text-muted small">{% trans 'Group' %}</span>
+                        {% else %}
+                          <span class="text-muted small">{% trans 'Individual' %}</span>
                         {% endif %}
                       </div>
                       <div>
-                        {% if not ml.reversed_by %}
-                          <a href="{% url 'reverse_inventory_movement_line' ml.pk %}" class="btn btn-sm btn-outline-danger" title="{% trans 'Reverse this movement line' %}">
-                            <i class="bi bi-arrow-counterclockwise"></i>
-                          </a>
-                        {% endif %}
+                        <span class="fw-semibold text-primary small {% if group.total_net_qty < 0 %}text-danger{% endif %}">{{ group.total_net_qty }}</span>
+                        <span class="text-muted small">{% trans 'net' %}</span>
                       </div>
                     </div>
+                    {% for ml in group.lines %}
+                      {# Determine if this is a reversal line (reversal_of_id is not None) #}
+                      <div class="d-flex justify-content-between align-items-center py-1 border-bottom ps-3 {% if ml.reversal_of_id %}
+                          bg-danger bg-opacity-10
+                        {% elif ml.reversed_by %}
+                          bg-secondary bg-opacity-10 text-muted text-decoration-line-through
+                        {% endif %}">
+                        <div>
+                          {# Direction indicator icon #}
+                          {% if ml.reversal_of_id %}
+                            {% if entry.is_inbound %}
+                              <i class="bi bi-box-arrow-up text-warning me-1" title="{% trans 'Return (Outbound)' %}"></i>
+                            {% else %}
+                              <i class="bi bi-box-arrow-in-down text-info me-1" title="{% trans 'Return (Inbound)' %}"></i>
+                            {% endif %}
+                          {% else %}
+                            {% if entry.is_inbound %}
+                              <i class="bi bi-box-arrow-in-down text-success me-1" title="{% trans 'Receive (Inbound)' %}"></i>
+                            {% else %}
+                              <i class="bi bi-box-arrow-up text-danger me-1" title="{% trans 'Deliver (Outbound)' %}"></i>
+                            {% endif %}
+                          {% endif %}
+                          <span class="text-muted">#{{ ml.pk }}</span>
+                          <span class="mx-2">{{ ml.date }}</span>
+                          <span class="fw-semibold">{{ ml.quantity }}</span>
+                          {# Reversal indicator badges #}
+                          {% if ml.reversal_of_id %}
+                            <span class="badge bg-warning bg-opacity-25 text-warning ms-1">{% trans 'Reversal' %}</span>
+                          {% endif %}
+                          {% if ml.reversed_by %}
+                            <span class="badge bg-danger bg-opacity-10 text-danger ms-1">{% trans 'Reversed' %}</span>
+                          {% endif %}
+                        </div>
+                        <div>
+                          {% if not ml.reversed_by and not ml.reversal_of_id %}
+                            <a href="{% url 'reverse_inventory_movement_line' ml.pk %}" class="btn btn-sm btn-outline-danger" title="{% trans 'Reverse this movement line' %}"><i class="bi bi-arrow-counterclockwise"></i></a>
+                          {% endif %}
+                        </div>
+                      </div>
+                    {% endfor %}
                   {% endfor %}
                 </div>
               </div>

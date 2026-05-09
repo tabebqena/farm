@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}
+  {% trans 'Register Deferred Movement' %}- {{ operation }}
+{% endblock %}
+
+{% block content %}
+  <div class="container-fluid px-2 px-sm-4 mt-4">
+    {# ─── Page Header ────────────────────────────────────────────── #}
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h4 class="mb-1">{% trans 'Register Deferred Movement' %}</h4>
+        <small class="text-muted">
+          {% trans 'Operation' %}#{{ operation.pk }}
+          &middot; {{ operation.get_operation_type_display }}
+          &middot; {{ operation.date }}
+        </small>
+      </div>
+      <a href="{% url 'operation_detail_view' operation.pk %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>{% trans 'Back to Operation' %}</a>
+    </div>
+
+    {# ─── Operation Summary ─────────────────────────────────────── #}
+    <div class="card shadow-sm mb-3">
+      <div class="card-body">
+        <div class="row g-2">
+          <div class="col-6 col-md-3">
+            <small class="text-muted d-block">{% trans 'Entity' %}</small>
+            <span class="fw-semibold">{{ operation.entity }}</span>
+          </div>
+          {% if operation.destination %}
+            <div class="col-6 col-md-3">
+              <small class="text-muted d-block">{% trans 'Destination' %}</small>
+              <span class="fw-semibold">{{ operation.destination }}</span>
+            </div>
+          {% endif %}
+          <div class="col-6 col-md-3">
+            <small class="text-muted d-block">{% trans 'Description' %}</small>
+            <span>{{ operation.description|default:'—' }}</span>
+          </div>
+          <div class="col-6 col-md-3">
+            <small class="text-muted d-block">{% trans 'Amount' %}</small>
+            <span class="fw-bold">{{ operation.amount }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# ─── Deferred Movement Form ───────────────────────────────── #}
+    <div class="card shadow-sm">
+      <div class="card-header fw-bold bg-dark text-white">
+        <i class="bi bi-box-seam me-1"></i>{% trans 'Create Movement' %}
+      </div>
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger">
+              {% for error in form.non_field_errors %}
+                <p class="mb-0">{{ error }}</p>
+              {% endfor %}
+            </div>
+          {% endif %}
+
+          {# Invoice Item ─────────────── #}
+          <div class="mb-3">
+            <label for="{{ form.invoice_item.id_for_label }}" class="form-label">{% trans 'Invoice Item' %}</label>
+            <select name="{{ form.invoice_item.html_name }}" id="{{ form.invoice_item.id_for_label }}" class="form-select {% if form.invoice_item.errors %}is-invalid{% endif %}">
+              {% for option in form.invoice_item %}
+                {{ option }}
+              {% endfor %}
+            </select>
+            {% if form.invoice_item.errors %}
+              <div class="invalid-feedback">
+                {% for error in form.invoice_item.errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endif %}
+            <small class="form-text text-muted">{% trans 'Select the invoice item you want to register a movement for.' %}</small>
+          </div>
+
+          {# Quantity ─────────────────── #}
+          <div class="mb-3">
+            <label for="{{ form.quantity.id_for_label }}" class="form-label">{% trans 'Quantity' %}</label>
+            <input type="number" name="{{ form.quantity.html_name }}" id="{{ form.quantity.id_for_label }}" class="form-control {% if form.quantity.errors %}is-invalid{% endif %}" step="0.01" min="0.01" placeholder="{% trans 'e.g. 10' %}" value="{{ form.quantity.value|default:'' }}" />
+            {% if form.quantity.errors %}
+              <div class="invalid-feedback">
+                {% for error in form.quantity.errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endif %}
+            <small class="form-text text-muted">{% trans 'How many units to move? Must not exceed the remaining quantity.' %}</small>
+          </div>
+
+          {# Notes ────────────────────── #}
+          <div class="mb-3">
+            <label for="{{ form.notes.id_for_label }}" class="form-label">{% trans 'Notes (optional)' %}</label>
+            <textarea name="{{ form.notes.html_name }}" id="{{ form.notes.id_for_label }}" class="form-control {% if form.notes.errors %}is-invalid{% endif %}" rows="3" placeholder="{% trans 'e.g. Moved to cold storage' %}">{{ form.notes.value|default:'' }}</textarea>
+            {% if form.notes.errors %}
+              <div class="invalid-feedback">
+                {% for error in form.notes.errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+
+          {# Submit ───────────────────── #}
+          <div class="d-flex justify-content-between align-items-center">
+            <a href="{% url 'operation_detail_view' operation.pk %}" class="btn btn-outline-secondary">{% trans 'Cancel' %}</a>
+            <button type="submit" class="btn btn-success"><i class="bi bi-check-lg me-1"></i>{% trans 'Register Movement' %}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+{% endblock %}

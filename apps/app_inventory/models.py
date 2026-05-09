@@ -9,7 +9,7 @@ from django.db.models import DecimalField, ExpressionWrapper, F, Q, Sum
 from django.utils.translation import gettext_lazy as _
 
 from apps.app_base.debug import DebugContext
-from apps.app_base.mixins import AmountCleanMixin, ImmutableMixin, OfficerMixin
+from apps.app_base.mixins import AmountCleanMixin, ImmutableMixin
 from apps.app_base.models import BaseModel
 
 
@@ -195,7 +195,7 @@ class ProductLedgerEntry(BaseModel):
     @classmethod
     def record_movement_line(cls, line, negate: bool = False) -> tuple[int, int]:
         """
-        Write ledger entries for one InventoryMovementLine.
+        Write a ledger entry for one InventoryMovementLine.
 
         Direction is implicit from the parent operation type:
           PURCHASE → qty_sign=+1, val_sign=+1, entry_type=PURCHASE
@@ -204,14 +204,14 @@ class ProductLedgerEntry(BaseModel):
 
         Idempotency keys use the *original* line pk so a line can only be
         reversed once:
-          forward : "movement_line_{line.pk}_product_{product.pk}"
-          reversal: "rev_movement_line_{line.reversal_of_id}_product_{product.pk}"
+          forward : "movement_line_{line.pk}_product_{line.product_id}"
+          reversal: "rev_movement_line_{line.reversal_of_id}_product_{line.product_id}"
 
         Value = line.quantity × invoice_item.unit_price (proportional slice).
         """
         from apps.app_operation.models.operation_type import OperationType
 
-        op_type = line.movement.operation.operation_type
+        op_type = line.operation.operation_type
         if op_type == OperationType.PURCHASE:
             qty_sign, val_sign = 1, 1
             entry_type = cls.EntryType.PURCHASE
@@ -228,32 +228,24 @@ class ProductLedgerEntry(BaseModel):
 
         source_pk = line.reversal_of_id if negate else line.pk
         key_prefix = "rev_" if negate else ""
-        date = line.movement.date
+        date = line.date
         item = line.invoice_item
+        product = line.product
 
-        created_count = skipped_count = 0
-        for product in item.products.all():
-            key = f"{key_prefix}movement_line_{source_pk}_product_{product.pk}"
-            obj, created = cls.objects.get_or_create(
-                idempotency_key=key,
-                defaults={
-                    "product": product,
-                    "entry_type": entry_type,
-                    "date": date,
-                    "quantity_delta": (line.quantity * qty_sign).quantize(
-                        Decimal("0.01")
-                    ),
-                    "value_delta": (
-                        line.quantity * item.unit_price * val_sign
-                    ).quantize(Decimal("0.01")),
-                },
-            )
-            if created:
-                created_count += 1
-            else:
-                skipped_count += 1
-
-        return created_count, skipped_count
+        key = f"{key_prefix}movement_line_{source_pk}_product_{product.pk}"
+        obj, created = cls.objects.get_or_create(
+            idempotency_key=key,
+            defaults={
+                "product": product,
+                "entry_type": entry_type,
+                "date": date,
+                "quantity_delta": (line.quantity * qty_sign).quantize(Decimal("0.01")),
+                "value_delta": (line.quantity * item.unit_price * val_sign).quantize(
+                    Decimal("0.01")
+                ),
+            },
+        )
+        return (1, 0) if created else (0, 1)
 
     # ------------------------------------------------------------------
     # Querying
@@ -293,11 +285,9 @@ class ProductLedgerEntry(BaseModel):
     @classmethod
     def inventory_value_at(cls, entity, as_of) -> Decimal:
         """Net book value of inventory for entity as of as_of."""
-        result = (
-            cls.objects.filter(
-                product__product_template__entities=entity, date__lte=as_of
-            ).aggregate(value=Sum("value_delta"))
-        )
+        result = cls.objects.filter(
+            product__product_template__entities=entity, date__lte=as_of
+        ).aggregate(value=Sum("value_delta"))
         return result["value"] or Decimal("0.00")
 
     @classmethod
@@ -310,16 +300,19 @@ class ProductLedgerEntry(BaseModel):
         Returns a queryset of dicts with ``invoice_item_id``, ``ordered_qty``,
         ``delivered_qty``, ``pending_qty``.
         """
-        from apps.app_operation.models.operation_type import OperationType
         from django.db.models.functions import Coalesce
 
+        from apps.app_operation.models.operation_type import OperationType
+
         query = (
-            InvoiceItem.objects
-            .filter(operation__operation_type=OperationType.PURCHASE)
+            InvoiceItem.objects.filter(operation__operation_type=OperationType.PURCHASE)
             .annotate(
                 delivered_qty=Coalesce(
-                    Sum("movement_lines__quantity", filter=Q(movement_lines__reversal_of__isnull=True)),
-                    Decimal("0.00")
+                    Sum(
+                        "movement_lines__quantity",
+                        filter=Q(movement_lines__reversal_of__isnull=True),
+                    ),
+                    Decimal("0.00"),
                 )
             )
             .annotate(
@@ -381,8 +374,15 @@ class ProductTemplate(BaseModel):
     default_unit = models.CharField(
         _("default unit"), max_length=20, default="Head"
     )  # e.g., "Head", "Kg"
-    requires_individual_tag = models.BooleanField(
-        _("requires individual tag"), default=False
+    has_tag = models.BooleanField(_("has tag"), default=False)
+    minimum_quantity = models.DecimalField(
+        _("minimum quantity"),
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal("1.00"),
+        help_text=_(
+            "Smallest allowed quantity increment. Used as the `step` attribute on number inputs in forms."
+        ),
     )
 
     tracking_mode = models.CharField(
@@ -427,7 +427,7 @@ class ProductTemplate(BaseModel):
             "sub_category",
             "default_unit",
             "tracking_mode",
-            "requires_individual_tag",
+            "has_tag",
         )
 
 
@@ -440,11 +440,12 @@ class InvoiceItem(AmountCleanMixin, BaseModel):
         on_delete=models.CASCADE,
         verbose_name=_("operation"),
     )
-    product = models.ForeignKey(
+    product_template = models.ForeignKey(
         ProductTemplate,
         on_delete=models.PROTECT,
-        related_name="invoices",
-        verbose_name=_("product"),
+        related_name="invoice_items",
+        verbose_name=_("product template"),
+        db_column="product_id",
     )
     description = models.TextField(_("description"), blank=True)
     quantity = models.DecimalField(
@@ -470,18 +471,135 @@ class InvoiceItem(AmountCleanMixin, BaseModel):
 
         except Exception as e:
             return super().clean()
-        if not self.product.accepts_operation(op_type):
+        if not self.product_template.accepts_operation(op_type):
             raise ValidationError(
                 _(
                     "'%(product)s' (%(nature)s) cannot be used in a %(op_type)s operation."
                 )
                 % {
-                    "product": self.product.name,
-                    "nature": self.product.get_nature_display(),
+                    "product": self.product_template.name,
+                    "nature": self.product_template.get_nature_display(),
                     "op_type": op_type,
                 }
             )
         return super().clean()
+
+    # ------------------------------------------------------------------
+    # Query helpers  (classmethods usable from views)
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def unreceived_purchases(cls):
+        """
+        Return InvoiceItems for PURCHASE operations that have no
+        associated InventoryMovementLines (i.e. not yet received).
+        """
+        from apps.app_operation.models.operation_type import OperationType
+
+        return (
+            cls.objects.filter(operation__operation_type=OperationType.PURCHASE)
+            .exclude(
+                pk__in=InventoryMovementLine.objects.values_list("invoice_item_id")
+            )
+            .select_related("product_template", "operation")
+            .order_by("-operation__date")
+        )
+
+    @classmethod
+    def undelivered_sales(cls):
+        """
+        Return InvoiceItems for SALE operations that have no
+        associated InventoryMovementLines (i.e. not yet delivered).
+        """
+        from apps.app_operation.models.operation_type import OperationType
+
+        return (
+            cls.objects.filter(operation__operation_type=OperationType.SALE)
+            .exclude(
+                pk__in=InventoryMovementLine.objects.values_list("invoice_item_id")
+            )
+            .select_related("product_template", "operation")
+            .order_by("-operation__date")
+        )
+
+    @classmethod
+    def create_products_for_item(
+        cls, invoice_item, entity, quantity, unit_price, unique_id=None
+    ):
+        """
+        Create Product record(s) for *invoice_item* based on the template's
+        tracking mode, owned by *entity*.
+
+        **INDIVIDUAL** → one ``Product`` per unit (qty=1 each), so each unit
+        can be tagged/moved independently.
+
+        **BATCH** / **COMMODITY** → a single ``Product`` with the full
+        quantity (bulk tracking).
+
+        Returns the list of created ``Product`` instances.
+        """
+        from apps.app_inventory.models import Product
+
+        template = invoice_item.product_template
+        qty = int(quantity)  # Product.quantity is PositiveIntegerField
+        products = []
+
+        if template.tracking_mode == ProductTemplate.TrackingMode.INDIVIDUAL:
+            # One Product per unit — each gets its own tag if provided
+            for i in range(max(qty, 1)):
+                uid = unique_id if qty == 1 else None
+                product = Product.objects.create(
+                    entity=entity,
+                    product_template=template,
+                    quantity=1,
+                    unit_price=unit_price,
+                    unique_id=uid,
+                )
+                product.invoice_items.add(invoice_item)
+                products.append(product)
+        else:
+            # BATCH or COMMODITY — single Product with full quantity
+            product = Product.objects.create(
+                entity=entity,
+                product_template=template,
+                quantity=qty,
+                unit_price=unit_price,
+                unique_id=unique_id,
+            )
+            product.invoice_items.add(invoice_item)
+            products.append(product)
+
+        return products
+
+    @classmethod
+    def build_movement_json(cls, operation):
+        """
+        Build a JSON-serialisable dict of invoice-item data for the
+        inventory-movement form.  Each key is the invoice-item PK; each
+        value contains ``quantity``, ``already_moved`` and ``max_allowed``.
+        """
+        import json
+
+        from django.db.models import Q, Sum
+
+        items = cls.objects.filter(operation=operation).annotate(
+            already_moved=Sum(
+                "movement_lines__quantity",
+                filter=Q(movement_lines__reversal_of__isnull=True),
+            )
+        )
+        data = {}
+        for item in items:
+            already_moved = item.already_moved or Decimal("0.00")
+            data[item.pk] = {
+                "quantity": float(item.quantity),
+                "already_moved": float(already_moved),
+                "max_allowed": float(item.quantity - already_moved),
+            }
+        return json.dumps(data)
+
+    def __str__(self):
+        return f"{self.product_template.name} ({self.quantity})"
 
     class Meta:
         verbose_name = _("invoice item")
@@ -595,12 +713,15 @@ class Product(AmountCleanMixin, BaseModel):
         )
 
     def clean(self) -> None:
-        DebugContext.log("Product.clean()", {
-            "pk": self.pk,
-            "product": self.product_template.name if self.product_template else "",
-            "quantity": self.quantity,
-            "status": self.status if self.pk else "new",
-        })
+        DebugContext.log(
+            "Product.clean()",
+            {
+                "pk": self.pk,
+                "product": self.product_template.name if self.product_template else "",
+                "quantity": self.quantity,
+                "status": self.status if self.pk else "new",
+            },
+        )
         super().clean()  # AmountCleanMixin: unit_price > 0
         # M2M is unavailable until the object has been persisted.
         if self.pk is None:
@@ -609,10 +730,13 @@ class Product(AmountCleanMixin, BaseModel):
         for item in self.invoice_items.select_related("operation").all():
             op_type = item.operation.operation_type
             if not self.product_template.accepts_operation(op_type):
-                DebugContext.error("Product incompatible with operation", data={
-                    "product": self.product_template.name,
-                    "operation_type": op_type,
-                })
+                DebugContext.error(
+                    "Product incompatible with operation",
+                    data={
+                        "product": self.product_template.name,
+                        "operation_type": op_type,
+                    },
+                )
                 raise ValidationError(
                     _("Product '%(p)s' is not compatible with operation type %(op)s.")
                     % {"p": self.product_template.name, "op": op_type}
@@ -623,12 +747,15 @@ class Product(AmountCleanMixin, BaseModel):
         """Save product with audit logging."""
         is_new = self.pk is None
         action = "created" if is_new else "updated"
-        with DebugContext.section(f"Product.save() ({action})", {
-            "product": self.product_template.name if self.product_template else "",
-            "quantity": self.quantity,
-            "unit_price": float(self.unit_price),
-            "status": self.status if self.pk else "new",
-        }):
+        with DebugContext.section(
+            f"Product.save() ({action})",
+            {
+                "product": self.product_template.name if self.product_template else "",
+                "quantity": self.quantity,
+                "unit_price": float(self.unit_price),
+                "status": self.status if self.pk else "new",
+            },
+        ):
             result = super().save(*args, **kwargs)
             DebugContext.success(f"Product {action}", {"pk": self.pk})
 
@@ -637,216 +764,104 @@ class Product(AmountCleanMixin, BaseModel):
                 entity_type="Product",
                 entity_id=self.pk,
                 details={
-                    "product_template": self.product_template.name if self.product_template else "",
+                    "product_template": (
+                        self.product_template.name if self.product_template else ""
+                    ),
                     "quantity": self.quantity,
                     "unit_price": float(self.unit_price),
                     "status": self.status,
                 },
-                user="system"
+                user="system",
             )
             return result
 
     def delete(self, *args, **kwargs):
         """Delete product with audit logging."""
-        with DebugContext.section("Product.delete()", {
-            "pk": self.pk,
-            "product": self.product_template.name if self.product_template else "",
-            "quantity": self.quantity,
-            "status": self.status,
-        }):
-            DebugContext.warn("Deleting product", {
+        with DebugContext.section(
+            "Product.delete()",
+            {
                 "pk": self.pk,
                 "product": self.product_template.name if self.product_template else "",
+                "quantity": self.quantity,
                 "status": self.status,
-            })
+            },
+        ):
+            DebugContext.warn(
+                "Deleting product",
+                {
+                    "pk": self.pk,
+                    "product": (
+                        self.product_template.name if self.product_template else ""
+                    ),
+                    "status": self.status,
+                },
+            )
 
             DebugContext.audit(
                 action="product_deleted",
                 entity_type="Product",
                 entity_id=self.pk,
                 details={
-                    "product_template": self.product_template.name if self.product_template else "",
+                    "product_template": (
+                        self.product_template.name if self.product_template else ""
+                    ),
                     "status": self.status,
                 },
-                user="system"
+                user="system",
             )
 
             return super().delete(*args, **kwargs)
+
+    # ------------------------------------------------------------------
+    # Valuation helpers
+    # ------------------------------------------------------------------
+
+    def compute_valuation_delta(self, new_unit_price: Decimal) -> dict:
+        """
+        Calculate the valuation delta when re-evaluating this product.
+
+        Returns a dict with:
+        - ``current_unit_price`` — the current per-unit value
+        - ``delta`` — the total value change (new - current) * quantity
+        """
+        quantity = self.quantity
+        current_value = self.current_value
+        current_unit_price = (current_value / quantity) if quantity else Decimal("0.00")
+        delta = (new_unit_price - current_unit_price) * (quantity or 1)
+        return {
+            "current_unit_price": current_unit_price,
+            "delta": delta,
+        }
 
     class Meta:
         verbose_name = _("product")
         verbose_name_plural = _("products")
 
 
-class InventoryMovement(ImmutableMixin, OfficerMixin, BaseModel):
+class InventoryMovementLine(ImmutableMixin, BaseModel):
     """
-    Header record for a physical delivery or dispatch batch.
-    Linked to a PURCHASE or SALE operation.  Financial obligations are
-    recorded on the operation; this model tracks only the physical movement.
+    A flat record of a physical inventory movement (receipt or dispatch).
+
+    Direction is implicit from the parent operation type (PURCHASE=inbound,
+    SALE=outbound).  Reversal lines are linked via ``reversal_of``; they
+    write negating ProductLedgerEntry rows on save.
+
+    No longer chained to an ``InventoryMovement`` header — every line carries
+    its own ``operation``, ``date``, ``officer`` and ``group_key`` directly.
     """
 
-    _immutable_fields = {"operation": {}}
+    _immutable_fields = {
+        "operation": {},
+        "invoice_item": {},
+        "quantity": {},
+        "product": {},
+    }
 
     operation = models.ForeignKey(
         "app_operation.Operation",
         on_delete=models.PROTECT,
-        related_name="inventory_movements",
+        related_name="movement_lines",
         verbose_name=_("operation"),
-    )
-    date = models.DateField(_("date"), default=today_date.today)
-    officer = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.PROTECT,
-        related_name="inventory_movements_supervised",
-        verbose_name=_("officer"),
-    )
-    notes = models.TextField(_("notes"), blank=True)
-
-    def clean(self):
-        from apps.app_operation.models.operation_type import OperationType
-
-        DebugContext.log("InventoryMovement.clean()", {
-            "operation": str(self.operation),
-            "operation_type": self.operation.operation_type if self.operation else "",
-            "date": str(self.date),
-        })
-
-        if self.operation.operation_type not in (
-            OperationType.PURCHASE,
-            OperationType.SALE,
-        ):
-            DebugContext.error("Invalid operation type for inventory movement", data={
-                "operation_type": self.operation.operation_type,
-                "allowed": ["PURCHASE", "SALE"],
-            })
-            raise ValidationError(
-                _("InventoryMovement is only allowed for PURCHASE or SALE operations.")
-            )
-        DebugContext.success("InventoryMovement validation passed")
-        super().clean()
-
-    def save(self, *args, **kwargs):
-        """Save inventory movement with logging."""
-        is_new = self.pk is None
-        action = "created" if is_new else "updated"
-        with DebugContext.section(f"InventoryMovement.save() ({action})", {
-            "operation": str(self.operation),
-            "date": str(self.date),
-            "line_count": self.lines.count() if not is_new else 0,
-        }):
-            result = super().save(*args, **kwargs)
-            DebugContext.success(f"InventoryMovement {action}", {"pk": self.pk})
-
-            DebugContext.audit(
-                action=f"inventory_movement_{action}",
-                entity_type="InventoryMovement",
-                entity_id=self.pk,
-                details={
-                    "operation": str(self.operation),
-                    "date": str(self.date),
-                },
-                user=str(self.officer)
-            )
-            return result
-
-    def delete(self, *args, **kwargs):
-        """Delete inventory movement with logging."""
-        with DebugContext.section("InventoryMovement.delete()", {
-            "pk": self.pk,
-            "operation": str(self.operation),
-            "date": str(self.date),
-        }):
-            DebugContext.warn("Deleting inventory movement", {
-                "operation": str(self.operation),
-                "date": str(self.date),
-                "line_count": self.lines.count(),
-            })
-
-            DebugContext.audit(
-                action="inventory_movement_deleted",
-                entity_type="InventoryMovement",
-                entity_id=self.pk,
-                details={"operation": str(self.operation)},
-                user=str(self.officer)
-            )
-
-            return super().delete(*args, **kwargs)
-
-    def reverse(self, officer, date=None):
-        """Reverse every non-yet-reversed line in this movement."""
-        import uuid
-        txn_id = f"reverse_move_{self.pk}_{uuid.uuid4().hex[:8]}"
-        DebugContext.transaction_start(txn_id, f"Reversing inventory movement {self.pk}", {
-            "operation": str(self.operation),
-            "line_count": self.lines.count(),
-        })
-
-        try:
-            reversal_movement = InventoryMovement.objects.create(
-                operation=self.operation,
-                date=date or today_date.today(),
-                officer=officer,
-                notes=_("Reversal of movement %(pk)s") % {"pk": self.pk},
-            )
-            for line in self.lines.all():
-                if not InventoryMovementLine.objects.filter(reversal_of=line).exists():
-                    line.reverse(officer=officer, date=date, movement=reversal_movement)
-
-            DebugContext.transaction_commit(txn_id, {
-                "original_movement_pk": self.pk,
-                "reversal_movement_pk": reversal_movement.pk,
-                "status": "success"
-            })
-
-            DebugContext.audit(
-                action="inventory_movement_reversed",
-                entity_type="InventoryMovement",
-                entity_id=self.pk,
-                details={
-                    "operation": str(self.operation),
-                    "reversal_pk": reversal_movement.pk,
-                },
-                user=str(officer)
-            )
-
-            return reversal_movement
-        except Exception as e:
-            DebugContext.transaction_rollback(txn_id, str(e), e)
-            DebugContext.audit(
-                action="inventory_movement_reversal_failed",
-                entity_type="InventoryMovement",
-                entity_id=self.pk,
-                details={"error": str(e)},
-                user=str(officer)
-            )
-            raise
-
-    def __str__(self):
-        return f"InventoryMovement {self.pk} — {self.operation}"
-
-    class Meta:
-        verbose_name = _("inventory movement")
-        verbose_name_plural = _("inventory movements")
-        ordering = ["-date", "-created_at"]
-
-
-class InventoryMovementLine(ImmutableMixin, BaseModel):
-    """
-    One line in an InventoryMovement.  Records the quantity of a specific
-    InvoiceItem that was physically received or dispatched.
-
-    Direction is implicit from the parent operation type (PURCHASE=inbound,
-    SALE=outbound).  Reversal lines are linked via reversal_of; they write
-    negating ProductLedgerEntry rows on save.
-    """
-
-    _immutable_fields = {"movement": {}, "invoice_item": {}, "quantity": {}}
-
-    movement = models.ForeignKey(
-        InventoryMovement,
-        on_delete=models.PROTECT,
-        related_name="lines",
-        verbose_name=_("movement"),
     )
     invoice_item = models.ForeignKey(
         InvoiceItem,
@@ -854,12 +869,22 @@ class InventoryMovementLine(ImmutableMixin, BaseModel):
         related_name="movement_lines",
         verbose_name=_("invoice item"),
     )
+    product = models.ForeignKey(
+        "Product",
+        on_delete=models.PROTECT,
+        related_name="movement_lines",
+        verbose_name=_("product"),
+        null=True,
+        blank=True,
+    )
     quantity = models.DecimalField(
         _("quantity"),
         max_digits=10,
         decimal_places=2,
         validators=[MinValueValidator(Decimal("0.01"))],
     )
+    date = models.DateField(_("date"), default=today_date.today)
+    notes = models.TextField(_("notes"), blank=True)
     reversal_of = models.OneToOneField(
         "self",
         null=True,
@@ -868,12 +893,34 @@ class InventoryMovementLine(ImmutableMixin, BaseModel):
         related_name="reversed_by",
         verbose_name=_("reversal of"),
     )
+    group_key = models.CharField(
+        _("group key"),
+        max_length=32,
+        blank=True,
+        default="",
+        help_text=_("Short hex string grouping lines created together."),
+    )
+    officer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="movement_lines_supervised",
+        verbose_name=_("officer"),
+        null=True,
+        blank=True,
+    )
 
     def clean(self):
-        if self.invoice_item.operation_id != self.movement.operation_id:
-            raise ValidationError(
-                _("Invoice item does not belong to this movement's operation.")
-            )
+        """Validate cross-field integrity."""
+        # Ensure the invoice item belongs to the same operation
+        # (skip check when operation is not yet assigned, e.g. during form
+        #  validation before the view sets line.operation)
+        if (
+            self.operation_id is not None
+            and self.invoice_item.operation_id != self.operation_id
+        ):
+            raise ValidationError(_("Invoice item does not belong to this operation."))
+
+        # Prevent over-delivery (skip for reversal lines)
         if self.reversal_of_id is None:
             already_moved = InventoryMovementLine.objects.filter(
                 invoice_item=self.invoice_item,
@@ -884,8 +931,8 @@ class InventoryMovementLine(ImmutableMixin, BaseModel):
             if already_moved + self.quantity > self.invoice_item.quantity:
                 raise ValidationError(
                     _(
-                        "Total moved quantity (%(moved)s) would exceed the invoice item "
-                        "quantity (%(max)s)."
+                        "Total moved quantity (%(moved)s) would exceed the invoice "
+                        "item quantity (%(max)s)."
                     )
                     % {
                         "moved": already_moved + self.quantity,
@@ -893,10 +940,10 @@ class InventoryMovementLine(ImmutableMixin, BaseModel):
                     }
                 )
 
-        # Validate products can be moved (SOLD/DEAD allowed for reversals/returns)
-        is_reversal = self.reversal_of_id is not None
-        for product in self.invoice_item.products.all():
-            product.validate_active(allow_reversal=is_reversal)
+        # Validate the product can be moved (SOLD/DEAD allowed for reversals)
+        # (skip when product is not yet assigned, e.g. during form validation)
+        if self.product_id is not None:
+            self.product.validate_active(allow_reversal=self.reversal_of_id is not None)
 
         super().clean()
 
@@ -907,32 +954,50 @@ class InventoryMovementLine(ImmutableMixin, BaseModel):
             negate = self.reversal_of_id is not None
             ProductLedgerEntry.record_movement_line(self, negate=negate)
 
-    def reverse(self, officer, date=None, movement=None):
+    def reverse(self, officer, date=None, group_key=None):
         """
-        Create a reversal line (and its movement header if not supplied).
+        Create a reversal line that negates this one.
+
         Writes negating ProductLedgerEntry rows automatically via save().
         """
         if InventoryMovementLine.objects.filter(reversal_of=self).exists():
             raise ValidationError(
                 _("Movement line %(pk)s has already been reversed.") % {"pk": self.pk}
             )
-        if movement is None:
-            movement = InventoryMovement.objects.create(
-                operation=self.movement.operation,
-                date=date or today_date.today(),
-                officer=officer,
-                notes=_("Reversal of movement line %(pk)s") % {"pk": self.pk},
-            )
         return InventoryMovementLine.objects.create(
-            movement=movement,
+            operation=self.operation,
             invoice_item=self.invoice_item,
+            product=self.product,
             quantity=self.quantity,
+            date=date or today_date.today(),
+            notes=_("Reversal of movement line %(pk)s") % {"pk": self.pk},
             reversal_of=self,
+            group_key=group_key or "",
+            officer=officer,
         )
 
+    @classmethod
+    def batch_reverse(cls, lines, officer, date=None):
+        """
+        Reverse every line in the *lines* queryset.
+
+        Returns the list of newly created reversal lines.
+        """
+        created = []
+        for line in lines:
+            if not cls.objects.filter(reversal_of=line).exists():
+                created.append(
+                    line.reverse(officer=officer, date=date, group_key="batch")
+                )
+        return created
+
     def __str__(self):
-        return f"MovementLine {self.pk} — {self.invoice_item} qty={self.quantity}"
+        return (
+            f"MovementLine {self.pk} — {self.invoice_item} "
+            f"qty={self.quantity} op={self.operation_id}"
+        )
 
     class Meta:
         verbose_name = _("inventory movement line")
         verbose_name_plural = _("inventory movement lines")
+        ordering = ["-date", "-created_at"]

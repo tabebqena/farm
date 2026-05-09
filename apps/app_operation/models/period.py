@@ -62,6 +62,53 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
         return self.end_date is not None and self.end_date < date_type.today()
 
     @property
+    def can_close(self) -> bool:
+        """A period can be closed if it has no end_date set yet."""
+        return self.end_date is None
+
+    def closure_warnings(self) -> list[str]:
+        """
+        Build a list of warning messages about outstanding balances that
+        should be reviewed before closing this period.
+        """
+        from django.utils.translation import gettext as _
+
+        warnings: list[str] = []
+        if self.receivables > 0:
+            warnings.append(
+                _("Outstanding receivables: {amount}").format(amount=self.receivables)
+            )
+        if self.payables > 0:
+            warnings.append(
+                _("Outstanding payables: {amount}").format(amount=self.payables)
+            )
+        if self.outstanding_loan_credited > 0:
+            warnings.append(
+                _("Outstanding loans given: {amount}").format(
+                    amount=self.outstanding_loan_credited
+                )
+            )
+        if self.outstanding_loan_received > 0:
+            warnings.append(
+                _("Outstanding loans received: {amount}").format(
+                    amount=self.outstanding_loan_received
+                )
+            )
+        if self.outstanding_worker_advance_paid > 0:
+            warnings.append(
+                _("Outstanding worker advances paid: {amount}").format(
+                    amount=self.outstanding_worker_advance_paid
+                )
+            )
+        if self.outstanding_worker_advance_received > 0:
+            warnings.append(
+                _("Outstanding worker advances received: {amount}").format(
+                    amount=self.outstanding_worker_advance_received
+                )
+            )
+        return warnings
+
+    @property
     def is_profit(self) -> bool:
         return self.amount is not None and self.amount > Decimal("0.00")
 

@@ -5,22 +5,18 @@
 <div class="container-fluid px-2 px-sm-4 mt-4">
   <div class="card shadow-sm border-danger">
     <div class="card-header bg-danger text-white">
-      <h5 class="mb-0"><i class="bi bi-arrow-counterclockwise me-2"></i>{% trans 'Reverse Entire Movement' %}</h5>
+      <h5 class="mb-0"><i class="bi bi-arrow-counterclockwise me-2"></i>{% trans 'Batch Reverse Movement Lines' %}</h5>
     </div>
     <div class="card-body">
-      <p class="mb-3">{% trans 'Are you sure you want to reverse this entire inventory movement? All non-reversed lines will be reversed.' %}</p>
+      <p class="mb-3">{% trans 'Are you sure you want to reverse all non-reversed movement lines in this batch?' %}</p>
       <table class="table table-bordered">
         <tr>
-          <th>{% trans 'Movement' %}</th>
-          <td>#{{ movement.pk }}</td>
-        </tr>
-        <tr>
-          <th>{% trans 'Date' %}</th>
-          <td>{{ movement.date }}</td>
+          <th>{% trans 'Group Key' %}</th>
+          <td><code>{{ group_key }}</code></td>
         </tr>
         <tr>
           <th>{% trans 'Lines' %}</th>
-          <td>{{ movement.lines.count }}</td>
+          <td>{{ lines|length }}</td>
         </tr>
         <tr>
           <th>{% trans 'Operation' %}</th>
@@ -28,9 +24,31 @@
         </tr>
       </table>
 
+      <h6 class="mt-3">{% trans 'Lines to reverse' %}</h6>
+      <table class="table table-sm table-bordered">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>{% trans 'Product' %}</th>
+            <th>{% trans 'Quantity' %}</th>
+            <th>{% trans 'Date' %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for line in lines %}
+          <tr>
+            <td>{{ line.pk }}</td>
+            <td>{{ line.invoice_item.product_template.name }}</td>
+            <td>{{ line.quantity }}</td>
+            <td>{{ line.date }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
       <div class="alert alert-warning">
         <i class="bi bi-exclamation-triangle me-2"></i>
-        {% trans 'This action will create a new reversal movement with negating ledger entries.' %}
+        {% trans 'This action will create reversal lines with negating ledger entries.' %}
       </div>
 
       <form method="post">

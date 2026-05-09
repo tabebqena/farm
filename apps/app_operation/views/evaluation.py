@@ -7,15 +7,15 @@ from django.contrib import messages
 from django.db import transaction as db_transaction
 from django.shortcuts import redirect, render
 from django.utils import timezone
-from django.utils.translation import gettext as _
 from django.utils.decorators import method_decorator
+from django.utils.translation import gettext as _
 
 from apps.app_base.debug import DebugContext, debug_view
-from farm.shortcuts import get_object_or_404
 from apps.app_entity.models import Entity
 from apps.app_inventory.models import InvoiceItem, Product, ProductLedgerEntry
 from apps.app_operation.models.proxies.op_capital_gain import CapitalGainOperation
 from apps.app_operation.models.proxies.op_capital_loss import CapitalLossOperation
+from farm.shortcuts import get_object_or_404
 
 from .create import OperationCreateView
 
@@ -59,15 +59,18 @@ class EvaluationCreateView(OperationCreateView):
 
     @method_decorator(debug_view)
     def dispatch(self, request, *args, **kwargs):
-        with DebugContext.section("Setting up evaluation creation view", {
-            "project_pk": kwargs.get("pk"),
-            "product_pk": kwargs.get("product_pk"),
-            "user": request.user.username,
-        }):
+        with DebugContext.section(
+            "Setting up evaluation creation view",
+            {
+                "project_pk": kwargs.get("pk"),
+                "product_pk": kwargs.get("product_pk"),
+                "user": request.user.username,
+            },
+        ):
             self.project = get_object_or_404(
                 Entity,
                 pk=kwargs["pk"],
-                error_message="Project not found or has been deleted."
+                error_message="Project not found or has been deleted.",
             )
             DebugContext.success("Project loaded", {"project_id": self.project.pk})
 
@@ -76,7 +79,7 @@ class EvaluationCreateView(OperationCreateView):
                 self.product = get_object_or_404(
                     Product,
                     pk=self.product_pk,
-                    error_message="Product not found or has been deleted."
+                    error_message="Product not found or has been deleted.",
                 )
                 DebugContext.success("Product loaded", {"product_id": self.product.pk})
             else:
@@ -86,22 +89,33 @@ class EvaluationCreateView(OperationCreateView):
         return View.dispatch(self, request, *args, **kwargs)
 
     def get(self, request, *args, **kwargs):
-        with DebugContext.section("Rendering evaluation form", {
-            "project_id": self.project.pk,
-            "product_pk": self.product_pk,
-        }):
+        with DebugContext.section(
+            "Rendering evaluation form",
+            {
+                "project_id": self.project.pk,
+                "product_pk": self.product_pk,
+            },
+        ):
             initial = {"date": timezone.now().date()}
             if self.product:
                 initial["product"] = self.product
             form = EvaluationForm(project=self.project, initial=initial)
-            DebugContext.success("Form rendered", {"product_count": form.fields["product"].queryset.count()})
-            return render(request, self.template_name, self._build_evaluation_context(form))
+            DebugContext.success(
+                "Form rendered",
+                {"product_count": form.fields["product"].queryset.count()},
+            )
+            return render(
+                request, self.template_name, self._build_evaluation_context(form)
+            )
 
     def post(self, request, *args, **kwargs):
-        with DebugContext.section("Processing product evaluation", {
-            "project_id": self.project.pk,
-            "user": request.user.username,
-        }):
+        with DebugContext.section(
+            "Processing product evaluation",
+            {
+                "project_id": self.project.pk,
+                "user": request.user.username,
+            },
+        ):
             form = EvaluationForm(request.POST, project=self.project)
             if not form.is_valid():
                 error_details = {
@@ -113,7 +127,7 @@ class EvaluationCreateView(OperationCreateView):
                     entity_type="Evaluation",
                     entity_id=None,
                     details=error_details,
-                    user=request.user.username
+                    user=request.user.username,
                 )
                 return render(
                     request, self.template_name, self._build_evaluation_context(form)
@@ -124,27 +138,34 @@ class EvaluationCreateView(OperationCreateView):
             date = form.cleaned_data["date"]
             description = form.cleaned_data["description"]
 
-            with DebugContext.section("Calculating valuation delta", {
-                "product_id": product.pk,
-                "new_unit_price": str(new_unit_price),
-            }):
-                quantity = product.quantity
-                current_value = product.current_value
-                current_unit_price = (current_value / quantity) if quantity else Decimal("0.00")
-                delta = (new_unit_price - current_unit_price) * (quantity or 1)
-
-                DebugContext.success("Valuation calculated", {
-                    "quantity": quantity,
-                    "current_unit_price": str(current_unit_price),
+            with DebugContext.section(
+                "Calculating valuation delta",
+                {
+                    "product_id": product.pk,
                     "new_unit_price": str(new_unit_price),
-                    "delta": str(delta),
-                })
+                },
+            ):
+                valuation = product.compute_valuation_delta(new_unit_price)
+                delta = valuation["delta"]
+
+                DebugContext.success(
+                    "Valuation calculated",
+                    {
+                        "quantity": product.quantity,
+                        "current_unit_price": str(valuation["current_unit_price"]),
+                        "new_unit_price": str(new_unit_price),
+                        "delta": str(delta),
+                    },
+                )
 
             if abs(delta) < Decimal("0.01"):
-                DebugContext.warn("No material change in valuation", {
-                    "delta": str(delta),
-                    "product_id": product.pk,
-                })
+                DebugContext.warn(
+                    "No material change in valuation",
+                    {
+                        "delta": str(delta),
+                        "product_id": product.pk,
+                    },
+                )
                 messages.info(request, _("No material change — no operation recorded."))
                 return render(
                     request, self.template_name, self._build_evaluation_context(form)
@@ -156,31 +177,44 @@ class EvaluationCreateView(OperationCreateView):
 
             try:
                 with db_transaction.atomic():
-                    with DebugContext.section("Creating evaluation operation", {
-                        "operation_type": "CapitalGain" if delta > 0 else "CapitalLoss",
-                        "amount": str(amount),
-                    }):
+                    with DebugContext.section(
+                        "Creating evaluation operation",
+                        {
+                            "operation_type": (
+                                "CapitalGain" if delta > 0 else "CapitalLoss"
+                            ),
+                            "amount": str(amount),
+                        },
+                    ):
                         op = self._create_operation(amount, date, description)
                         item = InvoiceItem.objects.create(
                             operation=op,
                             product=product.product_template,
-                            quantity=Decimal(quantity) if quantity else Decimal("1"),
-                            unit_price=abs(new_unit_price - current_unit_price),
+                            quantity=product.quantity,
+                            unit_price=abs(
+                                new_unit_price - valuation["current_unit_price"]
+                            ),
                         )
                         product.validate_active()
                         product.invoice_items.add(item)
                         ProductLedgerEntry.record(op)
-                        DebugContext.success("Evaluation operation created", {
-                            "operation_id": op.pk,
-                            "invoice_item_id": item.pk,
-                        })
+                        DebugContext.success(
+                            "Evaluation operation created",
+                            {
+                                "operation_id": op.pk,
+                                "invoice_item_id": item.pk,
+                            },
+                        )
 
                 direction = _("Capital Gain") if delta > 0 else _("Capital Loss")
-                DebugContext.success("Evaluation recorded successfully", {
-                    "operation_id": op.pk,
-                    "direction": direction,
-                    "amount": str(amount),
-                })
+                DebugContext.success(
+                    "Evaluation recorded successfully",
+                    {
+                        "operation_id": op.pk,
+                        "direction": direction,
+                        "amount": str(amount),
+                    },
+                )
                 DebugContext.audit(
                     action="evaluation_recorded",
                     entity_type="Evaluation",
@@ -190,11 +224,12 @@ class EvaluationCreateView(OperationCreateView):
                         "product_id": product.pk,
                         "amount": str(amount),
                     },
-                    user=request.user.username
+                    user=request.user.username,
                 )
                 messages.success(
                     request,
-                    _("%(dir)s of %(amt)s recorded.") % {"dir": direction, "amt": amount},
+                    _("%(dir)s of %(amt)s recorded.")
+                    % {"dir": direction, "amt": amount},
                 )
                 return redirect("operation_detail_view", pk=op.pk)
 
@@ -205,13 +240,15 @@ class EvaluationCreateView(OperationCreateView):
                     "error_message": str(e),
                     "product_id": product.pk,
                 }
-                DebugContext.error("Evaluation operation creation failed", e, error_details)
+                DebugContext.error(
+                    "Evaluation operation creation failed", e, error_details
+                )
                 DebugContext.audit(
                     action="evaluation_creation_failed",
                     entity_type="Evaluation",
                     entity_id=None,
                     details=error_details,
-                    user=request.user.username
+                    user=request.user.username,
                 )
                 messages.error(request, str(e))
                 return render(

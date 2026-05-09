@@ -5,11 +5,12 @@ from django.test import Client, TestCase
 from django.urls import reverse
 
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
-from apps.app_inventory.models import InventoryMovement, InventoryMovementLine
+from apps.app_inventory.models import InventoryMovementLine
 from apps.app_inventory.tests.general import (
     make_entity,
     make_invoice_item,
     make_operation,
+    make_product,
     make_product_template,
     make_project_entity,
     make_user,
@@ -42,7 +43,7 @@ class InventoryMovementCreationTest(TestCase):
         self.template = make_product_template("Calves")
 
     def test_create_inventory_movement_purchase(self):
-        """Test creating an inventory movement for a PURCHASE operation."""
+        """Test creating inventory movement lines for a PURCHASE operation."""
         purchase = make_operation(
             source=self.project,
             destination=self.vendor,
@@ -51,6 +52,8 @@ class InventoryMovementCreationTest(TestCase):
             operation_type=OperationType.PURCHASE,
         )
         item = make_invoice_item(purchase, self.template, quantity=Decimal("5.00"))
+        product = make_product(self.template)
+        item.products.add(product)
 
         self.client.login(username="officer1", password="testpass")
         url = reverse("create_inventory_movement", kwargs={"operation_pk": purchase.pk})
@@ -72,18 +75,14 @@ class InventoryMovementCreationTest(TestCase):
 
         # Should redirect to operation detail on success
         self.assertEqual(response.status_code, 302)
-        self.assertTrue(
-            InventoryMovement.objects.filter(operation=purchase).exists(),
-            "InventoryMovement should be created",
-        )
-        movement = InventoryMovement.objects.get(operation=purchase)
-        self.assertEqual(movement.date, date.today())
-        self.assertEqual(movement.notes, "Test movement")
-        self.assertEqual(movement.officer, self.officer)
 
-        # Check that the line was created
-        self.assertEqual(movement.lines.count(), 1)
-        line = movement.lines.first()
+        # Check that InventoryMovementLine was created directly (no InventoryMovement header)
+        lines = InventoryMovementLine.objects.filter(operation=purchase)
+        self.assertEqual(lines.count(), 1)
+        line = lines.first()
+        self.assertEqual(line.date, date.today())
+        self.assertEqual(line.notes, "Test movement")
+        self.assertEqual(line.officer, self.officer)
         self.assertEqual(line.invoice_item, item)
         self.assertEqual(line.quantity, Decimal("3.00"))
 
@@ -103,12 +102,12 @@ class InventoryMovementCreationTest(TestCase):
         # Should redirect to entity_list
         self.assertEqual(response.status_code, 302)
         self.assertFalse(
-            InventoryMovement.objects.filter(operation=purchase).exists(),
+            InventoryMovementLine.objects.filter(operation=purchase).exists(),
             "Non-staff should not be able to create movements",
         )
 
     def test_sale_operation_movement(self):
-        """Test creating a movement for a SALE operation."""
+        """Test creating movement lines for a SALE operation."""
         sale = make_operation(
             source=self.client_entity,
             destination=self.project,
@@ -117,6 +116,8 @@ class InventoryMovementCreationTest(TestCase):
             operation_type=OperationType.SALE,
         )
         item = make_invoice_item(sale, self.template, quantity=Decimal("10.00"))
+        product = make_product(self.template)
+        item.products.add(product)
 
         self.client.login(username="officer1", password="testpass")
         url = reverse("create_inventory_movement", kwargs={"operation_pk": sale.pk})
@@ -135,9 +136,9 @@ class InventoryMovementCreationTest(TestCase):
         )
 
         self.assertEqual(response.status_code, 302)
-        movement = InventoryMovement.objects.get(operation=sale)
-        self.assertEqual(movement.lines.count(), 1)
-        self.assertEqual(movement.lines.first().quantity, Decimal("8.00"))
+        lines = InventoryMovementLine.objects.filter(operation=sale)
+        self.assertEqual(lines.count(), 1)
+        self.assertEqual(lines.first().quantity, Decimal("8.00"))
 
     def test_quantity_exceeds_invoice_item(self):
         """Test that validation fails when movement qty exceeds invoice qty."""
@@ -167,7 +168,7 @@ class InventoryMovementCreationTest(TestCase):
 
         # Should not create movement
         self.assertFalse(
-            InventoryMovement.objects.filter(operation=purchase).exists(),
+            InventoryMovementLine.objects.filter(operation=purchase).exists(),
             "Movement should not be created when qty exceeds invoice",
         )
 

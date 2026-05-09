@@ -8,17 +8,15 @@ from django.http import HttpResponseBadRequest
 from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
+from django.utils.decorators import method_decorator
 from django.utils.translation import gettext as _
 from django.views import View
-from django.utils.decorators import method_decorator
 
 from apps.app_base.debug import DebugContext, debug_view
-from apps.app_inventory.forms import InvoiceItemCreateFormSet, InvoiceItemSelectFormSet
-from apps.app_entity.models import Entity
 from apps.app_entity.models.category import (
-    FinancialCategoriesEntitiesRelations,
     FinancialCategory,
 )
+from apps.app_inventory.forms import InvoiceItemCreateFormSet, InvoiceItemSelectFormSet
 from apps.app_operation.models.proxies import PROXY_MAP, get_canonical_type
 
 if TYPE_CHECKING:
@@ -303,27 +301,12 @@ class OperationCreateView(View):
         return op
 
     def _process_payment(self, op, amount):
-        if not self.data.get("can_pay"):
-            return
         amount_paid = Decimal(self.request.POST.get("amount_paid") or "0")
-        if amount_paid > amount:
-            raise ValueError(
-                _("Error: paid amount %(paid)s is more than the total %(total)s")
-                % {"paid": amount_paid, "total": amount}
-            )
-        if not self.data.get("is_partially_payable") and amount_paid < amount:
-            raise ValueError(
-                _("You can't pay less than %(amount)s for this operation.")
-                % {"amount": amount}
-            )
-        if amount_paid > 0:
-            op.create_payment_transaction(
-                amount_paid,
-                self.request.user,
-                date=self.request.POST.get("date") or timezone.now().date(),
-                description=_("Instant payment for the operation %(op_type)s %(pk)s")
-                % {"op_type": op.operation_type, "pk": op.pk},
-            )
+        op.process_payment(
+            amount_paid,
+            self.request.user,
+            date=self.request.POST.get("date"),
+        )
 
     def _process_invoice(self, op):
         bound_formset = _build_formset(

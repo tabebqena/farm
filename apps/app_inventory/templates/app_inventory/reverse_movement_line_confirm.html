@@ -12,7 +12,7 @@
       <table class="table table-bordered">
         <tr>
           <th>{% trans 'Product' %}</th>
-          <td>{{ line.invoice_item.product.name }}</td>
+          <td>{{ line.invoice_item.product_template.name }}</td>
         </tr>
         <tr>
           <th>{% trans 'Quantity' %}</th>
@@ -20,7 +20,7 @@
         </tr>
         <tr>
           <th>{% trans 'Original Movement' %}</th>
-          <td>#{{ line.movement.pk }} — {{ line.movement.date }}</td>
+          <td>#{{ line.pk }} — {{ line.date }}</td>
         </tr>
         <tr>
           <th>{% trans 'Operation' %}</th>

@@ -85,7 +85,7 @@ def make_invoice_item(
 ):
     return InvoiceItem.objects.create(
         operation=operation,
-        product=template,
+        product_template=template,
         quantity=quantity,
         unit_price=unit_price,
     )

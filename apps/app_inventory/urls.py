@@ -53,8 +53,14 @@ urlpatterns = [
         name="reverse_inventory_movement_line",
     ),
     path(
-        "movements/<int:pk>/reverse/",
-        views.reverse_inventory_movement,
-        name="reverse_inventory_movement",
+        "movement-lines/batch-reverse/<str:group_key>/",
+        views.batch_reverse_inventory_movement_lines,
+        name="batch_reverse_inventory_movement_lines",
+    ),
+    # Deferred movement registration
+    path(
+        "operations/<int:operation_pk>/movement/deferred/",
+        views.register_deferred_movements,
+        name="register_deferred_movements",
     ),
 ]

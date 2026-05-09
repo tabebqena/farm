@@ -13,16 +13,16 @@
     <!-- Formset Items -->
     <div id="item-formset-body">
       {% for item_form in formset %}
-        <div class="card mb-2 item-row{% if item_form.product.errors or item_form.quantity.errors or item_form.unit_price.errors %} border-danger{% endif %}">
+        <div class="card mb-2 item-row{% if item_form.product_template.errors or item_form.quantity.errors or item_form.unit_price.errors %} border-danger{% endif %}">
           <div class="card-body py-2 px-3">
             {% for field in item_form.hidden_fields %}
               {{ field }}
             {% endfor %}
             <div class="mb-2">
-              {{ item_form.product }}
-              {% if item_form.product.errors %}
+              {{ item_form.product_template }}
+              {% if item_form.product_template.errors %}
                 <div class="invalid-feedback d-block small">
-                  {% for e in item_form.product.errors %}
+                  {% for e in item_form.product_template.errors %}
                     {{ e }}
                   {% endfor %}
                 </div>

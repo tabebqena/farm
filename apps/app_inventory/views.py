@@ -1,24 +1,25 @@
 import traceback
+import uuid
 from datetime import date as today_date
 
 from django.contrib import messages
+from django.core.exceptions import ValidationError
 from django.db import transaction as db_transaction
 from django.http import Http404
 from django.shortcuts import redirect, render
 from django.utils.dateparse import parse_date
 from django.utils.translation import gettext as _
 
-from farm.shortcuts import get_object_or_404
-from apps.app_base.debug import DebugContext, debug_view
+from apps.app_base.debug import debug_view
 from apps.app_entity.models import Entity
 from apps.app_inventory.forms import InventoryMovementLineFormSet
 from apps.app_inventory.models import (
-    InventoryMovement,
     InventoryMovementLine,
+    InvoiceItem,
     Product,
     ProductTemplate,
 )
-from apps.app_operation.models.operation_type import OperationType
+from farm.shortcuts import get_object_or_404
 
 
 def stock_detail(request, entity_pk):
@@ -26,17 +27,13 @@ def stock_detail(request, entity_pk):
 
     from apps.app_entity.models import Entity
     from apps.app_inventory.models import (
-        InventoryMovementLine,
         InvoiceItem,
         Product,
         ProductLedgerEntry,
     )
-    from apps.app_operation.models.operation_type import OperationType
 
     entity = get_object_or_404(
-        Entity,
-        pk=entity_pk,
-        error_message="Entity not found or has been deleted."
+        Entity, pk=entity_pk, error_message="Entity not found or has been deleted."
     )
 
     # Get portfolio for this entity as of today
@@ -50,30 +47,14 @@ def stock_detail(request, entity_pk):
         .order_by("product_template__nature", "product_template__name", "pk")
     )
 
-    # Get unreceived purchases (InvoiceItems with no InventoryMovementLines)
-    unreceived_purchases = (
-        InvoiceItem.objects.filter(operation__operation_type=OperationType.PURCHASE)
-        .exclude(pk__in=InventoryMovementLine.objects.values_list("invoice_item_id"))
-        .select_related("product", "operation")
-        .order_by("-operation__date")
-    )
-
-    # Get undelivered sales (InvoiceItems with no InventoryMovementLines)
-    undelivered_sales = (
-        InvoiceItem.objects.filter(operation__operation_type=OperationType.SALE)
-        .exclude(pk__in=InventoryMovementLine.objects.values_list("invoice_item_id"))
-        .select_related("product", "operation")
-        .order_by("-operation__date")
-    )
-
     return render(
         request,
         "app_inventory/stock_detail.html",
         {
             "entity": entity,
             "products": products,
-            "unreceived_items": unreceived_purchases,
-            "undelivered_items": undelivered_sales,
+            "unreceived_items": InvoiceItem.unreceived_purchases(),
+            "undelivered_items": InvoiceItem.undelivered_sales(),
         },
     )
 
@@ -84,7 +65,7 @@ def product_detail(request, pk):
             "invoice_items__operation", "ledger_entries"
         ),
         pk=pk,
-        error_message="Product not found or has been deleted."
+        error_message="Product not found or has been deleted.",
     )
     return render(request, "app_inventory/product_detail.html", {"product": product})
 
@@ -96,9 +77,7 @@ def project_product_templates_setup(request, entity_pk):
     """
     try:
         target_entity = get_object_or_404(
-            Entity,
-            pk=entity_pk,
-            error_message="Entity not found or has been deleted."
+            Entity, pk=entity_pk, error_message="Entity not found or has been deleted."
         )
     except Http404 as e:
         messages.error(request, "Target entity not found")
@@ -145,10 +124,10 @@ def product_template_detail(request, pk):
         ProductTemplate.objects.prefetch_related(
             "entities",
             "product_set__invoice_items__operation",
-            "invoices__operation",
+            "invoice_items__operation",
         ),
         pk=pk,
-        error_message="Product template not found or has been deleted."
+        error_message="Product template not found or has been deleted.",
     )
 
     context = {"template": template}
@@ -159,25 +138,21 @@ def product_template_detail(request, pk):
         from_entity = get_object_or_404(
             Entity,
             pk=from_entity_id,
-            error_message="Entity not found or has been deleted."
+            error_message="Entity not found or has been deleted.",
         )
         context["from_entity"] = from_entity
 
-    return render(
-        request, "app_inventory/product_template_detail.html", context
-    )
+    return render(request, "app_inventory/product_template_detail.html", context)
 
 
 def entity_product_templates_list(request, entity_pk):
     """List product templates assigned to an entity."""
     entity = get_object_or_404(
-        Entity,
-        pk=entity_pk,
-        error_message="Entity not found or has been deleted."
+        Entity, pk=entity_pk, error_message="Entity not found or has been deleted."
     )
     templates = (
         entity.product_templates.all()
-        .prefetch_related("entities", "product_set", "invoices")
+        .prefetch_related("entities", "product_set", "invoice_items")
         .order_by("nature", "sub_category", "name")
     )
     return render(
@@ -204,7 +179,7 @@ def create_product_template(request):
         nature = request.POST.get("nature")
         default_unit = request.POST.get("default_unit", "").strip()
         tracking_mode = request.POST.get("tracking_mode")
-        requires_individual_tag = request.POST.get("requires_individual_tag") == "on"
+        has_tag = request.POST.get("has_tag") == "on"
         sub_category = request.POST.get("sub_category", "").strip()
 
         try:
@@ -215,7 +190,7 @@ def create_product_template(request):
                     default_unit=default_unit,
                     tracking_mode=tracking_mode,
                     sub_category=sub_category,
-                    requires_individual_tag=requires_individual_tag,
+                    has_tag=has_tag,
                 )
                 messages.success(
                     request,
@@ -241,7 +216,7 @@ def create_product_template(request):
 
 def create_inventory_movement(request, operation_pk):
     """
-    Create an InventoryMovement header + lines for a PURCHASE or SALE operation.
+    Create InventoryMovementLine records for a PURCHASE or SALE operation.
     Requires staff user (officer).
     """
     from apps.app_operation.models.operation import Operation
@@ -255,15 +230,17 @@ def create_inventory_movement(request, operation_pk):
     operation = get_object_or_404(
         Operation,
         pk=operation_pk,
-        error_message="Operation not found or has been deleted."
+        error_message="Operation not found or has been deleted.",
     )
 
-    if operation.operation_type not in (OperationType.PURCHASE, OperationType.SALE):
+    if not operation.can_create_movement:
         messages.error(
             request,
             _("Inventory movements are only allowed for PURCHASE or SALE operations."),
         )
         return redirect("operation_detail_view", pk=operation_pk)
+
+    invoice_items_json = InvoiceItem.build_movement_json(operation)
 
     if request.method == "POST":
         date_str = request.POST.get("date", "").strip()
@@ -275,20 +252,29 @@ def create_inventory_movement(request, operation_pk):
                 raise ValueError(_("Invalid date format."))
 
             with db_transaction.atomic():
-                movement = InventoryMovement(
-                    operation=operation,
-                    date=date,
-                    officer=request.user,
-                    notes=notes,
-                )
-                movement.full_clean()
-                movement.save()
-
                 formset = InventoryMovementLineFormSet(
-                    request.POST, instance=movement, operation=operation
+                    request.POST,
+                    queryset=InventoryMovementLine.objects.none(),
+                    operation=operation,
                 )
                 if formset.is_valid():
-                    formset.save()
+                    lines = formset.save(commit=False)
+                    for line in lines:
+                        line.operation = operation
+                        line.date = date
+                        line.officer = request.user
+                        line.notes = notes
+                        # Derive the product from the invoice_item's first linked Product
+                        if not line.product_id:
+                            first_product = line.invoice_item.products.first()
+                            if first_product is None:
+                                raise ValidationError(
+                                    _("Invoice item %(pk)s has no linked product.")
+                                    % {"pk": line.invoice_item.pk}
+                                )
+                            line.product = first_product
+                        line.full_clean()
+                        line.save()
                     messages.success(
                         request,
                         _("Inventory movement created with %(count)s line(s).")
@@ -308,21 +294,28 @@ def create_inventory_movement(request, operation_pk):
                         request,
                         _("Please check the items below for errors."),
                     )
-                    raise ValueError(_("Formset validation failed"))
         except Exception as e:
             traceback.print_exc()
             messages.error(request, _("Error: %(error)s") % {"error": str(e)})
-            formset = InventoryMovementLineFormSet(request.POST, operation=operation)
+            formset = InventoryMovementLineFormSet(
+                request.POST,
+                queryset=InventoryMovementLine.objects.none(),
+                operation=operation,
+            )
             return render(
                 request,
                 "app_inventory/inventory_movement_form.html",
                 {
                     "operation": operation,
                     "formset": formset,
+                    "invoice_items_json": invoice_items_json,
                 },
             )
 
-    formset = InventoryMovementLineFormSet(operation=operation)
+    formset = InventoryMovementLineFormSet(
+        queryset=InventoryMovementLine.objects.none(),
+        operation=operation,
+    )
 
     return render(
         request,
@@ -330,6 +323,7 @@ def create_inventory_movement(request, operation_pk):
         {
             "operation": operation,
             "formset": formset,
+            "invoice_items_json": invoice_items_json,
         },
     )
 
@@ -352,14 +346,14 @@ def reverse_inventory_movement_line(request, pk):
 
     if InventoryMovementLine.objects.filter(reversal_of=line).exists():
         messages.warning(request, _("This movement line has already been reversed."))
-        return redirect("operation_detail_view", pk=line.movement.operation_id)
+        return redirect("operation_detail_view", pk=line.operation_id)
 
     if request.method == "POST":
         try:
             with db_transaction.atomic():
-                line.reverse(officer=request.user)
+                line.reverse(officer=request.user, group_key=uuid.uuid4().hex[:8])
             messages.success(request, _("Movement line reversed successfully."))
-            return redirect("operation_detail_view", pk=line.movement.operation_id)
+            return redirect("operation_detail_view", pk=line.operation_id)
         except Exception as e:
             traceback.print_exc()
             messages.error(
@@ -370,41 +364,199 @@ def reverse_inventory_movement_line(request, pk):
     return render(
         request,
         "app_inventory/reverse_movement_line_confirm.html",
-        {"line": line, "operation": line.movement.operation},
+        {"line": line, "operation": line.operation},
     )
 
 
 @debug_view
-def reverse_inventory_movement(request, pk):
+def batch_reverse_inventory_movement_lines(request, group_key):
     """
-    Reverse an entire InventoryMovement (all its non-reversed lines).
-    Wraps the model's `reverse()` method in an HTTP request/response cycle.
+    Reverse all non-reversed InventoryMovementLines sharing a ``group_key``.
+    Wraps ``InventoryMovementLine.batch_reverse()`` in an HTTP request/response
+    cycle.
     """
     if not request.user.is_staff:
         messages.error(request, _("You must be an officer to reverse movements."))
         return redirect("entity_list")
 
-    movement = get_object_or_404(
-        InventoryMovement,
-        pk=pk,
-        error_message="Inventory movement not found or has been deleted.",
-    )
+    lines = InventoryMovementLine.objects.filter(
+        group_key=group_key,
+        reversal_of__isnull=True,
+    ).select_related("operation")
+
+    if not lines.exists():
+        messages.error(
+            request,
+            _("No movement lines found for the given group key."),
+        )
+        return redirect("operation_list_view")
+
+    # All lines should belong to the same operation — use the first one
+    operation = lines[0].operation
 
     if request.method == "POST":
         try:
             with db_transaction.atomic():
-                movement.reverse(officer=request.user)
-            messages.success(request, _("Inventory movement reversed successfully."))
-            return redirect("operation_detail_view", pk=movement.operation_id)
+                created = InventoryMovementLine.batch_reverse(
+                    lines, officer=request.user
+                )
+            messages.success(
+                request,
+                _("%(count)s movement line(s) reversed successfully.")
+                % {"count": len(created)},
+            )
+            return redirect("operation_detail_view", pk=operation.pk)
         except Exception as e:
             traceback.print_exc()
             messages.error(
                 request,
-                _("Error reversing movement: %(error)s") % {"error": str(e)},
+                _("Error reversing movement lines: %(error)s") % {"error": str(e)},
             )
 
     return render(
         request,
         "app_inventory/reverse_movement_confirm.html",
-        {"movement": movement, "operation": movement.operation},
+        {"lines": lines, "group_key": group_key, "operation": operation},
+    )
+
+
+@debug_view
+def register_deferred_movements(request, operation_pk):
+    """
+    Register inventory movements for an operation's unmoved products.
+
+    The officer selects an ``InvoiceItem`` and enters a quantity.
+    The backend creates ``InventoryMovementLine`` records, branching on
+    the product template's tracking mode:
+      - INDIVIDUAL → one ``InventoryMovementLine`` per Product (qty=1 each)
+      - BATCH/COMMODITY → one ``InventoryMovementLine`` with the full qty
+
+    All created lines share a ``group_key`` so the UI can group them.
+    """
+    from decimal import Decimal
+
+    from apps.app_operation.models.operation import Operation
+
+    if not request.user.is_staff:
+        messages.error(request, _("You must be an officer to create movements."))
+        return redirect("entity_list")
+
+    operation = get_object_or_404(
+        Operation,
+        pk=operation_pk,
+        error_message="Operation not found or has been deleted.",
+    )
+    operation = Operation.objects.cast(operation)
+
+    if not operation.can_create_movement:
+        messages.error(
+            request, _("Movements are only for PURCHASE or SALE operations.")
+        )
+        return redirect("operation_detail_view", pk=operation_pk)
+
+    from apps.app_inventory.forms import DeferredMovementForm
+
+    if request.method == "POST":
+        form = DeferredMovementForm(request.POST, operation=operation)
+        if form.is_valid():
+            invoice_item = form.cleaned_data["invoice_item"]
+            qty_to_move = form.cleaned_data["quantity"]
+            notes = form.cleaned_data.get("notes", "")
+
+            # Determine remaining qty that can be moved
+            from django.db.models import Sum
+
+            already_moved = InventoryMovementLine.objects.filter(
+                invoice_item=invoice_item,
+                reversal_of__isnull=True,
+            ).aggregate(total=Sum("quantity"))["total"] or Decimal("0.00")
+            remaining = invoice_item.quantity - already_moved
+            if qty_to_move > remaining:
+                messages.error(
+                    request,
+                    _("Cannot move %(qty)s — only %(rem)s remaining for item %(item)s.")
+                    % {
+                        "qty": qty_to_move,
+                        "rem": remaining,
+                        "item": invoice_item,
+                    },
+                )
+                return render(
+                    request,
+                    "app_inventory/deferred_movement_form.html",
+                    {"form": form, "operation": operation},
+                )
+
+            template = invoice_item.product_template
+            group_key = uuid.uuid4().hex[:8]
+            products = list(invoice_item.products.all())
+            created_count = 0
+
+            try:
+                with db_transaction.atomic():
+                    if (
+                        template.tracking_mode
+                        == ProductTemplate.TrackingMode.INDIVIDUAL
+                    ):
+                        # One line per product
+                        for product in products:
+                            if created_count >= int(qty_to_move):
+                                break
+                            if product.deleted_at:
+                                continue
+                            InventoryMovementLine.objects.create(
+                                operation=operation,
+                                invoice_item=invoice_item,
+                                product=product,
+                                quantity=Decimal("1.00"),
+                                date=operation.date,
+                                officer=request.user,
+                                notes=notes,
+                                group_key=group_key,
+                            )
+                            created_count += 1
+                    else:
+                        # BATCH / COMMODITY: single line with full qty
+                        product = products[0] if products else None
+                        if product is None:
+                            raise ValidationError(
+                                _("Invoice item %(pk)s has no linked product.")
+                                % {"pk": invoice_item.pk}
+                            )
+                        InventoryMovementLine.objects.create(
+                            operation=operation,
+                            invoice_item=invoice_item,
+                            product=product,
+                            quantity=qty_to_move,
+                            date=operation.date,
+                            officer=request.user,
+                            notes=notes,
+                            group_key=group_key,
+                        )
+                        created_count = 1
+
+                messages.success(
+                    request,
+                    _("%(count)d movement line(s) created for item %(item)s.")
+                    % {"count": created_count, "item": invoice_item},
+                )
+                return redirect("operation_detail_view", pk=operation_pk)
+
+            except Exception as e:
+                traceback.print_exc()
+                messages.error(
+                    request,
+                    _("Error creating movements: %(error)s") % {"error": str(e)},
+                )
+
+        else:
+            messages.error(request, _("Please check the form for errors."))
+
+    else:
+        form = DeferredMovementForm(operation=operation)
+
+    return render(
+        request,
+        "app_inventory/deferred_movement_form.html",
+        {"form": form, "operation": operation},
     )

@@ -118,12 +118,16 @@ class PurchaseItemForm(LoggingFormMixin, forms.Form):
     def __init__(self, *args, template=None, **kwargs):
         super().__init__(*args, **kwargs)
         self._template = template
+        if template:
+            step = str(template.minimum_quantity)
+            self.fields["quantity"].widget.attrs["step"] = step
+            self.fields["received_qty"].widget.attrs["step"] = step
 
     def clean(self):
         cleaned: dict = super().clean() or {}
         template = self._template
 
-        if template and template.requires_individual_tag:
+        if template and template.has_tag:
             uid = (cleaned.get("unique_id") or "").strip()
             if not uid:
                 self.add_error("unique_id", _("Tag / ID is required for this product."))
@@ -248,12 +252,16 @@ class SaleItemForm(LoggingFormMixin, forms.Form):
     def __init__(self, *args, template=None, **kwargs):
         super().__init__(*args, **kwargs)
         self._template = template
+        if template:
+            step = str(template.minimum_quantity)
+            self.fields["quantity"].widget.attrs["step"] = step
+            self.fields["delivered_qty"].widget.attrs["step"] = step
 
     def clean(self):
         cleaned: dict = super().clean() or {}
         template = self._template
 
-        if template and template.requires_individual_tag:
+        if template and template.has_tag:
             uid = (cleaned.get("unique_id") or "").strip()
             if not uid:
                 self.add_error("unique_id", _("Tag / ID is required for this product."))

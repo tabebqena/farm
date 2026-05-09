@@ -42,7 +42,7 @@
                         <small class="text-muted d-block mt-2">
                             {% trans "Unit:" %} {{ template.default_unit }}
                         </small>
-                        {% if template.requires_individual_tag %}
+                        {% if template.has_tag %}
                             <small class="text-warning d-block">
                                 <i class="bi bi-tag"></i> {% trans "Requires Tag ID" %}
                             </small>

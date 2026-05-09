@@ -211,7 +211,7 @@
                 <tbody>
                   {% for item in unreceived_items %}
                     <tr>
-                      <td>{{ item.product.name }}</td>
+                      <td>{{ item.product_template.name }}</td>
                       <td class="text-end">{{ item.quantity }}</td>
                       <td class="text-end">{{ item.unit_price }}</td>
                       <td class="text-end fw-bold">{{ item.total_price }}</td>
@@ -220,7 +220,7 @@
                         <a href="{% url 'operation_detail_view' item.operation.pk %}" class="btn btn-sm btn-outline-primary">{% trans 'View Operation' %}</a>
                       </td>
                       <td>
-                        <a href="{% url 'product_detail' item.product.pk %}" class="btn btn-sm btn-outline-primary">{% trans 'View Product' %}</a>
+                        <a href="{% url 'product_detail' item.product_template.pk %}" class="btn btn-sm btn-outline-primary">{% trans 'View Product' %}</a>
                       </td>
                       <td>
                         <a href="{% url 'create_inventory_movement' operation_pk=item.operation.pk %}" class="btn btn-sm btn-outline-success">{% trans 'Create Movement' %}</a>
@@ -239,7 +239,7 @@
                 <div class="list-group-item">
                   <div class="d-flex justify-content-between align-items-start mb-2">
                     <div class="flex-grow-1">
-                      <div class="fw-bold">{{ item.product.name }}</div>
+                      <div class="fw-bold">{{ item.product_template.name }}</div>
                       <small class="text-muted">{{ item.operation.date }}</small>
                     </div>
                   </div>
@@ -261,7 +261,7 @@
 
                   <div class="d-flex gap-2">
                     <a href="{% url 'operation_detail_view' item.operation.pk %}" class="btn btn-sm btn-outline-primary flex-grow-1">{% trans 'View Op' %}</a>
-                    <a href="{% url 'product_detail' item.product.pk %}" class="btn btn-sm btn-outline-primary flex-grow-1">{% trans 'View Prod' %}</a>
+                    <a href="{% url 'product_detail' item.product_template.pk %}" class="btn btn-sm btn-outline-primary flex-grow-1">{% trans 'View Prod' %}</a>
                   </div>
                   <a href="{% url 'create_inventory_movement' operation_pk=item.operation.pk %}" class="btn btn-sm btn-outline-success w-100 mt-2">{% trans 'Create Movement' %}</a>
                 </div>
@@ -307,7 +307,7 @@
                 <tbody>
                   {% for item in undelivered_items %}
                     <tr>
-                      <td>{{ item.product.name }}</td>
+                      <td>{{ item.product_template.name }}</td>
                       <td class="text-end">{{ item.quantity }}</td>
                       <td class="text-end">{{ item.unit_price }}</td>
                       <td class="text-end fw-bold">{{ item.total_price }}</td>
@@ -332,7 +332,7 @@
                 <div class="list-group-item">
                   <div class="d-flex justify-content-between align-items-start mb-2">
                     <div class="flex-grow-1">
-                      <div class="fw-bold">{{ item.product.name }}</div>
+                      <div class="fw-bold">{{ item.product_template.name }}</div>
                       <small class="text-muted">{{ item.operation.date }}</small>
                     </div>
                   </div>

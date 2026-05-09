@@ -8,14 +8,13 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+from apps.app_adjustment._item_type import InvoiceItemAdjustmentType
 from apps.app_adjustment.forms import AccountingAdjustmentForm
 from apps.app_adjustment.models import (
     Adjustment,
-    AdjustmentType,
     InvoiceItemAdjustment,
     InvoiceItemAdjustmentLine,
 )
-from apps.app_adjustment._item_type import InvoiceItemAdjustmentType
 from apps.app_base.debug import DebugContext, debug_view
 from apps.app_operation.models import Operation
 from apps.app_operation.models.operation_type import OperationType
@@ -26,15 +25,8 @@ def record_accounting_adjustment(request, pk):
     """Record a simple accounting adjustment on a PURCHASE, SALE, or EXPENSE operation."""
     operation: Operation = get_object_or_404(Operation, pk=pk)
 
-    # Cast to proxy to check operation-specific config
-    proxy_operation = Operation.objects.cast(operation)
-
     # Guards: operation type and reversal status
-    if operation.operation_type not in (
-        OperationType.PURCHASE,
-        OperationType.SALE,
-        OperationType.EXPENSE,
-    ):
+    if not operation.can_adjust:
         messages.warning(
             request, _("This operation type does not support adjustments.")
         )
@@ -99,23 +91,13 @@ def record_item_adjustment(request, pk):
     """Record an invoice item adjustment (by modifying item qty/price) on PURCHASE or SALE."""
     operation = get_object_or_404(Operation, pk=pk)
 
-    # Cast to proxy to check operation-specific config
-    proxy_operation = Operation.objects.cast(operation)
-
-    # Guards: operation type and has_invoice
-    if operation.operation_type not in (OperationType.PURCHASE, OperationType.SALE):
+    # Guards: operation type, has_invoice, and reversal status
+    if not operation.can_item_adjust:
         messages.warning(
             request,
             _(
-                "Invoice item adjustments are only allowed on Purchase or Sale operations."
+                "Invoice item adjustments are only allowed on Purchase or Sale operations with invoice items."
             ),
-        )
-        return redirect("operation_detail_view", pk=pk)
-
-    if not type(proxy_operation).has_invoice:
-        messages.warning(
-            request,
-            _("This operation does not have invoice items."),
         )
         return redirect("operation_detail_view", pk=pk)
 
@@ -173,7 +155,7 @@ def record_item_adjustment(request, pk):
             except:
                 messages.error(
                     request,
-                    _("Invalid quantity for {}.").format(item.product.name),
+                    _("Invalid quantity for {}.").format(item.product_template.name),
                 )
                 context = {
                     "operation": operation,
@@ -190,7 +172,7 @@ def record_item_adjustment(request, pk):
             except:
                 messages.error(
                     request,
-                    _("Invalid price for {}.").format(item.product.name),
+                    _("Invalid price for {}.").format(item.product_template.name),
                 )
                 context = {
                     "operation": operation,
