@@ -636,6 +636,30 @@ class Product(AmountCleanMixin, BaseModel):
     notes = models.TextField(_("notes"), blank=True)
 
     @property
+    def is_physically_moved(self) -> bool:
+        """
+        True if this product has been physically moved into or out of stock
+        (i.e. has at least one non-reversal InventoryMovementLine).
+        """
+        return self.movement_lines.filter(reversal_of__isnull=True).exists()
+
+    @property
+    def is_obligated_only(self) -> bool:
+        """
+        True if this product is registered (linked to an InvoiceItem) but has
+        NOT yet been physically moved (no InventoryMovementLine records).
+        Such products are "obligated" — committed on paper but not yet present.
+        """
+        return not self.is_physically_moved
+
+    @property
+    def movement_state_label(self) -> str:
+        """Human-readable label for the movement state."""
+        if self.is_physically_moved:
+            return _("Physically Moved")
+        return _("Obligated Only")
+
+    @property
     def status(self) -> str:
         from apps.app_operation.models.operation_type import OperationType
 
@@ -689,28 +713,46 @@ class Product(AmountCleanMixin, BaseModel):
         )
 
     def validate_active(
-        self, allow_reversal: bool = False, allow_adjustment: bool = False
+        self,
+        allow_reversal: bool = False,
+        allow_adjustment: bool = False,
+        allow_obligated: bool = False,
     ) -> None:
         """
         Raise ValidationError if product can't participate in operations.
+
         SOLD/DEAD products are forbidden in normal operations, but allowed in:
         - Reversals (allow_reversal=True): undoing a sale or death
         - Adjustments (allow_adjustment=True): correcting records
-        - Movement lines: implicitly allowed if parent operation allows it
+
+        Obligated-only products (registered but not physically moved) are
+        forbidden in downstream operations (SALE, DEATH, CONSUMPTION, etc.),
+        but allowed in:
+        - Movement lines (allow_obligated=True): this IS the physical move
+        - Reversals (allow_reversal=True)
         """
         status = self.status
-        if status not in (self.Status.SOLD, self.Status.DEAD):
-            return
-
-        if allow_reversal or allow_adjustment:
-            return
-
-        raise ValidationError(
-            _(
-                "Product '%(id)s' has status %(status)s and cannot be used in new operations."
+        if status in (self.Status.SOLD, self.Status.DEAD):
+            if allow_reversal or allow_adjustment:
+                return
+            raise ValidationError(
+                _(
+                    "Product '%(id)s' has status %(status)s and cannot be used in new operations."
+                )
+                % {"id": self.unique_id or self.pk, "status": status}
             )
-            % {"id": self.unique_id or self.pk, "status": status}
-        )
+
+        # Block obligated-only products from downstream operations
+        # (they are registered on an invoice item but haven't physically moved yet).
+        if self.is_obligated_only and not allow_obligated and not allow_reversal:
+            raise ValidationError(
+                _(
+                    "Product '%(id)s' is obligated only (registered but not "
+                    "yet physically moved). It cannot be used in operations "
+                    "until it has been moved into stock."
+                )
+                % {"id": self.unique_id or self.pk}
+            )
 
     def clean(self) -> None:
         DebugContext.log(
@@ -943,7 +985,12 @@ class InventoryMovementLine(ImmutableMixin, BaseModel):
         # Validate the product can be moved (SOLD/DEAD allowed for reversals)
         # (skip when product is not yet assigned, e.g. during form validation)
         if self.product_id is not None:
-            self.product.validate_active(allow_reversal=self.reversal_of_id is not None)
+            # Movement lines ARE the physical move, so obligated-only products
+            # (registered but not yet moved) are allowed here.
+            self.product.validate_active(
+                allow_reversal=self.reversal_of_id is not None,
+                allow_obligated=True,
+            )
 
         super().clean()
 

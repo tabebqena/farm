@@ -454,6 +454,15 @@ class Operation(
         """
         Build a list of dicts with movement summaries for each invoice item.
         Used by the detail view to display received/delivered quantities.
+
+        Each entry contains:
+        - item: the InvoiceItem instance
+        - moved_qty: total quantity moved (non-reversal lines)
+        - remaining_qty: quantity still to be moved
+        - is_fully_moved: True when remaining_qty <= 0
+        - is_inbound: True for PURCHASE (receiving), False for SALE (delivering)
+        - movement_lines: queryset of active (non-reversal) movement lines
+        - grouped_lines: all movement lines grouped by group_key, with net totals
         """
         from decimal import Decimal
 
@@ -461,29 +470,71 @@ class Operation(
 
         from apps.app_inventory.models import InventoryMovementLine
 
+        from .operation_type import OperationType
+
         items = getattr(self, "_cached_items", None)
+        if items is None:
+            items = self.items.all()
+
         items_data = []
-        if items is not None:
-            for item in items:
-                agg = InventoryMovementLine.objects.filter(
-                    invoice_item=item,
-                    reversal_of__isnull=True,
-                ).aggregate(total=Sum("quantity"))
-                moved_qty = agg["total"] or Decimal("0.00")
-                remaining_qty = item.quantity - moved_qty
-                movement_lines = InventoryMovementLine.objects.filter(
-                    invoice_item=item,
-                    reversal_of__isnull=True,
-                ).select_related("product")
-                items_data.append(
-                    {
-                        "item": item,
-                        "moved_qty": moved_qty,
-                        "remaining_qty": remaining_qty,
-                        "is_fully_moved": remaining_qty <= Decimal("0.00"),
-                        "movement_lines": movement_lines,
-                    }
-                )
+        is_inbound = self.operation_type == OperationType.PURCHASE
+
+        for item in items:
+            # Aggregate total moved quantity (only active, non-reversal lines)
+            agg = InventoryMovementLine.objects.filter(
+                invoice_item=item,
+                reversal_of__isnull=True,
+            ).aggregate(total=Sum("quantity"))
+            moved_qty = agg["total"] or Decimal("0.00")
+            remaining_qty = item.quantity - moved_qty
+
+            # Active movement lines (non-reversal) for quick reference
+            movement_lines = InventoryMovementLine.objects.filter(
+                invoice_item=item,
+                reversal_of__isnull=True,
+            ).select_related("product")
+
+            # All movement lines including reversals, grouped by group_key
+            all_lines = InventoryMovementLine.objects.filter(
+                invoice_item=item,
+            ).select_related("product")
+
+            # Group by group_key (blank/empty group_key → "Individual")
+            groups = {}
+            for ml in all_lines:
+                key = ml.group_key or ""
+                if key not in groups:
+                    groups[key] = {"group_key": ml.group_key, "lines": []}
+                groups[key]["lines"].append(ml)
+
+            # Compute net totals per group
+            grouped_lines = []
+            for key, group in groups.items():
+                net_qty = Decimal("0.00")
+                for ml in group["lines"]:
+                    if ml.reversal_of_id:
+                        net_qty -= ml.quantity
+                    else:
+                        net_qty += ml.quantity
+                group["total_net_qty"] = net_qty
+                grouped_lines.append(group)
+
+            # Sort groups: non-empty group_keys first, then by net_qty desc
+            grouped_lines.sort(
+                key=lambda g: (0 if g["group_key"] else 1, -g["total_net_qty"])
+            )
+
+            items_data.append(
+                {
+                    "item": item,
+                    "moved_qty": moved_qty,
+                    "remaining_qty": remaining_qty,
+                    "is_fully_moved": remaining_qty <= Decimal("0.00"),
+                    "is_inbound": is_inbound,
+                    "movement_lines": movement_lines,
+                    "grouped_lines": grouped_lines,
+                }
+            )
         return items_data
 
     def save_inventory(self, bound_formset):

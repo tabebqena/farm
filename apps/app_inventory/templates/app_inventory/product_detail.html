@@ -12,7 +12,36 @@
       <a href="{% url 'stock_detail' product.entity.pk %}" class="btn btn-sm btn-outline-secondary">&larr;{% trans 'Back to Stock' %}</a>
     </div>
 
-    <!-- Status Banner -->
+    {# ------------------------------------------------------------------ #}
+    {# Movement State Banner #}
+    {# ------------------------------------------------------------------ #}
+    <div class="mb-4">
+      {% if product.is_obligated_only %}
+        <div class="alert alert-warning d-flex align-items-center" role="alert">
+          <span class="badge bg-warning text-dark fs-5 me-3" style="padding: 0.5rem 0.75rem;">{% trans 'OBLIGATED' %}</span>
+          <div>
+            <strong class="fs-5">{% trans 'Registered but not physically moved' %}</strong>
+            <p class="mb-0 text-muted">
+              {% trans 'This product is registered on an invoice item but has not yet been physically moved into/out of stock. It cannot be used in downstream operations (Sale, Death, Consumption, etc.) until a movement line is created.' %}
+            </p>
+          </div>
+        </div>
+      {% else %}
+        <div class="alert alert-success d-flex align-items-center" role="alert">
+          <span class="badge bg-success fs-5 me-3" style="padding: 0.5rem 0.75rem;">{% trans 'MOVED' %}</span>
+          <div>
+            <strong class="fs-5">{% trans 'Physically moved' %}</strong>
+            <p class="mb-0 text-muted">
+              {% trans 'This product has been physically moved and is present in (or out of) stock.' %}
+            </p>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    {# ------------------------------------------------------------------ #}
+    {# Status Banner #}
+    {# ------------------------------------------------------------------ #}
     <div class="mb-4">
       {% with status=product.status %}
         {% if status == 'ACTIVE' %}
@@ -20,7 +49,13 @@
             <span class="badge bg-success fs-5 me-3" style="padding: 0.5rem 0.75rem;">{{ status }}</span>
             <div>
               <strong class="fs-5">{% trans 'Active Product' %}</strong>
-              <p class="mb-0 text-muted">{% trans 'Available for operations' %}</p>
+              <p class="mb-0 text-muted">
+                {% if product.is_physically_moved %}
+                  {% trans 'Available for operations' %}
+                {% else %}
+                  {% trans 'Obligated only — create a movement line before using in operations' %}
+                {% endif %}
+              </p>
             </div>
           </div>
         {% elif status == 'SOLD' %}
@@ -28,7 +63,9 @@
             <span class="badge bg-secondary fs-5 me-3" style="padding: 0.5rem 0.75rem;">{{ status }}</span>
             <div>
               <strong class="fs-5">{% trans 'Sold Product' %}</strong>
-              <p class="mb-0 text-muted">{% trans 'Cannot be used in new operations' %}</p>
+              <p class="mb-0 text-muted">
+                {% trans 'Cannot be used in new operations' %}
+              </p>
             </div>
           </div>
         {% else %}
@@ -36,7 +73,9 @@
             <span class="badge bg-danger fs-5 me-3" style="padding: 0.5rem 0.75rem;">{{ status }}</span>
             <div>
               <strong class="fs-5">{% trans 'Dead Product' %}</strong>
-              <p class="mb-0 text-muted">{% trans 'Cannot be used in new operations' %}</p>
+              <p class="mb-0 text-muted">
+                {% trans 'Cannot be used in new operations' %}
+              </p>
             </div>
           </div>
         {% endif %}
@@ -52,20 +91,14 @@
         <div class="card-body">
           <div class="row g-2">
             <div class="col-auto">
-              <a href="#invoice-items" class="btn btn-sm btn-outline-primary">
-                <i class="bi bi-file-earmark-text"></i> {% trans 'Invoice Items' %} ({{ product.invoice_items.count }})
-              </a>
+              <a href="#invoice-items" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-text"></i> {% trans 'Invoice Items' %}({{ product.invoice_items.count }})</a>
             </div>
             <div class="col-auto">
-              <a href="#movements" class="btn btn-sm btn-outline-info">
-                <i class="bi bi-arrow-left-right"></i> {% trans 'Movements' %} ({{ product.ledger_entries.count }})
-              </a>
+              <a href="#movements" class="btn btn-sm btn-outline-info"><i class="bi bi-arrow-left-right"></i> {% trans 'Movements' %}({{ product.ledger_entries.count }})</a>
             </div>
             {% if product.invoice_items.exists %}
               <div class="col-auto">
-                <a href="#operations" class="btn btn-sm btn-outline-secondary">
-                  <i class="bi bi-list-ul"></i> {% trans 'Related Operations' %}
-                </a>
+                <a href="#operations" class="btn btn-sm btn-outline-secondary"><i class="bi bi-list-ul"></i> {% trans 'Related Operations' %}</a>
               </div>
             {% endif %}
           </div>
@@ -113,6 +146,17 @@
               <dd>{{ product.unit_price }}</dd>
 
               <dt class="text-muted small">
+                {% trans 'Movement State' %}
+              </dt>
+              <dd>
+                {% if product.is_physically_moved %}
+                  <span class="badge bg-success">{% trans 'Physically Moved' %}</span>
+                {% else %}
+                  <span class="badge bg-warning text-dark">{% trans 'Obligated Only' %}</span>
+                {% endif %}
+              </dd>
+
+              <dt class="text-muted small">
                 {% trans 'Status' %}
               </dt>
               <dd>
@@ -138,17 +182,37 @@
         </div>
       </div>
 
-      <!-- Current value card -->
+      <!-- Valuation card -->
       <div class="col-md-6">
         <div class="card shadow-sm h-100">
           <div class="card-header fw-bold">
-            {% trans 'Current Value' %}
+            {% trans 'Valuation' %}
           </div>
           <div class="card-body">
-            <div class="text-center">
+            <div class="text-center mb-3">
               <div class="display-4 fw-bold text-success">{{ product.current_value }}</div>
-              <p class="text-muted mb-0">{% trans 'Total Value' %}</p>
+              <p class="text-muted mb-0">
+                {% trans 'Registered Value' %}
+              </p>
             </div>
+            {% if product.is_physically_moved %}
+              <hr />
+              <div class="row text-center small">
+                <div class="col-6">
+                  <div class="fw-bold fs-5">{{ physically_present_qty }}</div>
+                  <span class="text-muted">{% trans 'Physically Present Qty' %}</span>
+                </div>
+                <div class="col-6">
+                  <div class="fw-bold fs-5">{{ physically_present_value }}</div>
+                  <span class="text-muted">{% trans 'Physically Present Value' %}</span>
+                </div>
+              </div>
+            {% else %}
+              <div class="alert alert-warning small mb-0 mt-3">
+                <i class="bi bi-info-circle me-1"></i>
+                {% trans 'This product is obligated only. The registered value will be reflected in stock once a movement line is created.' %}
+              </div>
+            {% endif %}
           </div>
         </div>
       </div>
@@ -156,88 +220,96 @@
 
     <!-- Related Operations card -->
     {% if product.invoice_items.exists %}
-        <div class="row g-4 mt-2">
-          <div class="col-12">
-            <div class="card shadow-sm">
-              <div class="card-header fw-bold" id="operations">
-                {% trans 'Related Operations' %}
-              </div>
-              <div class="card-body p-0">
-                <!-- Table view for medium screens and up -->
-                <div class="d-none d-md-block">
-                  <div class="table-responsive">
-                    <table class="table mb-0">
-                      <thead class="table-light">
-                        <tr>
-                          <th>{% trans 'Operation' %}</th>
-                          <th>{% trans 'Type' %}</th>
-                          <th>{% trans 'Date' %}</th>
-                          <th>{% trans 'Amount' %}</th>
-                          <th class="text-center">{% trans 'View' %}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {% regroup product.invoice_items.all by operation as grouped_items %}
-                        {% for group in grouped_items %}
-                          <tr>
-                            <td>
-                              <a href="{% url 'operation_detail_view' group.grouper.pk %}">#{{ group.grouper.pk }}</a>
-                            </td>
-                            <td>
-                              <span class="badge bg-primary">{{ group.grouper.get_operation_type_display }}</span>
-                            </td>
-                            <td>{{ group.grouper.date }}</td>
-                            <td>{{ group.grouper.amount }}</td>
-                            <td class="text-center">
-                              <a href="{% url 'operation_detail_view' group.grouper.pk %}" class="btn btn-sm btn-outline-primary">
-                                {% trans 'View' %}
-                              </a>
-                            </td>
-                          </tr>
-                        {% endfor %}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                <!-- Card view for small screens -->
-                <div class="d-md-none">
-                  {% regroup product.invoice_items.all by operation as grouped_items %}
-                  {% if grouped_items %}
-                    <div class="list-group list-group-flush">
+      <div class="row g-4 mt-2">
+        <div class="col-12">
+          <div class="card shadow-sm">
+            <div class="card-header fw-bold" id="operations">
+              {% trans 'Related Operations' %}
+            </div>
+            <div class="card-body p-0">
+              <!-- Table view for medium screens and up -->
+              <div class="d-none d-md-block">
+                <div class="table-responsive">
+                  <table class="table mb-0">
+                    <thead class="table-light">
+                      <tr>
+                        <th>
+                          {% trans 'Operation' %}
+                        </th>
+                        <th>
+                          {% trans 'Type' %}
+                        </th>
+                        <th>
+                          {% trans 'Date' %}
+                        </th>
+                        <th>
+                          {% trans 'Amount' %}
+                        </th>
+                        <th class="text-center">
+                          {% trans 'View' %}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% regroup product.invoice_items.all by operation as grouped_items %}
                       {% for group in grouped_items %}
-                        <div class="list-group-item">
-                          <div class="d-flex justify-content-between align-items-start mb-2">
-                            <div>
-                              <a href="{% url 'operation_detail_view' group.grouper.pk %}" class="fw-bold text-decoration-none">#{{ group.grouper.pk }}</a>
-                              <small class="text-muted d-block">{{ group.grouper.date }}</small>
-                            </div>
+                        <tr>
+                          <td>
+                            <a href="{% url 'operation_detail_view' group.grouper.pk %}">#{{ group.grouper.pk }}</a>
+                          </td>
+                          <td>
                             <span class="badge bg-primary">{{ group.grouper.get_operation_type_display }}</span>
-                          </div>
-
-                          <div class="mb-2">
-                            <small class="text-muted d-block mb-1">{% trans 'Amount' %}</small>
-                            <span class="fw-bold">{{ group.grouper.amount }}</span>
-                          </div>
-
-                          <a href="{% url 'operation_detail_view' group.grouper.pk %}" class="btn btn-sm btn-outline-primary w-100">{% trans 'View' %}</a>
-                        </div>
+                          </td>
+                          <td>{{ group.grouper.date }}</td>
+                          <td>{{ group.grouper.amount }}</td>
+                          <td class="text-center">
+                            <a href="{% url 'operation_detail_view' group.grouper.pk %}" class="btn btn-sm btn-outline-primary">{% trans 'View' %}</a>
+                          </td>
+                        </tr>
                       {% endfor %}
-                    </div>
-                  {% endif %}
+                    </tbody>
+                  </table>
                 </div>
+              </div>
+
+              <!-- Card view for small screens -->
+              <div class="d-md-none">
+                {% regroup product.invoice_items.all by operation as grouped_items %}
+                {% if grouped_items %}
+                  <div class="list-group list-group-flush">
+                    {% for group in grouped_items %}
+                      <div class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                          <div>
+                            <a href="{% url 'operation_detail_view' group.grouper.pk %}" class="fw-bold text-decoration-none">#{{ group.grouper.pk }}</a>
+                            <small class="text-muted d-block">{{ group.grouper.date }}</small>
+                          </div>
+                          <span class="badge bg-primary">{{ group.grouper.get_operation_type_display }}</span>
+                        </div>
+
+                        <div class="mb-2">
+                          <small class="text-muted d-block mb-1">{% trans 'Amount' %}</small>
+                          <span class="fw-bold">{{ group.grouper.amount }}</span>
+                        </div>
+
+                        <a href="{% url 'operation_detail_view' group.grouper.pk %}" class="btn btn-sm btn-outline-primary w-100">{% trans 'View' %}</a>
+                      </div>
+                    {% endfor %}
+                  </div>
+                {% endif %}
               </div>
             </div>
           </div>
         </div>
+      </div>
     {% endif %}
 
-    <!-- Product movements card -->
+    <!-- Product movements (ledger entries) card -->
     <div class="row g-4 mt-2">
       <div class="col-12">
         <div class="card shadow-sm">
           <div class="card-header fw-bold" id="movements">
-            {% trans 'Product Movements' %}
+            {% trans 'Ledger Movements' %}
           </div>
           <div class="card-body p-0">
             <!-- Table view for medium screens and up -->
@@ -246,10 +318,18 @@
                 <table class="table mb-0">
                   <thead class="table-light">
                     <tr>
-                      <th>{% trans 'Date' %}</th>
-                      <th>{% trans 'Type' %}</th>
-                      <th class="text-end">{% trans 'Qty Change' %}</th>
-                      <th class="text-end">{% trans 'Value Change' %}</th>
+                      <th>
+                        {% trans 'Date' %}
+                      </th>
+                      <th>
+                        {% trans 'Type' %}
+                      </th>
+                      <th class="text-end">
+                        {% trans 'Qty Change' %}
+                      </th>
+                      <th class="text-end">
+                        {% trans 'Value Change' %}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -325,12 +405,24 @@
                 <table class="table mb-0">
                   <thead class="table-light">
                     <tr>
-                      <th>{% trans 'Operation' %}</th>
-                      <th>{% trans 'Operation type' %}</th>
-                      <th>{% trans 'Date' %}</th>
-                      <th class="text-end">{% trans 'Qty' %}</th>
-                      <th class="text-end">{% trans 'Unit Price' %}</th>
-                      <th class="text-end">{% trans 'Total' %}</th>
+                      <th>
+                        {% trans 'Operation' %}
+                      </th>
+                      <th>
+                        {% trans 'Operation type' %}
+                      </th>
+                      <th>
+                        {% trans 'Date' %}
+                      </th>
+                      <th class="text-end">
+                        {% trans 'Qty' %}
+                      </th>
+                      <th class="text-end">
+                        {% trans 'Unit Price' %}
+                      </th>
+                      <th class="text-end">
+                        {% trans 'Total' %}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>

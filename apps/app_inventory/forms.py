@@ -121,10 +121,10 @@ class InvoiceItemCreateForm(LoggingFormMixin, forms.ModelForm):
             )
 
         # If product is selected and requires individual tag, validate unique_id
-        if template and template.has_tag and not uid:
-            self.add_error(
-                "unique_id", "Tag / ID is required for individually tracked animals."
-            )
+        # if template and template.has_tag and not uid:
+        #     self.add_error(
+        #         "unique_id", "Tag / ID is required for individually tracked animals."
+        #     )
         return cleaned
 
 

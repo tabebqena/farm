@@ -47,7 +47,12 @@ class PurchaseWizardStep2Form(LoggingFormMixin, forms.Form):
         decimal_places=2,
         max_digits=20,
         widget=forms.NumberInput(
-            attrs={"class": "form-control amount-input", "step": "0.01", "placeholder": "0.00", "inputmode": "decimal"}
+            attrs={
+                "class": "form-control amount-input",
+                "step": "0.01",
+                "placeholder": "0.00",
+                "inputmode": "decimal",
+            }
         ),
     )
 
@@ -62,7 +67,12 @@ class PurchaseWizardStep3Form(LoggingFormMixin, forms.Form):
         max_digits=20,
         required=False,
         widget=forms.NumberInput(
-            attrs={"class": "form-control amount-input", "step": "0.01", "placeholder": "0.00", "inputmode": "decimal"}
+            attrs={
+                "class": "form-control amount-input",
+                "step": "0.01",
+                "placeholder": "0.00",
+                "inputmode": "decimal",
+            }
         ),
     )
 
@@ -79,7 +89,9 @@ class PurchaseItemForm(LoggingFormMixin, forms.Form):
     description = forms.CharField(
         label=_("Description"),
         required=False,
-        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": _("Optional")}),
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": _("Optional")}
+        ),
     )
 
     quantity = forms.DecimalField(
@@ -87,7 +99,13 @@ class PurchaseItemForm(LoggingFormMixin, forms.Form):
         min_value=Decimal("0.01"),
         decimal_places=2,
         max_digits=10,
-        widget=forms.NumberInput(attrs={"class": "form-control amount-input", "step": "0.01", "inputmode": "decimal"}),
+        widget=forms.NumberInput(
+            attrs={
+                "class": "form-control amount-input",
+                "step": "0.01",
+                "inputmode": "decimal",
+            }
+        ),
     )
 
     unit_price = forms.DecimalField(
@@ -95,13 +113,21 @@ class PurchaseItemForm(LoggingFormMixin, forms.Form):
         min_value=Decimal("0.01"),
         decimal_places=2,
         max_digits=15,
-        widget=forms.NumberInput(attrs={"class": "form-control amount-input", "step": "0.01", "inputmode": "decimal"}),
+        widget=forms.NumberInput(
+            attrs={
+                "class": "form-control amount-input",
+                "step": "0.01",
+                "inputmode": "decimal",
+            }
+        ),
     )
 
     unique_id = forms.CharField(
         label=_("Tag / ID"),
         required=False,
-        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": _("Tag / ID")}),
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": _("Tag / ID")}
+        ),
     )
 
     received_qty = forms.DecimalField(
@@ -112,7 +138,13 @@ class PurchaseItemForm(LoggingFormMixin, forms.Form):
         required=False,
         initial=Decimal("0"),
         help_text=_("Quantity physically received (0 = none yet)"),
-        widget=forms.NumberInput(attrs={"class": "form-control amount-input", "step": "0.01", "inputmode": "decimal"}),
+        widget=forms.NumberInput(
+            attrs={
+                "class": "form-control amount-input",
+                "step": "0.01",
+                "inputmode": "decimal",
+            }
+        ),
     )
 
     def __init__(self, *args, template=None, **kwargs):
@@ -127,15 +159,17 @@ class PurchaseItemForm(LoggingFormMixin, forms.Form):
         cleaned: dict = super().clean() or {}
         template = self._template
 
-        if template and template.has_tag:
-            uid = (cleaned.get("unique_id") or "").strip()
-            if not uid:
-                self.add_error("unique_id", _("Tag / ID is required for this product."))
+        # if template and template.has_tag:
+        #     uid = (cleaned.get("unique_id") or "").strip()
+        #     if not uid:
+        #         self.add_error("unique_id", _("Tag / ID is required for this product."))
 
         received: Decimal = cleaned.get("received_qty") or Decimal("0")
         qty: Decimal = cleaned.get("quantity") or Decimal("0")
         if received > qty:
-            self.add_error("received_qty", _("Received quantity cannot exceed ordered quantity."))
+            self.add_error(
+                "received_qty", _("Received quantity cannot exceed ordered quantity.")
+            )
 
         cleaned["received_qty"] = received
         return cleaned
@@ -181,7 +215,12 @@ class SaleWizardStep2Form(LoggingFormMixin, forms.Form):
         decimal_places=2,
         max_digits=20,
         widget=forms.NumberInput(
-            attrs={"class": "form-control amount-input", "step": "0.01", "placeholder": "0.00", "inputmode": "decimal"}
+            attrs={
+                "class": "form-control amount-input",
+                "step": "0.01",
+                "placeholder": "0.00",
+                "inputmode": "decimal",
+            }
         ),
     )
 
@@ -196,7 +235,12 @@ class SaleWizardStep3Form(LoggingFormMixin, forms.Form):
         max_digits=20,
         required=False,
         widget=forms.NumberInput(
-            attrs={"class": "form-control amount-input", "step": "0.01", "placeholder": "0.00", "inputmode": "decimal"}
+            attrs={
+                "class": "form-control amount-input",
+                "step": "0.01",
+                "placeholder": "0.00",
+                "inputmode": "decimal",
+            }
         ),
     )
 
@@ -213,7 +257,9 @@ class SaleItemForm(LoggingFormMixin, forms.Form):
     description = forms.CharField(
         label=_("Description"),
         required=False,
-        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": _("Optional")}),
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": _("Optional")}
+        ),
     )
 
     quantity = forms.DecimalField(
@@ -221,7 +267,13 @@ class SaleItemForm(LoggingFormMixin, forms.Form):
         min_value=Decimal("0.01"),
         decimal_places=2,
         max_digits=10,
-        widget=forms.NumberInput(attrs={"class": "form-control amount-input", "step": "0.01", "inputmode": "decimal"}),
+        widget=forms.NumberInput(
+            attrs={
+                "class": "form-control amount-input",
+                "step": "0.01",
+                "inputmode": "decimal",
+            }
+        ),
     )
 
     unit_price = forms.DecimalField(
@@ -229,13 +281,21 @@ class SaleItemForm(LoggingFormMixin, forms.Form):
         min_value=Decimal("0.01"),
         decimal_places=2,
         max_digits=15,
-        widget=forms.NumberInput(attrs={"class": "form-control amount-input", "step": "0.01", "inputmode": "decimal"}),
+        widget=forms.NumberInput(
+            attrs={
+                "class": "form-control amount-input",
+                "step": "0.01",
+                "inputmode": "decimal",
+            }
+        ),
     )
 
     unique_id = forms.CharField(
         label=_("Tag / ID"),
         required=False,
-        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": _("Tag / ID")}),
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": _("Tag / ID")}
+        ),
     )
 
     delivered_qty = forms.DecimalField(
@@ -246,7 +306,13 @@ class SaleItemForm(LoggingFormMixin, forms.Form):
         required=False,
         initial=Decimal("0"),
         help_text=_("Quantity physically delivered (0 = none yet)"),
-        widget=forms.NumberInput(attrs={"class": "form-control amount-input", "step": "0.01", "inputmode": "decimal"}),
+        widget=forms.NumberInput(
+            attrs={
+                "class": "form-control amount-input",
+                "step": "0.01",
+                "inputmode": "decimal",
+            }
+        ),
     )
 
     def __init__(self, *args, template=None, **kwargs):
@@ -261,15 +327,17 @@ class SaleItemForm(LoggingFormMixin, forms.Form):
         cleaned: dict = super().clean() or {}
         template = self._template
 
-        if template and template.has_tag:
-            uid = (cleaned.get("unique_id") or "").strip()
-            if not uid:
-                self.add_error("unique_id", _("Tag / ID is required for this product."))
+        # if template and template.has_tag:
+        #     uid = (cleaned.get("unique_id") or "").strip()
+        #     if not uid:
+        #         self.add_error("unique_id", _("Tag / ID is required for this product."))
 
         delivered: Decimal = cleaned.get("delivered_qty") or Decimal("0")
         qty: Decimal = cleaned.get("quantity") or Decimal("0")
         if delivered > qty:
-            self.add_error("delivered_qty", _("Delivered quantity cannot exceed ordered quantity."))
+            self.add_error(
+                "delivered_qty", _("Delivered quantity cannot exceed ordered quantity.")
+            )
 
         cleaned["delivered_qty"] = delivered
         return cleaned
@@ -289,7 +357,12 @@ class PaymentForm(LoggingFormMixin, forms.Form):
         decimal_places=2,
         max_digits=20,
         widget=forms.NumberInput(
-            attrs={"class": "form-control amount-input", "step": "0.01", "placeholder": "0.00", "inputmode": "decimal"}
+            attrs={
+                "class": "form-control amount-input",
+                "step": "0.01",
+                "placeholder": "0.00",
+                "inputmode": "decimal",
+            }
         ),
     )
 

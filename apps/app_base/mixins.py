@@ -350,6 +350,13 @@ class LinkedPaymentTransactionMixin(
             self._has_payment_transaction and self.max_payment_transaction_count == -1
         )
 
+    @property
+    def payment_transactions(self):
+        """Return payment transactions filtered by the payment transaction type."""
+        if not self._has_payment_transaction:
+            return self.get_all_transactions().none()
+        return self.get_all_transactions().filter(type=self._payment_transaction_type)
+
     def create_payment_transaction(
         self, amount, officer, date, description="", note=""
     ):
@@ -491,6 +498,13 @@ class LinkedRePaymentTransactionMixin(
     def _has_repayment_transaction(self) -> bool:
         """indicates whther this record can be linked to one or more transactions"""
         return getattr(self, "_repayment_transaction_type", None) is not None
+
+    @property
+    def repayment_transactions(self):
+        """Return repayment transactions filtered by the repayment transaction type."""
+        if not self._has_repayment_transaction:
+            return self.get_all_transactions().none()
+        return self.get_all_transactions().filter(type=self._repayment_transaction_type)
 
     def create_repayment_transaction(
         self, amount, officer, date, description="", note=""

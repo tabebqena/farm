@@ -24,9 +24,13 @@ from farm.shortcuts import get_object_or_404
 
 def stock_detail(request, entity_pk):
     from datetime import date
+    from decimal import Decimal
+
+    from django.db.models import Q
 
     from apps.app_entity.models import Entity
     from apps.app_inventory.models import (
+        InventoryMovementLine,
         InvoiceItem,
         Product,
         ProductLedgerEntry,
@@ -36,38 +40,124 @@ def stock_detail(request, entity_pk):
         Entity, pk=entity_pk, error_message="Entity not found or has been deleted."
     )
 
-    # Get portfolio for this entity as of today
+    # ------------------------------------------------------------------
+    # 1. Physically moved products (have ledger entries = in/out of stock)
+    # ------------------------------------------------------------------
     portfolio = ProductLedgerEntry.portfolio_as_of(entity, date.today())
-    product_ids = [item["product_id"] for item in portfolio]
+    physically_moved_ids = [item["product_id"] for item in portfolio]
 
-    products = (
-        Product.objects.filter(pk__in=product_ids)
+    physically_moved_products = (
+        Product.objects.filter(pk__in=physically_moved_ids)
         .select_related("product_template")
-        .prefetch_related("invoice_items__operation")
+        .prefetch_related("invoice_items__operation", "movement_lines")
         .order_by("product_template__nature", "product_template__name", "pk")
     )
+
+    # ------------------------------------------------------------------
+    # 2. Obligated inbound products (registered via PURCHASE but NOT yet
+    #    physically received — no movement lines exist for those invoice items)
+    # ------------------------------------------------------------------
+    unreceived_purchases = InvoiceItem.unreceived_purchases()
+    # Collect all Product PKs linked to those invoice items
+    obligated_inbound_product_ids = set()
+    for item in unreceived_purchases:
+        for product in item.products.all():
+            obligated_inbound_product_ids.add(product.pk)
+
+    obligated_inbound_products = (
+        (
+            Product.objects.filter(pk__in=obligated_inbound_product_ids)
+            .select_related("product_template")
+            .prefetch_related("invoice_items__operation")
+            .order_by("product_template__nature", "product_template__name", "pk")
+        )
+        if obligated_inbound_product_ids
+        else Product.objects.none()
+    )
+
+    # ------------------------------------------------------------------
+    # 3. Obligated outbound products (registered via SALE but NOT yet
+    #    physically delivered — no movement lines exist for those invoice items)
+    # ------------------------------------------------------------------
+    undelivered_sales = InvoiceItem.undelivered_sales()
+    obligated_outbound_product_ids = set()
+    for item in undelivered_sales:
+        for product in item.products.all():
+            obligated_outbound_product_ids.add(product.pk)
+
+    obligated_outbound_products = (
+        (
+            Product.objects.filter(pk__in=obligated_outbound_product_ids)
+            .select_related("product_template")
+            .prefetch_related("invoice_items__operation")
+            .order_by("product_template__nature", "product_template__name", "pk")
+        )
+        if obligated_outbound_product_ids
+        else Product.objects.none()
+    )
+
+    # ------------------------------------------------------------------
+    # 4. Summary calculations
+    # ------------------------------------------------------------------
+    # Physically present quantity (from ledger)
+    physically_present_qty = sum(item["quantity"] for item in portfolio)
+
+    # Obligated inbound quantity — total qty of unreceived purchase items
+    obligated_inbound_qty = sum(item.quantity for item in unreceived_purchases)
+
+    # Obligated outbound quantity — total qty of undelivered sale items
+    obligated_outbound_qty = sum(item.quantity for item in undelivered_sales)
 
     return render(
         request,
         "app_inventory/stock_detail.html",
         {
             "entity": entity,
-            "products": products,
-            "unreceived_items": InvoiceItem.unreceived_purchases(),
-            "undelivered_items": InvoiceItem.undelivered_sales(),
+            # Physically moved products
+            "products": physically_moved_products,
+            "physically_present_qty": physically_present_qty,
+            # Obligated inbound (registered but not received)
+            "obligated_inbound_products": obligated_inbound_products,
+            "obligated_inbound_qty": obligated_inbound_qty,
+            # Obligated outbound (sold but not delivered)
+            "obligated_outbound_products": obligated_outbound_products,
+            "obligated_outbound_qty": obligated_outbound_qty,
+            # Original invoice-item-level lists (for linking to create movements)
+            "unreceived_items": unreceived_purchases,
+            "undelivered_items": undelivered_sales,
         },
     )
 
 
 def product_detail(request, pk):
+    from decimal import Decimal
+
+    from django.db.models import Sum
+
     product = get_object_or_404(
         Product.objects.select_related("product_template").prefetch_related(
-            "invoice_items__operation", "ledger_entries"
+            "invoice_items__operation",
+            "ledger_entries",
+            "movement_lines",
         ),
         pk=pk,
         error_message="Product not found or has been deleted.",
     )
-    return render(request, "app_inventory/product_detail.html", {"product": product})
+
+    # Compute ledger balance = physically moved quantity/value
+    ledger_balance = product.ledger_entries.aggregate(
+        total_qty=Sum("quantity_delta"),
+        total_value=Sum("value_delta"),
+    )
+    physically_present_qty = ledger_balance["total_qty"] or Decimal("0.00")
+    physically_present_value = ledger_balance["total_value"] or Decimal("0.00")
+
+    context = {
+        "product": product,
+        "physically_present_qty": physically_present_qty,
+        "physically_present_value": physically_present_value,
+    }
+    return render(request, "app_inventory/product_detail.html", context)
 
 
 def project_product_templates_setup(request, entity_pk):
