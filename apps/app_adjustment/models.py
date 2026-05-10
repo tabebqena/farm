@@ -607,7 +607,6 @@ class InvoiceItemAdjustmentLine(
         "invoice_item": {},
         "new_quantity": {},
         "new_unit_price": {},
-        "is_removed": {},
     }
 
     adjustment = models.ForeignKey(
@@ -628,13 +627,10 @@ class InvoiceItemAdjustmentLine(
     new_unit_price = models.DecimalField(
         _("new unit price"), max_digits=15, decimal_places=2, null=True, blank=True
     )
-    is_removed = models.BooleanField(_("is removed"), default=False)
 
     @property
     def quantity_delta(self) -> Decimal:
         original = self.invoice_item.quantity
-        if self.is_removed:
-            return -original
         if self.new_quantity is not None:
             return self.new_quantity - original
         return Decimal("0")
@@ -643,8 +639,6 @@ class InvoiceItemAdjustmentLine(
     def value_delta(self) -> Decimal:
         """Positive = invoice total increased; negative = decreased."""
         item = self.invoice_item
-        if self.is_removed:
-            return -(item.total_price)
         new_qty = self.new_quantity if self.new_quantity is not None else item.quantity
         new_price = (
             self.new_unit_price if self.new_unit_price is not None else item.unit_price
@@ -652,15 +646,9 @@ class InvoiceItemAdjustmentLine(
         return (new_qty * new_price) - item.total_price
 
     def clean(self):
-        if (
-            not self.is_removed
-            and self.new_quantity is None
-            and self.new_unit_price is None
-        ):
+        if self.new_quantity is None and self.new_unit_price is None:
             raise ValidationError(
-                _(
-                    "At least one of new_quantity, new_unit_price, or is_removed must be set."
-                )
+                _("At least one of new_quantity or new_unit_price must be set.")
             )
         # Ensure the item belongs to the same operation
         try:
@@ -758,7 +746,6 @@ class InvoiceItemAdjustmentLine(
                 "pk": self.pk,
                 "adjustment_pk": self.adjustment_id,
                 "invoice_item_pk": self.invoice_item_id,
-                "is_removed": self.is_removed,
                 "quantity_delta": (
                     float(self.quantity_delta) if self.quantity_delta else None
                 ),

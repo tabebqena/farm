@@ -142,9 +142,7 @@ def record_item_adjustment(request, pk):
     for item in items:
         new_qty_str = request.POST.get(f"item_{item.pk}_new_quantity", "").strip()
         new_price_str = request.POST.get(f"item_{item.pk}_new_unit_price", "").strip()
-        is_removed_str = request.POST.get(f"item_{item.pk}_is_removed", "")
 
-        is_removed = is_removed_str == "on"
         new_qty = None
         new_price = None
 
@@ -184,13 +182,12 @@ def record_item_adjustment(request, pk):
                 )
 
         # Check if anything changed
-        if is_removed or new_qty is not None or new_price is not None:
+        if new_qty is not None or new_price is not None:
             changed_items_data.append(
                 {
                     "item": item,
                     "new_quantity": new_qty,
                     "new_unit_price": new_price,
-                    "is_removed": is_removed,
                 }
             )
 
@@ -230,7 +227,6 @@ def record_item_adjustment(request, pk):
                     invoice_item=changed_item_data["item"],
                     new_quantity=changed_item_data["new_quantity"],
                     new_unit_price=changed_item_data["new_unit_price"],
-                    is_removed=changed_item_data["is_removed"],
                 )
                 line.full_clean()
                 line.save()

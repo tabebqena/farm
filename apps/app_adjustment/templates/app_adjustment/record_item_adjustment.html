@@ -37,9 +37,6 @@
                       <th class="text-center">
                         {% trans 'New Price' %}
                       </th>
-                      <th class="text-center">
-                        {% trans 'Remove' %}
-                      </th>
                       <th class="text-end">
                         {% trans 'Delta' %}
                       </th>
@@ -53,14 +50,11 @@
                         </td>
                         <td class="text-center align-middle">{{ item.quantity }}</td>
                         <td class="text-center">
-                          <input type="number" class="form-control form-control-sm new-quantity" name="item_{{ item.pk }}_new_quantity" placeholder="{{ item.quantity }}" step="0.01" min="0.01" />
+                          <input type="number" class="form-control form-control-sm new-quantity" name="item_{{ item.pk }}_new_quantity" placeholder="{{ item.quantity }}" step="0.01" min="0" />
                         </td>
                         <td class="text-center align-middle">${{ item.unit_price }}</td>
                         <td class="text-center">
                           <input type="number" class="form-control form-control-sm new-price" name="item_{{ item.pk }}_new_unit_price" placeholder="{{ item.unit_price }}" step="0.01" min="0.01" />
-                        </td>
-                        <td class="text-center">
-                          <input type="checkbox" class="form-check-input is-removed" name="item_{{ item.pk }}_is_removed" />
                         </td>
                         <td class="text-end align-middle">
                           <span class="delta fw-bold">$0.00</span>
@@ -68,7 +62,7 @@
                       </tr>
                     {% empty %}
                       <tr>
-                        <td colspan="7" class="text-center text-muted py-4">
+                        <td colspan="6" class="text-center text-muted py-4">
                           {% trans 'No items found' %}
                         </td>
                       </tr>
@@ -76,7 +70,7 @@
                   </tbody>
                   <tfoot class="table-light">
                     <tr>
-                      <th colspan="6" class="text-end">
+                      <th colspan="5" class="text-end">
                         {% trans 'Total Delta:' %}
                       </th>
                       <th class="text-end">
@@ -119,23 +113,12 @@
         const originalPrice = parseFloat(row.dataset.originalPrice)
         const newQtyInput = row.querySelector('.new-quantity')
         const newPriceInput = row.querySelector('.new-price')
-        const isRemovedCheckbox = row.querySelector('.is-removed')
         const deltaSpan = row.querySelector('.delta')
     
         let newQty = newQtyInput.value ? parseFloat(newQtyInput.value) : originalQty
         let newPrice = newPriceInput.value ? parseFloat(newPriceInput.value) : originalPrice
     
-        let delta = 0
-        if (isRemovedCheckbox.checked) {
-          // If removed, delta is negative of original total
-          delta = -(originalQty * originalPrice)
-          newQtyInput.disabled = true
-          newPriceInput.disabled = true
-        } else {
-          delta = newQty * newPrice - originalQty * originalPrice
-          newQtyInput.disabled = false
-          newPriceInput.disabled = false
-        }
+        const delta = newQty * newPrice - originalQty * originalPrice
     
         deltaSpan.textContent = delta >= 0 ? `$${delta.toFixed(2)}` : `-$${Math.abs(delta).toFixed(2)}`
         return delta

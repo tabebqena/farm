@@ -5,3 +5,4 @@ db.sqlite3
 htmlcov/*
 logs/*
 test_screenshots/*
+.roo/*

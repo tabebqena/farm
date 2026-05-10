@@ -15,7 +15,6 @@ from django.test import TestCase
 
 from apps.app_adjustment._item_type import InvoiceItemAdjustmentType
 from apps.app_adjustment.models import (
-    AdjustmentType,
     InvoiceItemAdjustment,
     InvoiceItemAdjustmentLine,
 )
@@ -23,12 +22,10 @@ from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderR
 from apps.app_inventory.models import (
     InvoiceItem,
     Product,
-    ProductLedgerEntry,
     ProductTemplate,
 )
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import PurchaseOperation, SaleOperation
-from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
 
@@ -204,7 +201,7 @@ class ValidationTest(TestCase):
         line = InvoiceItemAdjustmentLine(
             adjustment=ia,
             invoice_item=item,
-            # nothing set — is_removed=False, new_quantity=None, new_unit_price=None
+            # nothing set — new_quantity=None, new_unit_price=None
         )
         with self.assertRaises(ValidationError):
             line.full_clean()

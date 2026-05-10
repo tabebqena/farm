@@ -10,12 +10,10 @@ from datetime import date
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from apps.app_adjustment._item_type import InvoiceItemAdjustmentType
 from apps.app_adjustment.models import (
-    AdjustmentType,
     InvoiceItemAdjustment,
     InvoiceItemAdjustmentLine,
 )
@@ -28,7 +26,6 @@ from apps.app_inventory.models import (
 )
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import PurchaseOperation, SaleOperation
-from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
 
@@ -214,7 +211,7 @@ class LedgerEntryTest(TestCase):
         ia = _make_item_adj(
             op, InvoiceItemAdjustmentType.PURCHASE_ITEM_DECREASE, self.officer
         )
-        _make_line(ia, item, is_removed=True)
+        _make_line(ia, item, new_quantity=Decimal("0"))
 
         entry = ProductLedgerEntry.objects.filter(
             product=product, entry_type=ProductLedgerEntry.EntryType.ADJUSTMENT
@@ -244,13 +241,14 @@ class LedgerEntryTest(TestCase):
         ia = _make_item_adj(
             op, InvoiceItemAdjustmentType.SALE_ITEM_DECREASE, self.officer
         )
-        _make_line(ia, item, is_removed=True)
+        _make_line(ia, item, new_quantity=Decimal("0"))
 
         entry = ProductLedgerEntry.objects.filter(
             product=product, entry_type=ProductLedgerEntry.EntryType.ADJUSTMENT
         ).latest("id")
 
-        # removal value_delta = -(3*100) = -300; SALE val_sign=-1 → stored as +300
+        # quantity_delta = 0-3 = -3; value_delta = (0*0)-(3*100) = -300
+        # SALE val_sign=-1 → stored as +300
         self.assertEqual(entry.quantity_delta, Decimal("3.00"))
         self.assertEqual(entry.value_delta, Decimal("300.00"))
 

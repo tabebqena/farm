@@ -457,6 +457,60 @@ class InvoiceItem(AmountCleanMixin, BaseModel):
     def total_price(self):
         return self.quantity * self.unit_price
 
+    # ------------------------------------------------------------------
+    # Adjustment-aware properties
+    # ------------------------------------------------------------------
+
+    @property
+    def adjusted_quantity(self) -> Decimal:
+        """Effective quantity = most recent ``new_quantity`` from active
+        (non-reversed) adjustment lines, or original if none."""
+        last_qty = (
+            self.item_adjustment_lines.filter(
+                adjustment__reversed_by__isnull=True, new_quantity__isnull=False
+            )
+            .order_by("-pk")
+            .values_list("new_quantity", flat=True)
+            .first()
+        )
+        return last_qty if last_qty is not None else self.quantity
+
+    @property
+    def adjusted_unit_price(self) -> Decimal:
+        """Effective unit price = most recent ``new_unit_price`` from active
+        (non-reversed) adjustment lines, or original if none."""
+        last_price = (
+            self.item_adjustment_lines.filter(
+                adjustment__reversed_by__isnull=True, new_unit_price__isnull=False
+            )
+            .order_by("-pk")
+            .values_list("new_unit_price", flat=True)
+            .first()
+        )
+        return last_price if last_price is not None else self.unit_price
+
+    @property
+    def adjusted_total_price(self) -> Decimal:
+        """Effective total after all adjustments = adjusted_qty * adjusted_price."""
+        return self.adjusted_quantity * self.adjusted_unit_price
+
+    @property
+    def adjustment_quantity_delta(self) -> Decimal:
+        """Net change from original quantity to effective adjusted quantity."""
+        return self.adjusted_quantity - self.quantity
+
+    @property
+    def adjustment_value_delta(self) -> Decimal:
+        """Net change from original total to effective adjusted total."""
+        return self.adjusted_total_price - self.total_price
+
+    @property
+    def has_adjustments(self) -> bool:
+        """Whether any active (non-reversed) adjustment lines exist for this item."""
+        return self.item_adjustment_lines.filter(
+            adjustment__reversed_by__isnull=True
+        ).exists()
+
     def clean_unit_price(self):
         if self.unit_price < 0:
             raise ValidationError(_("Unit price cannot be negative"))
