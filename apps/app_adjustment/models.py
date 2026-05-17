@@ -8,7 +8,6 @@ from django.db import transaction as db_transaction
 from django.forms import ValidationError
 from django.utils.translation import gettext_lazy as _
 
-from apps.app_adjustment._item_type import InvoiceItemAdjustmentType
 from apps.app_base.debug import DebugContext
 from apps.app_base.mixins import (
     AmountCleanMixin,
@@ -150,6 +149,13 @@ class AdjustmentType(models.TextChoices):
         )
 
 
+class InvoiceItemAdjustmentType(models.TextChoices):
+    PURCHASE_ITEM_INCREASE = "PUR_ITEM_INC", _("Purchase Item: Increase")
+    PURCHASE_ITEM_DECREASE = "PUR_ITEM_DEC", _("Purchase Item: Decrease")
+    SALE_ITEM_INCREASE = "SALE_ITEM_INC", _("Sale Item: Increase")
+    SALE_ITEM_DECREASE = "SALE_ITEM_DEC", _("Sale Item: Decrease")
+
+
 class Adjustment(
     ImmutableMixin,
     AmountCleanMixin,
@@ -197,6 +203,17 @@ class Adjustment(
         if AdjustmentType.is_reduction(self.type):
             return op.payment_source_fund
         return op.payment_target_fund
+
+    @property
+    def is_reduction(self):
+        """Returns True if this adjustment type represents a reduction (decrease)
+        in the operation's total amount rather than an increase.
+
+        Template-friendly wrapper around AdjustmentType.is_reduction() —
+        allows templates to check ``{% if adj.is_reduction %}`` to determine
+        the visual indicator (red for decrease, green for increase).
+        """
+        return AdjustmentType.is_reduction(self.type)
 
     def _cast_operation(self):
         """Return self.operation cast to its proper proxy subclass."""
@@ -322,6 +339,25 @@ class Adjustment(
     @property
     def _implicit_reversable_transaction_types(self):
         return [self._issuance_transaction_type]  # type: ignore
+
+    def reverse(self, officer, date=None, reason=None, _from_item_adjustment=False):
+        """
+        Delegate reversal to the parent InvoiceItemAdjustment if one exists,
+        ensuring both financial and inventory sides are properly reversed.
+
+        The ``_from_item_adjustment`` flag prevents infinite recursion when
+        InvoiceItemAdjustment.reverse() calls this method internally.
+        """
+        item_adj = getattr(self, "item_adjustment", None)
+        if (
+            item_adj is not None
+            and not item_adj.is_reversed
+            and not _from_item_adjustment
+        ):
+            return item_adj.reverse(
+                officer=officer, date=date or self.date, reason=reason or ""
+            )
+        return super().reverse(officer=officer, date=date, reason=reason)
 
     class Meta:
         verbose_name = _("adjustment")
@@ -574,7 +610,12 @@ class InvoiceItemAdjustment(
         ):
             with db_transaction.atomic():
                 DebugContext.log("Reversing linked Adjustment")
-                self.adjustment.reverse(officer=officer, date=date, reason=reason)
+                self.adjustment.reverse(
+                    officer=officer,
+                    date=date,
+                    reason=reason,
+                    _from_item_adjustment=True,
+                )
                 DebugContext.success("Linked Adjustment reversed")
 
                 DebugContext.log("Recording negating ProductLedgerEntry rows")
@@ -630,20 +671,68 @@ class InvoiceItemAdjustmentLine(
 
     @property
     def quantity_delta(self) -> Decimal:
-        original = self.invoice_item.quantity
-        if self.new_quantity is not None:
-            return self.new_quantity - original
-        return Decimal("0")
+        """Change from the before-effective quantity (previous adjustments
+        applied) to the new quantity, or zero if quantity unchanged."""
+        if self.new_quantity is None:
+            return Decimal("0")
+        before = self._before_effective_quantity()
+        return self.new_quantity - before
 
     @property
     def value_delta(self) -> Decimal:
-        """Positive = invoice total increased; negative = decreased."""
+        """Positive = invoice total increased; negative = decreased.
+
+        Calculated from the before-effective state (prior adjustments
+        applied) rather than the original invoice item values, so that
+        multiple sequential adjustments each report only their own
+        incremental change.
+        """
         item = self.invoice_item
-        new_qty = self.new_quantity if self.new_quantity is not None else item.quantity
+        before_qty = self._before_effective_quantity()
+        before_price = self._before_effective_unit_price()
+        new_qty = self.new_quantity if self.new_quantity is not None else before_qty
         new_price = (
-            self.new_unit_price if self.new_unit_price is not None else item.unit_price
+            self.new_unit_price if self.new_unit_price is not None else before_price
         )
-        return (new_qty * new_price) - item.total_price
+        return (new_qty * new_price) - (before_qty * before_price)
+
+    # ------------------------------------------------------------------
+    # Helpers: before-effective values (state prior to this adjustment)
+    # ------------------------------------------------------------------
+
+    def _before_effective_quantity(self) -> Decimal:
+        """The effective quantity on the invoice item **before** this adjustment
+        line is applied — i.e. the most recent ``new_quantity`` from a
+        non-reversed adjustment line that was created *before* this one, or
+        the original ``invoice_item.quantity`` if none."""
+        last_qty = (
+            self.invoice_item.item_adjustment_lines.filter(
+                adjustment__reversed_by__isnull=True,
+                new_quantity__isnull=False,
+                pk__lt=self.pk,
+            )
+            .order_by("-pk")
+            .values_list("new_quantity", flat=True)
+            .first()
+        )
+        return last_qty if last_qty is not None else self.invoice_item.quantity
+
+    def _before_effective_unit_price(self) -> Decimal:
+        """The effective unit price on the invoice item **before** this adjustment
+        line is applied — i.e. the most recent ``new_unit_price`` from a
+        non-reversed adjustment line that was created *before* this one, or
+        the original ``invoice_item.unit_price`` if none."""
+        last_price = (
+            self.invoice_item.item_adjustment_lines.filter(
+                adjustment__reversed_by__isnull=True,
+                new_unit_price__isnull=False,
+                pk__lt=self.pk,
+            )
+            .order_by("-pk")
+            .values_list("new_unit_price", flat=True)
+            .first()
+        )
+        return last_price if last_price is not None else self.invoice_item.unit_price
 
     def clean(self):
         if self.new_quantity is None and self.new_unit_price is None:
@@ -660,84 +749,6 @@ class InvoiceItemAdjustmentLine(
                 _("The invoice item does not belong to the adjustment's operation.")
             )
         return super().clean()
-
-    def _sync_products(self):
-        """
-        Create or soft-delete Product records based on the adjustment direction.
-
-        **Increase** (quantity_delta > 0): Create additional Products for the
-        invoice item using ``InvoiceItem.create_products_for_item()``, which
-        branches on the template's tracking mode.
-
-        **Decrease** (quantity_delta < 0): Soft-delete unmoved Products.
-        If any Product linked to this invoice item has already been moved
-        (has non-reversed InventoryMovementLines), raise ValidationError —
-        the user must reverse those movements first.
-        """
-        qty_delta = self.quantity_delta
-        if qty_delta == 0:
-            return
-
-        from django.utils import timezone
-
-        from apps.app_inventory.models import (
-            InventoryMovementLine,
-            InvoiceItem,
-        )
-
-        item = self.invoice_item
-        products = list(item.products.all())
-
-        if qty_delta > 0:
-            # --- INCREASE: create additional products ---
-            delta_qty = int(abs(qty_delta))
-            unit_price = (
-                self.new_unit_price
-                if self.new_unit_price is not None
-                else item.unit_price
-            )
-            InvoiceItem.create_products_for_item(
-                invoice_item=item,
-                entity=item.operation.period_entity,
-                quantity=Decimal(delta_qty),
-                unit_price=unit_price,
-                unique_id=None,
-            )
-            DebugContext.success(
-                "Created %d additional product(s) via adjustment increase",
-                {"count": delta_qty, "invoice_item_pk": item.pk},
-            )
-        else:
-            # --- DECREASE: validate no moved products, then soft-delete ---
-            abs_delta = int(abs(qty_delta))
-            moved_pks = set(
-                InventoryMovementLine.objects.filter(
-                    invoice_item=item,
-                    reversal_of__isnull=True,
-                ).values_list("product_id", flat=True)
-            )
-            if moved_pks:
-                raise ValidationError(
-                    _(
-                        "Cannot decrease quantity: invoice item %(item)s has %(count)d "
-                        "product(s) with inventory movements. Reverse the movements first."
-                    )
-                    % {"item": item.pk, "count": len(moved_pks)}
-                )
-
-            # Soft-delete products (quantity=1 each) up to abs_delta
-            deleted = 0
-            for product in products:
-                if deleted >= abs_delta:
-                    break
-                if not product.deleted_at:
-                    product.deleted_at = timezone.now()
-                    product.save(update_fields=["deleted_at"])
-                    deleted += 1
-            DebugContext.success(
-                "Soft-deleted %d product(s) via adjustment decrease",
-                {"count": deleted, "invoice_item_pk": item.pk},
-            )
 
     def save(self, *args, **kwargs):
         DebugContext.log(
@@ -760,9 +771,6 @@ class InvoiceItemAdjustmentLine(
         DebugContext.success(
             "ProductLedgerEntry recorded", {"adjustment_line_pk": self.pk}
         )
-
-        # Sync Product lifecycle based on adjustment direction
-        self._sync_products()
 
     class Meta:
         verbose_name = _("invoice item adjustment line")

@@ -5,35 +5,27 @@
   <table class="table table-borderless mb-0">
     <tbody>
       <tr>
-        <td class="ps-3 py-3 text-muted small fw-semibold" style="width: 40%;">
+        <td class="ps-3 py-1 text-muted small fw-semibold" style="width: 40%;">
           {% trans 'Invoice Total' %}
         </td>
-        <td class="py-3 text-end fw-bold fs-5 pe-3">{{ currency }}{{ operation.amount }}</td>
+        <td class="py-1 text-end pe-3">{{ currency }}{{ operation.amount }}</td>
       </tr>
       {% if adjustments %}
         <tr>
-          <td class="ps-3 py-2 text-muted small fw-semibold">
-            <a href="#adjustments-list" class="text-decoration-none">
+          <td class="ps-3 py-1 text-muted small fw-semibold">
+            <a href="{% url 'adjustments_list_view' operation.pk %}" class="text-decoration-none">
               {% trans 'Adjustments' %}
               <i class="bi bi-box-arrow-up-right ms-1 small"></i>
             </a>
           </td>
-          <td class="py-2 text-end fw-semibold fs-5 pe-3
+          <td class="py-1 text-end pe-3
                     {% if net_adjustment < 0 %}
               
-              
-                      
-                      text-danger
-
-
+              text-danger
 
             {% elif net_adjustment > 0 %}
               
-              
-                      
-                      text-success
-
-
+              text-success
 
             {% endif %}">
             {% if net_adjustment < 0 %}
@@ -45,13 +37,13 @@
             {% endif %}
           </td>
         </tr>
-        <tr class="border-top border-2">
-          <td class="ps-3 py-3 fw-bold">
-            {% trans 'Net Total' %}
-          </td>
-          <td class="py-3 text-end fw-bold fs-4 text-primary pe-3">{{ currency }}{{ operation.effective_amount }}</td>
-        </tr>
       {% endif %}
+      <tr class="border-top border-2">
+        <td class="ps-3 py-2 fw-bold">
+          {% trans 'Total' %}
+        </td>
+        <td class="py-2 text-end fw-bold fs-4 text-primary pe-3">{{ currency }}{{ operation.effective_amount }}</td>
+      </tr>
     </tbody>
   </table>
 </div>

@@ -1,0 +1,434 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}
+  {% trans 'Invoice Items' %}— {{ operation.get_operation_type_display }} #{{ operation.pk }}
+{% endblock %}
+
+{% block content %}
+  <div class="container-fluid px-2 px-sm-4 mt-4">
+    {# ─── Back navigation ─────────────────────────────────────────── #}
+    <nav aria-label="breadcrumb" class="mb-3">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item">
+          <a href="{% url 'operation_detail_view' operation.pk %}"><i class="bi bi-arrow-left me-1"></i>{% trans 'Back to Operation' %}</a>
+        </li>
+      </ol>
+    </nav>
+
+    {# ─── Page header ─────────────────────────────────────────────── #}
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+      <div>
+        <h4 class="mb-1">
+          {% trans 'Invoice Items' %}
+          <small class="text-muted fs-6">— {{ operation.get_operation_type_display }} #{{ operation.pk }}</small>
+        </h4>
+        <small class="text-muted">{{ operation.date }} &middot; {{ operation.source.name }} &rarr; {{ operation.destination.name }}</small>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="{% url 'record_item_adjustment' operation.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-sliders me-1"></i>{% trans 'Adjust Items' %}</a>
+      </div>
+    </div>
+
+    {# ─── Alert: no invoice items ─────────────────────────────────── #}
+    {% if not has_invoice %}
+      <div class="alert alert-info" role="alert">
+        <i class="bi bi-info-circle me-2"></i>
+        {% trans 'This operation type does not support invoice items.' %}
+      </div>
+    {% elif not merged_items %}
+      <div class="alert alert-warning" role="alert">
+        <i class="bi bi-exclamation-triangle me-2"></i>
+        {% trans 'No invoice items have been registered for this operation yet.' %}
+      </div>
+    {% else %}
+      {# ─── Summary bar ──────────────────────────────────────────── #}
+      <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 small text-muted">
+        <span>{% blocktrans count counter=merged_items|length %}{{ counter }} item{% plural %}{{ counter }} items{% endblocktrans %}</span>
+        <span class="fw-semibold">{% trans 'Total' %}: {{ currency }}{{ total_adjusted }}</span>
+      </div>
+
+      {# ─── Per-Invoice-Item Cards ───────────────────────────────── #}
+      {% for entry in merged_items %}
+        {% with item=entry.item movement_data=entry.movement_data %}
+          <div class="card shadow-sm mb-4" id="item-{{ item.pk }}">
+            {# ─── Card Header: Product name + original values ──── #}
+            <div class="card-header fw-bold bg-dark text-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+              <div>
+                <a href="{% url 'product_detail' item.pk %}" class="text-white text-decoration-none">{{ item.product_template.name }}</a>
+                {% if item.description %}
+                  <small class="d-block text-white-50 fw-normal">{{ item.description|truncatewords:15 }}</small>
+                {% endif %}
+              </div>
+              <div class="d-flex gap-3 small fw-normal">
+                <span title="{% trans 'quantity' %}"><i class="bi bi-box me-1"></i>{{ item.adjusted_quantity }}</span>
+                <span title="{% trans 'unit price' %}"><i class="bi bi-tag me-1"></i>{{ currency }}{{ item.adjusted_unit_price }}</span>
+                <span title="{% trans 'total' %}"><i class="bi bi-calculator me-1"></i>{{ currency }}{{ item.adjusted_total_price }}</span>
+              </div>
+            </div>
+
+            <div class="card-body p-0">
+              {# ─── Section: Price & Adjustment Summary ─────────── #}
+              <div class="border-bottom px-3 py-3">
+                <div class="row g-3">
+                  {# Adjusted values #}
+                  <div class="col-12 col-md-6">
+                    <small class="text-muted text-uppercase small fw-bold">{% trans 'Current Values' %}</small>
+                    <div class="d-flex flex-wrap gap-3 mt-2">
+                      <div>
+                        <small class="text-muted d-block">{% trans 'Adjusted Qty' %}</small>
+                        <span class="fw-semibold
+                          {% if item.adjustment_quantity_delta > 0 %}
+                            
+                            
+                            
+                            
+                            text-success
+
+
+
+
+
+                          {% elif item.adjustment_quantity_delta < 0 %}
+                            
+                            
+                            
+                            
+                            text-danger
+
+
+
+
+
+                          {% endif %}">
+                          {{ item.adjusted_quantity }}
+                        </span>
+                        {% if item.adjustment_quantity_delta != 0 %}
+                          <small class="text-muted ms-1">({% if item.adjustment_quantity_delta > 0 %}+{% endif %}{{ item.adjustment_quantity_delta }})</small>
+                        {% endif %}
+                      </div>
+                      <div>
+                        <small class="text-muted d-block">{% trans 'Unit Price' %}</small>
+                        <span class="fw-semibold
+                          {% if item.adjustment_value_delta > 0 %}
+                            
+                            
+                            
+                            
+                            text-success
+
+
+
+
+
+                          {% elif item.adjustment_value_delta < 0 %}
+                            
+                            
+                            
+                            
+                            text-danger
+
+
+
+
+
+                          {% endif %}">
+                          {{ currency }}{{ item.adjusted_unit_price }}
+                        </span>
+                      </div>
+                      <div>
+                        <small class="text-muted d-block">{% trans 'Total' %}</small>
+                        <span class="fw-bold
+                          {% if item.adjustment_value_delta > 0 %}
+                            
+                            
+                            
+                            
+                            text-success
+
+
+
+
+
+                          {% elif item.adjustment_value_delta < 0 %}
+                            
+                            
+                            
+                            
+                            text-danger
+
+
+
+
+
+                          {% endif %}">
+                          {{ currency }}{{ item.adjusted_total_price }}
+                        </span>
+                      </div>
+                    </div>
+                    {% if item.has_adjustments %}
+                      <div class="mt-2">
+                        <span class="badge bg-warning bg-opacity-10 text-warning"><i class="bi bi-sliders me-1"></i>{% trans 'Adjusted' %}</span>
+                        <small class="text-muted ms-2">
+                          {% blocktrans with val_delta=item.adjustment_value_delta %}Value change: {{ currency }}{{ val_delta }}
+                          {% endblocktrans %}
+                        </small>
+                      </div>
+                    {% endif %}
+                  </div>
+
+                  {# Original values for comparison #}
+                  <div class="col-12 col-md-6">
+                    <small class="text-muted text-uppercase small fw-bold">{% trans 'Original Values' %}</small>
+                    <div class="d-flex flex-wrap gap-3 mt-2">
+                      <div>
+                        <small class="text-muted d-block">{% trans 'Qty' %}</small>
+                        <span>{{ item.quantity }}</span>
+                      </div>
+                      <div>
+                        <small class="text-muted d-block">{% trans 'Unit Price' %}</small>
+                        <span>{{ currency }}{{ item.unit_price }}</span>
+                      </div>
+                      <div>
+                        <small class="text-muted d-block">{% trans 'Total' %}</small>
+                        <span>{{ currency }}{{ item.total_price }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {# ─── Section: Item Adjustments ───────────────────── #}
+              {% with adj_lines=entry.adjustment_lines %}
+                <div class="border-bottom px-3 py-3">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <small class="text-muted text-uppercase small fw-bold"><i class="bi bi-sliders me-1"></i>{% trans 'Adjustments' %}</small>
+                    {% if adj_lines %}
+                      <span class="badge bg-secondary">{{ adj_lines|length }}</span>
+                    {% endif %}
+                  </div>
+
+                  {% if adj_lines %}
+                    <div class="table-responsive">
+                      <table class="table table-sm table-borderless small mb-0">
+                        <thead class="text-muted">
+                          <tr>
+                            <th>
+                              {% trans 'Date' %}
+                            </th>
+                            <th>
+                              {% trans 'Type' %}
+                            </th>
+                            <th class="text-end">
+                              {% trans 'New Qty' %}
+                            </th>
+                            <th class="text-end">
+                              {% trans 'New Price' %}
+                            </th>
+                            <th class="text-end">
+                              {% trans 'Value Δ' %}
+                            </th>
+                            <th>
+                              {% trans 'Status' %}
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {% for line in adj_lines %}
+                            <tr class="{% if line.adjustment.reversed_by %}bg-danger bg-opacity-10 text-muted{% endif %}">
+                              <td>{{ line.adjustment.date }}</td>
+                              <td>
+                                <span class="badge bg-info bg-opacity-10 text-info">{{ line.adjustment.get_type_display }}</span>
+                              </td>
+                              <td class="text-end">
+                                {% if line.new_quantity is not None %}
+                                  {{ line.new_quantity }}
+                                  <small class="text-muted ms-1">({% if line.quantity_delta >= 0 %}+{% endif %}{{ line.quantity_delta }})</small>
+                                {% else %}
+                                  <span class="text-muted">—</span>
+                                {% endif %}
+                              </td>
+                              <td class="text-end">
+                                {% if line.new_unit_price is not None %}
+                                  {{ currency }}{{ line.new_unit_price }}
+                                {% else %}
+                                  <span class="text-muted">—</span>
+                                {% endif %}
+                              </td>
+                              <td class="text-end fw-semibold
+                                {% if line.value_delta > 0 %}
+                                  
+                                  
+                                  
+                                  
+                                  text-success
+
+
+
+
+
+                                {% elif line.value_delta < 0 %}
+                                  
+                                  
+                                  
+                                  
+                                  text-danger
+
+
+
+
+
+                                {% endif %}">
+                                {% if line.value_delta > 0 %}+{% endif %}{{ currency }}{{ line.value_delta }}
+                              </td>
+                              <td>
+                                {% if line.adjustment.reversed_by %}
+                                  <span class="badge bg-danger bg-opacity-10 text-danger">{% trans 'Reversed' %}</span>
+                                {% elif line.adjustment.reversal_of_id %}
+                                  <span class="badge bg-secondary bg-opacity-10 text-secondary">{% trans 'Void' %}</span>
+                                {% else %}
+                                  <span class="badge bg-success bg-opacity-10 text-success">{% trans 'Active' %}</span>
+                                {% endif %}
+                              </td>
+                            </tr>
+                          {% endfor %}
+                        </tbody>
+                      </table>
+                    </div>
+                  {% else %}
+                    <div class="text-center text-muted py-2 small">
+                      <i class="bi bi-dash-circle me-1"></i>{% trans 'No adjustments for this item.' %}
+                    </div>
+                  {% endif %}
+                </div>
+              {% endwith %}
+
+              {# ─── Section: Inventory Movement Status ─────────── #}
+              {% if movement_data %}
+                <div class="px-3 py-3">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <small class="text-muted text-uppercase small fw-bold"><i class="bi bi-box-seam me-1"></i>{% trans 'Movement Status' %}</small>
+                  </div>
+
+                  {# Movement summary row #}
+                  <div class="row g-2 small align-items-center mb-2">
+                    <div class="col-4 col-md-3">
+                      <small class="text-muted">{% trans 'Moved' %}</small>
+                      <span class="fw-semibold text-success d-block">{{ movement_data.moved_qty }}</span>
+                    </div>
+                    <div class="col-4 col-md-3">
+                      <small class="text-muted">{% trans 'Remaining' %}</small>
+                      {% if movement_data.remaining_qty > 0 %}
+                        <span class="fw-bold text-warning d-block">{{ movement_data.remaining_qty }}</span>
+                      {% else %}
+                        <span class="text-muted d-block">{{ movement_data.remaining_qty }}</span>
+                      {% endif %}
+                    </div>
+                    <div class="col-4 col-md-3">
+                      {% if movement_data.is_fully_moved %}
+                        <span class="badge bg-success bg-opacity-10 text-success"><i class="bi bi-check-circle me-1"></i>{% trans 'Complete' %}</span>
+                      {% else %}
+                        <a href="{% url 'create_inventory_movement' operation.pk %}" class="btn btn-sm btn-success">
+                          <i class="bi bi-plus-circle me-1"></i>
+                          {% if movement_data.is_inbound %}
+                            {% trans 'Receive' %}
+                          {% else %}
+                            {% trans 'Deliver' %}
+                          {% endif %}
+                        </a>
+                      {% endif %}
+                    </div>
+                  </div>
+
+                  {# Movement lines — collapsible #}
+                  {% if movement_data.grouped_lines %}
+                    <button class="btn btn-sm btn-outline-info mb-2" type="button" data-bs-toggle="collapse" data-bs-target="#movement-lines-{{ item.pk }}" aria-expanded="false"><i class="bi bi-list me-1"></i>{% trans 'Movement Details' %}({{ movement_data.movement_lines|length }})</button>
+
+                    <div class="collapse" id="movement-lines-{{ item.pk }}">
+                      <div class="small border rounded p-2 bg-light bg-opacity-25">
+                        {% for group in movement_data.grouped_lines %}
+                          <div class="d-flex justify-content-between align-items-center py-1 px-2 bg-white rounded mb-1 border">
+                            <div>
+                              {% if group.group_key %}
+                                <span class="badge bg-secondary me-2">{{ group.group_key }}</span>
+                                <span class="text-muted small">{% trans 'Group' %}</span>
+                              {% else %}
+                                <span class="text-muted small">{% trans 'Individual' %}</span>
+                              {% endif %}
+                            </div>
+                            <div>
+                              <span class="fw-semibold text-primary small
+                                {% if group.total_net_qty < 0 %}text-danger{% endif %}">{{ group.total_net_qty }}</span>
+                              <span class="text-muted small">{% trans 'net' %}</span>
+                            </div>
+                          </div>
+                          {% for ml in group.lines %}
+                            <div class="d-flex justify-content-between align-items-center py-1 border-bottom ps-3
+                                        {% if ml.reversal_of_id %}
+                                
+                                
+                                
+                                
+                                bg-danger bg-opacity-10
+
+
+
+
+
+                              {% elif ml.reversed_by %}
+                                
+                                
+                                
+                                
+                                bg-secondary bg-opacity-10 text-muted text-decoration-line-through
+
+
+
+
+                              {% endif %}">
+                              <div>
+                                {% if ml.reversal_of_id %}
+                                  {% if movement_data.is_inbound %}
+                                    <i class="bi bi-box-arrow-up text-warning me-1" title="{% trans 'Return (Outbound)' %}"></i>
+                                  {% else %}
+                                    <i class="bi bi-box-arrow-in-down text-info me-1" title="{% trans 'Return (Inbound)' %}"></i>
+                                  {% endif %}
+                                {% else %}
+                                  {% if movement_data.is_inbound %}
+                                    <i class="bi bi-box-arrow-in-down text-success me-1" title="{% trans 'Receive (Inbound)' %}"></i>
+                                  {% else %}
+                                    <i class="bi bi-box-arrow-up text-danger me-1" title="{% trans 'Deliver (Outbound)' %}"></i>
+                                  {% endif %}
+                                {% endif %}
+                                <span class="text-muted">#{{ ml.pk }}</span>
+                                <span class="mx-2">{{ ml.date }}</span>
+                                <span class="fw-semibold">{{ ml.quantity }}</span>
+                                {% if ml.reversal_of_id %}
+                                  <span class="badge bg-warning bg-opacity-25 text-warning ms-1">{% trans 'Reversal' %}</span>
+                                {% endif %}
+                                {% if ml.reversed_by %}
+                                  <span class="badge bg-danger bg-opacity-10 text-danger ms-1">{% trans 'Reversed' %}</span>
+                                {% endif %}
+                              </div>
+                              <div>
+                                {% if not ml.reversed_by and not ml.reversal_of_id %}
+                                  <a href="{% url 'reverse_inventory_movement_line' ml.pk %}" class="btn btn-sm btn-outline-danger" title="{% trans 'Reverse this movement line' %}"><i class="bi bi-arrow-counterclockwise"></i></a>
+                                {% endif %}
+                              </div>
+                            </div>
+                          {% endfor %}
+                        {% endfor %}
+                      </div>
+                    </div>
+                  {% endif %}
+                </div>
+              {% endif %}
+            </div>
+            {# /card-body #}
+          </div>
+          {# /card #}
+        {% endwith %}
+      {% endfor %}
+    {% endif %}
+  </div>
+{% endblock %}

@@ -26,105 +26,180 @@ def stock_detail(request, entity_pk):
     from datetime import date
     from decimal import Decimal
 
-    from django.db.models import Q
+    from django.db.models import Case, DecimalField, F, Sum, Value, When
 
     from apps.app_entity.models import Entity
     from apps.app_inventory.models import (
-        InventoryMovementLine,
-        InvoiceItem,
         Product,
         ProductLedgerEntry,
     )
+    from apps.app_operation.models.operation_type import OperationType
 
     entity = get_object_or_404(
         Entity, pk=entity_pk, error_message="Entity not found or has been deleted."
     )
 
-    # ------------------------------------------------------------------
-    # 1. Physically moved products (have ledger entries = in/out of stock)
-    # ------------------------------------------------------------------
-    portfolio = ProductLedgerEntry.portfolio_as_of(entity, date.today())
-    physically_moved_ids = [item["product_id"] for item in portfolio]
+    active_tab = request.GET.get("tab", "live")
 
-    physically_moved_products = (
-        Product.objects.filter(pk__in=physically_moved_ids)
+    # ------------------------------------------------------------------
+    # 1. All products belonging to this entity with movement lines
+    # ------------------------------------------------------------------
+    base_qs = (
+        Product.objects.filter(entity=entity)
         .select_related("product_template")
         .prefetch_related("invoice_items__operation", "movement_lines")
         .order_by("product_template__nature", "product_template__name", "pk")
     )
 
-    # ------------------------------------------------------------------
-    # 2. Obligated inbound products (registered via PURCHASE but NOT yet
-    #    physically received — no movement lines exist for those invoice items)
-    # ------------------------------------------------------------------
-    unreceived_purchases = InvoiceItem.unreceived_purchases()
-    # Collect all Product PKs linked to those invoice items
-    obligated_inbound_product_ids = set()
-    for item in unreceived_purchases:
-        for product in item.products.all():
-            obligated_inbound_product_ids.add(product.pk)
+    # Annotate with net movement quantity (incoming - outgoing)
+    incoming_ops = [OperationType.PURCHASE, OperationType.BIRTH]
+    outgoing_ops = [OperationType.SALE, OperationType.DEATH, OperationType.CONSUMPTION]
 
-    obligated_inbound_products = (
-        (
-            Product.objects.filter(pk__in=obligated_inbound_product_ids)
-            .select_related("product_template")
-            .prefetch_related("invoice_items__operation")
-            .order_by("product_template__nature", "product_template__name", "pk")
-        )
-        if obligated_inbound_product_ids
-        else Product.objects.none()
+    products_with_qty = base_qs.annotate(
+        incoming=Sum(
+            Case(
+                When(
+                    movement_lines__operation__operation_type__in=incoming_ops,
+                    movement_lines__reversal_of__isnull=True,
+                    then=F("movement_lines__quantity"),
+                ),
+                default=Value(Decimal("0.00")),
+                output_field=DecimalField(max_digits=10, decimal_places=2),
+            )
+        ),
+        outgoing=Sum(
+            Case(
+                When(
+                    movement_lines__operation__operation_type__in=outgoing_ops,
+                    movement_lines__reversal_of__isnull=True,
+                    then=F("movement_lines__quantity"),
+                ),
+                default=Value(Decimal("0.00")),
+                output_field=DecimalField(max_digits=10, decimal_places=2),
+            )
+        ),
     )
 
-    # ------------------------------------------------------------------
-    # 3. Obligated outbound products (registered via SALE but NOT yet
-    #    physically delivered — no movement lines exist for those invoice items)
-    # ------------------------------------------------------------------
-    undelivered_sales = InvoiceItem.undelivered_sales()
-    obligated_outbound_product_ids = set()
-    for item in undelivered_sales:
-        for product in item.products.all():
-            obligated_outbound_product_ids.add(product.pk)
-
-    obligated_outbound_products = (
-        (
-            Product.objects.filter(pk__in=obligated_outbound_product_ids)
-            .select_related("product_template")
-            .prefetch_related("invoice_items__operation")
-            .order_by("product_template__nature", "product_template__name", "pk")
-        )
-        if obligated_outbound_product_ids
-        else Product.objects.none()
+    # Derive net quantity (incoming - outgoing) for tab filtering.
+    # Tab filtering also checks movement line types in Python (below) to
+    # determine which exit category a product belongs to.
+    products_with_qty = products_with_qty.annotate(
+        net_qty=F("incoming") - F("outgoing"),
     )
 
+    # Filter by active tab
+    if active_tab == "live":
+        products = [
+            p for p in products_with_qty if (p.incoming or 0) - (p.outgoing or 0) > 0
+        ]
+    elif active_tab == "dead":
+        products = [
+            p
+            for p in products_with_qty
+            if (p.incoming or 0) - (p.outgoing or 0) <= 0
+            and p.movement_lines.filter(
+                operation__operation_type=OperationType.DEATH,
+                reversal_of__isnull=True,
+            ).exists()
+        ]
+    elif active_tab == "consumed":
+        products = [
+            p
+            for p in products_with_qty
+            if (p.incoming or 0) - (p.outgoing or 0) <= 0
+            and p.movement_lines.filter(
+                operation__operation_type=OperationType.CONSUMPTION,
+                reversal_of__isnull=True,
+            ).exists()
+        ]
+    elif active_tab == "sold":
+        products = [
+            p
+            for p in products_with_qty
+            if (p.incoming or 0) - (p.outgoing or 0) <= 0
+            and p.movement_lines.filter(
+                operation__operation_type=OperationType.SALE,
+                reversal_of__isnull=True,
+            ).exists()
+        ]
+    else:
+        products = list(products_with_qty)
+
     # ------------------------------------------------------------------
-    # 4. Summary calculations
+    # 2. Pending items (contracts not yet fully moved) — ledger-based
     # ------------------------------------------------------------------
-    # Physically present quantity (from ledger)
+    pending = ProductLedgerEntry.pending_items(entity=entity, as_of=date.today())
+    pending_inbound = [p for p in pending if p["pending_qty"] > 0]
+    pending_outbound = [p for p in pending if p["pending_qty"] < 0]
+
+    # ------------------------------------------------------------------
+    # 3. Summary calculations — ledger-based (issuance − movement)
+    # ------------------------------------------------------------------
+    from collections import defaultdict
+
+    portfolio = ProductLedgerEntry.portfolio_as_of(entity, date.today())
     physically_present_qty = sum(item["quantity"] for item in portfolio)
 
-    # Obligated inbound quantity — total qty of unreceived purchase items
-    obligated_inbound_qty = sum(item.quantity for item in unreceived_purchases)
+    # Aggregate obligated quantities directly from the ledger.
+    # pending_items() returns positive = inbound, negative = outbound.
+    obligated_inbound_qty = Decimal("0.00")
+    obligated_outbound_qty = Decimal("0.00")
+    inbound_by_tmpl_name: dict[str, Decimal] = defaultdict(Decimal)
+    outbound_by_tmpl_name: dict[str, Decimal] = defaultdict(Decimal)
 
-    # Obligated outbound quantity — total qty of undelivered sale items
-    obligated_outbound_qty = sum(item.quantity for item in undelivered_sales)
+    for p in pending:
+        name = p["product_template__name"]
+        if p["pending_qty"] > 0:
+            obligated_inbound_qty += p["pending_qty"]
+            inbound_by_tmpl_name[name] += p["pending_qty"]
+        else:
+            outbound_qty = abs(p["pending_qty"])
+            obligated_outbound_qty += outbound_qty
+            outbound_by_tmpl_name[name] += outbound_qty
+
+    # ------------------------------------------------------------------
+    # 4. Per-template summary cards
+    # ------------------------------------------------------------------
+    assigned_templates = entity.product_templates.all().order_by("nature", "name")
+
+    # Build product_id → template_id mapping from the base queryset
+    product_tmpl_map = {p.pk: p.product_template_id for p in products_with_qty}
+
+    # Group portfolio quantities by template
+    physically_present_by_tmpl: dict[int, Decimal] = defaultdict(Decimal)
+    for p_item in portfolio:
+        tmpl_id = product_tmpl_map.get(p_item["product_id"])
+        if tmpl_id:
+            physically_present_by_tmpl[tmpl_id] += p_item["quantity"]
+
+    # Build per-template summary list (match by template name for obligations)
+    templates_summary = []
+    for tmpl in assigned_templates:
+        present = physically_present_by_tmpl.get(tmpl.pk, Decimal("0.00"))
+        inbound = inbound_by_tmpl_name.get(tmpl.name, Decimal("0.00"))
+        outbound = outbound_by_tmpl_name.get(tmpl.name, Decimal("0.00"))
+        templates_summary.append(
+            {
+                "template": tmpl,
+                "physically_present_qty": present,
+                "obligated_inbound_qty": inbound,
+                "obligated_outbound_qty": outbound,
+            }
+        )
 
     return render(
         request,
         "app_inventory/stock_detail.html",
         {
             "entity": entity,
-            # Physically moved products
-            "products": physically_moved_products,
+            "active_tab": active_tab,
+            "products": products,
             "physically_present_qty": physically_present_qty,
-            # Obligated inbound (registered but not received)
-            "obligated_inbound_products": obligated_inbound_products,
             "obligated_inbound_qty": obligated_inbound_qty,
-            # Obligated outbound (sold but not delivered)
-            "obligated_outbound_products": obligated_outbound_products,
             "obligated_outbound_qty": obligated_outbound_qty,
-            # Original invoice-item-level lists (for linking to create movements)
-            "unreceived_items": unreceived_purchases,
-            "undelivered_items": undelivered_sales,
+            "pending_inbound_items": pending_inbound,
+            "pending_outbound_items": pending_outbound,
+            "templates_summary": templates_summary,
         },
     )
 
@@ -608,11 +683,9 @@ def register_deferred_movements(request, operation_pk):
                     else:
                         # BATCH / COMMODITY: single line with full qty
                         product = products[0] if products else None
-                        if product is None:
-                            raise ValidationError(
-                                _("Invoice item %(pk)s has no linked product.")
-                                % {"pk": invoice_item.pk}
-                            )
+                        # If no product exists yet, product=None is fine —
+                        # InventoryMovementLine.save() will lazy-create one
+                        # for PURCHASE operations.
                         InventoryMovementLine.objects.create(
                             operation=operation,
                             invoice_item=invoice_item,

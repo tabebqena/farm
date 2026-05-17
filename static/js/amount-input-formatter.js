@@ -27,6 +27,17 @@ class AmountInputFormatter {
   }
 
   /**
+   * Set hidden input value + dispatch change event only if value actually changed
+   */
+  syncHiddenValue(newValue) {
+    if (!this.hiddenInput) return;
+    if (this.hiddenInput.value !== newValue) {
+      this.hiddenInput.value = newValue;
+      this.hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }
+
+  /**
    * Convert visible input to text, create hidden input for submission
    */
   setupDualInputs() {
@@ -45,6 +56,11 @@ class AmountInputFormatter {
     this.hiddenInput.type = 'hidden';
     this.hiddenInput.name = this.originalName;
     this.hiddenInput.value = this.getCleanValue(this.visibleInput.value) || '0.00';
+
+    // Store original id as data attribute for id-based DOM queries
+    if (this.visibleInput.id) {
+      this.hiddenInput.dataset.originalId = this.visibleInput.id;
+    }
 
     // Insert hidden input after visible input
     this.visibleInput.parentNode.insertBefore(this.hiddenInput, this.visibleInput.nextSibling);
@@ -112,6 +128,7 @@ class AmountInputFormatter {
     // Don't allow negative values (optional - adjust based on requirements)
     if (newValue < 0) {
       this.visibleInput.value = '0.00';
+      this.syncHiddenValue('0.00');
     } else {
       const normalized = newValue.toFixed(2);
       this.formatAndSync(normalized);
@@ -151,7 +168,7 @@ class AmountInputFormatter {
       this.formatAndSync(cleaned);
     } else {
       this.visibleInput.value = '0.00';
-      if (this.hiddenInput) this.hiddenInput.value = '0.00';
+      this.syncHiddenValue('0.00');
     }
   }
 
@@ -184,7 +201,7 @@ class AmountInputFormatter {
     // Handle empty input
     if (value === '' || value === '-' || value === '.') {
       this.visibleInput.value = value; // Keep for editing
-      if (this.hiddenInput) this.hiddenInput.value = '0.00';
+      this.syncHiddenValue('0.00');
       // Restore cursor position
       setTimeout(() => {
         this.visibleInput.setSelectionRange(cursorPos, cursorPos);
@@ -219,10 +236,8 @@ class AmountInputFormatter {
     // Update visible with formatted display
     this.visibleInput.value = formatted;
 
-    // Update hidden with clean value
-    if (this.hiddenInput) {
-      this.hiddenInput.value = normalized;
-    }
+    // Update hidden with clean value (only dispatches if value changed)
+    this.syncHiddenValue(normalized);
 
     // Restore cursor position (adjusted for added commas)
     const newCursorPos = Math.min(cursorPos + commasAdded, formatted.length);
@@ -239,7 +254,7 @@ class AmountInputFormatter {
 
     if (value === '' || value === '-' || value === '.') {
       this.visibleInput.value = '0.00';
-      if (this.hiddenInput) this.hiddenInput.value = '0.00';
+      this.syncHiddenValue('0.00');
       return;
     }
 
@@ -256,7 +271,7 @@ class AmountInputFormatter {
 
       if (isNaN(numValue)) {
         this.visibleInput.value = '0.00';
-        if (this.hiddenInput) this.hiddenInput.value = '0.00';
+        this.syncHiddenValue('0.00');
         return;
       }
 
@@ -271,9 +286,8 @@ class AmountInputFormatter {
 
       // Update both inputs
       this.visibleInput.value = formatted;
-      if (this.hiddenInput) {
-        this.hiddenInput.value = normalized;
-      }
+      // Update hidden with clean value (only dispatches if value changed)
+      this.syncHiddenValue(normalized);
     } catch (e) {
       console.warn('Amount formatting error:', e);
     }

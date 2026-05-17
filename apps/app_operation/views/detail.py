@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.shortcuts import render
+from django.urls import reverse
 
 from apps.app_base.debug import DebugContext, debug_view
 from apps.app_operation.models import Operation
@@ -61,14 +62,6 @@ def operation_detail_view(request, pk):
         )
         item_adjustments = list(
             operation.item_adjustments.filter(reversal_of__isnull=True).order_by("date")
-        )
-        DebugContext.log(
-            "Adjustments fetched",
-            {
-                "adjustment_count": len(adjustments),
-                "item_adjustment_count": len(item_adjustments),
-                "operation_id": operation.pk,
-            },
         )
 
     with DebugContext.section(
@@ -140,6 +133,25 @@ def operation_detail_view(request, pk):
                 "operation_id": operation.pk,
             },
         )
+
+    # Set navigation overrides for entity detail links
+    source_url = (
+        reverse("entity_detail", kwargs={"pk": operation.source.pk})
+        if operation.source.entity_type not in ("system", "world")
+        else None
+    )
+    destination_url = (
+        reverse("entity_detail", kwargs={"pk": operation.destination.pk})
+        if operation.destination.entity_type not in ("system", "world")
+        else None
+    )
+    related_url_overrides = {}
+    if source_url:
+        related_url_overrides["Source Entity"] = source_url
+    if destination_url:
+        related_url_overrides["Destination Entity"] = destination_url
+    if related_url_overrides:
+        request.navigation_overrides = {"related_urls": related_url_overrides}
 
     context = {
         "operation": operation,

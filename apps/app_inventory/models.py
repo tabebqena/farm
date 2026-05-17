@@ -29,24 +29,89 @@ class ProductLedgerEntry(BaseModel):
     """
 
     class EntryType(models.TextChoices):
-        PURCHASE = "PURCHASE", _("Purchase")
-        SALE = "SALE", _("Sale")
-        BIRTH = "BIRTH", _("Birth")
-        DEATH = "DEATH", _("Death")
-        CONSUMPTION = "CONSUMPTION", _("Consumption")
+        # --- Issuance (contract) ---
+        PURCHASE_ISSUANCE = "PURCHASE_ISSUANCE", _("Purchase Issuance")
+        SALE_ISSUANCE = "SALE_ISSUANCE", _("Sale Issuance")
+        BIRTH_ISSUANCE = "BIRTH_ISSUANCE", _("Birth Issuance")
+        DEATH_ISSUANCE = "DEATH_ISSUANCE", _("Death Issuance")
+        CONSUMPTION_ISSUANCE = "CONSUMPTION_ISSUANCE", _("Consumption Issuance")
+
+        # --- Movement (physical) ---
+        PURCHASE_MOVEMENT = "PURCHASE_MOVEMENT", _("Purchase Movement")
+        SALE_MOVEMENT = "SALE_MOVEMENT", _("Sale Movement")
+        BIRTH_MOVEMENT = "BIRTH_MOVEMENT", _("Birth Movement")
+        DEATH_MOVEMENT = "DEATH_MOVEMENT", _("Death Movement")
+        CONSUMPTION_MOVEMENT = "CONSUMPTION_MOVEMENT", _("Consumption Movement")
+
+        # --- Adjustment (contract change) — direction is in the type name ---
+        PURCHASE_ADJUSTMENT_INCREASE = "PURCHASE_ADJ_INC", _(
+            "Purchase Adjustment Increase"
+        )
+        PURCHASE_ADJUSTMENT_DECREASE = "PURCHASE_ADJ_DEC", _(
+            "Purchase Adjustment Decrease"
+        )
+        SALE_ADJUSTMENT_INCREASE = "SALE_ADJ_INC", _("Sale Adjustment Increase")
+        SALE_ADJUSTMENT_DECREASE = "SALE_ADJ_DEC", _("Sale Adjustment Decrease")
+
+        # --- Value-only (no quantity) ---
         CAPITAL_GAIN = "CAPITAL_GAIN", _("Capital Gain")
         CAPITAL_LOSS = "CAPITAL_LOSS", _("Capital Loss")
+
         REVERSAL = "REVERSAL", _("Reversal")
-        ADJUSTMENT = "ADJUSTMENT", _("Adjustment")
+
+    # -- Class constants for query filtering --
+
+    MOVEMENT_TYPES = frozenset(
+        [
+            "PURCHASE_MOVEMENT",
+            "SALE_MOVEMENT",
+            "BIRTH_MOVEMENT",
+            "DEATH_MOVEMENT",
+            "CONSUMPTION_MOVEMENT",
+            "CAPITAL_GAIN",
+            "CAPITAL_LOSS",
+        ]
+    )
+
+    _ISSUANCE_TYPES_FOR_PURCHASE = frozenset(
+        [
+            "PURCHASE_ISSUANCE",
+            "PURCHASE_ADJ_INC",
+            "PURCHASE_ADJ_DEC",
+        ]
+    )
+
+    _ISSUANCE_TYPES_FOR_SALE = frozenset(
+        [
+            "SALE_ISSUANCE",
+            "SALE_ADJ_INC",
+            "SALE_ADJ_DEC",
+        ]
+    )
+
+    _MOVEMENT_TYPES_FOR_PURCHASE = frozenset(["PURCHASE_MOVEMENT"])
+    _MOVEMENT_TYPES_FOR_SALE = frozenset(["SALE_MOVEMENT"])
+
+    # -- Fields --
 
     product = models.ForeignKey(
         "Product",
         on_delete=models.PROTECT,
         related_name="ledger_entries",
         verbose_name=_("product"),
+        null=True,
+        blank=True,
+    )
+    invoice_item = models.ForeignKey(
+        "InvoiceItem",
+        on_delete=models.PROTECT,
+        related_name="ledger_entries",
+        verbose_name=_("invoice item"),
+        null=True,
+        blank=True,
     )
     entry_type = models.CharField(
-        _("entry type"), max_length=20, choices=EntryType.choices
+        _("entry type"), max_length=30, choices=EntryType.choices
     )
     date = models.DateField(_("date"), db_index=True)
     quantity_delta = models.DecimalField(
@@ -65,27 +130,33 @@ class ProductLedgerEntry(BaseModel):
     # ------------------------------------------------------------------
 
     @classmethod
-    def record(cls, operation, negate: bool = False) -> tuple[int, int]:
+    def record(
+        cls, operation, negate: bool = False, product_map: dict | None = None
+    ) -> tuple[int, int]:
         """
-        Write ledger entries for every product linked to *operation*.
+        Write **issuance** (contract) ledger entries for *operation*.
 
-        Must be called inside a ``db_transaction.atomic()`` block, **after**
-        all InvoiceItems and their Product M2M links are fully committed.
+        One entry per InvoiceItem (not per Product).  For operations where products
+        don't exist yet (PURCHASE, SALE, BIRTH), ``product`` is NULL.  Where products
+        are known at creation time (DEATH, CONSUMPTION), use *product_map* to link them.
 
-        ``negate=True`` flips the signs and marks entries as REVERSAL — use
-        this when recording the cancellation of a previously recorded operation
-        (e.g. after ``operation.reverse()``).
+        *product_map* is ``{invoice_item_pk: product}`` — used by ``save_inventory()``
+        for DEATH/CONSUMPTION operations.
+
+        ``negate=True`` flips the signs and marks entries as REVERSAL.
+
+        Must be called inside a ``db_transaction.atomic()`` block.
 
         Returns ``(created, skipped)`` counts.
         """
         from apps.app_operation.models.operation_type import OperationType
 
         _MAP = {
-            OperationType.PURCHASE: (cls.EntryType.PURCHASE, 1, 1),
-            OperationType.SALE: (cls.EntryType.SALE, -1, -1),
-            OperationType.BIRTH: (cls.EntryType.BIRTH, 1, 1),
-            OperationType.DEATH: (cls.EntryType.DEATH, -1, -1),
-            OperationType.CONSUMPTION: (cls.EntryType.CONSUMPTION, -1, -1),
+            OperationType.PURCHASE: (cls.EntryType.PURCHASE_ISSUANCE, 1, 1),
+            OperationType.SALE: (cls.EntryType.SALE_ISSUANCE, -1, -1),
+            OperationType.BIRTH: (cls.EntryType.BIRTH_ISSUANCE, 1, 1),
+            OperationType.DEATH: (cls.EntryType.DEATH_ISSUANCE, -1, -1),
+            OperationType.CONSUMPTION: (cls.EntryType.CONSUMPTION_ISSUANCE, -1, -1),
             OperationType.CAPITAL_GAIN: (cls.EntryType.CAPITAL_GAIN, 0, 1),
             OperationType.CAPITAL_LOSS: (cls.EntryType.CAPITAL_LOSS, 0, -1),
         }
@@ -104,28 +175,31 @@ class ProductLedgerEntry(BaseModel):
         key_prefix = "rev_" if negate else ""
         date = operation.date
         created_count = skipped_count = 0
+        product_map = product_map or {}
 
-        for item in operation.items.prefetch_related("products").all():
-            for product in item.products.all():
-                key = f"{key_prefix}item_{item.pk}_product_{product.pk}"
-                obj, created = cls.objects.get_or_create(
-                    idempotency_key=key,
-                    defaults={
-                        "product": product,
-                        "entry_type": entry_type,
-                        "date": date,
-                        "quantity_delta": (item.quantity * qty_sign).quantize(
-                            Decimal("0.01")
-                        ),
-                        "value_delta": (item.total_price * val_sign).quantize(
-                            Decimal("0.01")
-                        ),
-                    },
-                )
-                if created:
-                    created_count += 1
-                else:
-                    skipped_count += 1
+        for item in operation.items.all():
+            # Determine product: from product_map (DEATH/CONSUMPTION) or None (lazy)
+            product = product_map.get(item.pk)
+            key = f"{key_prefix}issuance_item_{item.pk}"
+            obj, created = cls.objects.get_or_create(
+                idempotency_key=key,
+                defaults={
+                    "product": product,
+                    "invoice_item": item,
+                    "entry_type": entry_type,
+                    "date": date,
+                    "quantity_delta": (item.quantity * qty_sign).quantize(
+                        Decimal("0.01")
+                    ),
+                    "value_delta": (item.total_price * val_sign).quantize(
+                        Decimal("0.01")
+                    ),
+                },
+            )
+            if created:
+                created_count += 1
+            else:
+                skipped_count += 1
 
         return created_count, skipped_count
 
@@ -134,16 +208,18 @@ class ProductLedgerEntry(BaseModel):
         """
         Write a ledger correction for a single InvoiceItemAdjustmentLine.
 
-        Sign convention mirrors the original operation:
-          PURCHASE: qty_sign=+1, val_sign=+1  (positive = inventory gained)
-          SALE:     qty_sign=-1, val_sign=-1  (negative = inventory exited)
+        Direction is hardcoded in the entry type:
+          PURCHASE_ADJ_INC  = always increases inventory (positive effect)
+          PURCHASE_ADJ_DEC  = always decreases inventory (negative effect)
+          SALE_ADJ_INC      = always increases inventory (positive effect)
+          SALE_ADJ_DEC      = always decreases inventory (negative effect)
 
         ``negate=True`` flips the signs — used when reversing the parent
         InvoiceItemAdjustment.
 
         Idempotency keys:
-          forward:  "adj_line_{line.pk}_product_{product.pk}"
-          reversal: "rev_adj_line_{line.pk}_product_{product.pk}"
+          forward:  "adj_{inc|dec}_line_{line.pk}"
+          reversal: "rev_adj_{inc|dec}_line_{line.pk}"
 
         Returns ``(created, skipped)`` counts.  Skips if both deltas are zero.
         """
@@ -156,50 +232,57 @@ class ProductLedgerEntry(BaseModel):
             return 0, 0
 
         op_type = line.adjustment.operation.operation_type
-        if op_type == OperationType.PURCHASE:
-            qty_sign, val_sign = 1, 1
-        elif op_type == OperationType.SALE:
-            qty_sign, val_sign = -1, -1
-        else:
+
+        # Determine whether this change is an increase or decrease
+        is_increase = val_delta > 0 or (val_delta == 0 and qty_delta > 0)
+
+        # Map to the correct adjustment type
+        _ADJUSTMENT_TYPE_MAP = {
+            (OperationType.PURCHASE, True): cls.EntryType.PURCHASE_ADJUSTMENT_INCREASE,
+            (OperationType.PURCHASE, False): cls.EntryType.PURCHASE_ADJUSTMENT_DECREASE,
+            (OperationType.SALE, True): cls.EntryType.SALE_ADJUSTMENT_INCREASE,
+            (OperationType.SALE, False): cls.EntryType.SALE_ADJUSTMENT_DECREASE,
+        }
+
+        entry_type = _ADJUSTMENT_TYPE_MAP.get((op_type, is_increase))
+        if entry_type is None:
             return 0, 0
 
-        if negate:
-            qty_sign = -qty_sign
-            val_sign = -val_sign
-
         key_prefix = "rev_" if negate else ""
+        inc_dec = "inc" if is_increase else "dec"
         date = line.adjustment.date
-        entry_type = cls.EntryType.ADJUSTMENT
+        item = line.invoice_item
 
-        # Record against every product linked to the invoice item
-        created_count = skipped_count = 0
-        for product in line.invoice_item.products.all():
-            key = f"{key_prefix}adj_line_{line.pk}_product_{product.pk}"
-            obj, created = cls.objects.get_or_create(
-                idempotency_key=key,
-                defaults={
-                    "product": product,
-                    "entry_type": entry_type,
-                    "date": date,
-                    "quantity_delta": (qty_delta * qty_sign).quantize(Decimal("0.01")),
-                    "value_delta": (val_delta * val_sign).quantize(Decimal("0.01")),
-                },
-            )
-            if created:
-                created_count += 1
-            else:
-                skipped_count += 1
+        if negate:
+            qty_delta = Decimal(-qty_delta)
+            val_delta = Decimal(-val_delta)
 
-        return created_count, skipped_count
+        key = f"{key_prefix}adj_{inc_dec}_line_{line.pk}"
+        obj, created = cls.objects.get_or_create(
+            idempotency_key=key,
+            defaults={
+                "product": None,
+                "invoice_item": item,
+                "entry_type": entry_type,
+                "date": date,
+                "quantity_delta": Decimal(qty_delta).quantize(Decimal("0.01")),
+                "value_delta": Decimal(val_delta).quantize(Decimal("0.01")),
+            },
+        )
+        return (1, 0) if created else (0, 1)
 
     @classmethod
     def record_movement_line(cls, line, negate: bool = False) -> tuple[int, int]:
         """
         Write a ledger entry for one InventoryMovementLine.
 
-        Direction is implicit from the parent operation type:
-          PURCHASE → qty_sign=+1, val_sign=+1, entry_type=PURCHASE
-          SALE     → qty_sign=-1, val_sign=-1, entry_type=SALE
+        Direction is implicit from the parent operation type, using the
+        new movement-specific entry types:
+          PURCHASE → qty_sign=+1, val_sign=+1, entry_type=PURCHASE_MOVEMENT
+          SALE     → qty_sign=-1, val_sign=-1, entry_type=SALE_MOVEMENT
+          BIRTH    → qty_sign=+1, val_sign=+1, entry_type=BIRTH_MOVEMENT
+          DEATH    → qty_sign=-1, val_sign=-1, entry_type=DEATH_MOVEMENT
+          CONSUMPTION → qty_sign=-1, val_sign=-1, entry_type=CONSUMPTION_MOVEMENT
           negate=True flips the signs and marks entry_type as REVERSAL.
 
         Idempotency keys use the *original* line pk so a line can only be
@@ -212,14 +295,19 @@ class ProductLedgerEntry(BaseModel):
         from apps.app_operation.models.operation_type import OperationType
 
         op_type = line.operation.operation_type
-        if op_type == OperationType.PURCHASE:
-            qty_sign, val_sign = 1, 1
-            entry_type = cls.EntryType.PURCHASE
-        elif op_type == OperationType.SALE:
-            qty_sign, val_sign = -1, -1
-            entry_type = cls.EntryType.SALE
-        else:
+        _MOVEMENT_TYPE_MAP = {
+            OperationType.PURCHASE: (cls.EntryType.PURCHASE_MOVEMENT, 1, 1),
+            OperationType.SALE: (cls.EntryType.SALE_MOVEMENT, -1, -1),
+            OperationType.BIRTH: (cls.EntryType.BIRTH_MOVEMENT, 1, 1),
+            OperationType.DEATH: (cls.EntryType.DEATH_MOVEMENT, -1, -1),
+            OperationType.CONSUMPTION: (cls.EntryType.CONSUMPTION_MOVEMENT, -1, -1),
+        }
+
+        mapping = _MOVEMENT_TYPE_MAP.get(op_type)
+        if mapping is None:
             return 0, 0
+
+        entry_type, qty_sign, val_sign = mapping
 
         if negate:
             qty_sign = -qty_sign
@@ -237,6 +325,7 @@ class ProductLedgerEntry(BaseModel):
             idempotency_key=key,
             defaults={
                 "product": product,
+                "invoice_item": item,
                 "entry_type": entry_type,
                 "date": date,
                 "quantity_delta": (line.quantity * qty_sign).quantize(Decimal("0.01")),
@@ -254,7 +343,11 @@ class ProductLedgerEntry(BaseModel):
     @classmethod
     def state_as_of(cls, product, as_of) -> dict:
         """Return {"quantity": ..., "value": ...} for *product* up to *as_of*."""
-        result = cls.objects.filter(product=product, date__lte=as_of).aggregate(
+        result = cls.objects.filter(
+            product=product,
+            date__lte=as_of,
+            entry_type__in=cls.MOVEMENT_TYPES,
+        ).aggregate(
             quantity=Sum("quantity_delta"),
             value=Sum("value_delta"),
         )
@@ -268,10 +361,15 @@ class ProductLedgerEntry(BaseModel):
         """
         Return a queryset of dicts — one per product still in stock for *entity*
         as of *as_of*.  Each dict has ``product_id``, ``quantity``, ``value``.
+
+        Only MOVEMENT_TYPES entries are counted — issuance entries track
+        contractual obligations, not physical stock.
         """
         return (
             cls.objects.filter(
-                product__product_template__entities=entity, date__lte=as_of
+                product__product_template__entities=entity,
+                date__lte=as_of,
+                entry_type__in=cls.MOVEMENT_TYPES,
             )
             .values("product_id")
             .annotate(
@@ -286,46 +384,73 @@ class ProductLedgerEntry(BaseModel):
     def inventory_value_at(cls, entity, as_of) -> Decimal:
         """Net book value of inventory for entity as of as_of."""
         result = cls.objects.filter(
-            product__product_template__entities=entity, date__lte=as_of
+            product__product_template__entities=entity,
+            date__lte=as_of,
+            entry_type__in=cls.MOVEMENT_TYPES,
         ).aggregate(value=Sum("value_delta"))
         return result["value"] or Decimal("0.00")
 
     @classmethod
-    def pending_deliveries(cls, entity=None, as_of=None):
+    def pending_items(cls, entity=None, as_of=None):
         """
-        Return InvoiceItems from PURCHASE operations where the delivered quantity
-        is less than the ordered quantity (not yet fully delivered).
+        Return InvoiceItems where the moved quantity differs from the issued
+        (contracted) quantity — i.e. not yet fully delivered/received.
+
+        Uses the append-only ledger::
+
+            pending_qty = SUM(issuance_types) - SUM(movement_types)
+
+        for each InvoiceItem.  Positive = inbound pending (purchase/birth),
+        negative = outbound pending (sale/death/consumption).
 
         Optionally filter by entity and/or cutoff date.
-        Returns a queryset of dicts with ``invoice_item_id``, ``ordered_qty``,
-        ``delivered_qty``, ``pending_qty``.
+
+        Returns a QuerySet of dicts with:
+          ``id``, ``quantity``, ``issued_qty``, ``moved_qty``, ``pending_qty``,
+          ``product_template__name``, ``operation__id``, ``operation__date``.
         """
         from django.db.models.functions import Coalesce
 
         from apps.app_operation.models.operation_type import OperationType
 
+        issuance_types = cls._ISSUANCE_TYPES_FOR_PURCHASE | cls._ISSUANCE_TYPES_FOR_SALE
+
+        issued_qty_filter = Q(ledger_entries__entry_type__in=issuance_types)
+        if as_of:
+            issued_qty_filter &= Q(ledger_entries__date__lte=as_of)
+
         query = (
-            InvoiceItem.objects.filter(operation__operation_type=OperationType.PURCHASE)
-            .annotate(
-                delivered_qty=Coalesce(
+            InvoiceItem.objects.annotate(
+                issued_qty=Coalesce(
                     Sum(
-                        "movement_lines__quantity",
-                        filter=Q(movement_lines__reversal_of__isnull=True),
+                        "ledger_entries__quantity_delta",
+                        filter=issued_qty_filter,
                     ),
                     Decimal("0.00"),
-                )
+                ),
+                moved_qty=Coalesce(
+                    Sum(
+                        "ledger_entries__quantity_delta",
+                        filter=Q(
+                            ledger_entries__entry_type__in=cls.MOVEMENT_TYPES,
+                        ),
+                    ),
+                    Decimal("0.00"),
+                ),
             )
             .annotate(
                 pending_qty=ExpressionWrapper(
-                    F("quantity") - F("delivered_qty"),
+                    F("issued_qty") - F("moved_qty"),
                     output_field=DecimalField(max_digits=10, decimal_places=2),
                 )
             )
-            .filter(pending_qty__gt=0)
+            .filter(~Q(pending_qty=Decimal("0.00")))
         )
 
         if entity:
-            query = query.filter(operation__entity=entity)
+            query = query.filter(
+                Q(operation__source=entity) | Q(operation__destination=entity)
+            )
 
         if as_of:
             query = query.filter(operation__date__lte=as_of)
@@ -333,17 +458,28 @@ class ProductLedgerEntry(BaseModel):
         return query.values(
             "id",
             "quantity",
-            "delivered_qty",
+            "issued_qty",
+            "moved_qty",
             "pending_qty",
-            "product__name",
+            "product_template__name",
             "operation__id",
+            "operation__date",
         ).order_by("operation__date")
+
+    @classmethod
+    def pending_deliveries(cls, entity=None, as_of=None):
+        """
+        Alias for ``pending_items()`` — returns items with pending inbound
+        (purchase/birth) obligations.
+        """
+        return cls.pending_items(entity=entity, as_of=as_of).filter(pending_qty__gt=0)
 
     class Meta:
         verbose_name = _("product ledger entry")
         verbose_name_plural = _("product ledger entries")
         indexes = [
             models.Index(fields=["product", "date"]),
+            models.Index(fields=["invoice_item", "entry_type"]),
         ]
 
 
@@ -539,42 +675,12 @@ class InvoiceItem(AmountCleanMixin, BaseModel):
         return super().clean()
 
     # ------------------------------------------------------------------
-    # Query helpers  (classmethods usable from views)
+    # Pending-items lookup  (use ProductLedgerEntry.pending_items() instead)
+    #
+    # Previously had unreceived_purchases() and undelivered_sales() here,
+    # but those used .exclude() on movement lines — broken for partial
+    # deliveries.  Replaced by ProductLedgerEntry.pending_items().
     # ------------------------------------------------------------------
-
-    @classmethod
-    def unreceived_purchases(cls):
-        """
-        Return InvoiceItems for PURCHASE operations that have no
-        associated InventoryMovementLines (i.e. not yet received).
-        """
-        from apps.app_operation.models.operation_type import OperationType
-
-        return (
-            cls.objects.filter(operation__operation_type=OperationType.PURCHASE)
-            .exclude(
-                pk__in=InventoryMovementLine.objects.values_list("invoice_item_id")
-            )
-            .select_related("product_template", "operation")
-            .order_by("-operation__date")
-        )
-
-    @classmethod
-    def undelivered_sales(cls):
-        """
-        Return InvoiceItems for SALE operations that have no
-        associated InventoryMovementLines (i.e. not yet delivered).
-        """
-        from apps.app_operation.models.operation_type import OperationType
-
-        return (
-            cls.objects.filter(operation__operation_type=OperationType.SALE)
-            .exclude(
-                pk__in=InventoryMovementLine.objects.values_list("invoice_item_id")
-            )
-            .select_related("product_template", "operation")
-            .order_by("-operation__date")
-        )
 
     @classmethod
     def create_products_for_item(
@@ -1050,6 +1156,17 @@ class InventoryMovementLine(ImmutableMixin, BaseModel):
 
     def save(self, *args, **kwargs):
         is_new = self.pk is None
+        # Lazy-create Product if not provided (e.g. purchase flow where the
+        # caller passes product=None expecting save() to materialise it from
+        # the invoice_item's product_template).
+        if is_new and self.product_id is None and self.invoice_item_id is not None:
+            products = InvoiceItem.create_products_for_item(
+                invoice_item=self.invoice_item,
+                entity=self.operation.source,  # project entity
+                quantity=self.quantity,
+                unit_price=self.invoice_item.unit_price,
+            )
+            self.product = products[0]
         super().save(*args, **kwargs)
         if is_new:
             negate = self.reversal_of_id is not None

@@ -103,12 +103,9 @@ class PurchaseOperation(Operation):
           1. Integrity check (item totals vs declared total)
           2. ``PurchaseOperation`` record
           3. ``InvoiceItem`` per session item
-          4. ``Product``(s) per session item — branching on tracking mode:
-             - INDIVIDUAL → N products with quantity=1 each
-             - BATCH/COMMODITY → 1 product with quantity=N
-             All products are owned by *project* (the purchaser).
-          5. ``InventoryMovementLine`` for any received quantities
-          6. Payment transaction (if ``amount_paid > 0``)
+          4. ``InventoryMovementLine`` for any received quantities
+             (products are created **lazily** by the movement line's save())
+          5. Payment transaction (if ``amount_paid > 0``)
 
         Returns the created ``PurchaseOperation``.
 
@@ -120,6 +117,7 @@ class PurchaseOperation(Operation):
         from apps.app_inventory.models import (
             InventoryMovementLine,
             InvoiceItem,
+            ProductLedgerEntry,
             ProductTemplate,
         )
 
@@ -157,7 +155,10 @@ class PurchaseOperation(Operation):
         )
         op.save()
 
-        movement_lines = []
+        # 2. Create InvoiceItems and movement lines for received quantities
+        group_key = uuid.uuid4().hex[:8]
+
+        print("*" * 20, items_data)
 
         for item_data in items_data:
             try:
@@ -169,7 +170,7 @@ class PurchaseOperation(Operation):
                     _("Product template not found or has been deleted.")
                 )
 
-            # 2. Create InvoiceItem
+            # 3. Create InvoiceItem
             invoice_item = InvoiceItem.objects.create(
                 operation=op,
                 product_template=template,
@@ -178,42 +179,17 @@ class PurchaseOperation(Operation):
                 unit_price=Decimal(item_data["unit_price"]),
             )
 
-            # 3. Create Product(s) — owned by the project (purchaser)
-            #    Branching on tracking mode handled by the helper.
-            uid = (item_data.get("unique_id") or "").strip() or None
-            qty = Decimal(item_data["quantity"])
-            unit_price = Decimal(item_data["unit_price"])
-            products = InvoiceItem.create_products_for_item(
-                invoice_item=invoice_item,
-                entity=project,  # ← changed from vendor to project
-                quantity=qty,
-                unit_price=unit_price,
-                unique_id=uid,
-            )
+            print(template)
+            print(invoice_item)
 
+            # 4. InventoryMovementLine for any received quantities
+            #    Product=None → InventoryMovementLine.save() lazy-creates it
             received_qty = Decimal(item_data.get("received_qty", "0"))
             if received_qty > Decimal("0"):
-                for product in products:
-                    movement_lines.append(
-                        (
-                            invoice_item,
-                            product,
-                            (
-                                received_qty / len(products)
-                                if len(products) > 1
-                                else received_qty
-                            ),
-                        )
-                    )
-
-        # 4. InventoryMovementLine records if any received quantities
-        if movement_lines:
-            group_key = uuid.uuid4().hex[:8]
-            for invoice_item, product, received_qty in movement_lines:
                 InventoryMovementLine.objects.create(
                     operation=op,
                     invoice_item=invoice_item,
-                    product=product,
+                    product=None,  # lazy-created by save()
                     quantity=received_qty,
                     date=date_val,
                     officer=officer,
@@ -221,7 +197,10 @@ class PurchaseOperation(Operation):
                     group_key=group_key,
                 )
 
-        # 5. Payment transaction
+        # 5. Record issuance entries in the inventory ledger
+        ProductLedgerEntry.record(op)
+
+        # 6. Payment transaction
         if paid > Decimal("0"):
             op.create_payment_transaction(
                 amount=paid,

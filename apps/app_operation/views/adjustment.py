@@ -8,16 +8,29 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from apps.app_adjustment._item_type import InvoiceItemAdjustmentType
 from apps.app_adjustment.forms import AccountingAdjustmentForm
 from apps.app_adjustment.models import (
     Adjustment,
+    AdjustmentType,
     InvoiceItemAdjustment,
     InvoiceItemAdjustmentLine,
+    InvoiceItemAdjustmentType,
 )
 from apps.app_base.debug import DebugContext, debug_view
 from apps.app_operation.models import Operation
 from apps.app_operation.models.operation_type import OperationType
+
+
+def _build_adjustment_type_data():
+    """Build a JSON-safe mapping of adjustment type values to their metadata."""
+    return {
+        t.value: {
+            "label": str(t.label),
+            "is_reduction": AdjustmentType.is_reduction(t.value),
+        }
+        for t in AdjustmentType
+        if not AdjustmentType.is_item_correction(t.value)
+    }
 
 
 @debug_view
@@ -39,12 +52,21 @@ def record_accounting_adjustment(request, pk):
         )
         return redirect("operation_detail_view", pk=pk)
 
+    # Build adjustment type metadata for the template (json_script filter serializes it)
+    adjustment_type_data = _build_adjustment_type_data()
+    prior_adjustments_net = str(operation.effective_amount - operation.amount)
+
     if request.method == "GET":
         form = AccountingAdjustmentForm(
             initial={"date": timezone.now().date()},
             operation_type=operation.operation_type,
         )
-        context = {"form": form, "operation": operation}
+        context = {
+            "form": form,
+            "operation": operation,
+            "adjustment_type_data": adjustment_type_data,
+            "prior_adjustments_net": prior_adjustments_net,
+        }
         return render(request, "app_adjustment/record_adjustment.html", context)
 
     # POST
@@ -53,7 +75,12 @@ def record_accounting_adjustment(request, pk):
     )
 
     if not form.is_valid():
-        context = {"form": form, "operation": operation}
+        context = {
+            "form": form,
+            "operation": operation,
+            "adjustment_type_data": adjustment_type_data,
+            "prior_adjustments_net": prior_adjustments_net,
+        }
         messages.error(request, _("Please correct the errors below."))
         return render(request, "app_adjustment/record_adjustment.html", context)
 
@@ -82,7 +109,12 @@ def record_accounting_adjustment(request, pk):
         form = AccountingAdjustmentForm(
             request.POST, operation_type=operation.operation_type
         )
-        context = {"form": form, "operation": operation}
+        context = {
+            "form": form,
+            "operation": operation,
+            "adjustment_type_data": adjustment_type_data,
+            "prior_adjustments_net": prior_adjustments_net,
+        }
         return render(request, "app_adjustment/record_adjustment.html", context)
 
 
@@ -90,9 +122,10 @@ def record_accounting_adjustment(request, pk):
 def record_item_adjustment(request, pk):
     """Record an invoice item adjustment (by modifying item qty/price) on PURCHASE or SALE."""
     operation = get_object_or_404(Operation, pk=pk)
+    operation = operation.cast()
 
-    # Guards: operation type, has_invoice, and reversal status
-    if not operation.can_item_adjust:
+    # Guards: operation type, is_items_adjustable, and reversal status
+    if not operation.is_items_adjustable:
         messages.warning(
             request,
             _(
@@ -339,7 +372,17 @@ def reverse_adjustment(request, adjustment_id):
                         user=request.user.username,
                     )
 
-                    messages.success(request, _("Adjustment reversed successfully."))
+                    if getattr(adjustment, "item_adjustment", None) is not None:
+                        messages.success(
+                            request,
+                            _(
+                                "Adjustment and its linked invoice item adjustment reversed successfully."
+                            ),
+                        )
+                    else:
+                        messages.success(
+                            request, _("Adjustment reversed successfully.")
+                        )
                     return redirect("operation_detail_view", pk=operation.pk)
 
                 except Exception as e:

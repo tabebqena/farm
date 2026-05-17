@@ -1,0 +1,222 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}
+  {% trans 'Adjustments' %}— {{ operation.get_operation_type_display }} #{{ operation.pk }}
+{% endblock %}
+
+{% block content %}
+  <div class="container-fluid px-2 px-sm-4 mt-4">
+    {# ─── Back navigation ─────────────────────────────────────────── #}
+    <nav aria-label="breadcrumb" class="mb-3">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item">
+          <a href="{% url 'operation_detail_view' operation.pk %}"><i class="bi bi-arrow-left me-1"></i>{% trans 'Back to Operation' %}</a>
+        </li>
+      </ol>
+    </nav>
+
+    {# ─── Page header ─────────────────────────────────────────────── #}
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+      <div>
+        <h4 class="mb-1">
+          {% trans 'Adjustments' %}
+          <small class="text-muted fs-6">— {{ operation.get_operation_type_display }} #{{ operation.pk }}</small>
+        </h4>
+        <small class="text-muted">{{ operation.date }} &middot; {{ operation.source.name }} &rarr; {{ operation.destination.name }}</small>
+      </div>
+      <div class="d-flex gap-2">
+        {% if operation.is_adjustable %}
+          <a href="{% url 'record_accounting_adjustment' operation.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil-square me-1"></i>{% trans 'New Accounting Adj.' %}</a>
+        {% endif %}
+        {% if has_invoice %}
+          <a href="{% url 'record_item_adjustment' operation.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-sliders me-1"></i>{% trans 'New Item Adj.' %}</a>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ─── Accounting Adjustments Section ─────────────────────────── #}
+    <div class="card shadow-sm mb-4">
+      <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2">
+        <span class="fw-bold"><i class="bi bi-pencil-square me-1"></i>{% trans 'Accounting Adjustments' %}</span>
+        <span class="badge bg-light text-dark">{{ adjustments|length }}</span>
+      </div>
+
+      {% if adjustments %}
+        <div class="list-group list-group-flush">
+          {% for adj in adjustments %}
+            <div class="list-group-item {% if adj.is_reversed or adj.reversal_of %}bg-light opacity-75{% endif %}">
+              <div class="d-flex justify-content-between align-items-start">
+                <div class="flex-grow-1">
+                  <div class="d-flex align-items-center gap-2 mb-1">
+                    <span class="fw-bold small">{{ adj.get_type_display }}</span>
+                    {% if adj.is_reversed %}
+                      <span class="badge bg-danger bg-opacity-10 text-danger">{% trans 'REVERSED' %}</span>
+                    {% elif adj.reversal_of %}
+                      <span class="badge bg-secondary bg-opacity-10 text-secondary">{% trans 'VOID' %}</span>
+                    {% else %}
+                      <span class="badge bg-success bg-opacity-10 text-success">{% trans 'Active' %}</span>
+                    {% endif %}
+                  </div>
+                  {% if adj.reason %}
+                    <small class="text-muted d-block mb-1">{{ adj.reason }}</small>
+                  {% endif %}
+                  <div class="d-flex flex-wrap gap-3 small text-muted">
+                    <span><i class="bi bi-person me-1"></i>{{ adj.officer.get_full_name|default:adj.officer.username }}</span>
+                    <span><i class="bi bi-calendar me-1"></i>{{ adj.date }}</span>
+                    {% if adj.reversed_by %}
+                      <span class="text-danger"><i class="bi bi-arrow-counterclockwise me-1"></i>{% trans 'Reversed by' %}#{{ adj.reversed_by.pk }}</span>
+                    {% elif adj.reversal_of %}
+                      <span class="text-secondary"><i class="bi bi-arrow-return-left me-1"></i>{% trans 'Reversal of' %}#{{ adj.reversal_of.pk }}</span>
+                    {% endif %}
+                  </div>
+                </div>
+                <div class="text-end ms-3 flex-shrink-0">
+                  <span class="fw-bold fs-5 {% if adj.is_reduction %}
+                      text-danger
+                    {% else %}
+                      text-success
+                    {% endif %}">
+                    {% if adj.is_reduction %}
+                      -{{ currency }}{{ adj.amount }}
+                    {% else %}
+                      +{{ currency }}{{ adj.amount }}
+                    {% endif %}
+                  </span>
+                </div>
+              </div>
+              {% if not adj.is_reversed and not adj.reversal_of %}
+                <div class="mt-2 pt-2 border-top">
+                  <a href="{% url 'reverse_adjustment' adj.pk %}" class="btn btn-sm btn-outline-danger"><i class="bi bi-arrow-counterclockwise me-1"></i>{% trans 'Reverse' %}</a>
+                </div>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="card-body text-center text-muted py-4">
+          <i class="bi bi-inbox fs-3 d-block mb-2"></i>
+          {% trans 'No accounting adjustments for this operation.' %}
+        </div>
+      {% endif %}
+    </div>
+
+    {# ─── Invoice Item Adjustments Section ───────────────────────── #}
+    {% if has_invoice %}
+      <div class="card shadow-sm mb-4">
+        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2">
+          <span class="fw-bold"><i class="bi bi-sliders me-1"></i>{% trans 'Invoice Item Adjustments' %}</span>
+          <span class="badge bg-light text-dark">{{ item_adjustments|length }}</span>
+        </div>
+
+        {% if item_adjustments %}
+          <div class="list-group list-group-flush">
+            {% for adj in item_adjustments %}
+              <div class="list-group-item {% if adj.is_reversed or adj.reversal_of %}bg-light opacity-75{% endif %}">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                  <div>
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                      <span class="fw-bold small">{{ adj.get_type_display }}</span>
+                      {% if adj.is_reversed %}
+                        <span class="badge bg-danger bg-opacity-10 text-danger">{% trans 'REVERSED' %}</span>
+                      {% elif adj.reversal_of %}
+                        <span class="badge bg-secondary bg-opacity-10 text-secondary">{% trans 'VOID' %}</span>
+                      {% else %}
+                        <span class="badge bg-success bg-opacity-10 text-success">{% trans 'Active' %}</span>
+                      {% endif %}
+                    </div>
+                    {% if adj.reason %}
+                      <small class="text-muted d-block mb-1">{{ adj.reason }}</small>
+                    {% endif %}
+                    <div class="d-flex flex-wrap gap-3 small text-muted">
+                      <span><i class="bi bi-person me-1"></i>{{ adj.officer.get_full_name|default:adj.officer.username }}</span>
+                      <span><i class="bi bi-calendar me-1"></i>{{ adj.date }}</span>
+                      {% if adj.reversed_by %}
+                        <span class="text-danger"><i class="bi bi-arrow-counterclockwise me-1"></i>{% trans 'Reversed by' %}#{{ adj.reversed_by.pk }}</span>
+                      {% elif adj.reversal_of %}
+                        <span class="text-secondary"><i class="bi bi-arrow-return-left me-1"></i>{% trans 'Reversal of' %}#{{ adj.reversal_of.pk }}</span>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+
+                {# ─── Adjustment lines ─────────────────────────── #}
+                {% if adj.lines.all %}
+                  <div class="table-responsive mt-2">
+                    <table class="table table-sm table-borderless mb-0 small">
+                      <thead class="table-light">
+                        <tr>
+                          <th>
+                            {% trans 'Product' %}
+                          </th>
+                          <th class="text-end">
+                            {% trans 'Qty Delta' %}
+                          </th>
+                          <th class="text-end">
+                            {% trans 'Value Delta' %}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for line in adj.lines.all %}
+                          <tr>
+                            <td>{{ line.invoice_item.product_template.name }}</td>
+                            <td class="text-end">
+                              {% if line.quantity_delta %}
+                                <span class="{% if line.quantity_delta > 0 %}
+                                    
+                                    text-success
+
+                                  {% elif line.quantity_delta < 0 %}
+                                    
+                                    text-danger
+
+                                  {% endif %}">
+                                  {% if line.quantity_delta > 0 %}+{% endif %}{{ line.quantity_delta }}
+                                </span>
+                              {% else %}
+                                <span class="text-muted">&mdash;</span>
+                              {% endif %}
+                            </td>
+                            <td class="text-end">
+                              {% if line.value_delta %}
+                                <span class="{% if line.value_delta > 0 %}
+                                    
+                                    text-success
+
+                                  {% elif line.value_delta < 0 %}
+                                    
+                                    text-danger
+
+                                  {% endif %}">
+                                  {% if line.value_delta > 0 %}+{% endif %}{{ currency }}{{ line.value_delta }}
+                                </span>
+                              {% else %}
+                                <span class="text-muted">&mdash;</span>
+                              {% endif %}
+                            </td>
+                          </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                {% endif %}
+
+                {% if not adj.is_reversed and not adj.reversal_of %}
+                  <div class="mt-2 pt-2 border-top">
+                    <a href="{% url 'reverse_item_adjustment' adj.pk %}" class="btn btn-sm btn-outline-danger"><i class="bi bi-arrow-counterclockwise me-1"></i>{% trans 'Reverse' %}</a>
+                  </div>
+                {% endif %}
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="card-body text-center text-muted py-4">
+            <i class="bi bi-inbox fs-3 d-block mb-2"></i>
+            {% trans 'No invoice item adjustments for this operation.' %}
+          </div>
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}

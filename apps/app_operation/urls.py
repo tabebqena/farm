@@ -180,9 +180,19 @@ urlpatterns = [
         name="reverse_item_adjustment",
     ),
     path(
+        "<int:pk>/adjustments/",
+        views.adjustments_list_view,
+        name="adjustments_list_view",
+    ),
+    path(
         "<int:pk>/detail/",
         views.operation_detail_view,
         name="operation_detail_view",
+    ),
+    path(
+        "<int:pk>/invoice-items/",
+        views.invoice_items_list_view,
+        name="invoice_items_list_view",
     ),
     path(
         "<int:pk>/reverse/",

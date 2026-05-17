@@ -131,11 +131,6 @@ class Operation(
         )
 
     @property
-    def can_item_adjust(self) -> bool:
-        """Whether invoice-item adjustments are allowed on this operation."""
-        return self.can_create_movement and type(self).has_invoice
-
-    @property
     def can_repay(self) -> bool:
         """Whether this operation supports repayments (e.g. loans, worker advances)."""
         return type(self).has_repayment
@@ -279,6 +274,9 @@ class Operation(
         if self._dest_role == "url":
             return self.destination
         return None
+
+    def cast(self):
+        return Operation.objects.cast(self)
 
     # ------------------------------------------------------------------
     # Validation
@@ -486,7 +484,7 @@ class Operation(
                 reversal_of__isnull=True,
             ).aggregate(total=Sum("quantity"))
             moved_qty = agg["total"] or Decimal("0.00")
-            remaining_qty = item.quantity - moved_qty
+            remaining_qty = item.adjusted_quantity - moved_qty
 
             # Active movement lines (non-reversal) for quick reference
             movement_lines = InventoryMovementLine.objects.filter(
@@ -540,27 +538,37 @@ class Operation(
     def save_inventory(self, bound_formset):
         """
         Called inside an atomic block after the formset is saved.
-        - create-mode (PURCHASE/BIRTH): create a Product per item, link via M2M.
-        - select-mode (SALE/DEATH/CAPITAL_GAIN/CAPITAL_LOSS): link the chosen Product via M2M.
-        Writes ledger entries once all product↔item links are established.
-        """
-        from apps.app_inventory.models import InvoiceItem, ProductLedgerEntry
 
-        if type(self).creates_assets:
-            owning_entity = self.period_entity or self.destination
-            for form in bound_formset.forms:
-                item = form.instance
-                if not item.pk:
-                    continue
-                uid = form.cleaned_data.get("unique_id", "").strip() or None
-                InvoiceItem.create_products_for_item(
-                    invoice_item=item,
-                    entity=owning_entity,
-                    quantity=item.quantity,
-                    unit_price=item.unit_price,
-                    unique_id=uid,
-                )
-        else:
+        For every operation with invoice items, writes **issuance** entries
+        to the append-only ledger via ``ProductLedgerEntry.record()``.
+
+        * BIRTH/DEATH      → auto-creates movement lines AND writes issuance
+        * DEATH/CONSUMPTION → builds ``product_map`` so issuance entries link
+          directly to the selected products
+        * CAPITAL_GAIN/LOSS → links selected products to invoice items and
+          writes value-only issuance
+        * PURCHASE/SALE    → issuance only (movement lines are user-driven later)
+
+        Products are created lazily at movement time, not at contract time.
+        """
+        from apps.app_inventory.models import ProductLedgerEntry
+
+        product_map: dict[int, object] = {}
+
+        if self.operation_type in (
+            OperationType.BIRTH,
+            OperationType.DEATH,
+        ):
+            self._auto_create_inventory_movements(bound_formset)
+
+        if self.operation_type in (
+            OperationType.DEATH,
+            OperationType.CONSUMPTION,
+            OperationType.CAPITAL_GAIN,
+            OperationType.CAPITAL_LOSS,
+        ):
+            # Build product_map: {invoice_item_pk: product} for operations
+            # where products are known at creation time
             for form in bound_formset.forms:
                 item = form.instance
                 if not item.pk:
@@ -570,9 +578,52 @@ class Operation(
                     is_reversal = getattr(self, "reversal_of_id", None) is not None
                     selected.validate_active(allow_reversal=is_reversal)
                     selected.invoice_items.add(item)
+                    product_map[item.pk] = selected
 
-        if self.operation_type not in (OperationType.PURCHASE, OperationType.SALE):
-            ProductLedgerEntry.record(self)
+        # Write issuance entries for ALL operations
+        ProductLedgerEntry.record(self, product_map=product_map or None)
+
+    def _auto_create_inventory_movements(self, bound_formset):
+        """
+        Auto-create InventoryMovementLine records for BIRTH and DEATH operations.
+
+        BIRTH:  System entity → Project entity  (product created lazily)
+        DEATH:  Project entity → System entity  (product must already exist)
+        """
+        import uuid
+
+        from apps.app_inventory.models import InventoryMovementLine
+
+        group_key = uuid.uuid4().hex[:8]
+
+        for form in bound_formset.forms:
+            item = form.instance
+            if not item.pk:
+                continue
+
+            if self.operation_type == OperationType.BIRTH:
+                InventoryMovementLine.objects.create(
+                    operation=self,
+                    invoice_item=item,
+                    quantity=item.quantity,
+                    date=self.date,
+                    officer=self.officer,
+                    group_key=group_key,
+                    # product=None → created lazily by InventoryMovementLine.save()
+                )
+
+            elif self.operation_type == OperationType.DEATH:
+                selected = form.cleaned_data.get("selected_product")
+                if selected:
+                    InventoryMovementLine.objects.create(
+                        operation=self,
+                        invoice_item=item,
+                        product=selected,
+                        quantity=item.quantity,
+                        date=self.date,
+                        officer=self.officer,
+                        group_key=group_key,
+                    )
 
     def delete(self, *args, **kwargs):
         """Delete operation with audit logging."""
@@ -624,15 +675,41 @@ class Operation(
 
         try:
             reversal = super().reverse(officer=officer, date=date, reason=reason)
-            if type(self).has_invoice:
-                if self.operation_type in (OperationType.PURCHASE, OperationType.SALE):
-                    for movement in self.inventory_movements.prefetch_related(
-                        "lines"
-                    ).all():
-                        movement.reverse(officer=officer, date=date)
-                else:
-                    from apps.app_inventory.models import ProductLedgerEntry
 
+            if type(self).has_invoice:
+                from apps.app_inventory.models import ProductLedgerEntry
+
+                if self.operation_type in (OperationType.PURCHASE, OperationType.SALE):
+                    # User-driven movements must be reversed by the user first
+                    moved = self.movement_lines.filter(
+                        reversal_of__isnull=True
+                    ).exists()
+                    if moved:
+                        raise ValidationError(
+                            _(
+                                "Cannot reverse this operation. "
+                                "Reverse all inventory movements first."
+                            )
+                        )
+                    # Negate issuance entries for contract reversal
+                    ProductLedgerEntry.record(self, negate=True)
+
+                elif self.operation_type in (
+                    OperationType.BIRTH,
+                    OperationType.DEATH,
+                    OperationType.CONSUMPTION,
+                ):
+                    # Auto-created movements are tightly coupled to the operation
+                    for line in self.movement_lines.filter(reversal_of__isnull=True):
+                        line.reverse(officer=officer, date=date)
+                    # Negate issuance entries for contract reversal
+                    ProductLedgerEntry.record(self, negate=True)
+
+                elif self.operation_type in (
+                    OperationType.CAPITAL_GAIN,
+                    OperationType.CAPITAL_LOSS,
+                ):
+                    # Value-only: direct ledger entry reversal
                     ProductLedgerEntry.record(self, negate=True)
 
             DebugContext.transaction_commit(

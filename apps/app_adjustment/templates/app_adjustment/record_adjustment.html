@@ -1,24 +1,46 @@
 {% extends 'base.html' %}
 {% load i18n %}
+{% load l10n %}
 {% block content %}
   <div class="row justify-content-center">
     <div class="col-12 col-sm-10 col-md-7 col-lg-5">
       <div class="card border-info shadow-sm">
         <div class="card-header bg-info text-white">
-          <h5 class="mb-0">{% trans "Record Adjustment for" %} {{ operation.get_operation_type_display }} #{{ operation.pk }}</h5>
+          <h5 class="mb-0">{% trans 'Record Adjustment for' %} {{ operation.get_operation_type_display }} #{{ operation.pk }}</h5>
         </div>
         <div class="card-body">
           <div class="mb-4">
-            <label class="text-muted small d-block">{% trans "Operation" %}</label>
+            <label class="text-muted small d-block">{% trans 'Operation' %}</label>
             <span class="fw-bold">{{ operation }}</span>
           </div>
 
+          {# ─── Hero Amount Section: Original + Effective ───────────────── #}
+          <div class="card bg-light mb-4 border-0">
+            <div class="card-body py-3">
+              {% comment %} <div class="d-flex justify-content-between align-items-center mb-1">
+                <span class="text-muted small">{% trans 'Original Amount' %}</span>
+                <span class="fw-bold font-monospace fs-5" id="originalAmount">${{ operation.amount|floatformat:2|localize }}</span>
+              </div> {% endcomment %}
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <span class="text-muted small">{% trans 'Effective Amount (incl. prior adjustments)' %}</span>
+                <span class="fw-bold font-monospace fs-5" id="effectiveAmount">${{ operation.effective_amount|floatformat:2|localize }}</span>
+              </div>
+              {% comment %} {% if operation.effective_amount != operation.amount %}
+                <div class="d-flex justify-content-between align-items-center pt-1 border-top border-light">
+                  <span class="text-muted small">{% trans 'Prior Adjustments Net' %}</span>
+                  <span class="font-monospace text-muted" id="priorAdjustments">${{ prior_adjustments_net|floatformat:2|localize }}</span>
+                </div>
+              {% endif %} {% endcomment %}
+            </div>
+          </div>
+
+          {# ─── Non-field errors ───────────────────────────────────────── #}
           {% if form.non_field_errors %}
             <div class="alert alert-danger alert-dismissible fade show mb-3" role="alert">
               <div class="d-flex align-items-start">
                 <i class="bi bi-exclamation-triangle-fill me-3 fs-5"></i>
                 <div class="flex-grow-1">
-                  <strong>{% trans "Error" %}</strong>
+                  <strong>{% trans 'Error' %}</strong>
                   <ul class="mb-0 mt-2">
                     {% for error in form.non_field_errors %}
                       <li>{{ error }}</li>
@@ -33,6 +55,7 @@
           <form method="post" novalidate>
             {% csrf_token %}
 
+            {# ─── Adjustment Type ──────────────────────────────────────── #}
             <div class="mb-3">
               <label for="{{ form.type.id_for_label }}" class="form-label fw-bold">
                 {{ form.type.label }}
@@ -44,8 +67,22 @@
                   <i class="bi bi-exclamation-circle me-1"></i>{{ form.type.errors.0 }}
                 </div>
               {% endif %}
+
+              {# ─── Type Documentation Panel ───────────────────────────── #}
+              <div id="typeInfo" class="mt-2 p-2 rounded bg-white border d-none">
+                <div class="d-flex align-items-start gap-2">
+                  <i class="bi bi-info-circle text-info mt-1"></i>
+                  <div>
+                    <strong class="d-block" id="typeInfoLabel"></strong>
+                    <small class="text-muted d-block" id="typeInfoEffect"></small>
+                    <small class="text-muted d-block" id="typeInfoDescription"></small>
+                  </div>
+                </div>
+              </div>
+              <small class="text-muted d-block mt-1" id="typePlaceholder"><i class="bi bi-info-circle"></i> {% trans 'Select an adjustment type to see details.' %}</small>
             </div>
 
+            {# ─── Adjustment Amount ────────────────────────────────────── #}
             <div class="mb-3">
               <label for="{{ form.amount.id_for_label }}" class="form-label fw-bold">
                 {{ form.amount.label }}
@@ -62,19 +99,17 @@
               {% endif %}
             </div>
 
+            {# ─── Reason ───────────────────────────────────────────────── #}
             <div class="mb-3">
-              <label for="{{ form.reason.id_for_label }}" class="form-label fw-bold">
-                {{ form.reason.label }}
-              </label>
+              <label for="{{ form.reason.id_for_label }}" class="form-label fw-bold">{{ form.reason.label }}</label>
               {{ form.reason }}
               {% if form.reason.errors %}
-                <div class="invalid-feedback d-block">
-                  {{ form.reason.errors.0 }}
-                </div>
+                <div class="invalid-feedback d-block">{{ form.reason.errors.0 }}</div>
               {% endif %}
-              <small class="text-muted d-block mt-1" id="reasonHint">{% trans "Required for general adjustment types" %}</small>
+              <small class="text-muted d-block mt-1" id="reasonHint">{% trans 'Required for general adjustment types' %}</small>
             </div>
 
+            {# ─── Date ─────────────────────────────────────────────────── #}
             <div class="mb-3">
               <label for="{{ form.date.id_for_label }}" class="form-label fw-bold">
                 {{ form.date.label }}
@@ -82,16 +117,160 @@
               </label>
               {{ form.date }}
               {% if form.date.errors %}
-                <div class="invalid-feedback d-block">
-                  {{ form.date.errors.0 }}
-                </div>
+                <div class="invalid-feedback d-block">{{ form.date.errors.0 }}</div>
               {% endif %}
             </div>
 
-            <button type="submit" class="btn btn-info w-100">{% trans "Record Adjustment" %}</button>
+            {# ─── Adjustment Summary (above submit) ────────────────────── #}
+            <div id="summarySection" class="card bg-light border-0 mb-3 d-none">
+              <div class="card-body py-3">
+                <h6 class="card-title mb-3 text-muted small text-uppercase">{% trans 'Adjustment Summary' %}</h6>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <span>{% trans 'Current Effective' %}</span>
+                  <span class="font-monospace" id="sumEffective">$0.00</span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <span>{% trans 'This Adjustment' %}</span>
+                  <span class="font-monospace fw-bold" id="sumAdjustment">$0.00</span>
+                </div>
+                <hr class="my-2" />
+                <div class="d-flex justify-content-between align-items-center fw-bold fs-6">
+                  <span>{% trans 'New Total After Submit' %}</span>
+                  <span class="font-monospace fs-5" id="sumTotal">$0.00</span>
+                </div>
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-info w-100">{% trans 'Record Adjustment' %}</button>
           </form>
         </div>
       </div>
     </div>
   </div>
+{% endblock %}
+
+{% block extra_js %}
+  {{ adjustment_type_data|json_script:'adjustmentTypeData' }}
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      'use strict'
+    
+      // ── Parse type data from the JSON injected by the view ──────────────
+      var typeData = {}
+      try {
+        typeData = JSON.parse(document.getElementById('adjustmentTypeData').textContent)
+      } catch (e) {
+        console.warn('Failed to parse adjustment type data:', e)
+      }
+      // ── DOM references ─────────────────────────────────────────────────
+      var typeSelect = document.getElementById('id_type')
+      var amountInput = document.querySelector('[data-original-id="id_amount"]') // the hidden input
+      var typeInfo = document.getElementById('typeInfo')
+      var typeInfoLabel = document.getElementById('typeInfoLabel')
+      var typeInfoEffect = document.getElementById('typeInfoEffect')
+      var typeInfoDescription = document.getElementById('typeInfoDescription')
+      var typePlaceholder = document.getElementById('typePlaceholder')
+      var summarySection = document.getElementById('summarySection')
+      var sumEffective = document.getElementById('sumEffective')
+      var sumAdjustment = document.getElementById('sumAdjustment')
+      var sumTotal = document.getElementById('sumTotal')
+    
+      // ── Helpers ────────────────────────────────────────────────────────
+      function fmt$(val) {
+        return '$' + Number(val).toFixed(2)
+      }
+    
+      function getEffectiveAmount() {
+        var el = document.getElementById('effectiveAmount')
+        if (!el) return 0
+        return parseFloat(el.textContent.replace(/[^0-9.\-]/g, '')) || 0
+      }
+    
+      function getNumericValue(raw) {
+        return parseFloat(String(raw).replace(/,/g, '')) || 0
+      }
+    
+      function formatDirection(val, isReduction) {
+        var absVal = Math.abs(val)
+        return (isReduction ? '−$' : '+$') + absVal.toFixed(2)
+      }
+    
+      // ── Update type info panel ─────────────────────────────────────────
+      function updateTypeInfo(typeValue) {
+        var info = typeData[typeValue]
+    
+        if (!info) {
+          typeInfo.classList.add('d-none')
+          typePlaceholder.classList.remove('d-none')
+          return
+        }
+    
+        typePlaceholder.classList.add('d-none')
+        typeInfo.classList.remove('d-none')
+    
+        typeInfoLabel.textContent = info.label
+    
+        if (info.is_reduction) {
+          typeInfoEffect.textContent = '{% trans "Effect" %}: {% trans "Reduction (decreases the total)" %}'
+          typeInfoEffect.className = 'text-danger small d-block'
+          typeInfoDescription.textContent = '{% trans "This adjustment DECREASES the net amount." %}'
+        } else {
+          typeInfoEffect.textContent = '{% trans "Effect" %}: {% trans "Increase (adds to the total)" %}'
+          typeInfoEffect.className = 'text-success small d-block'
+          typeInfoDescription.textContent = '{% trans "This adjustment INCREASES the net amount." %}'
+        }
+      }
+    
+      // ── Update summary section (above submit button) ──────────────────
+      function updateCalculation() {
+        var typeValue = typeSelect ? typeSelect.value : ''
+        var info = typeData[typeValue]
+        var rawAmount = amountInput ? amountInput.value : ''
+        var adjAmount = getNumericValue(rawAmount)
+        console.log(typeValue, info, rawAmount, adjAmount)
+    
+        if (!info || adjAmount <= 0) {
+          summarySection.classList.add('d-none')
+          return
+        }
+    
+        summarySection.classList.remove('d-none')
+    
+        var effective = getEffectiveAmount()
+        var isReduction = info.is_reduction
+        var newTotal = isReduction ? effective - adjAmount : effective + adjAmount
+    
+        sumEffective.textContent = fmt$(effective)
+        sumAdjustment.textContent = formatDirection(adjAmount, isReduction)
+        sumAdjustment.className = 'font-monospace fw-bold ' + (isReduction ? 'text-danger' : 'text-success')
+        sumTotal.textContent = fmt$(newTotal)
+      }
+    
+      // ── Event listeners ────────────────────────────────────────────────
+      if (typeSelect) {
+        typeSelect.addEventListener('change', function () {
+          updateTypeInfo(this.value)
+          updateCalculation()
+        })
+      }
+    
+      if (amountInput) {
+        amountInput.addEventListener('input', updateCalculation)
+        amountInput.addEventListener('change', () => {
+          updateCalculation()
+        })
+      }
+    
+      // ── Initial state ──────────────────────────────────────────────────
+      // If the type is pre-selected (e.g., after a validation error), show info
+      if (typeSelect && typeSelect.value) {
+        updateTypeInfo(typeSelect.value)
+        updateCalculation()
+      }
+    
+      document.querySelector('[name="amount"]').addEventListener('change', (e) => {
+        console.log('Clean value:', e.target.value) // "1234.50"
+      })
+    })
+  </script>
 {% endblock %}

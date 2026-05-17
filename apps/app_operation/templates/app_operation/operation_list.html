@@ -82,16 +82,36 @@
     </div>
 
     <div class="card shadow-sm">
-      <!-- Legend for column meanings -->
+      <!-- Legend for column meanings & Column Toggle -->
       <div class="card-body bg-light border-bottom">
-        <div class="row g-3 small">
+        <div class="row g-3 small align-items-start">
           <div class="col-12 col-md-6">
-            <div><strong>{% trans 'Column Legend:' %}</strong></div>
-          </div>
-          <div class="col-12 col-md-6">
-            <div class="d-flex gap-3 flex-wrap">
+            <div class="d-flex gap-3 flex-wrap align-items-center">
+              <strong>{% trans 'Column Legend:' %}</strong>
               <span><strong>P:</strong> {% trans 'Paid/Settled' %}</span>
               <span><strong>R:</strong> {% trans 'Remaining' %}</span>
+            </div>
+          </div>
+          <div class="col-12 col-md-6 text-md-end">
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#columnTogglePanel" aria-expanded="false" aria-controls="columnTogglePanel"><i class="bi bi-gear"></i> {% trans 'Customize Columns' %}</button>
+            <div class="collapse mt-2 text-start border rounded bg-white p-2" id="columnTogglePanel">
+              <small class="text-muted d-block mb-1">{% trans 'Show / hide columns:' %}</small>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input column-toggle" type="checkbox" id="toggle-col-direction" data-column="col-direction" checked />
+                <label class="form-check-label" for="toggle-col-direction">{% trans 'Direction / Counterparty' %}</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input column-toggle" type="checkbox" id="toggle-col-amount" data-column="col-amount" checked />
+                <label class="form-check-label" for="toggle-col-amount">{% trans 'Amount' %}</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input column-toggle" type="checkbox" id="toggle-col-settlement" data-column="col-settlement" checked />
+                <label class="form-check-label" for="toggle-col-settlement">{% trans 'Paid / Remaining' %}</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input column-toggle" type="checkbox" id="toggle-col-status" data-column="col-status" checked />
+                <label class="form-check-label" for="toggle-col-status">{% trans 'Status' %}</label>
+              </div>
             </div>
           </div>
         </div>
@@ -99,13 +119,13 @@
       <div class="list-group list-group-flush">
         {% for op in operations %}
           <div class="list-group-item {% if op.is_reversed %}bg-light opacity-75{% endif %}">
-            <div class="row g-2 align-items-center">
+            <div class="row g-2 align-items-center operation-row">
               <div class="col-12 col-md-3">
-                <small class="text-muted d-md-none">{% trans 'Type' %}: </small>
+                <small class="text-muted d-md-none">{% trans 'Type' %}:</small>
                 <div class="fw-bold">{{ op.get_operation_type_display }}</div>
                 <small class="text-muted">{{ op.date }}</small>
               </div>
-              <div class="col-12 col-md-3">
+              <div class="col-12 col-md-3" data-column="col-direction">
                 <small class="text-muted d-md-none">{% trans 'Direction & Counterparty' %}</small>
                 <div class="d-flex align-items-center gap-2">
                   {% if not op.is_reversed and not op.is_reversal %}
@@ -126,14 +146,18 @@
                   </span>
                 </div>
               </div>
-              <div class="col-6 col-md-2 text-end">
+              <div class="col-6 col-md-2 text-end" data-column="col-amount">
                 <small class="text-muted d-md-none d-block">{% trans 'Amount' %}</small>
                 <span class="fw-bold d-block">
-                  {% if op.destination == entity_person %}+{% else %}-{% endif %}${{ op.amount }}
+                  {% if op.destination == entity_person %}
+                    +
+                  {% else %}
+                    -
+                  {% endif %}${{ op.effective_amount }}
                 </span>
               </div>
               {% if op.amount_settled or op.amount_repayed or op.amount_remaining_to_repay or op.amount_remaining_to_settle %}
-                <div class="col-6 col-md-2">
+                <div class="col-6 col-md-2" data-column="col-settlement">
                   <small class="text-muted d-md-none d-block">{% trans 'Paid/Rem' %}</small>
                   <div class="small">
                     {% if op.amount_settled or op.amount_repayed %}
@@ -147,11 +171,11 @@
                   </div>
                 </div>
               {% else %}
-                <div class="col-6 col-md-2">
+                <div class="col-6 col-md-2" data-column="col-settlement">
                   <small class="text-muted d-md-none d-block">{% trans 'Status' %}</small>
                 </div>
               {% endif %}
-              <div class="col-6 col-md-2 text-md-center">
+              <div class="col-6 col-md-2 text-md-center" data-column="col-status">
                 {% if op.is_reversed %}
                   <span class="badge rounded-pill bg-danger">{% trans 'Reversed' %}</span>
                 {% elif op.is_reversal %}
@@ -181,14 +205,10 @@
           <ul class="pagination justify-content-center mb-0">
             {% if page_obj.has_previous %}
               <li class="page-item">
-                <a class="page-link" href="?page=1" aria-label="First page">
-                  <span aria-hidden="true">&laquo;&laquo;</span>
-                </a>
+                <a class="page-link" href="?page=1" aria-label="First page"><span aria-hidden="true">&laquo;&laquo;</span></a>
               </li>
               <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.previous_page_number }}" aria-label="Previous page">
-                  <span aria-hidden="true">&laquo;</span>
-                </a>
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}" aria-label="Previous page"><span aria-hidden="true">&laquo;</span></a>
               </li>
             {% else %}
               <li class="page-item disabled">
@@ -216,14 +236,10 @@
 
             {% if page_obj.has_next %}
               <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.next_page_number }}" aria-label="Next page">
-                  <span aria-hidden="true">&raquo;</span>
-                </a>
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}" aria-label="Next page"><span aria-hidden="true">&raquo;</span></a>
               </li>
               <li class="page-item">
-                <a class="page-link" href="?page={{ paginator.num_pages }}" aria-label="Last page">
-                  <span aria-hidden="true">&raquo;&raquo;</span>
-                </a>
+                <a class="page-link" href="?page={{ paginator.num_pages }}" aria-label="Last page"><span aria-hidden="true">&raquo;&raquo;</span></a>
               </li>
             {% else %}
               <li class="page-item disabled">
@@ -236,10 +252,113 @@
           </ul>
         </nav>
         <div class="text-center mt-2 text-muted small">
-          {% trans 'Page' %} {{ page_obj.number }} {% trans 'of' %} {{ paginator.num_pages }} |
-          {% blocktrans count counter=paginator.count %}{{ counter }} operation{% plural %}{{ counter }} operations{% endblocktrans %}
+          {% trans 'Page' %} {{ page_obj.number }} {% trans 'of' %} {{ paginator.num_pages }} |{% blocktrans count counter=paginator.count %}{{ counter }} operation{% plural %}{{ counter }} operations{% endblocktrans %}
         </div>
       {% endif %}
     </div>
   </div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* Make toggleable columns fill available width evenly when visible */
+  .operation-row .toggle-column-visible {
+    flex: 1 1 0% !important;
+    max-width: none !important;
+  }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+  <script>
+    ;(function () {
+      var STORAGE_KEY = 'operation_list_columns'
+      var TOGGLE_SELECTOR = '.column-toggle'
+      var TOGGLEABLE_COLS = ['col-direction', 'col-amount', 'col-settlement', 'col-status']
+    
+      function getSavedColumns() {
+        try {
+          var data = localStorage.getItem(STORAGE_KEY)
+          return data ? JSON.parse(data) : null
+        } catch (e) {
+          return null
+        }
+      }
+    
+      function saveColumns(state) {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+        } catch (e) {
+          // localStorage unavailable
+        }
+      }
+    
+      function refreshLayout() {
+        // For each row, add toggle-column-visible class to visible toggleable cells
+        var rows = document.querySelectorAll('.operation-row')
+        rows.forEach(function (row) {
+          TOGGLEABLE_COLS.forEach(function (colId) {
+            var cells = row.querySelectorAll('[data-column="' + colId + '"]')
+            cells.forEach(function (el) {
+              if (el.classList.contains('d-none')) {
+                el.classList.remove('toggle-column-visible')
+              } else {
+                el.classList.add('toggle-column-visible')
+              }
+            })
+          })
+        })
+      }
+    
+      function applyColumnState(columnId, visible) {
+        var els = document.querySelectorAll('[data-column="' + columnId + '"]')
+        els.forEach(function (el) {
+          if (visible) {
+            el.classList.remove('d-none')
+          } else {
+            el.classList.add('d-none')
+          }
+        })
+        refreshLayout()
+      }
+    
+      function initToggles() {
+        var checkboxes = document.querySelectorAll(TOGGLE_SELECTOR)
+        if (!checkboxes.length) return
+    
+        var saved = getSavedColumns()
+    
+        checkboxes.forEach(function (cb) {
+          var columnId = cb.getAttribute('data-column')
+    
+          // Restore saved state, default to checked (visible)
+          if (saved && saved.hasOwnProperty(columnId)) {
+            cb.checked = saved[columnId]
+          }
+    
+          // Apply initial visibility
+          applyColumnState(columnId, cb.checked)
+    
+          // Listen for changes
+          cb.addEventListener('change', function () {
+            applyColumnState(columnId, cb.checked)
+    
+            // Save to localStorage
+            var currentState = {}
+            document.querySelectorAll(TOGGLE_SELECTOR).forEach(function (c) {
+              currentState[c.getAttribute('data-column')] = c.checked
+            })
+            saveColumns(currentState)
+          })
+        })
+      }
+    
+      // Run on DOM ready
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initToggles)
+      } else {
+        initToggles()
+      }
+    })()
+  </script>
 {% endblock %}

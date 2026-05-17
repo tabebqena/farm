@@ -17,68 +17,73 @@
             <form method="post" novalidate>
               {% csrf_token %}
 
-              <!-- Items Table -->
-              <div class="table-responsive mb-4">
-                <table class="table table-bordered table-hover">
-                  <thead class="table-light">
-                    <tr>
-                      <th>
-                        {% trans 'Product' %}
-                      </th>
-                      <th class="text-center">
-                        {% trans 'Original Qty' %}
-                      </th>
-                      <th class="text-center">
-                        {% trans 'New Qty' %}
-                      </th>
-                      <th class="text-center">
-                        {% trans 'Original Price' %}
-                      </th>
-                      <th class="text-center">
-                        {% trans 'New Price' %}
-                      </th>
-                      <th class="text-end">
-                        {% trans 'Delta' %}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody id="itemsTable">
-                    {% for item in items %}
-                      <tr data-item-id="{{ item.pk }}" data-original-qty="{{ item.quantity }}" data-original-price="{{ item.unit_price }}">
-                        <td class="align-middle">
-                          <a href="{% url 'product_detail' item.pk %}" target="_blank">{{ item.product_template.name }}</a>
-                        </td>
-                        <td class="text-center align-middle">{{ item.quantity }}</td>
-                        <td class="text-center">
-                          <input type="number" class="form-control form-control-sm new-quantity" name="item_{{ item.pk }}_new_quantity" placeholder="{{ item.quantity }}" step="0.01" min="0" />
-                        </td>
-                        <td class="text-center align-middle">${{ item.unit_price }}</td>
-                        <td class="text-center">
-                          <input type="number" class="form-control form-control-sm new-price" name="item_{{ item.pk }}_new_unit_price" placeholder="{{ item.unit_price }}" step="0.01" min="0.01" />
-                        </td>
-                        <td class="text-end align-middle">
-                          <span class="delta fw-bold">$0.00</span>
-                        </td>
-                      </tr>
-                    {% empty %}
-                      <tr>
-                        <td colspan="6" class="text-center text-muted py-4">
-                          {% trans 'No items found' %}
-                        </td>
-                      </tr>
-                    {% endfor %}
-                  </tbody>
-                  <tfoot class="table-light">
-                    <tr>
-                      <th colspan="5" class="text-end">
-                        {% trans 'Total Delta:' %}
-                      </th>
-                      <th class="text-end">
-                        <span class="fw-bold" id="totalDelta">$0.00</span>
-                      </th>
-                    </tr>
-                  </tfoot>
-                </table>
+              <!-- Item Cards -->
+              <div id="itemsContainer">
+                {% for item in items %}
+                  <div class="card mb-3 shadow-sm" data-item-id="{{ item.pk }}" data-original-qty="{{ item.adjusted_quantity }}" data-original-price="{{ item.adjusted_unit_price }}">
+                    <div class="card-body">
+                      <h6 class="card-title mb-3"><a href="{% url 'product_detail' item.pk %}" target="_blank">{{ item.product_template.name }}</a></h6>
+
+                      <div class="row g-2 mb-2">
+                        <div class="col-6 col-md-3">
+                          <label class="small text-muted d-block">{% trans 'Current Qty' %}</label>
+                          <div class="py-1 d-flex align-items-center" style="min-height: calc(1.5em + .5rem + 2px);">
+                            <span class="fw-bold">{{ item.adjusted_quantity }}</span>
+                          </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                          <label class="small text-muted d-block">{% trans 'New Qty' %}</label>
+                          <input type="number" class="form-control form-control-sm new-quantity" name="item_{{ item.pk }}_new_quantity" placeholder="{{ item.adjusted_quantity }}" step="{{ item.product_template.minimum_quantity }}" min="0" />
+                        </div>
+                        <div class="col-6 col-md-3 mt-2 mt-md-0">
+                          <label class="small text-muted d-block">{% trans 'Current Unit Price' %}</label>
+                          <div class="py-1 d-flex align-items-center" style="min-height: calc(1.5em + .5rem + 2px);">
+                            <span class="fw-bold">${{ item.adjusted_unit_price }}</span>
+                          </div>
+                        </div>
+                        <div class="col-6 col-md-3 mt-2 mt-md-0">
+                          <label class="small text-muted d-block">{% trans 'New Unit Price' %}</label>
+                          <input type="number" class="form-control form-control-sm new-price" name="item_{{ item.pk }}_new_unit_price" placeholder="{{ item.adjusted_unit_price }}" step="0.01" min="0.01" />
+                        </div>
+                      </div>
+
+                      <hr class="my-2" />
+
+                      <div class="row g-2 text-center">
+                        <div class="col-4">
+                          <label class="small text-muted d-block">{% trans 'Current Total' %}</label>
+                          <div class="py-1 d-flex align-items-center justify-content-center" style="min-height: calc(1.5em + .5rem + 2px);">
+                            <span class="fw-bold">${{ item.adjusted_total_price }}</span>
+                          </div>
+                        </div>
+                        <div class="col-4">
+                          <label class="small text-muted d-block">{% trans 'New Total' %}</label>
+                          <div class="py-1 d-flex align-items-center justify-content-center" style="min-height: calc(1.5em + .5rem + 2px);">
+                            <span class="fw-bold new-total">$0.00</span>
+                          </div>
+                        </div>
+                        <div class="col-4">
+                          <label class="small text-muted d-block">{% trans 'Delta' %}</label>
+                          <div class="py-1 d-flex align-items-center justify-content-center" style="min-height: calc(1.5em + .5rem + 2px);">
+                            <span class="fw-bold delta">$0.00</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                {% empty %}
+                  <div class="alert alert-info text-center">
+                    {% trans 'No items found' %}
+                  </div>
+                {% endfor %}
+              </div>
+
+              <!-- Total Delta Footer -->
+              <div class="card shadow-sm mb-4">
+                <div class="card-body d-flex justify-content-between align-items-center">
+                  <strong>{% trans 'Total Delta:' %}</strong>
+                  <span class="fw-bold fs-5" id="totalDelta">$0.00</span>
+                </div>
               </div>
 
               <!-- Metadata Fields -->
@@ -104,40 +109,50 @@
 
   <script>
     document.addEventListener('DOMContentLoaded', function () {
-      const itemsTable = document.getElementById('itemsTable')
+      const container = document.getElementById('itemsContainer')
       const totalDeltaSpan = document.getElementById('totalDelta')
     
-      // Function to update delta for a single row
-      function updateRowDelta(row) {
-        const originalQty = parseFloat(row.dataset.originalQty)
-        const originalPrice = parseFloat(row.dataset.originalPrice)
-        const newQtyInput = row.querySelector('.new-quantity')
-        const newPriceInput = row.querySelector('.new-price')
-        const deltaSpan = row.querySelector('.delta')
+      /**
+       * Update the delta and new-total display for a single card.
+       *
+       * When a field is left blank the original value is used, so the user
+       * can adjust *only* the quantity (leave price blank) or *only* the
+       * unit price (leave quantity blank).
+       */
+      function updateRow(card) {
+        const originalQty = parseFloat(card.dataset.originalQty)
+        const originalPrice = parseFloat(card.dataset.originalPrice)
+        const newQtyInput = card.querySelector('.new-quantity')
+        const newPriceInput = card.querySelector('.new-price')
+        const deltaSpan = card.querySelector('.delta')
+        const newTotalSpan = card.querySelector('.new-total')
     
-        let newQty = newQtyInput.value ? parseFloat(newQtyInput.value) : originalQty
-        let newPrice = newPriceInput.value ? parseFloat(newPriceInput.value) : originalPrice
+        // Use entered value if provided, otherwise fall back to original
+        const newQty = newQtyInput.value !== '' ? parseFloat(newQtyInput.value) : originalQty
+        const newPrice = newPriceInput.value !== '' ? parseFloat(newPriceInput.value) : originalPrice
     
-        const delta = newQty * newPrice - originalQty * originalPrice
+        const newTotal = newQty * newPrice
+        const originalTotal = originalQty * originalPrice
+        const delta = newTotal - originalTotal
     
+        newTotalSpan.textContent = `$${newTotal.toFixed(2)}`
         deltaSpan.textContent = delta >= 0 ? `$${delta.toFixed(2)}` : `-$${Math.abs(delta).toFixed(2)}`
         return delta
       }
     
-      // Function to update total delta
+      /** Recalculate every card and update the total-delta footer. */
       function updateTotalDelta() {
         let total = 0
-        document.querySelectorAll('#itemsTable tbody tr').forEach((row) => {
-          total += updateRowDelta(row)
+        container.querySelectorAll('.card[data-item-id]').forEach(function (card) {
+          total += updateRow(card)
         })
         totalDeltaSpan.textContent = total >= 0 ? `$${total.toFixed(2)}` : `-$${Math.abs(total).toFixed(2)}`
       }
     
-      // Add event listeners to all input fields
-      itemsTable.addEventListener('input', updateTotalDelta)
-      itemsTable.addEventListener('change', updateTotalDelta)
+      // Recalculate on every keypress
+      container.addEventListener('input', updateTotalDelta)
     
-      // Initial calculation
+      // Initial calculation (shows $0.00 when nothing has changed)
       updateTotalDelta()
     })
   </script>

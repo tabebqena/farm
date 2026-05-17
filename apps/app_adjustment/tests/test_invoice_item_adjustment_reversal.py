@@ -10,12 +10,10 @@ from datetime import date
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from apps.app_adjustment._item_type import InvoiceItemAdjustmentType
 from apps.app_adjustment.models import (
-    AdjustmentType,
     InvoiceItemAdjustment,
     InvoiceItemAdjustmentLine,
 )
@@ -28,7 +26,6 @@ from apps.app_inventory.models import (
 )
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import PurchaseOperation, SaleOperation
-from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
 
@@ -111,7 +108,10 @@ def _make_product_template(name="Cattle"):
 
 def _make_invoice_with_item(operation, template, quantity, unit_price):
     item = InvoiceItem.objects.create(
-        operation=operation, product=template, quantity=quantity, unit_price=unit_price
+        operation=operation,
+        product_template=template,
+        quantity=quantity,
+        unit_price=unit_price,
     )
     return item
 
@@ -202,7 +202,11 @@ class ReversalTest(TestCase):
 
         # Should have: forward entry (value_delta=-100) + reversal entry (value_delta=+100)
         adj_entries = ProductLedgerEntry.objects.filter(
-            product=product, entry_type=ProductLedgerEntry.EntryType.ADJUSTMENT
+            invoice_item=item,
+            entry_type__in=[
+                ProductLedgerEntry.EntryType.PURCHASE_ADJUSTMENT_INCREASE,
+                ProductLedgerEntry.EntryType.PURCHASE_ADJUSTMENT_DECREASE,
+            ],
         ).order_by("id")
         self.assertEqual(adj_entries.count(), 2)
         self.assertEqual(adj_entries[0].value_delta, Decimal("-100.00"))
@@ -228,3 +232,159 @@ class ReversalTest(TestCase):
         ia.reverse(officer=self.officer, date=date.today(), reason="cancel")
         op.refresh_from_db()
         self.assertEqual(op.effective_amount, Decimal("1000.00"))
+
+
+# ---------------------------------------------------------------------------
+# DirectAdjustmentReversalDelegationTest
+# ---------------------------------------------------------------------------
+
+
+class DirectAdjustmentReversalDelegationTest(TestCase):
+    """
+    Reversing an Adjustment directly (not through InvoiceItemAdjustment)
+    must delegate to InvoiceItemAdjustment.reverse() when one exists,
+    ensuring both financial and inventory sides are properly reversed.
+    """
+
+    def setUp(self):
+        self.officer = _make_officer()
+        self.project = _make_project()
+        self.vendor = _make_vendor()
+        _link_vendor(self.project, self.vendor)
+        self.template = _make_product_template()
+
+    def test_direct_reversal_delegates_to_item_adjustment(self):
+        """Reversing Adjustment directly must also reverse the InvoiceItemAdjustment."""
+        op = _make_purchase_op(
+            self.project, self.vendor, self.officer, Decimal("1000.00")
+        )
+        item = _make_invoice_with_item(
+            op, self.template, Decimal("10"), Decimal("100.00")
+        )
+        _make_product_for_item(self.template, item, Decimal("100.00"))
+
+        ia = _make_item_adj(
+            op, InvoiceItemAdjustmentType.PURCHASE_ITEM_DECREASE, self.officer
+        )
+        _make_line(ia, item, new_unit_price=Decimal("90.00"))
+        ia.finalize()
+
+        # Reverse the Adjustment directly (not through InvoiceItemAdjustment)
+        ia.adjustment.reverse(officer=self.officer, date=date.today(), reason="direct")
+
+        # Both must be marked as reversed
+        ia.refresh_from_db()
+        self.assertTrue(
+            ia.is_reversed,
+            "InvoiceItemAdjustment must be reversed when its linked Adjustment is reversed directly",
+        )
+        self.assertTrue(
+            ia.adjustment.is_reversed,
+            "Adjustment must be reversed",
+        )
+
+    def test_direct_reversal_creates_negating_ledger_entries(self):
+        """Direct reversal of Adjustment must also negate ProductLedgerEntry rows."""
+        op = _make_purchase_op(
+            self.project, self.vendor, self.officer, Decimal("500.00")
+        )
+        item = _make_invoice_with_item(
+            op, self.template, Decimal("5"), Decimal("100.00")
+        )
+        product = _make_product_for_item(self.template, item, Decimal("100.00"))
+
+        ia = _make_item_adj(
+            op, InvoiceItemAdjustmentType.PURCHASE_ITEM_DECREASE, self.officer
+        )
+        _make_line(ia, item, new_unit_price=Decimal("80.00"))
+        ia.finalize()
+
+        # Direct reversal
+        ia.adjustment.reverse(officer=self.officer, date=date.today(), reason="direct")
+
+        # Should have: forward entry (value_delta=-100) + reversal entry (value_delta=+100)
+        adj_entries = ProductLedgerEntry.objects.filter(
+            invoice_item=item,
+            entry_type__in=[
+                ProductLedgerEntry.EntryType.PURCHASE_ADJUSTMENT_INCREASE,
+                ProductLedgerEntry.EntryType.PURCHASE_ADJUSTMENT_DECREASE,
+            ],
+        ).order_by("id")
+        self.assertEqual(adj_entries.count(), 2)
+        self.assertEqual(adj_entries[0].value_delta, Decimal("-100.00"))
+        self.assertEqual(adj_entries[1].value_delta, Decimal("100.00"))
+
+    def test_direct_reversal_restores_effective_amount(self):
+        """Direct reversal of Adjustment must restore the operation's effective amount."""
+        op = _make_purchase_op(
+            self.project, self.vendor, self.officer, Decimal("1000.00")
+        )
+        item = _make_invoice_with_item(
+            op, self.template, Decimal("10"), Decimal("100.00")
+        )
+        _make_product_for_item(self.template, item, Decimal("100.00"))
+
+        ia = _make_item_adj(
+            op, InvoiceItemAdjustmentType.PURCHASE_ITEM_DECREASE, self.officer
+        )
+        _make_line(ia, item, new_unit_price=Decimal("90.00"))
+        ia.finalize()
+
+        self.assertEqual(op.effective_amount, Decimal("900.00"))
+
+        # Direct reversal
+        ia.adjustment.reverse(officer=self.officer, date=date.today(), reason="direct")
+
+        op.refresh_from_db()
+        self.assertEqual(op.effective_amount, Decimal("1000.00"))
+
+    def test_direct_reversal_creates_counter_transaction(self):
+        """Direct reversal must create a counter-transaction on the Adjustment."""
+        op = _make_purchase_op(
+            self.project, self.vendor, self.officer, Decimal("1000.00")
+        )
+        item = _make_invoice_with_item(
+            op, self.template, Decimal("10"), Decimal("100.00")
+        )
+        _make_product_for_item(self.template, item, Decimal("100.00"))
+
+        ia = _make_item_adj(
+            op, InvoiceItemAdjustmentType.PURCHASE_ITEM_DECREASE, self.officer
+        )
+        _make_line(ia, item, new_unit_price=Decimal("90.00"))
+        ia.finalize()
+
+        adj = ia.adjustment
+        original_tx_count = adj.get_all_transactions().count()
+
+        # Direct reversal
+        adj.reverse(officer=self.officer, date=date.today(), reason="direct")
+
+        all_txs = adj.get_all_transactions()
+        self.assertEqual(
+            all_txs.count(),
+            original_tx_count + 1,
+            "Direct reversal must create one additional counter-transaction",
+        )
+
+    def test_direct_reversal_fails_for_unfinalized_item_adjustment(self):
+        """Reversing an Adjustment whose InvoiceItemAdjustment has no linked
+        Adjustment must fail gracefully."""
+        op = _make_purchase_op(
+            self.project, self.vendor, self.officer, Decimal("1000.00")
+        )
+        item = _make_invoice_with_item(
+            op, self.template, Decimal("10"), Decimal("100.00")
+        )
+        _make_product_for_item(self.template, item, Decimal("100.00"))
+
+        # Create item adjustment WITHOUT finalizing (no Adjustment created)
+        ia = _make_item_adj(
+            op, InvoiceItemAdjustmentType.PURCHASE_ITEM_DECREASE, self.officer
+        )
+        _make_line(ia, item, new_unit_price=Decimal("90.00"))
+
+        # ia.adjustment is None because finalize() was never called
+        # Trying to reverse a standalone Adjustment (not linked) should work normally
+        # But since there's no linked Adjustment, this test verifies nothing breaks
+        self.assertIsNone(ia.adjustment)

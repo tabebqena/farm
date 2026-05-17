@@ -8,7 +8,6 @@
     </div>
     {% include 'app_operation/snippets/reversal_alert.html' %}
 
-    {% include 'app_operation/snippets/detail/operation_summary.html' %}
     {% include 'app_operation/snippets/detail/financial_summary.html' %}
 
     {% include 'app_operation/snippets/detail/invoice_items.html' %}
@@ -22,12 +21,13 @@
     {# Adjustment List - shown if adjustments exist #}
     {% if adjustments %}
       <div id="adjustments-list" class="card shadow-sm mb-3">
-        <div class="card-header bg-dark text-white">
-          <span class="fw-bold">{% trans 'Adjustments' %}</span>
+        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2">
+          <span class="fw-bold"><i class="bi bi-pencil-square me-1"></i>{% trans 'Adjustments' %}</span>
+          <a href="{% url 'adjustments_list_view' operation.pk %}" class="btn btn-sm btn-outline-light"><i class="bi bi-box-arrow-up-right me-1"></i>{% trans 'View All' %}</a>
         </div>
         <div class="list-group list-group-flush">
           {% for adj in adjustments %}
-            <div class="list-group-item {% if adj.is_reversed or adj.reversal_of %}bg-light opacity-75{% endif %}">
+            <div class="list-group-item {% if adj.is_reversed or adj.reversal_of %}bg-light opacity-75{% endif %} {% if adj.is_reversed %} text-decoration-line-through{% endif %}">
               <div class="d-flex justify-content-between align-items-start">
                 <div>
                   <span class="fw-bold small">{{ adj.get_type_display }}</span>
@@ -41,45 +41,17 @@
                   {% endif %}
                 </div>
                 <div class="text-end">
-                  <span class="fw-bold {% if adj.amount < 0 %}
+                  <span class="fw-bold {% if adj.is_reduction %}
                       
-                      
-                      
-                      
-                      
-                      
-                      
-                      
-                      text-danger
-
-
-
-
-
-
-
+                      text-danger 
 
                     {% else %}
                       
-                      
-                      
-                      
-                      
-                      
-                      
-                      
                       text-success
 
-
-
-
-
-
-
-
                     {% endif %}">
-                    {% if adj.amount < 0 %}
-                      {{ currency }}{{ adj.amount }}
+                    {% if adj.is_reduction %}
+                      -{{ currency }}{{ adj.amount }}
                     {% else %}
                       +{{ currency }}{{ adj.amount }}
                     {% endif %}

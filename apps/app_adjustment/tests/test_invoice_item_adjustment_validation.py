@@ -108,7 +108,10 @@ def _make_product_template(name="Cattle"):
 
 def _make_invoice_with_item(operation, template, quantity, unit_price):
     item = InvoiceItem.objects.create(
-        operation=operation, product=template, quantity=quantity, unit_price=unit_price
+        operation=operation,
+        product_template=template,
+        quantity=quantity,
+        unit_price=unit_price,
     )
     return item
 
@@ -222,6 +225,105 @@ class ValidationTest(TestCase):
         )
         with self.assertRaises(ValidationError):
             line.full_clean()
+
+
+# ---------------------------------------------------------------------------
+# DecreaseWithMovementsTest
+# ---------------------------------------------------------------------------
+
+
+class DecreaseWithMovementsTest(TestCase):
+    """Decreasing quantity when products have inventory movements."""
+
+    def setUp(self):
+        self.officer = _make_officer()
+        self.project = _make_project()
+        self.vendor = _make_vendor()
+        _link_vendor(self.project, self.vendor)
+        self.template = _make_product_template()
+        self.op = _make_purchase_op(
+            self.project, self.vendor, self.officer, Decimal("1000.00")
+        )
+        self.item = _make_invoice_with_item(
+            self.op, self.template, Decimal("10"), Decimal("100.00")
+        )
+        self.product = _make_product_for_item(
+            self.template, self.item, Decimal("100.00"), quantity=10
+        )
+
+    def _simulate_movement(self):
+        """Create a movement line so the product is considered 'moved'."""
+        from apps.app_inventory.models import InventoryMovementLine
+
+        InventoryMovementLine.objects.create(
+            operation=self.op,
+            invoice_item=self.item,
+            product=self.product,
+            quantity=Decimal("5.00"),
+            date=date.today(),
+            officer=self.officer,
+        )
+
+    def test_decrease_quantity_with_moved_products_succeeds(self):
+        """Decreasing qty on an item whose products have movements must NOT raise."""
+        self._simulate_movement()
+        ia = _make_item_adj(
+            self.op, InvoiceItemAdjustmentType.PURCHASE_ITEM_DECREASE, self.officer
+        )
+        # This would have raised ValidationError before _sync_products() was removed
+        line = InvoiceItemAdjustmentLine(
+            adjustment=ia,
+            invoice_item=self.item,
+            new_quantity=Decimal("8.00"),
+        )
+        line.full_clean()
+        line.save()  # must not raise
+
+    def test_decrease_price_with_moved_products_succeeds(self):
+        """Decreasing unit price on an item with moved products must NOT raise."""
+        self._simulate_movement()
+        ia = _make_item_adj(
+            self.op, InvoiceItemAdjustmentType.PURCHASE_ITEM_DECREASE, self.officer
+        )
+        line = InvoiceItemAdjustmentLine(
+            adjustment=ia,
+            invoice_item=self.item,
+            new_unit_price=Decimal("80.00"),
+        )
+        line.full_clean()
+        line.save()  # must not raise
+
+    def test_increase_with_moved_products_succeeds(self):
+        """Increasing qty/price on an item with moved products must NOT raise."""
+        self._simulate_movement()
+        ia = _make_item_adj(
+            self.op, InvoiceItemAdjustmentType.PURCHASE_ITEM_INCREASE, self.officer
+        )
+        line = InvoiceItemAdjustmentLine(
+            adjustment=ia,
+            invoice_item=self.item,
+            new_quantity=Decimal("12.00"),
+            new_unit_price=Decimal("110.00"),
+        )
+        line.full_clean()
+        line.save()  # must not raise
+
+    def test_ledger_entry_still_recorded_after_movement(self):
+        """ProductLedgerEntry must still be recorded when products have movements."""
+        self._simulate_movement()
+        ia = _make_item_adj(
+            self.op, InvoiceItemAdjustmentType.PURCHASE_ITEM_DECREASE, self.officer
+        )
+        line = _make_line(ia, self.item, new_quantity=Decimal("8.00"))
+
+        from apps.app_inventory.models import ProductLedgerEntry
+
+        entry = ProductLedgerEntry.objects.filter(
+            product=self.product,
+            entry_type=ProductLedgerEntry.EntryType.ADJUSTMENT,
+        ).latest("id")
+        self.assertEqual(entry.quantity_delta, Decimal("-2.00"))
+        self.assertEqual(entry.value_delta, Decimal("-200.00"))
 
 
 # ---------------------------------------------------------------------------
