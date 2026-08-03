@@ -1,5 +1,6 @@
 import logging
 from datetime import date as today_date
+from decimal import Decimal
 from typing import List
 
 from django.conf import settings
@@ -210,6 +211,169 @@ class Operation(
             "source_entity": resolve(source_role),
             "dest_entity": resolve(dest_role),
         }
+
+    # ------------------------------------------------------------------
+    # Factory — create an operation with all side-effects
+    # ------------------------------------------------------------------
+
+    # ── Shared helpers for proxy subclasses ─────────────────────────────
+
+    @classmethod
+    def _validate_item_totals(
+        cls, items_data: list[dict], declared_total: Decimal
+    ) -> None:
+        """
+        Validate that the sum of (item quantity × item unit_price)
+        matches the declared total.
+
+        Used by proxy subclasses (Purchase, Sale) that create invoice
+        items from structured data rather than form submissions.
+
+        Raises ``ValueError`` on mismatch.
+        """
+        from django.utils.translation import gettext as _
+
+        computed = sum(
+            Decimal(item["quantity"]) * Decimal(item["unit_price"])
+            for item in items_data
+        )
+        if abs(computed - declared_total) > Decimal("0.01"):
+            raise ValueError(
+                _("Items total %(items)s does not match declared total %(total)s.")
+                % {"items": computed, "total": declared_total}
+            )
+
+    @classmethod
+    def _build_invoice_items(cls, operation, items_data: list[dict]) -> list:
+        """
+        Create ``InvoiceItem`` records from a list of item dicts.
+
+        Each dict requires:
+        - ``product_template_id`` (int/str)
+        - ``quantity`` (str or Decimal)
+        - ``unit_price`` (str or Decimal)
+
+        Each dict may include:
+        - ``description`` (str)
+
+        Returns the list of created ``InvoiceItem`` instances.
+
+        Raises ``ValidationError`` if a referenced product template does
+        not exist.
+        """
+        from django.utils.translation import gettext as _
+
+        from apps.app_inventory.models import InvoiceItem, ProductTemplate
+
+        invoice_items = []
+        for item_data in items_data:
+            try:
+                template = ProductTemplate.objects.get(
+                    pk=item_data["product_template_id"]
+                )
+            except ProductTemplate.DoesNotExist:
+                raise ValidationError(
+                    _("Product template not found or has been deleted.")
+                )
+
+            invoice_item = InvoiceItem.objects.create(
+                operation=operation,
+                product_template=template,
+                description=item_data.get("description", ""),
+                quantity=Decimal(item_data["quantity"]),
+                unit_price=Decimal(item_data["unit_price"]),
+            )
+            invoice_items.append(invoice_item)
+
+        return invoice_items
+
+    @classmethod
+    def create(
+        cls,
+        *,
+        operation_type: str,
+        source,
+        destination,
+        amount: "Decimal",
+        date,
+        description: str,
+        officer,
+        amount_paid: "Decimal | None" = None,
+        raw_post=None,
+        project=None,
+        **kwargs,
+    ) -> "Operation":
+        """
+        Create a fully-formed operation inside a single atomic transaction.
+
+        Orchestrates the full creation pipeline:
+
+          1. Construct and ``save()`` the operation instance
+             (triggers ``full_clean()`` → ``clean_fields()`` → ``clean()``
+              → ``super().save()`` → ``post_save_tasks``)
+          2. Process payment  (if ``cls.can_pay`` and ``amount_paid > 0``)
+          3. Process invoice  (if ``cls.has_invoice`` and ``raw_post`` provided)
+
+        Proxy subclasses may **override** this method to inject type-specific
+        logic before/after calling ``super().create()``.
+
+        Returns the saved ``Operation`` instance (cast to the proxy class
+        when accessed via the proxy).
+
+        Raises ``ValidationError`` (or ``ValueError``) on failure — the
+        caller is responsible for catching and presenting the error.
+        """
+        from decimal import Decimal
+
+        from django.db import transaction
+
+        from apps.app_inventory.forms import (
+            InvoiceItemCreateFormSet,
+            InvoiceItemSelectFormSet,
+        )
+
+        with transaction.atomic():
+            # ── 1. Construct & save ──────────────────────────────────────
+            op = cls(
+                operation_type=operation_type,
+                source=source,
+                destination=destination,
+                amount=amount,
+                date=date,
+                description=description,
+                officer=officer,
+                **kwargs,
+            )
+            op.save()  # full_clean → clean_fields → clean → save → post_save_tasks
+
+            # ── 2. Payment processing ────────────────────────────────────
+            paid = Decimal(amount_paid) if amount_paid is not None else Decimal("0.00")
+            if cls.can_pay and paid > Decimal("0.00"):
+                op.process_payment(
+                    amount_paid=paid,
+                    officer=officer,
+                    date=date,
+                )
+
+            # ── 3. Invoice / inventory processing ────────────────────────
+            if cls.has_invoice and raw_post is not None:
+                # Determine the correct formset class
+                formset_cls = (
+                    InvoiceItemCreateFormSet
+                    if cls.creates_assets
+                    else InvoiceItemSelectFormSet
+                )
+                # Rebind to the saved instance
+                formset_kwargs = {"data": raw_post, "instance": op}
+                if cls.creates_assets:
+                    formset_kwargs["project"] = project
+
+                bound_formset = formset_cls(**formset_kwargs)
+                bound_formset.is_valid()  # already validated earlier — this is a rebind
+                bound_formset.save()
+                op.save_inventory(bound_formset)
+
+        return op
 
     @classmethod
     def get_related_entities(cls, url_entity, config):

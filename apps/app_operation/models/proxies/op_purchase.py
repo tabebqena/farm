@@ -107,6 +107,9 @@ class PurchaseOperation(Operation):
              (products are created **lazily** by the movement line's save())
           5. Payment transaction (if ``amount_paid > 0``)
 
+        Uses shared base class methods for item validation, InvoiceItem
+        creation, and payment processing.
+
         Returns the created ``PurchaseOperation``.
 
         Raises ``ValidationError`` (or ``ValueError`` for amount mismatch) on
@@ -116,9 +119,7 @@ class PurchaseOperation(Operation):
         from apps.app_entity.models import Entity
         from apps.app_inventory.models import (
             InventoryMovementLine,
-            InvoiceItem,
             ProductLedgerEntry,
-            ProductTemplate,
         )
 
         date_val = datetime.fromisoformat(session_data["date"]).date()
@@ -132,18 +133,10 @@ class PurchaseOperation(Operation):
         paid = Decimal(session_data.get("amount_paid", "0"))
         items_data = session_data["items"]
 
-        # Integrity check
-        computed = sum(
-            Decimal(item["quantity"]) * Decimal(item["unit_price"])
-            for item in items_data
-        )
-        if abs(computed - total) > Decimal("0.01"):
-            raise ValueError(
-                _("Items total %(items)s does not match declared total %(total)s.")
-                % {"items": computed, "total": total}
-            )
+        # ── 1. Integrity check (shared base method) ────────────────────
+        cls._validate_item_totals(items_data, total)
 
-        # 1. Create operation
+        # ── 2. Create operation ────────────────────────────────────────
         op = cls(
             source=project,
             destination=vendor,
@@ -155,35 +148,13 @@ class PurchaseOperation(Operation):
         )
         op.save()
 
-        # 2. Create InvoiceItems and movement lines for received quantities
+        # ── 3. Create InvoiceItems (shared base method) ────────────────
+        invoice_items = cls._build_invoice_items(op, items_data)
+
+        # ── 4. InventoryMovementLine for any received quantities ───────
+        #      Product=None → InventoryMovementLine.save() lazy-creates it
         group_key = uuid.uuid4().hex[:8]
-
-        print("*" * 20, items_data)
-
-        for item_data in items_data:
-            try:
-                template = ProductTemplate.objects.get(
-                    pk=item_data["product_template_id"]
-                )
-            except ProductTemplate.DoesNotExist:
-                raise ValidationError(
-                    _("Product template not found or has been deleted.")
-                )
-
-            # 3. Create InvoiceItem
-            invoice_item = InvoiceItem.objects.create(
-                operation=op,
-                product_template=template,
-                description=item_data.get("description", ""),
-                quantity=Decimal(item_data["quantity"]),
-                unit_price=Decimal(item_data["unit_price"]),
-            )
-
-            print(template)
-            print(invoice_item)
-
-            # 4. InventoryMovementLine for any received quantities
-            #    Product=None → InventoryMovementLine.save() lazy-creates it
+        for item_data, invoice_item in zip(items_data, invoice_items):
             received_qty = Decimal(item_data.get("received_qty", "0"))
             if received_qty > Decimal("0"):
                 InventoryMovementLine.objects.create(
@@ -197,13 +168,13 @@ class PurchaseOperation(Operation):
                     group_key=group_key,
                 )
 
-        # 5. Record issuance entries in the inventory ledger
+        # ── 5. Record issuance entries in the inventory ledger ──────────
         ProductLedgerEntry.record(op)
 
-        # 6. Payment transaction
+        # ── 6. Payment processing (shared base method) ─────────────────
         if paid > Decimal("0"):
-            op.create_payment_transaction(
-                amount=paid,
+            op.process_payment(
+                amount_paid=paid,
                 officer=officer,
                 date=date_val,
                 description=_("Payment for Purchase #%(pk)s") % {"pk": op.pk},

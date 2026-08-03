@@ -98,6 +98,8 @@ STEPS = {
 
 @debug_view
 def sale_wizard_view(request, pk, step=1):
+    # TODO: not fully implemented
+    # Need to match the purchase_wizard & delegeate logics to the models
     if step not in STEPS:
         messages.error(request, _("Invalid wizard step."))
         return redirect("operation_list_view", person_pk=pk)

@@ -17,7 +17,7 @@ from apps.app_operation.models.proxies.op_capital_gain import CapitalGainOperati
 from apps.app_operation.models.proxies.op_capital_loss import CapitalLossOperation
 from farm.shortcuts import get_object_or_404
 
-from .create import OperationCreateView
+from . import OperationCreateView
 
 
 class EvaluationForm(forms.Form):

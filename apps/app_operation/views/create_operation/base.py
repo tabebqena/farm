@@ -7,7 +7,6 @@ from django.db import transaction as db_transaction
 from django.http import HttpResponseBadRequest
 from django.shortcuts import redirect, render
 from django.utils import timezone
-from django.utils.dateparse import parse_date
 from django.utils.decorators import method_decorator
 from django.utils.translation import gettext as _
 from django.views import View
@@ -18,6 +17,7 @@ from apps.app_entity.models.category import (
 )
 from apps.app_inventory.forms import InvoiceItemCreateFormSet, InvoiceItemSelectFormSet
 from apps.app_operation.models.proxies import PROXY_MAP, get_canonical_type
+from apps.app_operation.validators import OperationDataValidator
 
 if TYPE_CHECKING:
     from apps.app_operation.models.operation import Operation
@@ -41,6 +41,20 @@ def _build_formset(proxy_cls, data=None, instance=None, project=None):
         if data is not None
         else InvoiceItemSelectFormSet(instance=instance)
     )
+
+
+def _compute_amount(has_invoice, formset, raw_amount):
+    """Compute the operation amount from the formset or raw POST value."""
+    if has_invoice and formset:
+        return sum(
+            (
+                f.cleaned_data["quantity"] * f.cleaned_data["unit_price"]
+                for f in formset
+                if f.cleaned_data and not f.cleaned_data.get("DELETE")
+            ),
+            Decimal("0.00"),
+        )
+    return Decimal(raw_amount or "0")
 
 
 # TODO display error if the selected operation will not proceed
@@ -82,22 +96,27 @@ class OperationCreateView(View):
                 "user": request.user.username,
             },
         ):
-            proxy_cls = get_canonical_type(kwargs["op_type"])
-            if not proxy_cls:
-                error_msg = _("Unsupported operation %(op_type)s") % {
-                    "op_type": kwargs["op_type"]
-                }
-                DebugContext.error(error_msg, None, {"op_type": kwargs["op_type"]})
-                DebugContext.audit(
-                    action="invalid_operation_type",
-                    entity_type="Operation",
-                    entity_id=None,
-                    details={"op_type": kwargs["op_type"]},
-                    user=request.user.username,
-                )
-                return HttpResponseBadRequest(error_msg)
-            # proxy_cls is narrowed to type[Operation] from here on
-            self.proxy_cls = proxy_cls
+            # Resolve proxy_cls from URL when present; otherwise rely on
+            # the class attribute set on dedicated child views (Birth, Death, Sale).
+            op_type = kwargs.get("op_type")
+            if op_type:
+                proxy_cls = get_canonical_type(op_type)
+                if not proxy_cls:
+                    error_msg = _("Unsupported operation %(op_type)s") % {
+                        "op_type": op_type
+                    }
+                    DebugContext.error(error_msg, None, {"op_type": op_type})
+                    DebugContext.audit(
+                        action="invalid_operation_type",
+                        entity_type="Operation",
+                        entity_id=None,
+                        details={"op_type": op_type},
+                        user=request.user.username,
+                    )
+                    return HttpResponseBadRequest(error_msg)
+                self.proxy_cls = proxy_cls
+            # else: proxy_cls already set as class attribute on child class
+
             self._setup_view(kwargs["pk"], request)
             DebugContext.success(
                 "View setup complete", {"op_type": self.canonical_op_type}
@@ -114,7 +133,7 @@ class OperationCreateView(View):
                 "has_invoice": self.has_invoice,
             },
         ):
-            formset = self._make_formset() if self.has_invoice else None
+            formset = self._make_formset()
             DebugContext.success(
                 "Form rendered", {"formset_count": len(formset) if formset else 0}
             )
@@ -130,10 +149,31 @@ class OperationCreateView(View):
                 "user": request.user.username,
             },
         ):
-            date, description, selected_category_id = self._parse_post_fields()
-            formset = (
-                self._make_formset(data=request.POST) if self.has_invoice else None
-            )
+            # ── 1. Validate POST data via standalone validator ────────────
+            validator = OperationDataValidator(request.POST, self.data)
+            try:
+                parsed = validator.validate()
+            except Exception as e:
+                DebugContext.warn(
+                    "POST data validation failed",
+                    {"error": str(e)},
+                )
+                messages.error(request, str(e))
+                return render(
+                    request,
+                    self.template_name,
+                    self._build_context(
+                        formset=self._make_formset(data=request.POST),
+                        errors=[str(e)],
+                    ),
+                )
+
+            date_val = parsed.date
+            description = parsed.description
+            selected_category_id = parsed.selected_category_id
+
+            # ── 2. Create & validate formset ──────────────────────────────
+            formset = self._make_formset(data=request.POST)
 
             if formset and not formset.is_valid():
                 error_msg = _("Please check the items table for errors.")
@@ -159,13 +199,20 @@ class OperationCreateView(View):
                     self.template_name,
                     self._build_context(
                         formset=formset,
-                        date=date,
+                        date=date_val,
                         description=description,
                         selected_category_id=selected_category_id,
                     ),
                 )
 
-            amount = Decimal("0.00")
+            # ── 3. Compute amount ─────────────────────────────────────────
+            amount = _compute_amount(
+                self.has_invoice,
+                formset,
+                request.POST.get("amount"),
+            )
+
+            # ── 4. Delegate to model layer ────────────────────────────────
             errors = []
             try:
                 with db_transaction.atomic():
@@ -173,25 +220,26 @@ class OperationCreateView(View):
                         "Creating operation transaction",
                         {
                             "op_type": self.canonical_op_type,
-                            "date": str(date),
+                            "date": str(date_val),
                         },
                     ):
-                        amount = self._compute_amount(formset)
-                        op = self._create_operation(amount, date, description)
+                        op = self.proxy_cls.create(
+                            operation_type=self.canonical_op_type,
+                            source=self.data["source_entity"],
+                            destination=self.data["dest_entity"],
+                            amount=amount,
+                            date=date_val,
+                            description=description,
+                            officer=request.user,
+                            amount_paid=parsed.amount_paid,
+                            raw_post=request.POST,
+                            project=self.project,
+                        )
                         DebugContext.success(
                             "Operation created",
                             {
                                 "operation_id": op.pk,
                                 "amount": str(amount),
-                            },
-                        )
-                        self._process_payment(op, amount)
-                        if formset:
-                            self._process_invoice(op)
-                        DebugContext.success(
-                            "Transaction processing complete",
-                            {
-                                "operation_id": op.pk,
                             },
                         )
 
@@ -209,7 +257,7 @@ class OperationCreateView(View):
                     details={
                         "operation_type": op.operation_type,
                         "amount": str(amount),
-                        "date": str(date),
+                        "date": str(date_val),
                     },
                     user=request.user.username,
                 )
@@ -246,75 +294,24 @@ class OperationCreateView(View):
             self._build_context(
                 formset=formset,
                 amount=amount,
-                date=date,
+                date=date_val,
                 description=description,
                 selected_category_id=selected_category_id,
                 errors=errors,
             ),
         )
 
-    # ---- business logic helpers ---------------------------------------------
+    # ---- view helpers (no business logic) -----------------------------------
 
-    def _parse_post_fields(self):
-        date_str = self.request.POST.get("date", "")
-        cat = self.request.POST.get("category", "")
-        return (
-            parse_date(date_str) if date_str else timezone.now().date(),
-            self.request.POST.get("description", ""),
-            int(cat) if cat else None,
-        )
-
-    def _make_formset(self, data=None):
-        from apps.app_operation.models.operation import Operation
-
+    def _make_formset(self, data=None, instance=None):
+        if not self.has_invoice:
+            return None
         return _build_formset(
-            # self.proxy_cls, data=data, instance=Operation(), project=self.project
             self.proxy_cls,
             data=data,
-            instance=self.proxy_cls(),
+            instance=instance or self.proxy_cls(),
             project=self.project,
         )
-
-    def _compute_amount(self, formset):
-        if self.has_invoice and formset:
-            return sum(
-                (
-                    f.cleaned_data["quantity"] * f.cleaned_data["unit_price"]
-                    for f in formset
-                    if f.cleaned_data and not f.cleaned_data.get("DELETE")
-                ),
-                Decimal("0.00"),
-            )
-        return Decimal(self.request.POST.get("amount") or "0")
-
-    def _create_operation(self, amount, date, description):
-        op = self.proxy_cls(
-            operation_type=self.canonical_op_type,
-            source=self.data["source_entity"],
-            destination=self.data["dest_entity"],
-            amount=amount,
-            date=date,
-            description=description,
-            officer=self.request.user,
-        )
-        op.save()
-        return op
-
-    def _process_payment(self, op, amount):
-        amount_paid = Decimal(self.request.POST.get("amount_paid") or "0")
-        op.process_payment(
-            amount_paid,
-            self.request.user,
-            date=self.request.POST.get("date"),
-        )
-
-    def _process_invoice(self, op):
-        bound_formset = _build_formset(
-            self.proxy_cls, data=self.request.POST, instance=op, project=self.project
-        )
-        bound_formset.is_valid()  # already validated; re-bind to saved instance
-        bound_formset.save()
-        op.save_inventory(bound_formset)
 
     def _build_context(
         self,
