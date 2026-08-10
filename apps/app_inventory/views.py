@@ -12,7 +12,7 @@ from django.utils.translation import gettext as _
 
 from apps.app_base.debug import debug_view
 from apps.app_entity.models import Entity
-from apps.app_inventory.forms import InventoryMovementLineFormSet
+from apps.app_inventory.forms import InventoryMovementLineFormSet, ProductTemplateForm
 from apps.app_inventory.models import (
     InventoryMovementLine,
     InvoiceItem,
@@ -475,27 +475,15 @@ def create_product_template(request):
     if not request.user.is_staff:
         raise Http404("Not an officer")
 
-    if request.method == "POST":
-        name = request.POST.get("name", "").strip()
-        nature = request.POST.get("nature")
-        default_unit = request.POST.get("default_unit", "").strip()
-        has_tag = request.POST.get("has_tag") == "on"
-        sub_category = request.POST.get("sub_category", "").strip()
-        tag_prefix = request.POST.get("tag_prefix", "").strip()
-
+    form = ProductTemplateForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
         try:
             with db_transaction.atomic():
                 # Tracking mode is derived from nature — ANIMAL → INDIVIDUAL,
                 # everything else → COMMODITY (there is no free choice).
-                template = ProductTemplate.objects.create(
-                    name=name,
-                    nature=nature,
-                    default_unit=default_unit,
-                    tracking_mode=ProductTemplate.tracking_mode_for_nature(nature),
-                    sub_category=sub_category,
-                    has_tag=has_tag,
-                    tag_prefix=tag_prefix,
-                )
+                # ModelForm.clean() runs ProductTemplate.clean() which enforces
+                # the animal gating rules (no animal consumed, gives_birth_to ...).
+                template = form.save()
                 messages.success(
                     request,
                     _("Product template '%(name)s' created successfully.")
@@ -512,6 +500,7 @@ def create_product_template(request):
         request,
         "app_inventory/product_template_form.html",
         {
+            "form": form,
             "natures": ProductTemplate.Nature.choices,
             "tracking_modes": ProductTemplate.TrackingMode.choices,
         },

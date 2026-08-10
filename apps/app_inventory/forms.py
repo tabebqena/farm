@@ -1,4 +1,5 @@
 import uuid
+from datetime import date
 from decimal import Decimal
 
 from django import forms
@@ -14,6 +15,66 @@ from .models import (
     Product,
     ProductTemplate,
 )
+
+
+class ProductTemplateForm(LoggingFormMixin, forms.ModelForm):
+    """Create/edit a Product Template including the animal-specific attributes."""
+
+    class Meta:
+        model = ProductTemplate
+        fields = (
+            "name",
+            "nature",
+            "sub_category",
+            "default_unit",
+            "has_tag",
+            "tag_prefix",
+            "animal_type",
+            "gender",
+            "produces",
+            "gives_birth_to",
+            "can_die",
+            "can_be_consumed",
+        )
+        widgets = {
+            "animal_type": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": _("e.g. Cow, Buffalo, Sheep, Goat"),
+                }
+            ),
+            "sub_category": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": _("e.g. Cattle, Poultry")}
+            ),
+            "default_unit": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": _("e.g. Head, Kg, Liter")}
+            ),
+            "tag_prefix": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": _("e.g. CALF, COW, LAMB")}
+            ),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # 'produces' may only reference output (FEED/PRODUCT) templates.
+        self.fields["produces"].queryset = ProductTemplate.objects.filter(
+            nature__in=(ProductTemplate.Nature.FEED, ProductTemplate.Nature.PRODUCT)
+        )
+        # 'gives_birth_to' must reference an ANIMAL template.
+        self.fields["gives_birth_to"].queryset = ProductTemplate.objects.filter(
+            nature=ProductTemplate.Nature.ANIMAL
+        )
+        self.fields["produces"].required = False
+        self.fields["gives_birth_to"].required = False
+
+    def clean(self):
+        cleaned = super().clean()
+        nature = cleaned.get("nature")
+        if nature == ProductTemplate.Nature.ANIMAL:
+            # No animal can be consumed — force the flag off.
+            cleaned["can_be_consumed"] = False
+        return cleaned
+
 
 # ---------------------------------------------------------------------------
 # Create-mode: used by PURCHASE and BIRTH
@@ -75,6 +136,32 @@ class InvoiceItemCreateForm(LoggingFormMixin, forms.ModelForm):
         ),
     )
 
+    # Birth-only fields: used when ``is_birth=True`` (see __init__).
+    mother = forms.ModelChoiceField(
+        queryset=Product.objects.none(),
+        required=False,
+        label="Mother",
+        empty_label="— select mother —",
+        widget=forms.Select(attrs={"class": "form-select form-select-sm"}),
+    )
+    gender = forms.ChoiceField(
+        choices=(
+            ("", "— select —"),
+            ("MALE", "Male"),
+            ("FEMALE", "Female"),
+        ),
+        required=False,
+        label="Gender",
+        widget=forms.Select(attrs={"class": "form-select form-select-sm"}),
+    )
+    birth_date = forms.DateField(
+        required=False,
+        label="Birth Date",
+        widget=forms.DateInput(
+            attrs={"type": "date", "class": "form-control form-control-sm"}
+        ),
+    )
+
     class Meta:
         model = InvoiceItem
         fields = ("product_template", "description", "quantity", "unit_price")
@@ -102,9 +189,10 @@ class InvoiceItemCreateForm(LoggingFormMixin, forms.ModelForm):
             ),
         }
 
-    def __init__(self, *args, project=None, **kwargs):
+    def __init__(self, *args, project=None, is_birth=False, **kwargs):
         super().__init__(*args, **kwargs)
         self.project = project
+        self.is_birth = is_birth
         if project is not None:
             qs = ProductTemplate.objects.filter(entities=project)
             self.fields["product_template"].queryset = qs
@@ -113,10 +201,55 @@ class InvoiceItemCreateForm(LoggingFormMixin, forms.ModelForm):
             )
         self.fields["unit_price"].required = False
 
+        if is_birth:
+            # Restrict mother selection to ACTIVE female/mixed animals owned by
+            # this project, and default the birth date to today.
+            if project is not None:
+                self.fields["mother"].queryset = Product.objects.filter(
+                    entity=project,
+                    product_template__nature=ProductTemplate.Nature.ANIMAL,
+                    product_template__gender__in=(
+                        ProductTemplate.Gender.FEMALE,
+                        ProductTemplate.Gender.MIXED,
+                    ),
+                ).select_related("product_template")
+            if not self.fields["birth_date"].initial:
+                self.fields["birth_date"].initial = date.today()
+        else:
+            # Remove the birth-only fields for non-birth operations (PURCHASE).
+            for f in ("mother", "gender", "birth_date"):
+                self.fields.pop(f, None)
+
     def clean(self):
         cleaned = super().clean()
         template = cleaned.get("product_template")
         uid = cleaned.get("unique_id", "").strip()
+
+        # ── Birth flow ────────────────────────────────────────────────────
+        if getattr(self, "is_birth", False):
+            mother = cleaned.get("mother")
+            if mother:
+                # Ownership guard: never allow a mother owned by another project.
+                if self.project is not None and mother.entity_id != self.project.id:
+                    self.add_error(
+                        "mother",
+                        "Mother must belong to the same project.",
+                    )
+                    return cleaned
+                # Default the newborn template to the mother's gives_birth_to
+                # (e.g. Dairy Cow → Calf) unless the user picked another one.
+                gbt_id = mother.product_template.gives_birth_to_id
+                if gbt_id and (template is None or template.pk == mother.product_template_id):
+                    template = cleaned["product_template"] = mother.product_template.gives_birth_to
+                if not cleaned.get("birth_date"):
+                    cleaned["birth_date"] = date.today()
+                if template is None:
+                    self.add_error(
+                        "product_template",
+                        "Newborn template is required (or select a mother whose "
+                        "template has a 'gives birth to' template).",
+                    )
+                    return cleaned
 
         # If product is selected, require unit_price
         if template and not cleaned.get("unit_price"):
@@ -155,15 +288,17 @@ class InvoiceItemCreateForm(LoggingFormMixin, forms.ModelForm):
 
 
 class BaseInvoiceItemCreateFormSet(forms.BaseInlineFormSet):
-    """Passes `project` down to each InvoiceItemCreateForm."""
+    """Passes `project` and `is_birth` down to each InvoiceItemCreateForm."""
 
-    def __init__(self, *args, project=None, **kwargs):
+    def __init__(self, *args, project=None, is_birth=False, **kwargs):
         self.project = project
+        self.is_birth = is_birth
         super().__init__(*args, **kwargs)
 
     def get_form_kwargs(self, index):
         kwargs = super().get_form_kwargs(index)
         kwargs["project"] = self.project
+        kwargs["is_birth"] = self.is_birth
         return kwargs
 
 
