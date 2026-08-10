@@ -53,10 +53,58 @@
               <dd>{{ template.get_tracking_mode_display }}</dd>
 
               {% if template.nature == 'ANIMAL' %}
+                {% if template.animal_type %}
+                  <dt class="text-muted small">
+                    {% trans 'Animal Type' %}
+                  </dt>
+                  <dd>{{ template.animal_type }}</dd>
+                {% endif %}
+
+                <dt class="text-muted small">
+                  {% trans 'Gender' %}
+                </dt>
+                <dd>{{ template.get_gender_display }}</dd>
+
                 <dt class="text-muted small">
                   {% trans 'Tag Prefix' %}
                 </dt>
                 <dd>{{ template.tag_prefix|default:template.effective_tag_prefix }}</dd>
+
+                {% if template.gives_birth_to %}
+                  <dt class="text-muted small">
+                    {% trans 'Gives Birth To' %}
+                  </dt>
+                  <dd>{{ template.gives_birth_to.name }}</dd>
+                {% endif %}
+
+                {% if template.produces.exists %}
+                  <dt class="text-muted small">
+                    {% trans 'Produces' %}
+                  </dt>
+                  <dd>
+                    {% for out in template.produces.all %}
+                      <span class="badge bg-light text-dark border">{{ out.name }}</span>
+                    {% endfor %}
+                  </dd>
+                {% endif %}
+
+                <dt class="text-muted small">
+                  {% trans 'Can Die' %}
+                </dt>
+                <dd>
+                  {% if template.can_die %}
+                    <span class="badge bg-success">{% trans 'Yes' %}</span>
+                  {% else %}
+                    <span class="badge bg-secondary">{% trans 'No' %}</span>
+                  {% endif %}
+                </dd>
+
+                <dt class="text-muted small">
+                  {% trans 'Can Be Consumed' %}
+                </dt>
+                <dd>
+                  <span class="badge bg-danger">{% trans 'No' %}</span>
+                </dd>
               {% endif %}
 
               <dt class="text-muted small">

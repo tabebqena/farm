@@ -8,6 +8,19 @@
     </div>
 
     <div class="card-body p-4">
+      {% if form.non_field_errors or form.errors %}
+        <div class="alert alert-danger">
+          {% for error in form.non_field_errors %}
+            <div>{{ error }}</div>
+          {% endfor %}
+          {% for field in form %}
+            {% for error in field.errors %}
+              <div>{{ field.label }}: {{ error }}</div>
+            {% endfor %}
+          {% endfor %}
+        </div>
+      {% endif %}
+
       <form method="post">
         {% csrf_token %}
 
@@ -15,16 +28,16 @@
         <div class="row g-3 mb-4">
           <div class="col-md-8">
             <label class="form-label fw-semibold">{% trans 'Template Name' %}</label>
-            <input type="text" name="name" class="form-control" placeholder="{% trans 'e.g. Dairy Cattle, Starter Feed' %}" required />
+            <input type="text" name="name" value="{{ form.name.value|default:'' }}" class="form-control" placeholder="{% trans 'e.g. Dairy Cattle, Starter Feed' %}" required />
           </div>
           <div class="col-md-4">
             <label class="form-label fw-semibold">{% trans 'Nature' %}</label>
-            <select name="nature" class="form-select" required>
+            <select name="nature" id="id_nature" class="form-select" required>
               <option value="" selected disabled>
                 --{% trans 'Select Nature' %}--
               </option>
               {% for value, label in natures %}
-                <option value="{{ value }}">{{ label }}</option>
+                <option value="{{ value }}"{% if form.nature.value == value %} selected{% endif %}>{{ label }}</option>
               {% endfor %}
             </select>
           </div>
@@ -35,16 +48,71 @@
           </div>
           <div class="col-md-4">
             <label class="form-label fw-semibold">{% trans 'Default Unit' %}</label>
-            <input type="text" name="default_unit" class="form-control" placeholder="{% trans 'e.g. Head, Kg, Liter' %}" required />
+            <input type="text" name="default_unit" value="{{ form.default_unit.value|default:'' }}" class="form-control" placeholder="{% trans 'e.g. Head, Kg, Liter' %}" required />
           </div>
           <div class="col-md-4">
             <label class="form-label fw-semibold">{% trans 'Sub-category' %}</label>
-            <input type="text" name="sub_category" class="form-control" placeholder="{% trans 'e.g. Cattle, Poultry, Consumable' %}" />
+            <input type="text" name="sub_category" value="{{ form.sub_category.value|default:'' }}" class="form-control" placeholder="{% trans 'e.g. Cattle, Poultry, Consumable' %}" />
           </div>
           <div class="col-md-4">
             <label class="form-label fw-semibold">{% trans 'Tag Prefix' %}</label>
-            <input type="text" name="tag_prefix" class="form-control" placeholder="{% trans 'e.g. CALF, COW, LAMB' %}" />
+            <input type="text" name="tag_prefix" value="{{ form.tag_prefix.value|default:'' }}" class="form-control" placeholder="{% trans 'e.g. CALF, COW, LAMB' %}" />
             <small class="text-muted">{% trans 'Prefix for auto-generated animal tags (e.g. CALF1, CALF2). For ANIMAL templates.' %}</small>
+          </div>
+        </div>
+
+        <!-- Animal attributes: only shown when Nature == ANIMAL -->
+        <div id="animal-attributes" style="display:none">
+          <hr class="my-4" />
+          <h6 class="text-uppercase text-muted small fw-bold mb-3">{% trans 'Animal Attributes' %}</h6>
+          <div class="row g-3 p-3 bg-light rounded border mb-4">
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">{% trans 'Animal Type' %}</label>
+              <input type="text" name="animal_type" value="{{ form.animal_type.value|default:'' }}" class="form-control" placeholder="{% trans 'e.g. Cow, Buffalo, Sheep, Goat' %}" />
+              <small class="text-muted">{% trans 'Species/type of animal.' %}</small>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">{% trans 'Gender' %}</label>
+              <select name="gender" class="form-select">
+                {% for value, label in form.gender.field.choices %}
+                  <option value="{{ value }}"{% if form.gender.value|default:'NA' == value %} selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+              <small class="text-muted">{% trans 'Default gender for animals created from this template.' %}</small>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">{% trans 'Gives Birth To' %}</label>
+              <select name="gives_birth_to" class="form-select">
+                <option value="">— {% trans 'None' %} —</option>
+                {% for t in form.fields.gives_birth_to.queryset %}
+                  <option value="{{ t.pk }}"{% if form.gives_birth_to.value|default:''|stringformat:'s' == t.pk|stringformat:'s' %} selected{% endif %}>{{ t.name }}</option>
+                {% endfor %}
+              </select>
+              <small class="text-muted">{% trans 'Offspring template (e.g. Dairy Cow → Calf). For female/mixed templates.' %}</small>
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-semibold">{% trans 'Produces' %}</label>
+              <select name="produces" class="form-select" multiple size="4">
+                {% for t in form.fields.produces.queryset %}
+                  <option value="{{ t.pk }}"{% if t.pk|stringformat:'s' in form.produces.value|default:'' %} selected{% endif %}>{{ t.name }}</option>
+                {% endfor %}
+              </select>
+              <small class="text-muted">{% trans 'Output templates this animal can produce (e.g. Milk, Manure). Hold Ctrl to select multiple.' %}</small>
+            </div>
+            <div class="col-md-4">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="can_die" id="f_can_die" value="True"{% if form.can_die.value %} checked{% endif %} />
+                <label class="form-check-label fw-bold" for="f_can_die">{% trans 'Can Die' %}</label>
+                <small class="d-block text-muted">{% trans 'All animals can die.' %}</small>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="can_be_consumed" id="f_can_be_consumed" value="True"{% if form.can_be_consumed.value %} checked{% endif %} />
+                <label class="form-check-label fw-bold" for="f_can_be_consumed">{% trans 'Can Be Consumed' %}</label>
+                <small class="d-block text-muted">{% trans 'No animal can be consumed.' %}</small>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -54,7 +122,7 @@
         <div class="row g-3 p-3 bg-light rounded border mb-4">
           <div class="col-12">
             <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" name="has_tag" id="f_tag" />
+              <input class="form-check-input" type="checkbox" name="has_tag" id="f_tag" value="True"{% if form.has_tag.value %} checked{% endif %} />
               <label class="form-check-label fw-bold" for="f_tag">{% trans 'Requires Individual Tagging' %}</label>
               <small class="d-block text-muted">{% trans 'If enabled, every item in this product template must have a unique identifier (e.g., ear tag).' %}</small>
             </div>
@@ -68,4 +136,20 @@
       </form>
     </div>
   </div>
+
+  <script>
+    ;(function () {
+      function toggleAnimal() {
+        var nature = document.getElementById('id_nature');
+        var el = document.getElementById('animal-attributes');
+        if (!nature || !el) return;
+        el.style.display = nature.value === 'ANIMAL' ? '' : 'none';
+      }
+      document.addEventListener('DOMContentLoaded', function () {
+        toggleAnimal();
+        var nature = document.getElementById('id_nature');
+        if (nature) nature.addEventListener('change', toggleAnimal);
+      });
+    })();
+  </script>
 {% endblock %}

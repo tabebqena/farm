@@ -139,7 +139,17 @@
                   <tr>
                     <td>{{ product.product_template.name }}</td>
                     <td>{{ product.product_template.get_nature_display }}</td>
-                    <td class="text-muted">{{ product.unique_id|default:'—' }}</td>
+                    <td class="text-muted">
+                      {{ product.unique_id|default:'—' }}
+                      {% if product.product_template.nature == 'ANIMAL' %}
+                        <div>
+                          <span class="badge bg-light text-dark border">{{ product.get_gender_display }}</span>
+                          {% if product.birth_date %}
+                            <small class="d-block">{{ product.birth_date }}</small>
+                          {% endif %}
+                        </div>
+                      {% endif %}
+                    </td>
                     <td class="text-end">{{ product.quantity }}</td>
                     <td class="text-end">{{ product.unit_price }}</td>
                     <td class="text-end fw-bold">{{ product.current_value }}</td>
