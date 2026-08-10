@@ -242,6 +242,46 @@ class QuickConsumeFromStockTest(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(self._consumption_count(), 0)
 
+    def test_quick_consume_rejects_non_consumable_flag(self):
+        """A non-ANIMAL (FEED) template with can_be_consumed=False is rejected
+        even though its nature otherwise allows consumption."""
+        self.client.login(username="officer_quick", password="testpass")
+        feed = ProductTemplate.objects.create(
+            name="Restricted Feed",
+            nature=ProductTemplate.Nature.FEED,
+            default_unit="Kg",
+            can_be_consumed=False,
+        )
+        purchase = make_operation(
+            self.project_entity,
+            self.vendor,
+            self.officer_user,
+            PurchaseOperation,
+            OperationType.PURCHASE,
+            amount=Decimal("500.00"),
+        )
+        item = make_invoice_item(purchase, feed, Decimal("5.00"), Decimal("100.00"))
+        product = Product.objects.create(
+            product_template=feed,
+            entity=self.project_entity,
+            unit_price=Decimal("100.00"),
+            quantity=5,
+        )
+        product.invoice_items.add(item)
+        InventoryMovementLine.objects.create(
+            operation=purchase,
+            invoice_item=item,
+            product=product,
+            quantity=Decimal("5.00"),
+            date=date.today(),
+            officer=self.officer_user,
+        )
+
+        response = self._post_consume(product)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(self._consumption_count(), 0)
+
     def test_quick_consume_rejects_product_not_in_entity(self):
         """A product owned by another entity cannot be consumed from this stock."""
         self.client.login(username="officer_quick", password="testpass")

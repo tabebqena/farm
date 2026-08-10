@@ -6,78 +6,42 @@ from django.db import transaction
 
 User = get_user_model()
 
-# Template-specific tag prefixes for individually tracked animals (ANIMAL
-# nature).  Used to auto-generate unique tags like "CALF1", "CALF2", ...
-TAG_PREFIX_OVERRIDES = {
-    "Fattening Cattle": "FC",
-    "Dairy Cows": "DC",
-    "Breeding Bulls": "BB",
-    "Replacement Heifers": "RH",
-    "Calves": "CALF",
-    "Fattening Lambs": "FL",
-    "Breeding Ewes": "EWE",
-    "Breeding Rams": "RAM",
-    "Fattening Kids": "FK",
-    "Breeding Does": "DOE",
-    "Breeding Bucks": "BUCK",
-    "Fattening Camels (Hashi)": "CH",
-    "Breeding / Dairy Camels": "CAMEL",
-    "Stud Camels": "STUD",
-    "Horses": "HORSE",
-    "Donkeys / Mules": "DM",
-    "Fattening Buffaloes": "FB",
-    "Dairy Buffaloes": "DB",
-    "Breeding Buffalo Bulls": "BBB",
-    "Replacement Buffalo Heifers": "RBH",
-    "Buffalo Calves": "BC",
-    "Broiler Chickens": "BR",
-    "Laying Hens": "LH",
-    "Poultry Parent Stock": "PP",
-    "Fattening Turkeys": "FT",
-    "Breeding Turkeys": "BT",
-    "Fattening Ducks / Geese": "DG",
-    "Breeding Ducks / Geese": "BDG",
-    "Fattening Rabbits": "RAB",
-    "Breeding Rabbits": "BRR",
-}
+# Animal ProductTemplates — species × stage × gender (Cow, Buffalo, Sheep, Goat).
+#
+# Each entry defines one ProductTemplate:
+#   - animal_type    : one of Cow / Buffalo / Sheep / Goat
+#   - gender         : FEMALE / MALE (normalized uppercase)
+#   - stage          : Adult / Calf → part of the derived template name
+#   - gives_birth_to : same-species name for Adult FEMALE templates (resolved to
+#                      that species' "Calf Female" template), else None
+#   - produces       : output PRODUCT templates (metadata only)
+#   - tag_prefix     : prefix for auto-generated individual animal tags
+ANIMAL_TEMPLATES = [
+    # --- Cow ---
+    {"animal_type": "Cow", "gender": "FEMALE", "stage": "Adult", "gives_birth_to": "Cow", "produces": ["Meat (Live Weight)", "Organic Manure"], "tag_prefix": "CAF"},
+    {"animal_type": "Cow", "gender": "MALE", "stage": "Adult", "gives_birth_to": None, "produces": ["Meat (Live Weight)", "Organic Manure"], "tag_prefix": "CAM"},
+    {"animal_type": "Cow", "gender": "MALE", "stage": "Calf", "gives_birth_to": None, "produces": ["Meat (Live Weight)", "Organic Manure"], "tag_prefix": "CCM"},
+    {"animal_type": "Cow", "gender": "FEMALE", "stage": "Calf", "gives_birth_to": None, "produces": ["Meat (Live Weight)", "Organic Manure"], "tag_prefix": "CCF"},
+    # --- Buffalo ---
+    {"animal_type": "Buffalo", "gender": "FEMALE", "stage": "Adult", "gives_birth_to": "Buffalo", "produces": ["Meat (Live Weight)", "Organic Manure"], "tag_prefix": "BAF"},
+    {"animal_type": "Buffalo", "gender": "MALE", "stage": "Adult", "gives_birth_to": None, "produces": ["Meat (Live Weight)", "Organic Manure"], "tag_prefix": "BAM"},
+    {"animal_type": "Buffalo", "gender": "MALE", "stage": "Calf", "gives_birth_to": None, "produces": ["Meat (Live Weight)", "Organic Manure"], "tag_prefix": "BCM"},
+    {"animal_type": "Buffalo", "gender": "FEMALE", "stage": "Calf", "gives_birth_to": None, "produces": ["Meat (Live Weight)", "Organic Manure"], "tag_prefix": "BCF"},
+    # --- Sheep ---
+    {"animal_type": "Sheep", "gender": "FEMALE", "stage": "Adult", "gives_birth_to": "Sheep", "produces": ["Meat (Live Weight)", "Organic Manure"], "tag_prefix": "SAF"},
+    {"animal_type": "Sheep", "gender": "MALE", "stage": "Adult", "gives_birth_to": None, "produces": ["Meat (Live Weight)", "Organic Manure"], "tag_prefix": "SAM"},
+    {"animal_type": "Sheep", "gender": "MALE", "stage": "Calf", "gives_birth_to": None, "produces": ["Meat (Live Weight)", "Organic Manure"], "tag_prefix": "SCM"},
+    {"animal_type": "Sheep", "gender": "FEMALE", "stage": "Calf", "gives_birth_to": None, "produces": ["Meat (Live Weight)", "Organic Manure"], "tag_prefix": "SCF"},
+    # --- Goat ---
+    {"animal_type": "Goat", "gender": "FEMALE", "stage": "Adult", "gives_birth_to": "Goat", "produces": ["Meat (Live Weight)", "Organic Manure"], "tag_prefix": "GAF"},
+    {"animal_type": "Goat", "gender": "MALE", "stage": "Adult", "gives_birth_to": None, "produces": ["Meat (Live Weight)", "Organic Manure"], "tag_prefix": "GAM"},
+    {"animal_type": "Goat", "gender": "MALE", "stage": "Calf", "gives_birth_to": None, "produces": ["Meat (Live Weight)", "Organic Manure"], "tag_prefix": "GCM"},
+    {"animal_type": "Goat", "gender": "FEMALE", "stage": "Calf", "gives_birth_to": None, "produces": ["Meat (Live Weight)", "Organic Manure"], "tag_prefix": "GCF"},
+]
 
 
 PRODUCT_TEMPLATES = [
     # (name, name_ar, nature, default_unit, has_tag, sub_category)
-    # --- ANIMAL ---
-    ("Fattening Cattle", "ماشية تسمين", "ANIMAL", "Head", True, "Cattle"),
-    ("Dairy Cows", "أبقار حليب", "ANIMAL", "Head", True, "Cattle"),
-    ("Breeding Bulls", "فحول تكاثر", "ANIMAL", "Head", True, "Cattle"),
-    ("Replacement Heifers", "بكاير / تليعات", "ANIMAL", "Head", True, "Cattle"),
-    ("Calves", "عجول", "ANIMAL", "Head", True, "Cattle"),
-    ("Fattening Lambs", "خراف تسمين", "ANIMAL", "Head", True, "Sheep"),
-    ("Breeding Ewes", "نعاج تكاثر", "ANIMAL", "Head", True, "Sheep"),
-    ("Breeding Rams", "كباش تكاثر", "ANIMAL", "Head", True, "Sheep"),
-    ("Fattening Kids", "جداء تسمين", "ANIMAL", "Head", True, "Goats"),
-    ("Breeding Does", "عنزات تكاثر", "ANIMAL", "Head", True, "Goats"),
-    ("Breeding Bucks", "تيوس تكاثر", "ANIMAL", "Head", True, "Goats"),
-    ("Fattening Camels (Hashi)", "حاشي تسمين", "ANIMAL", "Head", True, "Camels"),
-    ("Breeding / Dairy Camels", "نوق تكاثر / حليب", "ANIMAL", "Head", True, "Camels"),
-    ("Stud Camels", "فحول إبل", "ANIMAL", "Head", True, "Camels"),
-    ("Horses", "خيول", "ANIMAL", "Head", True, "Equine"),
-    ("Donkeys / Mules", "حمير / بغال", "ANIMAL", "Head", True, "Equine"),
-    ("Fattening Buffaloes", "جاموس تسمين", "ANIMAL", "Head", True, "Buffalo"),
-    ("Dairy Buffaloes", "جاموس حليب", "ANIMAL", "Head", True, "Buffalo"),
-    ("Breeding Buffalo Bulls", "فحول جاموس", "ANIMAL", "Head", True, "Buffalo"),
-    ("Replacement Buffalo Heifers", "بكاير جاموس", "ANIMAL", "Head", True, "Buffalo"),
-    ("Buffalo Calves", "عجول جاموس", "ANIMAL", "Head", True, "Buffalo"),
-    ("Broiler Chickens", "دجاج تسمين", "ANIMAL", "Head", False, "Poultry"),
-    ("Laying Hens", "دجاج بياض", "ANIMAL", "Head", False, "Poultry"),
-    ("Poultry Parent Stock", "أمهات الدواجن", "ANIMAL", "Head", False, "Poultry"),
-    ("Fattening Turkeys", "ديوك رومية تسمين", "ANIMAL", "Head", False, "Poultry"),
-    ("Breeding Turkeys", "أمهات ديوك رومية", "ANIMAL", "Head", False, "Poultry"),
-    ("Fattening Ducks / Geese", "بط / إوز تسمين", "ANIMAL", "Head", False, "Poultry"),
-    ("Breeding Ducks / Geese", "أمهات بط وإوز", "ANIMAL", "Head", False, "Poultry"),
-    ("Fattening Rabbits", "أرانب تسمين", "ANIMAL", "Head", False, "Rabbits"),
-    ("Breeding Rabbits", "أمهات أرانب", "ANIMAL", "Head", False, "Rabbits"),
-    # ("Quails", "سمان", "ANIMAL", "Head", False, "Poultry"),
-    # ("Pigeons", "حمام", "ANIMAL", "Head", False, "Poultry"),
-    # ("Honeybee Colonies", "طوائف نحل", "ANIMAL", "Colony", False, "Apiculture"),
     # --- FEED ---
     ("Date", "بلح", "FEED", "Kg", False, "Consumable"),
     ("Barley", "شعير", "FEED", "Kg", False, "Consumable"),
@@ -382,11 +346,25 @@ class Command(BaseCommand):
         Entity.create(EntityType.SYSTEM, active=True)
         self.stdout.write(self.style.SUCCESS("Created system entity with active fund."))
 
+    SPECIES_SUB_CATEGORY = {
+        "Cow": "Cattle",
+        "Buffalo": "Buffalo",
+        "Sheep": "Sheep",
+        "Goat": "Goats",
+    }
+
+    @staticmethod
+    def _animal_template_name(entry):
+        """Derive the ProductTemplate name from an ANIMAL_TEMPLATES entry."""
+        return f"{entry['animal_type']} {entry['stage']} {entry['gender'].title()}"
+
     def _create_product_templates(self):
         from apps.app_inventory.models import ProductTemplate
 
         created = 0
         updated = 0
+
+        # ── Non-animal templates (FEED / MEDICINE / PRODUCT) ──────────────
         for name, name_ar, nature, unit, tag, sub_cat in PRODUCT_TEMPLATES:
             # Derive minimum_quantity from nature
             if nature == "ANIMAL" or nature == "PRODUCT":
@@ -406,7 +384,11 @@ class Command(BaseCommand):
                 "sub_category": sub_cat,
                 "minimum_quantity": min_qty,
                 "tracking_mode": tracking_mode,
-                "tag_prefix": TAG_PREFIX_OVERRIDES.get(name, "") if nature == "ANIMAL" else "",
+                "tag_prefix": "",
+                "animal_type": "",
+                "gender": ProductTemplate.Gender.NA,
+                "can_die": nature == "ANIMAL",
+                "can_be_consumed": nature != "ANIMAL",
             }
             template, is_new = ProductTemplate.objects.get_or_create(
                 name=name,
@@ -432,9 +414,79 @@ class Command(BaseCommand):
                 if template.tag_prefix != defaults["tag_prefix"]:
                     template.tag_prefix = defaults["tag_prefix"]
                     changed = True
+                if template.animal_type != defaults["animal_type"]:
+                    template.animal_type = defaults["animal_type"]
+                    changed = True
+                if template.gender != defaults["gender"]:
+                    template.gender = defaults["gender"]
+                    changed = True
+                if template.can_die != defaults["can_die"]:
+                    template.can_die = defaults["can_die"]
+                    changed = True
+                if template.can_be_consumed != defaults["can_be_consumed"]:
+                    template.can_be_consumed = defaults["can_be_consumed"]
+                    changed = True
                 if changed:
                     template.save()
                     updated += 1
+
+        # ── Animal templates (Cow / Buffalo / Sheep / Goat) ───────────────
+        for entry in ANIMAL_TEMPLATES:
+            name = self._animal_template_name(entry)
+            defaults = {
+                "name_ar": "",
+                "nature": ProductTemplate.Nature.ANIMAL,
+                "sub_category": self.SPECIES_SUB_CATEGORY[entry["animal_type"]],
+                "default_unit": "Head",
+                "has_tag": True,
+                "tag_prefix": entry.get("tag_prefix", ""),
+                "minimum_quantity": Decimal("1"),
+                "tracking_mode": ProductTemplate.TrackingMode.INDIVIDUAL,
+                "animal_type": entry["animal_type"],
+                "gender": entry["gender"],
+                "can_die": True,
+                "can_be_consumed": False,
+            }
+            template, is_new = ProductTemplate.objects.get_or_create(
+                name=name,
+                defaults=defaults,
+            )
+            if is_new:
+                created += 1
+            else:
+                changed = False
+                for field, value in defaults.items():
+                    if getattr(template, field) != value:
+                        setattr(template, field, value)
+                        changed = True
+                if changed:
+                    template.save()
+                    updated += 1
+
+        # ── Relationship resolution (after all templates exist) ───────────
+        for entry in ANIMAL_TEMPLATES:
+            name = self._animal_template_name(entry)
+            try:
+                template = ProductTemplate.objects.get(name=name)
+            except ProductTemplate.DoesNotExist:
+                continue
+
+            # produces — M2M to output PRODUCT templates (metadata only).
+            wanted = ProductTemplate.objects.filter(name__in=entry.get("produces", []))
+            template.produces.set(wanted)
+
+            # gives_birth_to — only Adult FEMALE templates give birth, to the
+            # same-species "Calf Female" template. The birth flow still lets the
+            # user choose the newborn gender and override the newborn template.
+            target = None
+            gbt = entry.get("gives_birth_to")
+            if gbt and entry["stage"] == "Adult" and entry["gender"] == "FEMALE":
+                target = ProductTemplate.objects.get(
+                    name=f"{entry['animal_type']} Calf Female"
+                )
+            if template.gives_birth_to_id != (target.pk if target else None):
+                template.gives_birth_to = target
+                template.save()  # full_clean() validates ANIMAL target + FEMALE source
 
         if created or updated:
             self.stdout.write(

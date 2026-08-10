@@ -6,6 +6,5 @@ htmlcov/*
 logs/*
 test_screenshots/*
 .roo/*
-ai-plans/*
 .zooignore
 test_results.txt
