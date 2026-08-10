@@ -4,7 +4,8 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
-from apps.app_inventory.models import Product
+from apps.app_inventory.forms import InvoiceItemCreateForm
+from apps.app_inventory.models import Product, ProductTemplate
 from apps.app_inventory.tests.general import (
     make_entity,
     make_invoice_item,
@@ -216,3 +217,94 @@ class ProductTest(TestCase):
         self.assertEqual(product.status, Product.Status.DEAD)
         with self.assertRaises(ValidationError):
             product.validate_active()
+
+
+class ProductTagUniquenessTest(TestCase):
+    """Birth / individual-tag identity rules (Fix 6)."""
+
+    def setUp(self):
+        self.officer = make_user()
+        self.project = make_project_entity("Tag Farm")
+        self.individual = ProductTemplate.objects.create(
+            name="Tagged Calves",
+            nature=ProductTemplate.Nature.ANIMAL,
+            sub_category="Cattle",
+            tracking_mode=ProductTemplate.TrackingMode.INDIVIDUAL,
+            default_unit="Head",
+            has_tag=True,
+        )
+        self.individual.entities.add(self.project)
+
+    def _form(self, uid, template=None):
+        template = template or self.individual
+        return InvoiceItemCreateForm(
+            data={
+                "product_template": str(template.pk),
+                "quantity": "1",
+                "unit_price": "100.00",
+                "unique_id": uid,
+                "description": "",
+            },
+            project=self.project,
+        )
+
+    def test_db_rejects_duplicate_tag_per_entity(self):
+        Product.objects.create(
+            product_template=self.individual,
+            entity=self.project,
+            unit_price=Decimal("100.00"),
+            quantity=1,
+            unique_id="TAG-1",
+        )
+        # The UniqueConstraint is validated by full_clean before insert, so a
+        # duplicate surfaces as a ValidationError (friendly) rather than
+        # reaching the DB as an IntegrityError.
+        with self.assertRaises(ValidationError):
+            Product.objects.create(
+                product_template=self.individual,
+                entity=self.project,
+                unit_price=Decimal("100.00"),
+                quantity=1,
+                unique_id="TAG-1",
+            )
+
+    def test_db_allows_same_tag_across_entities(self):
+        other = make_project_entity("Other Farm")
+        Product.objects.create(
+            product_template=self.individual,
+            entity=self.project,
+            unit_price=Decimal("100.00"),
+            quantity=1,
+            unique_id="TAG-1",
+        )
+        # Same tag under a different entity is allowed.
+        Product.objects.create(
+            product_template=self.individual,
+            entity=other,
+            unit_price=Decimal("100.00"),
+            quantity=1,
+            unique_id="TAG-1",
+        )
+
+    def test_form_auto_suggests_tag_for_individual_tracking(self):
+        """A blank tag is auto-suggested (editable), so the form is valid."""
+        form = self._form(uid="")
+        self.assertTrue(form.is_valid())
+        self.assertTrue(form.cleaned_data["unique_id"])
+        self.assertTrue(
+            form.cleaned_data["unique_id"].startswith(
+                self.individual.effective_tag_prefix
+            )
+        )
+
+    def test_form_rejects_duplicate_tag(self):
+        Product.objects.create(
+            product_template=self.individual,
+            entity=self.project,
+            unit_price=Decimal("100.00"),
+            quantity=1,
+            unique_id="TAG-1",
+        )
+        form = self._form(uid="TAG-1")
+        self.assertFalse(form.is_valid())
+        self.assertIn("unique_id", form.errors)

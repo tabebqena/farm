@@ -18,5 +18,11 @@
     {% if config.category_required %}
     <div class="invalid-feedback">Please select a valid category for this {{ config.label|lower }}.</div>
     {% endif %}
+    {% if config.operation_type == "EXPENSE" %}
+    <div class="form-text mt-2">
+        <i class="bi bi-info-circle"></i>
+        {% trans "Expense is for services and non-stocked supplies. For stockable inputs (feed, medicine, corn), use Purchase + Consumption so they remain tracked in inventory and valued until used." %}
+    </div>
+    {% endif %}
 </div>
 {% endif %}

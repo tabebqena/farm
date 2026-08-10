@@ -22,8 +22,8 @@ from apps.app_operation.models.proxies import ConsumptionOperation, PurchaseOper
 
 
 class ConsumptionReversalTest(TestCase):
-    """Reversing a consumption reverses its auto-created movement lines and
-    negates the ledger, while the product keeps its CONSUMED status."""
+    """Reversing a consumption reverses its auto-created movement lines,
+    negates the ledger, and restores the product to ACTIVE."""
 
     def setUp(self):
         self.system_entity = Entity.create(EntityType.SYSTEM)
@@ -152,9 +152,39 @@ class ConsumptionReversalTest(TestCase):
         counter = op.get_all_transactions().filter(reversal_of__isnull=False)
         self.assertEqual(counter.count(), 2)
 
-    def test_reversed_product_keeps_consumed_status(self):
+    def test_reversed_product_returns_to_active_status(self):
         op, product = self._make_consumed()
         op.reverse(officer=self.officer_user, reason="test reversal")
 
         product.refresh_from_db()
-        self.assertEqual(product.status, Product.Status.CONSUMED)
+        self.assertEqual(product.status, Product.Status.ACTIVE)
+
+    # ------------------------------------------------------------------
+    # COGS / P&L behaviour (Option B)
+    # ------------------------------------------------------------------
+
+    def test_reverse_restores_profit_loss(self):
+        """Reversing a consumption must negate its COGS effect and restore profit."""
+        op, _ = self._make_consumed()
+        profit_with_consumption = self.project_entity.profit_loss()
+
+        op.reverse(officer=self.officer_user, reason="test reversal")
+
+        self.assertEqual(
+            self.project_entity.profit_loss(),
+            profit_with_consumption + Decimal("500.00"),
+            "A reversed consumption must no longer reduce profit.",
+        )
+
+    def test_reverse_keeps_fund_balance_unchanged(self):
+        """Option B: consumption and its reversal are both non-cash for balance_at()."""
+        op, _ = self._make_consumed()
+        balance = self.project_entity.balance_at(date.today())
+
+        op.reverse(officer=self.officer_user, reason="test reversal")
+
+        self.assertEqual(
+            self.project_entity.balance_at(date.today()),
+            balance,
+            "Neither consumption nor its reversal may change the fund balance.",
+        )

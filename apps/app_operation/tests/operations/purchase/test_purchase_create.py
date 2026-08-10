@@ -6,7 +6,7 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
-from apps.app_inventory.models import ProductLedgerEntry, ProductTemplate
+from apps.app_inventory.models import Product, ProductLedgerEntry, ProductTemplate
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import CapitalGainOperation, PurchaseOperation
 from apps.app_transaction.transaction_type import TransactionType
@@ -286,7 +286,7 @@ def _make_product_template(name, project):
         name=name,
         nature=ProductTemplate.Nature.ANIMAL,
         sub_category="Cattle",
-        tracking_mode=ProductTemplate.TrackingMode.BATCH,
+        tracking_mode=ProductTemplate.TrackingMode.INDIVIDUAL,
         default_unit="Head",
     )
     pt.entities.add(project)
@@ -481,7 +481,10 @@ class PurchaseCreateFromSessionTest(TestCase):
     # ------------------------------------------------------------------
 
     def test_create_from_session_with_received_qty(self):
-        """InventoryMovementLine records are created when received_qty > 0."""
+        """
+        INDIVIDUAL tracking: received_qty=10 creates 10 movement lines
+        (one per head), each lazily creating its own tagged Product.
+        """
         items = [
             _item_data(
                 self.template.pk,
@@ -502,22 +505,33 @@ class PurchaseCreateFromSessionTest(TestCase):
             officer=self.officer_user,
         )
 
-        # Movement line created
-        self.assertEqual(op.movement_lines.count(), 1)
-        ml = op.movement_lines.first()
-        self.assertEqual(ml.quantity, Decimal("10.00"))
-        self.assertEqual(ml.officer, self.officer_user)
+        # One movement line per head
+        self.assertEqual(op.movement_lines.count(), 10)
+        self.assertTrue(
+            all(ml.quantity == Decimal("1.00") for ml in op.movement_lines.all())
+        )
+        self.assertTrue(
+            all(ml.officer == self.officer_user for ml in op.movement_lines.all())
+        )
 
-        # Product was lazy-created by the movement line save
-        self.assertIsNotNone(ml.product)
-        self.assertEqual(ml.product.product_template, self.template)
+        # Each line lazy-created its own tagged Product (one per animal)
+        products = list(
+            Product.objects.filter(product_template=self.template)
+            .order_by("unique_id")
+            .all()
+        )
+        self.assertEqual(len(products), 10)
+        self.assertTrue(all(p.quantity == 1 for p in products))
+        tags = [p.unique_id for p in products]
+        self.assertTrue(all(tags), "Every individually tracked animal has a tag")
+        self.assertEqual(len(set(tags)), len(tags), "Tags must be unique")
 
-        # Invoice item linked to the movement line
+        # Invoice item linked to the movement lines
         invoice_item = op.items.first()
-        self.assertEqual(ml.invoice_item, invoice_item)
+        self.assertEqual(op.movement_lines.first().invoice_item, invoice_item)
 
     def test_create_from_session_partial_received_qty(self):
-        """Partial receipt creates a movement line only for the received quantity."""
+        """Partial receipt creates one movement line per received head."""
         items = [
             _item_data(
                 self.template.pk,
@@ -538,8 +552,10 @@ class PurchaseCreateFromSessionTest(TestCase):
             officer=self.officer_user,
         )
 
-        self.assertEqual(op.movement_lines.count(), 1)
-        self.assertEqual(op.movement_lines.first().quantity, Decimal("4.00"))
+        self.assertEqual(op.movement_lines.count(), 4)
+        self.assertTrue(
+            all(ml.quantity == Decimal("1.00") for ml in op.movement_lines.all())
+        )
 
     # ------------------------------------------------------------------
     # Happy path — with initial payment
@@ -660,9 +676,11 @@ class PurchaseCreateFromSessionTest(TestCase):
         # Invoice items
         self.assertEqual(op.items.count(), 1)
 
-        # Movement lines
-        self.assertEqual(op.movement_lines.count(), 1)
-        self.assertEqual(op.movement_lines.first().quantity, Decimal("15.00"))
+        # Movement lines — one per received head (INDIVIDUAL)
+        self.assertEqual(op.movement_lines.count(), 15)
+        self.assertTrue(
+            all(ml.quantity == Decimal("1.00") for ml in op.movement_lines.all())
+        )
 
         # Transactions: 1 issuance + 1 payment = 2
         self.assertEqual(op.get_all_transactions().count(), 2)

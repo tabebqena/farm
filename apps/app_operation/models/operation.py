@@ -117,6 +117,35 @@ class Operation(
     is_items_adjustable = False
 
     # ------------------------------------------------------------------
+    # Inventory ownership helpers
+    # ------------------------------------------------------------------
+
+    @property
+    def inventory_owner_entity(self):
+        """
+        The entity whose physical inventory is consumed by this operation's
+        movements — used to filter and validate stock selection.
+
+        Returns None for inbound (PURCHASE/BIRTH) and non-inventory operations.
+        """
+        from .operation_type import OperationType
+
+        if self.operation_type == OperationType.SALE:
+            # The selling project is the destination (source is the client).
+            return self.destination
+        if self.operation_type in (
+            OperationType.DEATH,
+            OperationType.CONSUMPTION,
+            OperationType.CAPITAL_LOSS,
+        ):
+            # The project whose assets are written off is the source.
+            return self.source
+        if self.operation_type == OperationType.CAPITAL_GAIN:
+            # The project whose assets gain value is the destination.
+            return self.destination
+        return None
+
+    # ------------------------------------------------------------------
     # Eligibility helpers
     # ------------------------------------------------------------------
 
@@ -374,6 +403,11 @@ class Operation(
                 formset_kwargs = {"data": raw_post, "instance": op}
                 if cls.creates_assets:
                     formset_kwargs["project"] = project
+                else:
+                    # Select-mode operations (SALE/DEATH/CONSUMPTION/CAPITAL):
+                    # restrict product selection to the owning entity so stock
+                    # from another project cannot be moved/written off.
+                    formset_kwargs["entity"] = op.inventory_owner_entity
 
                 bound_formset = formset_cls(**formset_kwargs)
                 bound_formset.is_valid()  # already validated earlier — this is a rebind
@@ -484,20 +518,11 @@ class Operation(
                 )
         # Only block NEW, non-reversal operations from landing in a closed period.
         if not self.pk and not getattr(self, "reversal_of_id", None):
-            from .period import FinancialPeriod
+            from .period import is_date_in_closed_period
 
             # Check both source and destination entities.
             for entity in [self.source, self.destination]:
-                if not entity:
-                    continue
-                closed = FinancialPeriod.objects.filter(
-                    entity=entity,
-                    end_date__isnull=False,
-                    end_date__lt=today_date.today(),  # truly closed: end_date in the past
-                    start_date__lte=self.date,
-                    end_date__gt=self.date,  # half-open interval: date < end_date
-                )
-                if closed.exists():
+                if entity and is_date_in_closed_period(entity, self.date):
                     DebugContext.error(
                         "Cannot create operation in closed period",
                         data={
@@ -774,6 +799,8 @@ class Operation(
 
         Products are created lazily at movement time, not at contract time.
         """
+        from django.utils.translation import gettext as _
+
         from apps.app_inventory.models import ProductLedgerEntry
 
         product_map: dict[int, object] = {}
@@ -801,6 +828,18 @@ class Operation(
                 if selected:
                     is_reversal = getattr(self, "reversal_of_id", None) is not None
                     selected.validate_active(allow_reversal=is_reversal)
+                    # Ownership guard: the selected product must belong to the
+                    # entity whose inventory this operation consumes.
+                    owner = self.inventory_owner_entity
+                    if not is_reversal and owner is not None:
+                        if selected.entity_id != owner.id:
+                            raise ValidationError(
+                                _(
+                                    "Product '%(p)s' does not belong to '%(entity)s' "
+                                    "and cannot be used in this operation."
+                                )
+                                % {"p": selected, "entity": owner}
+                            )
                     selected.invoice_items.add(item)
                     product_map[item.pk] = selected
 
@@ -815,44 +854,81 @@ class Operation(
         BIRTH:       System entity → Project entity  (product created lazily)
         DEATH:       Project entity → System entity  (product must already exist)
         CONSUMPTION: Project entity → System entity  (product must already exist)
+
+        Every line is validated (``full_clean``) before save so the ownership
+        and availability guards also apply to these auto-created movements.
         """
         import uuid
+        from decimal import Decimal
 
-        from apps.app_inventory.models import InventoryMovementLine
+        from apps.app_inventory.models import (
+            InventoryMovementLine,
+            Product,
+            ProductTemplate,
+        )
 
         group_key = uuid.uuid4().hex[:8]
+
+        # Concurrency: lock the selected products for the duration of this
+        # transaction so concurrent DEATH/CONSUMPTION on the same stock cannot
+        # both pass the availability check (SELECT ... FOR UPDATE; no-op on
+        # SQLite).
+        if self.operation_type in (OperationType.DEATH, OperationType.CONSUMPTION):
+            selected_ids = [
+                form.cleaned_data.get("selected_product").pk
+                for form in bound_formset.forms
+                if form.instance.pk and form.cleaned_data.get("selected_product")
+            ]
+            Product.lock_ids(selected_ids)
 
         for form in bound_formset.forms:
             item = form.instance
             if not item.pk:
                 continue
 
-            if self.operation_type == OperationType.BIRTH:
-                InventoryMovementLine.objects.create(
-                    operation=self,
-                    invoice_item=item,
-                    quantity=item.quantity,
-                    date=self.date,
-                    officer=self.officer,
-                    group_key=group_key,
-                    # product=None → created lazily by InventoryMovementLine.save()
-                )
+            kwargs = dict(
+                operation=self,
+                invoice_item=item,
+                quantity=item.quantity,
+                date=self.date,
+                officer=self.officer,
+                group_key=group_key,
+            )
 
+            if self.operation_type == OperationType.BIRTH:
+                if (
+                    item.product_template.tracking_mode
+                    == ProductTemplate.TrackingMode.INDIVIDUAL
+                ):
+                    # One line per head — each lazy-creates its own tagged
+                    # Product (e.g. 5 calves → 5 movement lines, 5 products).
+                    for head_idx in range(int(item.quantity)):
+                        line = InventoryMovementLine(
+                            operation=self,
+                            invoice_item=item,
+                            quantity=Decimal("1"),
+                            date=self.date,
+                            officer=self.officer,
+                            group_key=group_key,
+                        )
+                        line.full_clean()
+                        line.save()
+                    continue
+                # COMMODITY: product=None → created lazily by save()
+                line = InventoryMovementLine(**kwargs)
             elif self.operation_type in (
                 OperationType.DEATH,
                 OperationType.CONSUMPTION,
             ):
                 selected = form.cleaned_data.get("selected_product")
-                if selected:
-                    InventoryMovementLine.objects.create(
-                        operation=self,
-                        invoice_item=item,
-                        product=selected,
-                        quantity=item.quantity,
-                        date=self.date,
-                        officer=self.officer,
-                        group_key=group_key,
-                    )
+                if not selected:
+                    continue
+                line = InventoryMovementLine(product=selected, **kwargs)
+            else:
+                continue
+
+            line.full_clean()
+            line.save()
 
     def delete(self, *args, **kwargs):
         """Delete operation with audit logging."""
@@ -891,6 +967,8 @@ class Operation(
         """Reverse an operation with full audit trail."""
         import uuid
 
+        from django.utils.translation import gettext as _
+
         txn_id = f"reverse_op_{self.pk}_{uuid.uuid4().hex[:8]}"
         DebugContext.transaction_start(
             txn_id,
@@ -903,6 +981,45 @@ class Operation(
         )
 
         try:
+            # Reversal dependency guard: do not reverse an outbound operation
+            # (DEATH/CONSUMPTION/SALE) whose products were moved again in a
+            # later non-reversed operation — the reversal would resurrect
+            # stock that has since been consumed/sold/written off.
+            if type(self).has_invoice and self.operation_type in (
+                OperationType.DEATH,
+                OperationType.CONSUMPTION,
+                OperationType.SALE,
+            ):
+                from apps.app_inventory.models import InventoryMovementLine
+
+                product_ids = list(
+                    self.movement_lines.filter(reversal_of__isnull=True).values_list(
+                        "product_id", flat=True
+                    )
+                )
+                if product_ids:
+                    downstream = (
+                        InventoryMovementLine.objects.filter(
+                            product_id__in=product_ids,
+                            reversal_of__isnull=True,
+                        )
+                        .exclude(operation=self)
+                        .filter(
+                            operation__operation_type__in=[
+                                OperationType.SALE,
+                                OperationType.DEATH,
+                                OperationType.CONSUMPTION,
+                            ]
+                        )
+                    )
+                    if downstream.exists():
+                        raise ValidationError(
+                            _(
+                                "Cannot reverse this operation: its products were "
+                                "moved again in a later operation."
+                            )
+                        )
+
             reversal = super().reverse(officer=officer, date=date, reason=reason)
 
             if type(self).has_invoice:

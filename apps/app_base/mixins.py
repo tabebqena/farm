@@ -360,34 +360,54 @@ class LinkedPaymentTransactionMixin(
     ):
         from apps.app_transaction.models import Transaction
 
-        if self.check_balance_on_payment:
-            fund = self.payment_source_fund
-            if not fund.can_pay(amount):
-                raise ValidationError(
-                    _(
-                        "Insufficient funds: fund balance (%(balance)s) is less than the payment amount (%(amount)s)."
-                    )
-                    % {"balance": fund.balance, "amount": amount}
-                )
-
-        if self._is_one_shot_operation:
-            existing = self.get_all_transactions().filter(
-                type=self._payment_transaction_type
-            )
-            if existing.exists():
-                raise ValidationError(
-                    _("One-shot operations can only have a single payment transaction.")
-                )
-            if amount != self.amount:
-                raise ValidationError(
-                    _(
-                        "Payment amount %(amount)s must match the operation amount %(op_amount)s."
-                    )
-                    % {"amount": amount, "op_amount": self.amount}
-                )
-
-        self.validate_settlement_amount(amount)
+        # The whole method runs inside one transaction so the balance check and
+        # the payment insert are atomic, and the payer fund row can be locked
+        # (SELECT ... FOR UPDATE) to stop concurrent payments both passing the
+        # balance check. No-op on backends without row locking (e.g. SQLite).
         with db_transaction.atomic():
+            # Reject payments dated inside a closed financial period of the
+            # operation's governing entity.
+            from apps.app_operation.models.period import is_date_in_closed_period
+
+            period_entity = getattr(self, "period_entity", None)
+            if period_entity and is_date_in_closed_period(period_entity, date):
+                raise ValidationError(
+                    _(
+                        "Cannot record a payment dated within a closed financial period."
+                    )
+                )
+
+            if self.check_balance_on_payment:
+                fund_model = self.payment_source_fund.__class__
+                fund_pk = self.payment_source_fund.pk
+                fund = fund_model.objects.select_for_update().get(pk=fund_pk)
+                if not fund.can_pay(amount):
+                    raise ValidationError(
+                        _(
+                            "Insufficient funds: fund balance (%(balance)s) is less than the payment amount (%(amount)s)."
+                        )
+                        % {"balance": fund.balance, "amount": amount}
+                    )
+
+            if self._is_one_shot_operation:
+                existing = self.get_all_transactions().filter(
+                    type=self._payment_transaction_type
+                )
+                if existing.exists():
+                    raise ValidationError(
+                        _(
+                            "One-shot operations can only have a single payment transaction."
+                        )
+                    )
+                if amount != self.amount:
+                    raise ValidationError(
+                        _(
+                            "Payment amount %(amount)s must match the operation amount %(op_amount)s."
+                        )
+                        % {"amount": amount, "op_amount": self.amount}
+                    )
+
+            self.validate_settlement_amount(amount)
             return Transaction.create(
                 source=self.payment_source_fund,
                 target=self.payment_target_fund,
@@ -512,6 +532,17 @@ class LinkedRePaymentTransactionMixin(
         self.validate_repayement_amount(amount)
 
         with db_transaction.atomic():
+            # Reject repayments dated inside a closed financial period of the
+            # operation's governing entity.
+            from apps.app_operation.models.period import is_date_in_closed_period
+
+            period_entity = getattr(self, "period_entity", None)
+            if period_entity and is_date_in_closed_period(period_entity, date):
+                raise ValidationError(
+                    _(
+                        "Cannot record a repayment dated within a closed financial period."
+                    )
+                )
             return Transaction.create(
                 source=self.payment_target_fund,
                 target=self.payment_source_fund,

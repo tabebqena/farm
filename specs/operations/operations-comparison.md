@@ -76,6 +76,27 @@ Rows = operations. Columns = actions. **E** = applicable/enforced, **E@create** 
 
 ---
 
+## Cross-cutting inventory guards (enforced on all inventory operations)
+
+Implemented in the 2026-08 inventory-integrity pass (see [`ai-plans/inventory-integrity-fixes-plan.md`](../ai-plans/inventory-integrity-fixes-plan.md)). Applies to the `move items` / auto `move items` actions of Purchase, Sale, Birth, Death, Consumption (and product selection for Capital Gain/Loss).
+
+| Guard | Enforced where | Behavior |
+|-------|----------------|----------|
+| **Ownership / location** | `InvoiceItemSelectForm` + `InventoryMovementLine.clean` + `Operation.save_inventory` | Outbound moves (SALE/DEATH/CONSUMPTION) reject a product not owned by the affected project; select forms filter to the owning entity. |
+| **Availability** | `InventoryMovementLine.clean` + auto-create path | Outbound moves cannot exceed the product's physically-present on-hand (ledger `state_as_of`). SALE products created at sale time (never received) are exempt. |
+| **Unit consistency** | `InventoryMovementLine.clean` + `InvoiceItem.clean` | Quantity must be a positive multiple of `product_template.minimum_quantity` (1 for Head, 0.01 for Kg). |
+| **Positive quantity** | model validators (`MinValueValidator(0.01)`, `AmountCleanMixin`) | Quantity/amounts must be > 0. |
+| **Status eligibility** | `Product.validate_active` | SOLD/DEAD/CONSUMED products are blocked from new operations; obligated-only products blocked from downstream ops unless `allow_obligated`. |
+| **Product–operation compatibility** | `InvoiceItem.clean` / `Product.clean` via `accepts_operation` | Nature↔operation matrix (ANIMAL can't be consumed; FEED/MEDICINE can't be born/died). |
+| **Closed period** | payment/repayment mixins + movement & adjustment views | Payments, repayments, movements and adjustments whose date falls inside a closed financial period are rejected. |
+| **Concurrency** | `Product.lock_ids` / `select_for_update` | Product rows and payer funds are locked during availability/balance checks (no-op on SQLite). |
+| **Lifecycle on reversal** | `Product.status` | Reversing a Death/Sale/Consumption restores the product to ACTIVE (reversal-aware status). |
+| **Reversal dependency** | `Operation.reverse` | Reversing an outbound op is blocked if its products were moved again in a later non-reversed outbound operation. |
+| **Identity (Birth)** | form + `UniqueConstraint(entity, unique_id)` | INDIVIDUAL tracking requires a unique tag per entity. |
+| **Valuation** | `valuation_unit_cost()` | Outbound movements are valued at the product's carried cost (purchase price). Other methods (moving average/FIFO) may be added later. |
+
+These guards are omitted from each per-operation action below for brevity; treat the rows below as **financial-behavior** summaries.
+
 ## Operation reference
 
 | # | Code | Operation | Proxy class | Spec |
@@ -202,10 +223,10 @@ Actions: create, reverse, adjust, move items, adjust items, pay.
 Actions: create, reverse, adjust, move items, adjust items, pay.
 - **create** — *Valid:* source=active client; dest=project; balance ✗ (issuance unguarded); not one-shot. *Effects:* `SALE_ISSUANCE` (non-cash receivable); no payment at save; ✓ issuance ledger entry; status SOLD.
 - **pay** (the **collection**) — *Valid:* balance E per collection; amount>0 & ≤ remaining; partial E; over-payment guard. *Effects:* `SALE_COLLECTION`; ▼client → ▲project; amount_settled ↑.
-- **move items** — *Valid:* not reversed; qty ≤ item remaining qty; product allowed (active/obligated); officer staff + active; template compatible. *Effects:* `SALE_MOVEMENT` ledger; status SOLD; remaining qty ↓.
+- **move items** — *Valid:* not reversed; qty ≤ item remaining qty; product allowed (active/obligated); officer staff + active; template compatible; ownership (belongs to selling project); availability (≤ on-hand for received stock); unit multiple. *Effects:* `SALE_MOVEMENT` ledger (carried cost); status SOLD; remaining qty ↓.
 - **adjust items** — *Valid:* not reversed; ≥1 item changed; new qty/price parse; new qty ≥ already moved; finalize checks. *Effects:* ItemAdj + lines; adjusted qty/price; accounting Adjustment + tx; ledger `*_ADJUSTMENT` entries.
 - **adjust** — *Valid:* can_adjust; not reversed; type allowed for op; amount>0; officer staff + active; reduction can't drive below zero. *Effects:* `SALE_ADJUSTMENT_INCREASE` / `SALE_ADJUSTMENT_DECREASE` (non-cash); effective_amount delta.
-- **reverse** — *Valid:* blocked if collections; blocked if user movements; blocked if adjustments. *Effects:* reversal record; counter-tx for issuance only; negated ledger.
+- **reverse** — *Valid:* blocked if collections; blocked if user movements; blocked if adjustments; reversal dependency guard. *Effects:* reversal record; counter-tx for issuance only; negated ledger; product status restored to ACTIVE.
 
 ### 15. Correction Credit (CC) — [`CorrectionCreditOperation`](../../apps/app_operation/models/proxies/op_correction_credit.py) — [op_15](op_15_correction.md)
 
@@ -222,21 +243,21 @@ Actions: create, reverse.
 ### 17. Birth (BI) — [`BirthOperation`](../../apps/app_operation/models/proxies/op_birth.py) — [op_17](op_17_birth.md) — Inventory/Livestock
 
 Actions: create, move items (auto), reverse.
-- **create** — *Valid:* source=system; dest=project (E, `clean_source`/`clean_destination`); balance ✗ (system exempt); one-shot auto-settled. *Effects:* `BIRTH_ISSUANCE` + `BIRTH_PAYMENT`; immediately settled; ▼system → ▲project assets; issuance + auto movement; status ACTIVE (new asset).
-- **move items** (auto) — *Valid:* qty ≤ remaining. *Effects:* `BIRTH_MOVEMENT` ledger (auto inbound); lazy product creation; status ACTIVE.
+- **create** — *Valid:* source=system; dest=project (E, `clean_source`/`clean_destination`); balance ✗ (system exempt); one-shot auto-settled; identity (INDIVIDUAL tracking requires a unique tag). *Effects:* `BIRTH_ISSUANCE` + `BIRTH_PAYMENT`; immediately settled; ▼system → ▲project assets; issuance + auto movement; status ACTIVE (new asset).
+- **move items** (auto) — *Valid:* qty ≤ remaining; unit multiple. *Effects:* `BIRTH_MOVEMENT` ledger (auto inbound, new-asset cost); lazy product creation; status ACTIVE.
 - **reverse** — *Valid:* (constants). *Effects:* reversal record; counter-tx for issuance + payment; negated ledger; auto lines reversed.
 
 ### 18. Death (DE) — [`DeathOperation`](../../apps/app_operation/models/proxies/op_death.py) — [op_18](op_18_death.md) — Inventory/Livestock
 
 Actions: create, move items (auto), reverse.
-- **create** — *Valid:* source=project; dest=system; balance ✗ (no-balance write-off); one-shot auto-settled. *Effects:* `DEATH_ISSUANCE` + `DEATH_PAYMENT`; immediately settled; ▼project assets → ▲system; issuance + auto movement; status DEAD.
-- **move items** (auto) — *Valid:* qty ≤ remaining. *Effects:* `DEATH_MOVEMENT` ledger (auto outbound); status DEAD.
-- **reverse** — *Valid:* (constants). *Effects:* reversal record; counter-tx for issuance + payment; negated ledger; auto lines reversed.
+- **create** — *Valid:* source=project; dest=system; balance ✗ (no-balance write-off); one-shot auto-settled; availability (≤ on-hand); ownership (product belongs to source project). *Effects:* `DEATH_ISSUANCE` + `DEATH_PAYMENT`; immediately settled; ▼project assets → ▲system; issuance + auto movement; status DEAD.
+- **move items** (auto) — *Valid:* qty ≤ remaining; availability (≤ on-hand); ownership; unit multiple. *Effects:* `DEATH_MOVEMENT` ledger (auto outbound, carried cost); status DEAD.
+- **reverse** — *Valid:* (constants); reversal dependency guard. *Effects:* reversal record; counter-tx for issuance + payment; negated ledger; auto lines reversed; product status restored to ACTIVE.
 
 ### 19. Consumption (CO) — [`ConsumptionOperation`](../../apps/app_operation/models/proxies/op_consumption.py) — [op_19](op_19_consumption.md) — Inventory/Livestock
 
 Actions: create, reverse.
-- **create** — *Valid:* source=project; dest=system; balance ✗ (no-balance write-off); one-shot auto-settled. *Effects:* `CONSUMPTION_ISSUANCE` + `CONSUMPTION_PAYMENT`; immediately settled; ▼project → ▲system; issuance + auto movement lines; status CONSUMED.
-- **reverse** — *Valid:* (constants). *Effects:* reversal record; counter-tx for issuance + payment; negated ledger; auto lines reversed.
+- **create** — *Valid:* source=project; dest=system; balance ✗ (no-balance write-off); one-shot auto-settled; availability (≤ on-hand); ownership (product belongs to source project). *Effects:* `CONSUMPTION_ISSUANCE` + `CONSUMPTION_PAYMENT`; immediately settled; **non-cash (payment is not a payment type — fund balance unchanged)**; `CONSUMPTION_ISSUANCE` counted as **COGS** in [`Entity.profit_loss()`](../../apps/app_entity/models/__init__.py) (reduces the project's P&L); issuance + auto movement lines; status CONSUMED.
+- **reverse** — *Valid:* (constants); reversal dependency guard. *Effects:* reversal record; counter-tx for issuance + payment; negated ledger; auto lines reversed; product status restored to ACTIVE; **COGS negated (P&L restored); fund balance unchanged**.
 
 ---

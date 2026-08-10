@@ -204,6 +204,142 @@ def stock_detail(request, entity_pk):
     )
 
 
+@debug_view
+def quick_consume(request, entity_pk):
+    """
+    One-step "Consume from stock" — from the stock detail page, pick a
+    product and a quantity, and a single POST creates the ConsumptionOperation,
+    its invoice item, the auto movement line, and all ledger/transaction
+    entries in one step.
+
+    Reuses ``ConsumptionOperation.create(...)`` unchanged — the same proven
+    pipeline used by the full consumption form (issuance + payment
+    transactions, ``CONSUMPTION_MOVEMENT`` ledger, product ``CONSUMED``).
+    Availability / ownership / unit guards are re-checked here for a friendly
+    message and again at the model layer (``InventoryMovementLine.clean()``).
+    """
+    from decimal import Decimal
+
+    from apps.app_entity.models import Entity, EntityType
+    from apps.app_inventory.models import Product, ProductLedgerEntry
+    from apps.app_operation.models.operation_type import OperationType
+    from apps.app_operation.models.proxies import ConsumptionOperation
+
+    if not request.user.is_staff:
+        messages.error(request, _("You must be an officer to consume from stock."))
+        return redirect("stock_detail", entity_pk=entity_pk)
+
+    entity = get_object_or_404(
+        Entity, pk=entity_pk, error_message="Entity not found or has been deleted."
+    )
+
+    if request.method != "POST":
+        return redirect("stock_detail", entity_pk=entity_pk)
+
+    product = get_object_or_404(
+        Product.objects.select_related("product_template"),
+        pk=request.POST.get("product_id"),
+        error_message="Product not found or has been deleted.",
+    )
+
+    # Ownership guard: the product must belong to this entity's stock.
+    if product.entity_id != entity.id:
+        messages.error(request, _("Product does not belong to this stock."))
+        return redirect("stock_detail", entity_pk=entity_pk)
+
+    # Nature guard: only FEED / MEDICINE templates accept consumption.
+    if not product.product_template.accepts_operation(OperationType.CONSUMPTION):
+        messages.error(
+            request,
+            _("'%(name)s' cannot be consumed.") % {"name": product.product_template.name},
+        )
+        return redirect("stock_detail", entity_pk=entity_pk)
+
+    try:
+        quantity = Decimal(request.POST.get("quantity", ""))
+        unit_price = Decimal(request.POST.get("unit_price", ""))
+    except Exception:
+        messages.error(request, _("Invalid quantity or unit price."))
+        return redirect("stock_detail", entity_pk=entity_pk)
+
+    date_str = request.POST.get("date", "").strip()
+    date = parse_date(date_str) if date_str else today_date.today()
+    if date is None:
+        messages.error(request, _("Invalid date format."))
+        return redirect("stock_detail", entity_pk=entity_pk)
+
+    description = request.POST.get("description", "").strip()
+    if not description:
+        description = _("Consumption from stock")
+
+    if quantity <= 0:
+        messages.error(request, _("Quantity must be greater than zero."))
+        return redirect("stock_detail", entity_pk=entity_pk)
+
+    # Availability guard: cannot consume more than physically on hand.
+    available = ProductLedgerEntry.state_as_of(product, date)["quantity"]
+    if quantity > available:
+        messages.error(
+            request,
+            _("Insufficient stock: %(qty)s requested but only %(avail)s available.")
+            % {"qty": quantity, "avail": available},
+        )
+        return redirect("stock_detail", entity_pk=entity_pk)
+
+    # Unit consistency guard: quantity is a multiple of minimum_quantity.
+    min_qty = product.product_template.minimum_quantity
+    if min_qty and min_qty > 0 and (quantity % min_qty) != 0:
+        messages.error(
+            request,
+            _("Quantity %(qty)s must be a multiple of the minimum increment %(min)s.")
+            % {"qty": quantity, "min": min_qty},
+        )
+        return redirect("stock_detail", entity_pk=entity_pk)
+
+    # System entity — the destination of a consumption write-off.
+    system_entity = Entity.objects.filter(entity_type=EntityType.SYSTEM).first()
+    if system_entity is None:
+        system_entity = Entity.create(EntityType.SYSTEM)
+
+    # Build a single-item formset POST and delegate to the proven factory.
+    raw_post = {
+        "items-TOTAL_FORMS": "1",
+        "items-INITIAL_FORMS": "0",
+        "items-MIN_NUM_FORMS": "0",
+        "items-MAX_NUM_FORMS": "1000",
+        "items-0-id": "",
+        "items-0-quantity": str(quantity),
+        "items-0-unit_price": str(unit_price),
+        "items-0-description": description,
+        "items-0-selected_product": str(product.pk),
+        "items-0-DELETE": "",
+    }
+
+    try:
+        with db_transaction.atomic():
+            op = ConsumptionOperation.create(
+                operation_type=OperationType.CONSUMPTION,
+                source=entity,
+                destination=system_entity,
+                amount=(quantity * unit_price).quantize(Decimal("0.01")),
+                date=date,
+                description=description,
+                officer=request.user,
+                amount_paid=Decimal("0.00"),
+                raw_post=raw_post,
+                project=entity,
+            )
+        messages.success(
+            request,
+            _("%(label)s recorded successfully.") % {"label": ConsumptionOperation.label},
+        )
+        return redirect("stock_detail", entity_pk=entity_pk)
+    except Exception as e:
+        traceback.print_exc()
+        messages.error(request, _("Error: %(error)s") % {"error": str(e)})
+        return redirect("stock_detail", entity_pk=entity_pk)
+
+
 def product_detail(request, pk):
     from decimal import Decimal
 
@@ -343,19 +479,22 @@ def create_product_template(request):
         name = request.POST.get("name", "").strip()
         nature = request.POST.get("nature")
         default_unit = request.POST.get("default_unit", "").strip()
-        tracking_mode = request.POST.get("tracking_mode")
         has_tag = request.POST.get("has_tag") == "on"
         sub_category = request.POST.get("sub_category", "").strip()
+        tag_prefix = request.POST.get("tag_prefix", "").strip()
 
         try:
             with db_transaction.atomic():
+                # Tracking mode is derived from nature — ANIMAL → INDIVIDUAL,
+                # everything else → COMMODITY (there is no free choice).
                 template = ProductTemplate.objects.create(
                     name=name,
                     nature=nature,
                     default_unit=default_unit,
-                    tracking_mode=tracking_mode,
+                    tracking_mode=ProductTemplate.tracking_mode_for_nature(nature),
                     sub_category=sub_category,
                     has_tag=has_tag,
+                    tag_prefix=tag_prefix,
                 )
                 messages.success(
                     request,
@@ -397,6 +536,9 @@ def create_inventory_movement(request, operation_pk):
         pk=operation_pk,
         error_message="Operation not found or has been deleted.",
     )
+    # Cast so proxy attributes (e.g. period_entity for the closed-period
+    # guard) are resolved from the concrete operation type.
+    operation = Operation.objects.cast(operation)
 
     if not operation.can_create_movement:
         messages.error(
@@ -416,7 +558,26 @@ def create_inventory_movement(request, operation_pk):
             if not date:
                 raise ValueError(_("Invalid date format."))
 
+            # Reject movements dated inside a closed financial period of the
+            # operation's governing entity.
+            from apps.app_operation.models.period import is_date_in_closed_period
+
+            if is_date_in_closed_period(operation.period_entity, date):
+                raise ValidationError(
+                    _(
+                        "Cannot record a movement dated within a closed financial period."
+                    )
+                )
+
             with db_transaction.atomic():
+                # Concurrency: lock the operation's products so concurrent
+                # movements on the same stock serialize against the
+                # availability check (SELECT ... FOR UPDATE; no-op on SQLite).
+                Product.lock_ids(
+                    Product.objects.filter(
+                        invoice_items__operation=operation
+                    ).values_list("pk", flat=True)
+                )
                 formset = InventoryMovementLineFormSet(
                     request.POST,
                     queryset=InventoryMovementLine.objects.none(),
@@ -437,6 +598,17 @@ def create_inventory_movement(request, operation_pk):
                                 raise ValidationError(
                                     _("Invoice item %(pk)s has no linked product.")
                                     % {"pk": line.invoice_item.pk}
+                                )
+                            # Ownership guard (clearer message before model-level
+                            # full_clean catches the same case below).
+                            owner = operation.inventory_owner_entity
+                            if owner is not None and first_product.entity_id != owner.id:
+                                raise ValidationError(
+                                    _(
+                                        "Product '%(p)s' does not belong to '%(entity)s' "
+                                        "and cannot be moved out of it."
+                                    )
+                                    % {"p": first_product, "entity": owner}
                                 )
                             line.product = first_product
                         line.full_clean()
@@ -662,29 +834,53 @@ def register_deferred_movements(request, operation_pk):
 
             try:
                 with db_transaction.atomic():
+                    # Concurrency: lock the item's products before the
+                    # availability/remaining checks and line inserts.
+                    Product.lock_ids(
+                        invoice_item.products.values_list("pk", flat=True)
+                    )
                     if (
                         template.tracking_mode
                         == ProductTemplate.TrackingMode.INDIVIDUAL
                     ):
-                        # One line per product
-                        for product in products:
-                            if created_count >= int(qty_to_move):
-                                break
-                            if product.deleted_at:
-                                continue
-                            InventoryMovementLine.objects.create(
-                                operation=operation,
-                                invoice_item=invoice_item,
-                                product=product,
-                                quantity=Decimal("1.00"),
-                                date=operation.date,
-                                officer=request.user,
-                                notes=notes,
-                                group_key=group_key,
-                            )
-                            created_count += 1
+                        if products:
+                            # One line per existing product
+                            for product in products:
+                                if created_count >= int(qty_to_move):
+                                    break
+                                if product.deleted_at:
+                                    continue
+                                InventoryMovementLine.objects.create(
+                                    operation=operation,
+                                    invoice_item=invoice_item,
+                                    product=product,
+                                    quantity=Decimal("1.00"),
+                                    date=operation.date,
+                                    officer=request.user,
+                                    notes=notes,
+                                    group_key=group_key,
+                                )
+                                created_count += 1
+                        else:
+                            # No products materialised yet (deferred receipt
+                            # of an ordered purchase) — create one line per
+                            # head; each line lazy-creates its own tagged
+                            # Product (INDIVIDUAL).
+                            for head_idx in range(max(int(qty_to_move), 1)):
+                                line = InventoryMovementLine(
+                                    operation=operation,
+                                    invoice_item=invoice_item,
+                                    product=None,  # lazy-created by save()
+                                    quantity=Decimal("1.00"),
+                                    date=operation.date,
+                                    officer=request.user,
+                                    notes=notes,
+                                    group_key=group_key,
+                                )
+                                line.save()
+                                created_count += 1
                     else:
-                        # BATCH / COMMODITY: single line with full qty
+                        # COMMODITY: single line with full qty
                         product = products[0] if products else None
                         # If no product exists yet, product=None is fine —
                         # InventoryMovementLine.save() will lazy-create one

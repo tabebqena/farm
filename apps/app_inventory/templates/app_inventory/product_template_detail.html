@@ -52,6 +52,13 @@
               </dt>
               <dd>{{ template.get_tracking_mode_display }}</dd>
 
+              {% if template.nature == 'ANIMAL' %}
+                <dt class="text-muted small">
+                  {% trans 'Tag Prefix' %}
+                </dt>
+                <dd>{{ template.tag_prefix|default:template.effective_tag_prefix }}</dd>
+              {% endif %}
+
               <dt class="text-muted small">
                 {% trans 'Requires Individual Tag' %}
               </dt>

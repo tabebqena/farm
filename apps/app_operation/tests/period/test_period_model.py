@@ -1,12 +1,20 @@
 """Consolidated FinancialPeriod model tests."""
 
 from datetime import date, timedelta
+from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from apps.app_entity.models import Entity, EntityType
+from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
+from apps.app_inventory.tests.general import make_entity, make_operation
+from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.period import FinancialPeriod
+from apps.app_operation.models.proxies import (
+    ConsumptionOperation,
+    DeathOperation,
+    PurchaseOperation,
+)
 
 # Module-level helpers
 
@@ -29,6 +37,15 @@ def _make_world() -> Entity:
 def _make_system() -> Entity:
     """Create a SYSTEM entity."""
     return Entity.create(EntityType.SYSTEM, name="System")
+
+
+def _make_user(username="officer"):
+    """Create a staff user to act as an operation officer."""
+    from django.contrib.auth import get_user_model
+
+    return get_user_model().objects.create_user(
+        username=username, password="testpass", is_staff=True
+    )
 
 
 def _close_period(
@@ -229,3 +246,118 @@ class PeriodValidationTest(TestCase):
 
 class PeriodIsClosedTest(TestCase):
     """is_closed property boundary conditions."""
+
+
+class RemainingInventoryValueTest(TestCase):
+    """
+    ``remaining_inventory_value`` must subtract CONSUMPTION and DEATH in
+    addition to SALE, so ``end_assets`` does not overstate stock that was used
+    up or written off (feed consumed, livestock died). Valuation stays at the
+    purchase (carried) cost — per the project decision.
+    """
+
+    def setUp(self):
+        self.project = _make_project("Farm")
+        self.system = _make_system()
+        self.officer = _make_user()
+        # A vendor + Stakeholder relation is required by PurchaseOperation.
+        self.vendor = make_entity(EntityType.PERSON, "Vendor", is_vendor=True)
+        Stakeholder.objects.create(
+            parent=self.project,
+            target=self.vendor,
+            active=True,
+            role=StakeholderRole.VENDOR,
+        )
+        self.period = self.project.financial_periods.first()
+        # Close with a *future* end_date so new operations dated today remain
+        # allowed (a period is only "truly closed" once end_date < today).
+        self.end_date = date.today() + timedelta(days=1)
+        self.period.close(self.end_date)
+
+    def _op(self, proxy_class, operation_type, source, destination, amount):
+        return make_operation(
+            source,
+            destination,
+            self.officer,
+            proxy_class=proxy_class,
+            operation_type=operation_type,
+            amount=amount,
+        )
+
+    def _purchase(self, amount):
+        return self._op(
+            PurchaseOperation, OperationType.PURCHASE, self.project, self.vendor, amount
+        )
+
+    def _consume(self, amount):
+        return self._op(
+            ConsumptionOperation,
+            OperationType.CONSUMPTION,
+            self.project,
+            self.system,
+            amount,
+        )
+
+    def test_consumption_reduces_remaining_inventory_value(self):
+        self._purchase(Decimal("10000.00"))
+        self._consume(Decimal("3000.00"))
+        self.period.refresh_from_db()
+        self.assertEqual(self.period.remaining_inventory_value, Decimal("7000.00"))
+
+    def test_death_reduces_remaining_inventory_value(self):
+        self._purchase(Decimal("10000.00"))
+        self._op(
+            DeathOperation, OperationType.DEATH, self.project, self.system,
+            Decimal("2000.00"),
+        )
+        self.period.refresh_from_db()
+        self.assertEqual(self.period.remaining_inventory_value, Decimal("8000.00"))
+
+    def test_consumption_and_death_both_reduce(self):
+        self._purchase(Decimal("10000.00"))
+        self._consume(Decimal("3000.00"))
+        self._op(
+            DeathOperation, OperationType.DEATH, self.project, self.system,
+            Decimal("2000.00"),
+        )
+        self.period.refresh_from_db()
+        self.assertEqual(self.period.remaining_inventory_value, Decimal("5000.00"))
+
+    def test_reversed_consumption_does_not_reduce(self):
+        self._purchase(Decimal("10000.00"))
+        original = self._consume(Decimal("3000.00"))
+        # A reversal clone must be excluded (reversal_of is set) — otherwise
+        # the write-off would be counted twice.
+        ConsumptionOperation.objects.create(
+            source=self.project,
+            destination=self.system,
+            officer=self.officer,
+            operation_type=OperationType.CONSUMPTION,
+            amount=Decimal("3000.00"),
+            date=date.today(),
+            reversal_of=original,
+        )
+        self.period.refresh_from_db()
+        self.assertEqual(self.period.remaining_inventory_value, Decimal("10000.00"))
+
+    def test_consumption_reflected_exactly_once_in_end_assets(self):
+        """Option B: consumption must not drain the fund balance, and
+        ``end_assets`` reflects it exactly once via remaining inventory."""
+        self._purchase(Decimal("10000.00"))
+        self.period.refresh_from_db()
+        balance_before = self.project.balance_at(self.end_date)
+        assets_before = self.period.end_assets
+
+        self._consume(Decimal("3000.00"))
+        self.period.refresh_from_db()
+
+        self.assertEqual(
+            self.project.balance_at(self.end_date),
+            balance_before,
+            "Consumption must not change the fund balance (non-cash, Option B).",
+        )
+        self.assertEqual(
+            self.period.end_assets,
+            assets_before - Decimal("3000.00"),
+            "Consumption must reduce end_assets exactly once, via inventory.",
+        )

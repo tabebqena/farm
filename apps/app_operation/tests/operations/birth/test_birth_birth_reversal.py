@@ -34,7 +34,7 @@ class BirthReversalTest(TestCase):
             name="Calves",
             nature=ProductTemplate.Nature.ANIMAL,
             sub_category="Cattle",
-            tracking_mode=ProductTemplate.TrackingMode.BATCH,
+            tracking_mode=ProductTemplate.TrackingMode.INDIVIDUAL,
             default_unit="Head",
         )
         self.template.entities.add(self.project_entity)
@@ -103,17 +103,21 @@ class BirthReversalTest(TestCase):
     def test_reverse_reverses_auto_movement_lines(self):
         op, product = self._make_born()
 
-        original_ml = op.movement_lines.get(reversal_of__isnull=True)
+        original_lines = op.movement_lines.filter(reversal_of__isnull=True)
+        self.assertEqual(original_lines.count(), 5)
         op.reverse(officer=self.officer_user, reason="test reversal")
 
-        reversal_ml = op.movement_lines.get(reversal_of__isnull=False)
-        self.assertEqual(reversal_ml.reversal_of, original_ml)
-        self.assertEqual(reversal_ml.product, product)
-        self.assertEqual(reversal_ml.quantity, Decimal("5.00"))
-        # The original line is preserved (the reversal links to it)
+        reversal_lines = op.movement_lines.filter(reversal_of__isnull=False)
+        self.assertEqual(reversal_lines.count(), 5)
+        # Each per-head line is reversed with an equal-and-opposite line
+        for rl in reversal_lines:
+            self.assertIsNotNone(rl.reversal_of)
+            self.assertEqual(rl.product, rl.reversal_of.product)
+            self.assertEqual(rl.quantity, Decimal("1.00"))
+        # The original lines are preserved (reversals link to them)
         self.assertEqual(
             op.movement_lines.filter(reversal_of__isnull=True).count(),
-            1,
+            5,
         )
 
     def test_reverse_negates_ledger_entries(self):
@@ -121,17 +125,19 @@ class BirthReversalTest(TestCase):
         item = op.items.get()
         op.reverse(officer=self.officer_user, reason="test reversal")
 
-        # Movement negation is linked to the product (qty -5.00 to undo +5.00)
+        # Each individually tracked product's movement is negated (-1.00)
         movement_reversal = ProductLedgerEntry.objects.filter(
             product=product,
             entry_type=ProductLedgerEntry.EntryType.REVERSAL,
         )
         self.assertTrue(movement_reversal.exists())
-        self.assertEqual(movement_reversal.first().quantity_delta, Decimal("-5.00"))
+        self.assertEqual(movement_reversal.first().quantity_delta, Decimal("-1.00"))
 
         # Issuance negation is written with product=None for the invoice item
+        # (movement reversals carry their individual product, so disambiguate)
         issuance_reversal = ProductLedgerEntry.objects.filter(
             invoice_item=item,
+            product__isnull=True,
             entry_type=ProductLedgerEntry.EntryType.REVERSAL,
         )
         self.assertTrue(

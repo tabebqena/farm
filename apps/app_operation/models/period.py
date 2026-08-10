@@ -11,6 +11,35 @@ from apps.app_base.mixins import ImmutableMixin
 from apps.app_base.models import BaseModel
 
 
+def is_date_in_closed_period(entity, value) -> bool:
+    """
+    Return True if *value* (a date, or a datetime) falls within a closed
+    financial period of *entity*.
+
+    A period is "truly closed" when it has an ``end_date`` in the past.  Used
+    to block new operations, payments, repayments, movements and adjustments
+    whose date lands inside a closed period.  Reversals are intentionally
+    exempt (see the callers).
+    """
+    if entity is None or value is None:
+        return False
+    from datetime import date as _date
+
+    if isinstance(value, _date):
+        day = value
+    else:
+        day = getattr(value, "date", lambda: None)()
+        if day is None:
+            return False
+    return FinancialPeriod.objects.filter(
+        entity=entity,
+        end_date__isnull=False,
+        end_date__lt=date_type.today(),  # truly closed: end_date in the past
+        start_date__lte=day,
+        end_date__gt=day,  # half-open interval: day < end_date
+    ).exists()
+
+
 class FinancialPeriod(ImmutableMixin, BaseModel):
     """
     An accounting period for one entity.
@@ -333,10 +362,16 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
     @property
     def remaining_inventory_value(self) -> Decimal:
         """
-        Net inventory value as of end_date:
+        Net inventory value as of end_date, valued at purchase (carried) cost:
             total purchase amounts (entity as buyer)
           - total sale amounts (entity as seller, at sale price)
+          - total consumption amounts (feed/medicine written off)
+          - total death amounts (livestock written off)
         Uses operation base amounts; adjustments are not included.
+
+        Consumption and death must reduce inventory: those stock assets leave
+        the entity's balance sheet (they were used up / written off) and are
+        valued at the carried purchase cost of the consumed/written-off stock.
         """
         from apps.app_operation.models.operation import Operation
         from apps.app_operation.models.operation_type import OperationType
@@ -356,7 +391,17 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
             operation_type=OperationType.SALE,
             **base,
         ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
-        return purchases - sales
+        consumption = Operation.objects.filter(
+            source=self.entity,
+            operation_type=OperationType.CONSUMPTION,
+            **base,
+        ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+        deaths = Operation.objects.filter(
+            source=self.entity,
+            operation_type=OperationType.DEATH,
+            **base,
+        ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+        return purchases - sales - consumption - deaths
 
     @property
     def outstanding_loan_credited(self) -> Decimal:

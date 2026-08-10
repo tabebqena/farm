@@ -1,3 +1,4 @@
+import datetime
 from datetime import date, timedelta
 from decimal import Decimal
 from unittest.mock import PropertyMock, patch
@@ -6,6 +7,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db.models import QuerySet as DjangoQuerySet
 from django.test import TestCase
+from django.utils import timezone
 
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
 from apps.app_operation.models.operation_type import OperationType
@@ -17,6 +19,8 @@ from apps.app_operation.models.proxies import (
     ProfitDistributionOperation,
 )
 from apps.app_operation.models.share_allocation import ShareholderAllocation
+from apps.app_transaction.models import Transaction
+from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
 
@@ -280,3 +284,48 @@ class PeriodProfitLossPropertiesTest(TestCase):
 # ---------------------------------------------------------------------------
 # FinancialPeriod — amount validation
 # ---------------------------------------------------------------------------
+
+
+class PeriodAmountReflectsConsumptionTest(TestCase):
+    """A closed period's ``amount`` must treat consumed feed/medicine as COGS."""
+
+    def setUp(self):
+        self.system = Entity.create(EntityType.SYSTEM)
+        self.officer = _make_officer("officer_consumption")
+        self.project_entity = _make_project_entity("Consumption Project")
+        self.period = FinancialPeriod.objects.get(entity=self.project_entity)
+        _force_close_period(self.period)
+        # A date strictly inside the closed interval [LAST_MONTH, YESTERDAY).
+        self.tx_date = timezone.make_aware(
+            datetime.datetime.combine(LAST_MONTH + timedelta(days=1), datetime.time.min)
+        )
+
+    def _seed_consumption_issuance(self, amount):
+        """Write a CONSUMPTION_ISSUANCE transaction dated inside the closed period."""
+        return Transaction.objects.create(
+            source=self.project_entity,
+            target=self.system,
+            type=TransactionType.CONSUMPTION_ISSUANCE,
+            amount=amount,
+            description=f"Test consumption COGS for period #{self.period.pk}",
+            document=self.period,
+            officer=self.officer,
+            date=self.tx_date,
+        )
+
+    def test_closed_period_amount_includes_consumption_as_cogs(self):
+        self._seed_consumption_issuance(Decimal("500.00"))
+        self.assertEqual(
+            self.period.amount,
+            Decimal("-500.00"),
+            "A closed period must reflect consumed feed/medicine as a COGS cost.",
+        )
+
+    def test_consumption_does_not_change_closed_period_balance(self):
+        self._seed_consumption_issuance(Decimal("500.00"))
+        self.assertEqual(
+            self.project_entity.balance_at(self.period.end_date),
+            Decimal("0.00"),
+            "Option B: consumption must not drain the fund balance.",
+        )
+        self.assertEqual(self.period.end_balance, Decimal("0.00"))

@@ -300,7 +300,7 @@ class CapitalLossCreateTest(TestCase):
             name="Calves",
             nature=ProductTemplate.Nature.ANIMAL,
             sub_category="Cattle",
-            tracking_mode=ProductTemplate.TrackingMode.BATCH,
+            tracking_mode=ProductTemplate.TrackingMode.INDIVIDUAL,
             default_unit="Head",
         )
         op = self._make_op(amount=Decimal("500.00"))

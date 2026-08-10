@@ -23,18 +23,25 @@
 - Fund deltas: ▼ project assets → ▲ system (virtual)
 - ✓ product ledger issuance + auto movement lines (outbound); product status DEAD
 
+**Inventory validation (enforced):**
+- Availability: quantity must not exceed the product's physically-present on-hand (ledger)
+- Ownership: the selected product must belong to the source project
+- Unit consistency: quantity must be a multiple of `product_template.minimum_quantity`
+
 ## move items (auto)
 **Success effects:**
-- `DEATH_MOVEMENT` ledger entry (auto outbound)
+- `DEATH_MOVEMENT` ledger entry (auto outbound, valued at the product's carried cost)
 - Product status DEAD
 
 ## reverse
 **Validation:**
 - Not already reversed / not a reversal / reason required
+- Reversal dependency guard: blocked if the product was moved again in a later non-reversed outbound operation
 
 **Success effects:**
 - Reversal record; counter-transactions for issuance + payment
 - Negated product ledger entry; auto movement lines reversed
+- ✓ Product status **restored to ACTIVE** (reversal-aware `Product.status`)
 
 **Status:**
 - `clean_source` implemented on `DeathOperation` — source must be a Project entity (enforced via `BaseModel.clean_fields()` → `clean_source`).

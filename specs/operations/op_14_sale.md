@@ -22,6 +22,7 @@
 - `SALE_ISSUANCE` created on save (non-cash receivable)
 - No payment on save — collections happen later via **pay**
 - ✓ product ledger issuance entry; product status SOLD
+- **Internal-client note:** when the client is an internal entity, the seller's product copy is marked SOLD and a clone is created for the client (ACTIVE). This is intentional — the same physical goods are not available in both places (see `ai-plans/inventory-integrity-fixes-plan.md`, Fix 7).
 
 ## pay (collection)
 **Validation:**
@@ -39,9 +40,13 @@
 - `can_create_movement=True`; operation not reversed
 - Qty ≤ item remaining qty
 - Product allowed (active/obligated); officer staff + active
+- **Inventory ownership:** moved product must belong to the selling project
+- **Availability:** for a physically-present (received) product, qty must not exceed on-hand (ledger)
+- **Unit consistency:** qty must be a multiple of `product_template.minimum_quantity`
+- Movement/adjustment dates inside a closed financial period are rejected
 
 **Success effects:**
-- `SALE_MOVEMENT` ledger entry
+- `SALE_MOVEMENT` ledger entry (valued at the product's carried cost)
 - Product status SOLD; remaining qty ↓
 
 ## adjust items

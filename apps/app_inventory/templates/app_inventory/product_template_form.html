@@ -30,14 +30,8 @@
           </div>
           <div class="col-md-4">
             <label class="form-label fw-semibold">{% trans 'Tracking Mode' %}</label>
-            <select name="tracking_mode" class="form-select" required>
-              <option value="" selected disabled>
-                --{% trans 'Select Mode' %}--
-              </option>
-              {% for value, label in tracking_modes %}
-                <option value="{{ value }}">{{ label }}</option>
-              {% endfor %}
-            </select>
+            <input type="text" class="form-control" value="{% trans 'Auto (ANIMAL → Individual, other → Commodity)' %}" disabled />
+            <small class="text-muted">{% trans 'Derived automatically from nature.' %}</small>
           </div>
           <div class="col-md-4">
             <label class="form-label fw-semibold">{% trans 'Default Unit' %}</label>
@@ -46,6 +40,11 @@
           <div class="col-md-4">
             <label class="form-label fw-semibold">{% trans 'Sub-category' %}</label>
             <input type="text" name="sub_category" class="form-control" placeholder="{% trans 'e.g. Cattle, Poultry, Consumable' %}" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">{% trans 'Tag Prefix' %}</label>
+            <input type="text" name="tag_prefix" class="form-control" placeholder="{% trans 'e.g. CALF, COW, LAMB' %}" />
+            <small class="text-muted">{% trans 'Prefix for auto-generated animal tags (e.g. CALF1, CALF2). For ANIMAL templates.' %}</small>
           </div>
         </div>
 

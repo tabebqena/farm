@@ -32,7 +32,7 @@ class ProjectSetupWizardStep3Test(TestCase):
             name="Template 1",
             nature=ProductTemplate.Nature.ANIMAL,
             sub_category="livestock",
-            tracking_mode=ProductTemplate.TrackingMode.BATCH,
+            tracking_mode=ProductTemplate.TrackingMode.INDIVIDUAL,
             default_unit="Head",
         )
         self.template2 = ProductTemplate.objects.create(

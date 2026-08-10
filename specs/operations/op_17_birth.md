@@ -23,9 +23,13 @@
 - Fund deltas: ▼ system (virtual) → ▲ project assets
 - ✓ product ledger issuance + auto movement lines (inbound); new asset status ACTIVE
 
+**Inventory validation (enforced):**
+- Unit consistency: quantity must be a multiple of `product_template.minimum_quantity`
+- Identity: for `INDIVIDUAL` tracking, a tag/`unique_id` is required and must be unique per entity (DB `UniqueConstraint` + form rule)
+
 ## move items (auto)
 **Success effects:**
-- `BIRTH_MOVEMENT` ledger entry (auto inbound)
+- `BIRTH_MOVEMENT` ledger entry (auto inbound, valued at the new asset's cost)
 - Lazy product creation; product status ACTIVE (new asset)
 
 ## reverse

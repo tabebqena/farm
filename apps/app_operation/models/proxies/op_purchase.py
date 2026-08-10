@@ -151,12 +151,39 @@ class PurchaseOperation(Operation):
         # ── 3. Create InvoiceItems (shared base method) ────────────────
         invoice_items = cls._build_invoice_items(op, items_data)
 
-        # ── 4. InventoryMovementLine for any received quantities ───────
-        #      Product=None → InventoryMovementLine.save() lazy-creates it
+        # ── 4. InventoryMovementLine(s) for any received quantities ────
+        #      INDIVIDUAL → one line per head (qty=1 each); each line's
+        #      lazy-create materialises its own tagged Product, so buying 10
+        #      heads creates 10 individual Products (one per animal).
+        #      COMMODITY  → one line with the full quantity.
+        from apps.app_inventory.models import ProductTemplate
+
         group_key = uuid.uuid4().hex[:8]
         for item_data, invoice_item in zip(items_data, invoice_items):
             received_qty = Decimal(item_data.get("received_qty", "0"))
-            if received_qty > Decimal("0"):
+            if received_qty <= Decimal("0"):
+                continue
+            template = invoice_item.product_template
+            uid = (item_data.get("unique_id") or "").strip() or None
+            if template.tracking_mode == ProductTemplate.TrackingMode.INDIVIDUAL:
+                # One movement line per head — each lazy-creates one tagged
+                # Product.  The user-typed tag applies to the first head;
+                # the rest auto-generate from the template's tag prefix.
+                for head_idx in range(max(int(received_qty), 1)):
+                    line = InventoryMovementLine(
+                        operation=op,
+                        invoice_item=invoice_item,
+                        product=None,  # lazy-created by save()
+                        quantity=Decimal("1"),
+                        date=date_val,
+                        officer=officer,
+                        notes="",
+                        group_key=group_key,
+                    )
+                    line._lazy_unique_id = uid
+                    line.save()
+                    uid = None  # subsequent heads auto-generate their tag
+            else:
                 InventoryMovementLine.objects.create(
                     operation=op,
                     invoice_item=invoice_item,

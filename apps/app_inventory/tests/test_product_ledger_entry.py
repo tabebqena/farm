@@ -5,7 +5,11 @@ from unittest.mock import MagicMock
 from django.test import TestCase
 
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
-from apps.app_inventory.models import ProductLedgerEntry
+from apps.app_inventory.models import (
+    InventoryMovementLine,
+    ProductLedgerEntry,
+    ProductTemplate,
+)
 from apps.app_inventory.tests.general import (
     make_entity,
     make_invoice_item,
@@ -20,6 +24,7 @@ from apps.app_operation.models.proxies import (
     BirthOperation,
     CapitalGainOperation,
     CapitalLossOperation,
+    ConsumptionOperation,
     DeathOperation,
     PurchaseOperation,
     SaleOperation,
@@ -63,6 +68,58 @@ class ProductLedgerEntryTest(TestCase):
         item = make_invoice_item(op, self.template, qty, price)
         self.product.invoice_items.add(item)
         return op
+
+    def test_consumption_valued_at_purchase_price(self):
+        """Fix 9: outbound movements are valued at the product's carried cost,
+        so 100 kg @ $2 then consuming 30 kg leaves 70 kg / $140."""
+        feed = ProductTemplate.objects.create(
+            name="Feed Mix",
+            nature=ProductTemplate.Nature.FEED,
+            sub_category="Feed",
+            default_unit="Kg",
+        )
+        purchase = make_operation(
+            self.project,
+            self.vendor,
+            self.officer,
+            PurchaseOperation,
+            OperationType.PURCHASE,
+            amount=Decimal("200.00"),
+        )
+        p_item = make_invoice_item(purchase, feed, Decimal("100.00"), Decimal("2.00"))
+        product = make_product(feed, Decimal("2.00"), 100, entity=self.project)
+        p_item.products.add(product)
+        InventoryMovementLine.objects.create(
+            operation=purchase,
+            invoice_item=p_item,
+            product=product,
+            quantity=Decimal("100.00"),
+            date=date.today(),
+            officer=self.officer,
+        )
+
+        consumption = make_operation(
+            self.project,
+            self.system,
+            self.officer,
+            ConsumptionOperation,
+            OperationType.CONSUMPTION,
+            amount=Decimal("60.00"),
+        )
+        c_item = make_invoice_item(consumption, feed, Decimal("30.00"), Decimal("2.00"))
+        c_item.products.add(product)
+        InventoryMovementLine.objects.create(
+            operation=consumption,
+            invoice_item=c_item,
+            product=product,
+            quantity=Decimal("30.00"),
+            date=date.today(),
+            officer=self.officer,
+        )
+
+        state = ProductLedgerEntry.state_as_of(product, date.today())
+        self.assertEqual(state["quantity"], Decimal("70.00"))
+        self.assertEqual(state["value"], Decimal("140.00"))
 
     # --- record() — all six operation types ---
 
@@ -267,3 +324,63 @@ class ProductLedgerEntryTest(TestCase):
         portfolio = list(ProductLedgerEntry.portfolio_as_of(self.project, date.today()))
         product_ids = {row["product_id"] for row in portfolio}
         self.assertNotIn(self.product.pk, product_ids)
+
+    def test_available_products_and_value_after_death_consumption_sale(self):
+        """Available stock must be distinguished from fully SOLD / DEAD /
+        CONSUMED stock, and inventory value must reflect only what remains.
+
+        Four products: one fully dead, one fully consumed, one fully sold, and
+        one still on hand. Only the on-hand product appears in the portfolio
+        and in the inventory value (fully written-off stock nets to zero).
+        """
+        template2 = make_product_template("Sheep")
+        template2.entities.add(self.project)
+        feed = ProductTemplate.objects.create(
+            name="Feed Mix",
+            nature=ProductTemplate.Nature.FEED,
+            sub_category="Feed",
+            default_unit="Kg",
+        )
+        feed.entities.add(self.project)
+
+        dead = make_product(self.template, Decimal("100.00"), 10, entity=self.project)
+        consumed = make_product(feed, Decimal("200.00"), 5, entity=self.project)
+        sold = make_product(template2, Decimal("50.00"), 3, entity=self.project)
+        available = make_product(template2, Decimal("25.00"), 7, entity=self.project)
+
+        E = ProductLedgerEntry.EntryType
+        rows = [
+            (dead, E.PURCHASE_MOVEMENT, Decimal("10.00"), Decimal("1000.00")),
+            (dead, E.DEATH_MOVEMENT, Decimal("-10.00"), Decimal("-1000.00")),
+            (consumed, E.PURCHASE_MOVEMENT, Decimal("5.00"), Decimal("1000.00")),
+            (consumed, E.CONSUMPTION_MOVEMENT, Decimal("-5.00"), Decimal("-1000.00")),
+            (sold, E.PURCHASE_MOVEMENT, Decimal("3.00"), Decimal("150.00")),
+            (sold, E.SALE_MOVEMENT, Decimal("-3.00"), Decimal("-150.00")),
+            (available, E.PURCHASE_MOVEMENT, Decimal("7.00"), Decimal("175.00")),
+        ]
+        for i, (product, entry_type, qty, val) in enumerate(rows):
+            ProductLedgerEntry.objects.create(
+                product=product,
+                entry_type=entry_type,
+                date=date.today(),
+                quantity_delta=qty,
+                value_delta=val,
+                idempotency_key=f"available_state_{i}",
+            )
+
+        portfolio = list(ProductLedgerEntry.portfolio_as_of(self.project, date.today()))
+        product_ids = {row["product_id"] for row in portfolio}
+        self.assertIn(available.pk, product_ids)
+        self.assertNotIn(dead.pk, product_ids)
+        self.assertNotIn(consumed.pk, product_ids)
+        self.assertNotIn(sold.pk, product_ids)
+        # Only the still-available product is returned, with its remaining value.
+        self.assertEqual(len(portfolio), 1)
+        self.assertEqual(portfolio[0]["quantity"], Decimal("7.00"))
+        self.assertEqual(portfolio[0]["value"], Decimal("175.00"))
+
+        # Inventory value = remaining on-hand stock only (written-off stock nets to 0).
+        self.assertEqual(
+            ProductLedgerEntry.inventory_value_at(self.project, date.today()),
+            Decimal("175.00"),
+        )

@@ -439,7 +439,6 @@ class TransactionType(models.TextChoices):
                 cls.CORRECTION_DEBIT_PAYMENT,
                 cls.BIRTH_PAYMENT,
                 cls.DEATH_PAYMENT,
-                cls.CONSUMPTION_PAYMENT,
             ]
         )
 

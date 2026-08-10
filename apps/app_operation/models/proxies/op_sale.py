@@ -126,6 +126,7 @@ class SaleOperation(Operation):
         from apps.app_inventory.models import (
             InventoryMovementLine,
             InvoiceItem,
+            Product,
         )
 
         date_val = datetime.fromisoformat(session_data["date"]).date()
@@ -175,6 +176,14 @@ class SaleOperation(Operation):
 
             # ── 5. If client is internal, clone product(s) for the client ──
             #      so the client can track them in their own stock page.
+            #
+            #      INTENTIONAL (see ai-plans/inventory-integrity-fixes-plan.md,
+            #      Fix 7): the source copy stays SOLD in the seller's stock and
+            #      the client copy becomes ACTIVE in the client's stock — the
+            #      same physical goods are NOT double-counted as available in
+            #      both places, so there is no duplication error. This is the
+            #      intra-farm transfer mechanism; a dedicated Stock Transfer
+            #      operation is out of scope for now.
             if client.is_internal:
                 InvoiceItem.create_products_for_item(
                     invoice_item=invoice_item,
@@ -202,6 +211,9 @@ class SaleOperation(Operation):
         # ── 6. InventoryMovementLine records if any delivered quantities ──
         if movement_lines:
             group_key = uuid.uuid4().hex[:8]
+            # Concurrency: lock the products being delivered so concurrent
+            # movements on the same stock serialize (SELECT ... FOR UPDATE).
+            Product.lock_ids([product.pk for _, product, _ in movement_lines])
             for invoice_item, product, delivered_qty in movement_lines:
                 InventoryMovementLine.objects.create(
                     operation=op,

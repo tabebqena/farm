@@ -9,6 +9,7 @@ from apps.app_adjustment.models import InvoiceItemAdjustmentType
 from apps.app_entity.models import EntityType, Stakeholder, StakeholderRole
 from apps.app_inventory.models import (
     InvoiceItem,
+    ProductTemplate,
 )
 from apps.app_inventory.tests.general import (
     make_entity,
@@ -45,9 +46,16 @@ class InvoiceItemTest(TestCase):
         self.assertEqual(item.total_price, Decimal("150.00"))
 
     def test_total_price_fractional_quantity(self):
-        item = make_invoice_item(
-            self.op, self.template, Decimal("2.5"), Decimal("40.00")
+        # Use a Kg-style template (minimum_quantity = 0.01) so a fractional
+        # quantity is valid; this test only exercises total_price arithmetic.
+        feed = ProductTemplate.objects.create(
+            name="Feed Mix",
+            nature=ProductTemplate.Nature.FEED,
+            sub_category="Feed",
+            default_unit="Kg",
+            minimum_quantity=Decimal("0.01"),
         )
+        item = make_invoice_item(self.op, feed, Decimal("2.5"), Decimal("40.00"))
         self.assertEqual(item.total_price, Decimal("100.00"))
 
     def test_clean_unit_price_negative_raises(self):

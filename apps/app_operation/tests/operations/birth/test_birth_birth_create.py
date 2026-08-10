@@ -41,7 +41,7 @@ class BirthCreateTest(TestCase):
             name="Calves",
             nature=ProductTemplate.Nature.ANIMAL,
             sub_category="Cattle",
-            tracking_mode=ProductTemplate.TrackingMode.BATCH,
+            tracking_mode=ProductTemplate.TrackingMode.INDIVIDUAL,
             default_unit="Head",
         )
         self.template.entities.add(self.project_entity)
@@ -231,25 +231,32 @@ class BirthCreateTest(TestCase):
     # Auto movement line + lazy product creation
     # ------------------------------------------------------------------
 
-    def test_create_auto_creates_inbound_movement_line(self):
+    def test_create_auto_creates_inbound_movement_lines(self):
+        """INDIVIDUAL birth creates one movement line per head."""
         op = self._birth()
 
-        self.assertEqual(op.movement_lines.count(), 1)
-        ml = op.movement_lines.first()
-        self.assertEqual(ml.invoice_item, op.items.get())
-        self.assertEqual(ml.quantity, Decimal("5.00"))
-        self.assertEqual(ml.officer, self.officer_user)
-        self.assertEqual(ml.date, op.date)
-        self.assertTrue(ml.group_key, "Auto-created lines share a group key")
-        self.assertIsNone(ml.reversal_of)
+        self.assertEqual(op.movement_lines.count(), 5)
+        for ml in op.movement_lines.all():
+            self.assertEqual(ml.invoice_item, op.items.get())
+            self.assertEqual(ml.quantity, Decimal("1.00"))
+            self.assertEqual(ml.officer, self.officer_user)
+            self.assertEqual(ml.date, op.date)
+            self.assertTrue(ml.group_key, "Auto-created lines share a group key")
+            self.assertIsNone(ml.reversal_of)
 
-    def test_movement_line_has_lazily_created_product(self):
+    def test_movement_lines_have_lazily_created_tagged_products(self):
+        """Each movement line lazy-creates its own tagged Product (qty=1)."""
         op = self._birth()
 
-        ml = op.movement_lines.first()
-        self.assertIsNotNone(ml.product, "Product should be lazily created")
-        self.assertEqual(ml.product.product_template, self.template)
-        self.assertEqual(ml.product.quantity, 5)
+        self.assertEqual(op.movement_lines.count(), 5)
+        products = list(op.movement_lines.select_related("product").all())
+        for ml in products:
+            self.assertIsNotNone(ml.product, "Product should be lazily created")
+            self.assertEqual(ml.product.product_template, self.template)
+            self.assertEqual(ml.product.quantity, 1)
+            self.assertTrue(ml.product.unique_id, "Each animal has a unique tag")
+        tags = [ml.product.unique_id for ml in products]
+        self.assertEqual(len(set(tags)), len(tags), "Tags must be unique")
 
     def test_created_product_is_active(self):
         op = self._birth()
@@ -278,8 +285,10 @@ class BirthCreateTest(TestCase):
         self.assertTrue(movement.exists(), "BIRTH_MOVEMENT ledger entry missing")
         self.assertTrue(issuance.exists(), "BIRTH_ISSUANCE ledger entry missing")
 
-        self.assertEqual(movement.first().quantity_delta, Decimal("5.00"))
-        self.assertEqual(movement.first().value_delta, Decimal("500.00"))
+        # Each individually tracked animal carries its own movement (qty=1);
+        # the contract-level issuance covers the full quantity.
+        self.assertEqual(movement.first().quantity_delta, Decimal("1.00"))
+        self.assertEqual(movement.first().value_delta, Decimal("100.00"))
         self.assertEqual(issuance.first().quantity_delta, Decimal("5.00"))
         self.assertEqual(issuance.first().value_delta, Decimal("500.00"))
 

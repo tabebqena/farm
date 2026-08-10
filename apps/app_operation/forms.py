@@ -147,22 +147,32 @@ class PurchaseItemForm(LoggingFormMixin, forms.Form):
         ),
     )
 
-    def __init__(self, *args, template=None, **kwargs):
+    def __init__(self, *args, template=None, entity=None, **kwargs):
         super().__init__(*args, **kwargs)
         self._template = template
+        self._entity = entity
         if template:
             step = str(template.minimum_quantity)
             self.fields["quantity"].widget.attrs["step"] = step
             self.fields["received_qty"].widget.attrs["step"] = step
 
     def clean(self):
+        from apps.app_inventory.models import ProductTemplate
+
         cleaned: dict = super().clean() or {}
         template = self._template
 
-        # if template and template.has_tag:
-        #     uid = (cleaned.get("unique_id") or "").strip()
-        #     if not uid:
-        #         self.add_error("unique_id", _("Tag / ID is required for this product."))
+        # Individual tracking: auto-suggest a unique tag when left blank.
+        # A bulk quantity is allowed — the backend creates one tagged Product
+        # per head.
+        if (
+            template
+            and template.tracking_mode == ProductTemplate.TrackingMode.INDIVIDUAL
+        ):
+            uid = (cleaned.get("unique_id") or "").strip()
+            if not uid and self._entity is not None:
+                uid = template.next_tag(self._entity)
+                cleaned["unique_id"] = uid
 
         received: Decimal = cleaned.get("received_qty") or Decimal("0")
         qty: Decimal = cleaned.get("quantity") or Decimal("0")
@@ -315,22 +325,30 @@ class SaleItemForm(LoggingFormMixin, forms.Form):
         ),
     )
 
-    def __init__(self, *args, template=None, **kwargs):
+    def __init__(self, *args, template=None, entity=None, **kwargs):
         super().__init__(*args, **kwargs)
         self._template = template
+        self._entity = entity
         if template:
             step = str(template.minimum_quantity)
             self.fields["quantity"].widget.attrs["step"] = step
             self.fields["delivered_qty"].widget.attrs["step"] = step
 
     def clean(self):
+        from apps.app_inventory.models import ProductTemplate
+
         cleaned: dict = super().clean() or {}
         template = self._template
 
-        # if template and template.has_tag:
-        #     uid = (cleaned.get("unique_id") or "").strip()
-        #     if not uid:
-        #         self.add_error("unique_id", _("Tag / ID is required for this product."))
+        # Individual tracking: auto-suggest a unique tag when left blank.
+        if (
+            template
+            and template.tracking_mode == ProductTemplate.TrackingMode.INDIVIDUAL
+        ):
+            uid = (cleaned.get("unique_id") or "").strip()
+            if not uid and self._entity is not None:
+                uid = template.next_tag(self._entity)
+                cleaned["unique_id"] = uid
 
         delivered: Decimal = cleaned.get("delivered_qty") or Decimal("0")
         qty: Decimal = cleaned.get("quantity") or Decimal("0")

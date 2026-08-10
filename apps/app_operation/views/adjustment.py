@@ -37,6 +37,9 @@ def _build_adjustment_type_data():
 def record_accounting_adjustment(request, pk):
     """Record a simple accounting adjustment on a PURCHASE, SALE, or EXPENSE operation."""
     operation: Operation = get_object_or_404(Operation, pk=pk)
+    # Cast so proxy attributes (e.g. period_entity for the closed-period
+    # guard) are resolved from the concrete operation type.
+    operation = Operation.objects.cast(operation)
 
     # Guards: operation type and reversal status
     if not operation.can_adjust:
@@ -85,6 +88,16 @@ def record_accounting_adjustment(request, pk):
         return render(request, "app_adjustment/record_adjustment.html", context)
 
     try:
+        # Reject adjustments dated inside a closed financial period.
+        from apps.app_operation.models.period import is_date_in_closed_period
+
+        if is_date_in_closed_period(
+            operation.period_entity, form.cleaned_data["date"]
+        ):
+            raise forms.ValidationError(
+                _("Cannot record an adjustment dated within a closed financial period.")
+            )
+
         # Create and save the adjustment
         adj = Adjustment(
             operation=operation,
@@ -163,6 +176,21 @@ def record_item_adjustment(request, pk):
         date = date_field.clean(date)
     except forms.ValidationError as e:
         messages.error(request, _("Invalid date: {}").format(str(e)))
+        context = {
+            "operation": operation,
+            "items": items,
+            "today": timezone.now().date(),
+        }
+        return render(request, "app_adjustment/record_item_adjustment.html", context)
+
+    # Reject adjustments dated inside a closed financial period.
+    from apps.app_operation.models.period import is_date_in_closed_period
+
+    if is_date_in_closed_period(operation.period_entity, date):
+        messages.error(
+            request,
+            _("Cannot record an item adjustment dated within a closed financial period."),
+        )
         context = {
             "operation": operation,
             "items": items,

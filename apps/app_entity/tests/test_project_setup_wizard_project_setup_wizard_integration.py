@@ -34,7 +34,7 @@ class ProjectSetupWizardIntegrationTest(TestCase):
             name="Template",
             nature=ProductTemplate.Nature.ANIMAL,
             sub_category="livestock",
-            tracking_mode=ProductTemplate.TrackingMode.BATCH,
+            tracking_mode=ProductTemplate.TrackingMode.INDIVIDUAL,
             default_unit="Head",
         )
         self.worker = Entity.create(

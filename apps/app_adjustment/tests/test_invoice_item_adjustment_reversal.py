@@ -101,7 +101,7 @@ def _make_product_template(name="Cattle"):
     return ProductTemplate.objects.create(
         name=name,
         nature=ProductTemplate.Nature.ANIMAL,
-        tracking_mode=ProductTemplate.TrackingMode.BATCH,
+        tracking_mode=ProductTemplate.TrackingMode.INDIVIDUAL,
         default_unit="Head",
     )
 

@@ -545,6 +545,7 @@ class Entity(ImmutableMixin, BaseModel):
                                plus SALE/PURCHASE adjustment INCREASE; minus DECREASE.
         Costs   (source=fund): PURCHASE_ISSUANCE, EXPENSE_ISSUANCE, CAPITAL_LOSS_ISSUANCE,
                                CORRECTION_DEBIT_ISSUANCE, SALE_ISSUANCE (project as client),
+                               CONSUMPTION_ISSUANCE (consumed feed/medicine as COGS),
                                plus PURCHASE/SALE/EXPENSE adjustment INCREASE; minus DECREASE.
 
         Reversal transactions are negated so that cross-period reversals land in the
@@ -623,10 +624,23 @@ class Entity(ImmutableMixin, BaseModel):
                     TransactionType.CAPITAL_LOSS_ISSUANCE,
                     TransactionType.CORRECTION_DEBIT_ISSUANCE,
                     TransactionType.SALE_ISSUANCE,  # project as client
+                    TransactionType.CONSUMPTION_ISSUANCE,  # consumed feed/medicine as COGS
                     TransactionType.PURCHASE_ADJUSTMENT_INCREASE,
                     TransactionType.SALE_ADJUSTMENT_INCREASE,  # project as client
                     TransactionType.EXPENSE_ADJUSTMENT_INCREASE,
                 ],
+                **tx_valid,
+            )
+        )
+        # A reversal of a consumption issuance is a mirror transaction
+        # (source↔target swapped), so it lands here as target=fund with
+        # CONSUMPTION_ISSUANCE and reversal_of set. `_signed_sum` negates
+        # reversals, so adding this sum offsets the original COGS and restores
+        # profit when a consumption is reversed.
+        costs += _signed_sum(
+            Transaction.objects.filter(
+                target=fund,
+                type__in=[TransactionType.CONSUMPTION_ISSUANCE],
                 **tx_valid,
             )
         )

@@ -72,7 +72,7 @@ def make_product_template(name="Calves"):
         name=name,
         nature=ProductTemplate.Nature.ANIMAL,
         sub_category="Cattle",
-        tracking_mode=ProductTemplate.TrackingMode.BATCH,
+        tracking_mode=ProductTemplate.TrackingMode.INDIVIDUAL,
         default_unit="Head",
     )
 
@@ -91,9 +91,10 @@ def make_invoice_item(
     )
 
 
-def make_product(template, unit_price=Decimal("100.00"), quantity=1):
+def make_product(template, unit_price=Decimal("100.00"), quantity=1, entity=None):
     return Product.objects.create(
         product_template=template,
         unit_price=unit_price,
         quantity=quantity,
+        entity=entity,
     )

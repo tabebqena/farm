@@ -6,6 +6,42 @@ from django.db import transaction
 
 User = get_user_model()
 
+# Template-specific tag prefixes for individually tracked animals (ANIMAL
+# nature).  Used to auto-generate unique tags like "CALF1", "CALF2", ...
+TAG_PREFIX_OVERRIDES = {
+    "Fattening Cattle": "FC",
+    "Dairy Cows": "DC",
+    "Breeding Bulls": "BB",
+    "Replacement Heifers": "RH",
+    "Calves": "CALF",
+    "Fattening Lambs": "FL",
+    "Breeding Ewes": "EWE",
+    "Breeding Rams": "RAM",
+    "Fattening Kids": "FK",
+    "Breeding Does": "DOE",
+    "Breeding Bucks": "BUCK",
+    "Fattening Camels (Hashi)": "CH",
+    "Breeding / Dairy Camels": "CAMEL",
+    "Stud Camels": "STUD",
+    "Horses": "HORSE",
+    "Donkeys / Mules": "DM",
+    "Fattening Buffaloes": "FB",
+    "Dairy Buffaloes": "DB",
+    "Breeding Buffalo Bulls": "BBB",
+    "Replacement Buffalo Heifers": "RBH",
+    "Buffalo Calves": "BC",
+    "Broiler Chickens": "BR",
+    "Laying Hens": "LH",
+    "Poultry Parent Stock": "PP",
+    "Fattening Turkeys": "FT",
+    "Breeding Turkeys": "BT",
+    "Fattening Ducks / Geese": "DG",
+    "Breeding Ducks / Geese": "BDG",
+    "Fattening Rabbits": "RAB",
+    "Breeding Rabbits": "BRR",
+}
+
+
 PRODUCT_TEMPLATES = [
     # (name, name_ar, nature, default_unit, has_tag, sub_category)
     # --- ANIMAL ---
@@ -358,12 +394,19 @@ class Command(BaseCommand):
             else:  # FEED or MEDICINE
                 min_qty = Decimal("0.01")
 
+            tracking_mode = (
+                ProductTemplate.TrackingMode.INDIVIDUAL
+                if nature == "ANIMAL"
+                else ProductTemplate.TrackingMode.COMMODITY
+            )
             defaults = {
                 "nature": nature,
                 "default_unit": unit,
                 "has_tag": tag,
                 "sub_category": sub_cat,
                 "minimum_quantity": min_qty,
+                "tracking_mode": tracking_mode,
+                "tag_prefix": TAG_PREFIX_OVERRIDES.get(name, "") if nature == "ANIMAL" else "",
             }
             template, is_new = ProductTemplate.objects.get_or_create(
                 name=name,
@@ -382,6 +425,12 @@ class Command(BaseCommand):
                     changed = True
                 if template.minimum_quantity != min_qty:
                     template.minimum_quantity = min_qty
+                    changed = True
+                if template.tracking_mode != tracking_mode:
+                    template.tracking_mode = tracking_mode
+                    changed = True
+                if template.tag_prefix != defaults["tag_prefix"]:
+                    template.tag_prefix = defaults["tag_prefix"]
                     changed = True
                 if changed:
                     template.save()

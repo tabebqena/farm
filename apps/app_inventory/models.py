@@ -13,6 +13,27 @@ from apps.app_base.mixins import AmountCleanMixin, ImmutableMixin
 from apps.app_base.models import BaseModel
 
 
+# ---------------------------------------------------------------------------
+# Inventory valuation
+# ---------------------------------------------------------------------------
+
+
+def valuation_unit_cost(product) -> Decimal:
+    """
+    Unit cost used to value outbound inventory movements (SALE/DEATH/
+    CONSUMPTION).
+
+    Current method: the cost carried on the product (``Product.unit_price``) —
+    i.e. the purchase price for products that entered stock via PURCHASE/BIRTH.
+
+    NOTE: other valuation methods (moving average, FIFO) may be added here
+    later — see ai-plans/inventory-integrity-fixes-plan.md (Fix 9).
+    """
+    if product is None:
+        return Decimal("0.00")
+    return product.unit_price
+
+
 class ProductLedgerEntry(BaseModel):
     """
     Append-only ledger of inventory events per product.
@@ -329,9 +350,10 @@ class ProductLedgerEntry(BaseModel):
                 "entry_type": entry_type,
                 "date": date,
                 "quantity_delta": (line.quantity * qty_sign).quantize(Decimal("0.01")),
-                "value_delta": (line.quantity * item.unit_price * val_sign).quantize(
-                    Decimal("0.01")
-                ),
+                # Value = quantity × the carried unit cost (see valuation_unit_cost).
+                "value_delta": (
+                    line.quantity * valuation_unit_cost(product) * val_sign
+                ).quantize(Decimal("0.01")),
             },
         )
         return (1, 0) if created else (0, 1)
@@ -486,7 +508,6 @@ class ProductLedgerEntry(BaseModel):
 class ProductTemplate(BaseModel):
     class TrackingMode(models.TextChoices):
         INDIVIDUAL = "INDIVIDUAL", _("Individual (Tag ID)")
-        BATCH = "BATCH", _("Batch/Group")
         COMMODITY = "COMMODITY", _("Quantity (Weight/Volume)")
 
     class Nature(models.TextChoices):
@@ -511,13 +532,25 @@ class ProductTemplate(BaseModel):
         _("default unit"), max_length=20, default="Head"
     )  # e.g., "Head", "Kg"
     has_tag = models.BooleanField(_("has tag"), default=False)
+    tag_prefix = models.CharField(
+        _("tag prefix"),
+        max_length=20,
+        blank=True,
+        default="",
+        help_text=_(
+            "Prefix used to auto-generate unique tags for individually tracked "
+            "animals (e.g. CALF, COW, LAMB). If blank, it is derived from the "
+            "template name."
+        ),
+    )
     minimum_quantity = models.DecimalField(
         _("minimum quantity"),
         max_digits=10,
         decimal_places=2,
         default=Decimal("1.00"),
         help_text=_(
-            "Smallest allowed quantity increment. Used as the `step` attribute on number inputs in forms."
+            "Smallest allowed quantity increment. Used as the `step` attribute on number inputs in forms "
+            "and enforced on invoice/movement quantities (e.g. 1 for Head, 0.01 for Kg)."
         ),
     )
 
@@ -525,7 +558,11 @@ class ProductTemplate(BaseModel):
         _("tracking mode"),
         choices=TrackingMode.choices,
         max_length=24,
-        default=TrackingMode.BATCH,
+        default=TrackingMode.INDIVIDUAL,
+        help_text=_(
+            "Resolved automatically from nature: ANIMAL → INDIVIDUAL, otherwise "
+            "COMMODITY."
+        ),
     )
     # TODO: only project entities are allowed
     entities = models.ManyToManyField(
@@ -550,6 +587,52 @@ class ProductTemplate(BaseModel):
 
     def accepts_operation(self, op_type: str) -> bool:
         return op_type in self._ALLOWED_OP_TYPES.get(self.nature, frozenset())
+
+    @classmethod
+    def tracking_mode_for_nature(cls, nature) -> str:
+        """Nature-based tracking mode: ANIMAL → INDIVIDUAL, else → COMMODITY."""
+        if nature == cls.Nature.ANIMAL:
+            return cls.TrackingMode.INDIVIDUAL
+        return cls.TrackingMode.COMMODITY
+
+    def clean(self) -> None:
+        # Tracking mode is derived from nature — there is no free choice.
+        if self.nature:
+            self.tracking_mode = self.tracking_mode_for_nature(self.nature)
+        return super().clean()
+
+    @property
+    def effective_tag_prefix(self) -> str:
+        """Uppercase prefix used for auto-generated animal tags."""
+        prefix = (self.tag_prefix or "").strip().upper()
+        if prefix:
+            return prefix
+        # Derive a short prefix from the template name (e.g. "Calves" → "CALV").
+        chars = "".join(c for c in self.name.upper() if c.isalnum())[:4]
+        return chars or "AN"
+
+    def next_tag(self, entity) -> str:
+        """
+        Next suggested unique tag for *entity* on this template:
+        ``{PREFIX}{max_existing_numeric_suffix + 1}`` (1 when none exist).
+
+        Uses ``all_objects`` (includes soft-deleted rows) so the suggested tag
+        never collides with the DB UniqueConstraint on ``(entity, unique_id)``,
+        which applies to every row regardless of soft-deletion.  The caller may
+        edit the suggested value; the constraint is the hard backstop.
+        """
+        from apps.app_inventory.models import Product
+
+        prefix = self.effective_tag_prefix
+        existing = Product.all_objects.filter(
+            entity=entity, product_template=self, unique_id__startswith=prefix
+        ).values_list("unique_id", flat=True)
+        max_num = 0
+        for uid in existing:
+            suffix = uid[len(prefix):] if uid else ""
+            if suffix.isdigit():
+                max_num = max(max_num, int(suffix))
+        return f"{prefix}{max_num + 1}"
 
     def __str__(self):
         return self.name
@@ -672,6 +755,22 @@ class InvoiceItem(AmountCleanMixin, BaseModel):
                     "op_type": op_type,
                 }
             )
+        # Unit consistency: quantity must be a positive multiple of the
+        # template's minimum quantity increment (e.g. 1 for Head, 0.01 for Kg)
+        # to prevent kg/head mistakes at contract (invoice) level.
+        min_qty = self.product_template.minimum_quantity
+        if min_qty and min_qty > 0 and (self.quantity % min_qty) != 0:
+            raise ValidationError(
+                _(
+                    "Quantity %(qty)s must be a multiple of the minimum "
+                    "increment %(min)s for '%(p)s'."
+                )
+                % {
+                    "qty": self.quantity,
+                    "min": min_qty,
+                    "p": self.product_template,
+                }
+            )
         return super().clean()
 
     # ------------------------------------------------------------------
@@ -690,11 +789,12 @@ class InvoiceItem(AmountCleanMixin, BaseModel):
         Create Product record(s) for *invoice_item* based on the template's
         tracking mode, owned by *entity*.
 
-        **INDIVIDUAL** → one ``Product`` per unit (qty=1 each), so each unit
-        can be tagged/moved independently.
+        **INDIVIDUAL** → one ``Product`` per head (qty=1 each), each with its
+        own unique tag.  A provided ``unique_id`` is used for the first head;
+        any remaining heads get an auto-generated tag via
+        ``template.next_tag(entity)`` so every animal is uniquely identified.
 
-        **BATCH** / **COMMODITY** → a single ``Product`` with the full
-        quantity (bulk tracking).
+        **COMMODITY** → a single ``Product`` with the full quantity (bulk).
 
         Returns the list of created ``Product`` instances.
         """
@@ -705,9 +805,11 @@ class InvoiceItem(AmountCleanMixin, BaseModel):
         products = []
 
         if template.tracking_mode == ProductTemplate.TrackingMode.INDIVIDUAL:
-            # One Product per unit — each gets its own tag if provided
+            # One Product per head — each gets its own unique tag.
             for i in range(max(qty, 1)):
-                uid = unique_id if qty == 1 else None
+                uid = unique_id if i == 0 else None
+                if not uid:
+                    uid = template.next_tag(entity)
                 product = Product.objects.create(
                     entity=entity,
                     product_template=template,
@@ -718,7 +820,7 @@ class InvoiceItem(AmountCleanMixin, BaseModel):
                 product.invoice_items.add(invoice_item)
                 products.append(product)
         else:
-            # BATCH or COMMODITY — single Product with full quantity
+            # COMMODITY — single Product with full quantity
             product = Product.objects.create(
                 entity=entity,
                 product_template=template,
@@ -839,9 +941,14 @@ class Product(AmountCleanMixin, BaseModel):
             OperationType.CONSUMPTION: self.Status.CONSUMED,
         }
 
+        # Reversal-aware: exclude operations that have been reversed (reversed_by
+        # set) and reversal clones themselves, so reversing a Death/Sale/
+        # Consumption restores the product to its prior status (usually ACTIVE).
         last_op = (
             self.invoice_items.filter(
-                operation__operation_type__in=STATUS_CHANGING_TYPES
+                operation__operation_type__in=STATUS_CHANGING_TYPES,
+                operation__reversed_by__isnull=True,
+                operation__reversal_of__isnull=True,
             )
             .order_by("-operation__date", "-operation__created_at")
             .values_list("operation__operation_type", flat=True)
@@ -1019,6 +1126,26 @@ class Product(AmountCleanMixin, BaseModel):
             return super().delete(*args, **kwargs)
 
     # ------------------------------------------------------------------
+    # Concurrency helpers
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def lock_ids(cls, product_ids):
+        """
+        Acquire row locks (``SELECT ... FOR UPDATE``) on the given products for
+        the duration of the current transaction.
+
+        Must be called inside an active ``atomic()`` block so the locks are held
+        until commit — this serializes concurrent movements/checks on the same
+        stock. On backends without row locking (e.g. SQLite) it is a no-op.
+
+        Returns the locked ``Product`` instances as a list.
+        """
+        if not product_ids:
+            return []
+        return list(cls.objects.select_for_update().filter(id__in=product_ids))
+
+    # ------------------------------------------------------------------
     # Valuation helpers
     # ------------------------------------------------------------------
 
@@ -1042,6 +1169,13 @@ class Product(AmountCleanMixin, BaseModel):
     class Meta:
         verbose_name = _("product")
         verbose_name_plural = _("products")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["entity", "unique_id"],
+                condition=Q(unique_id__isnull=False),
+                name="unique_product_tag_per_entity",
+            )
+        ]
 
 
 class InventoryMovementLine(ImmutableMixin, BaseModel):
@@ -1115,6 +1249,58 @@ class InventoryMovementLine(ImmutableMixin, BaseModel):
         blank=True,
     )
 
+    def _outbound_owner_entity(self):
+        """
+        The entity whose physical inventory this movement line reduces.
+
+        Returns None for inbound operations (PURCHASE/BIRTH) and for
+        non-inventory operations, where no ownership constraint applies.
+        """
+        from apps.app_operation.models.operation_type import OperationType
+
+        ot = self.operation.operation_type
+        if ot == OperationType.SALE:
+            # The selling project is the destination (source is the client).
+            return self.operation.destination
+        if ot in (OperationType.DEATH, OperationType.CONSUMPTION):
+            # The project whose assets are written off is the source.
+            return self.operation.source
+        return None
+
+    def _validate_availability(self):
+        """
+        Raise ValidationError if this outbound (non-reversal) movement would
+        move more than the product physically holds, per the append-only ledger
+        (``ProductLedgerEntry.state_as_of`` counts physical MOVEMENT_TYPES).
+
+        SALE products that are created at sale time (never received into
+        stock) are exempt — the sale itself is what records them.  DEATH and
+        CONSUMPTION always enforce availability: you cannot write off more
+        than the project actually holds.
+        """
+        if self.reversal_of_id is not None or self.product_id is None:
+            return
+        from apps.app_operation.models.operation_type import OperationType
+
+        if self._outbound_owner_entity() is None:
+            return
+        if (
+            self.operation.operation_type == OperationType.SALE
+            and not self.product.is_physically_moved
+        ):
+            return
+        available = ProductLedgerEntry.state_as_of(self.product, self.date)[
+            "quantity"
+        ]
+        if self.quantity > available:
+            raise ValidationError(
+                _(
+                    "Insufficient stock: %(qty)s requested but only %(avail)s "
+                    "available for '%(p)s'."
+                )
+                % {"qty": self.quantity, "avail": available, "p": self.product}
+            )
+
     def clean(self):
         """Validate cross-field integrity."""
         # Ensure the invoice item belongs to the same operation
@@ -1151,6 +1337,34 @@ class InventoryMovementLine(ImmutableMixin, BaseModel):
         if self.product_id is not None:
             from apps.app_operation.models.operation_type import OperationType
 
+            # Ownership: for outbound operations the moved product must belong
+            # to the entity whose inventory it leaves. Prevents moving another
+            # project's stock out of this project. Reversal lines are exempt
+            # (they restore stock to its original location).
+            if self.reversal_of_id is None:
+                owner = self._outbound_owner_entity()
+                if owner is not None and self.product.entity_id != owner.id:
+                    raise ValidationError(
+                        _(
+                            "Product '%(p)s' does not belong to '%(entity)s' and "
+                            "cannot be moved out of it."
+                        )
+                        % {"p": self.product, "entity": owner}
+                    )
+                # Availability: never move more than the product physically holds.
+                self._validate_availability()
+                # Unit consistency: quantity must be a positive multiple of the
+                # template's minimum increment (e.g. 1 for Head, 0.01 for Kg).
+                min_qty = self.product.product_template.minimum_quantity
+                if min_qty and min_qty > 0 and (self.quantity % min_qty) != 0:
+                    raise ValidationError(
+                        _(
+                            "Quantity %(qty)s must be a multiple of the minimum "
+                            "increment %(min)s for '%(p)s'."
+                        )
+                        % {"qty": self.quantity, "min": min_qty, "p": self.product}
+                    )
+
             # Movement lines ARE the physical move, so obligated-only products
             # (registered but not yet moved) are allowed here. For terminal
             # operations (SALE/DEATH/CONSUMPTION) the moved product legitimately
@@ -1178,12 +1392,18 @@ class InventoryMovementLine(ImmutableMixin, BaseModel):
         # Lazy-create Product if not provided (e.g. purchase flow where the
         # caller passes product=None expecting save() to materialise it from
         # the invoice_item's product_template).
+        #
+        # ``_lazy_unique_id`` (a transient, non-model attribute) lets the caller
+        # forward the user-edited tag through to the created product; when
+        # absent, create_products_for_item() auto-generates one for INDIVIDUAL
+        # templates.
         if is_new and self.product_id is None and self.invoice_item_id is not None:
             products = InvoiceItem.create_products_for_item(
                 invoice_item=self.invoice_item,
                 entity=self.operation.source,  # project entity
                 quantity=self.quantity,
                 unit_price=self.invoice_item.unit_price,
+                unique_id=getattr(self, "_lazy_unique_id", None) or None,
             )
             self.product = products[0]
         super().save(*args, **kwargs)

@@ -45,10 +45,13 @@ class HasTagSelect(forms.Select):
 
 class InvoiceItemCreateForm(LoggingFormMixin, forms.ModelForm):
     """
-    One row = one Product to be created (animal born / purchased).
-    `unique_id` is an extra non-model field: required for INDIVIDUAL tracking,
-    optional otherwise — the view enforces this after checking the template's
-    tracking_mode.
+    One row = one Product (or a bulk batch for COMMODITY) to be created.
+    `unique_id` is an extra non-model field: for INDIVIDUAL (ANIMAL) tracking
+    it is auto-suggested from the template's tag prefix and editable; optional
+    for COMMODITY templates.
+
+    A bulk quantity is allowed for INDIVIDUAL templates — the backend creates
+    one tagged Product per head.
 
     Pass `project` (an Entity instance) to filter the `product` dropdown to
     only ProductTemplates linked to that project.
@@ -66,7 +69,7 @@ class InvoiceItemCreateForm(LoggingFormMixin, forms.ModelForm):
     unique_id = forms.CharField(
         required=False,
         label="Tag / ID",
-        help_text="Required for individually tracked animals.",
+        help_text="Auto-suggested for individually tracked animals; editable.",
         widget=forms.TextInput(
             attrs={"class": "form-control form-control-sm", "placeholder": "Tag / ID"}
         ),
@@ -101,6 +104,7 @@ class InvoiceItemCreateForm(LoggingFormMixin, forms.ModelForm):
 
     def __init__(self, *args, project=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.project = project
         if project is not None:
             qs = ProductTemplate.objects.filter(entities=project)
             self.fields["product_template"].queryset = qs
@@ -120,11 +124,33 @@ class InvoiceItemCreateForm(LoggingFormMixin, forms.ModelForm):
                 "unit_price", "Unit price is required when a product is selected."
             )
 
-        # If product is selected and requires individual tag, validate unique_id
-        # if template and template.has_tag and not uid:
-        #     self.add_error(
-        #         "unique_id", "Tag / ID is required for individually tracked animals."
-        #     )
+        # Individual tracking: auto-suggest a unique tag when left blank, so
+        # the user sees the suggestion and may edit it.  A bulk quantity is
+        # allowed — the backend creates one tagged Product per head.
+        if (
+            template
+            and template.tracking_mode == ProductTemplate.TrackingMode.INDIVIDUAL
+        ):
+            if not uid and self.project is not None:
+                uid = template.next_tag(self.project)
+                cleaned["unique_id"] = uid
+            if not uid:
+                self.add_error(
+                    "unique_id",
+                    "Tag / ID is required for individually tracked animals.",
+                )
+
+        if uid:
+            # Friendly duplicate-tag message; the DB UniqueConstraint on
+            # (entity, unique_id) is the hard backstop.
+            qs = Product.objects.filter(unique_id=uid)
+            if self.project is not None:
+                qs = qs.filter(entity=self.project)
+            if qs.exists():
+                self.add_error(
+                    "unique_id",
+                    "This tag is already in use for this project.",
+                )
         return cleaned
 
 
@@ -164,11 +190,14 @@ class InvoiceItemSelectForm(LoggingFormMixin, forms.ModelForm):
     One row = one existing Product being referenced (sold / died / gained / lost).
     `selected_product` is a non-model field — the view resolves the M2M link.
     The ProductTemplate FK on InvoiceItem is filled from the selection.
+
+    Pass ``entity`` (the owning project) to restrict the selectable products to
+    those belonging to that entity — prevents moving another project's stock.
     """
 
     selected_product = forms.ModelChoiceField(
         queryset=Product.objects.select_related("product_template").all(),
-        label="Animal / Batch",
+        label="Animal / Product",
         empty_label="— select —",
         widget=forms.Select(attrs={"class": "form-select form-select-sm"}),
     )
@@ -199,20 +228,56 @@ class InvoiceItemSelectForm(LoggingFormMixin, forms.ModelForm):
             ),
         }
 
+    def __init__(self, *args, entity=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.entity = entity
+        if entity is not None:
+            self.fields["selected_product"].queryset = (
+                Product.objects.filter(entity=entity).select_related("product_template")
+            )
+
     def clean(self):
         cleaned = super().clean()
         product = cleaned.get("selected_product")
         if product:
             product.validate_active()
+            # Ownership guard: never allow selecting a product owned by another
+            # entity, even if a crafted request bypasses the filtered queryset.
+            if self.entity is not None and product.entity_id != self.entity.id:
+                from django.utils.translation import gettext as _
+
+                self.add_error(
+                    "selected_product",
+                    _(
+                        "Product '%(p)s' does not belong to '%(entity)s' and "
+                        "cannot be used in this operation."
+                    )
+                    % {"p": product, "entity": self.entity},
+                )
+                return cleaned
             # Derive the required ProductTemplate FK from the selected Product
             self.instance.product_template = product.product_template
         return cleaned
+
+
+class BaseInvoiceItemSelectFormSet(forms.BaseInlineFormSet):
+    """Passes the owning ``entity`` down to each InvoiceItemSelectForm."""
+
+    def __init__(self, *args, entity=None, **kwargs):
+        self.entity = entity
+        super().__init__(*args, **kwargs)
+
+    def get_form_kwargs(self, index):
+        kwargs = super().get_form_kwargs(index)
+        kwargs["entity"] = self.entity
+        return kwargs
 
 
 InvoiceItemSelectFormSet = forms.inlineformset_factory(
     Operation,
     InvoiceItem,
     form=InvoiceItemSelectForm,
+    formset=BaseInvoiceItemSelectFormSet,
     extra=1,
     can_delete=True,
 )

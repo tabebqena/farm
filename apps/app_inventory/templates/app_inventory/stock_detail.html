@@ -177,7 +177,28 @@
                               <a href="{% url 'death_create_view' entity.pk %}" class="btn btn-danger" title="{% trans 'Record Death' %}"><i class="bi bi-x-lg"></i> {% trans 'Record Death' %}</a>
                             {% endif %}
                             {% if product.product_template.nature == 'FEED' or product.product_template.nature == 'MEDICINE' %}
-                              <a href="{% url 'operation_create_view' pk=entity.pk op_type='consumption' %}" class="btn btn-warning" title="{% trans 'Record Consumption' %}"><i class="bi bi-fire"></i> {% trans 'Record Consumption' %}</a>
+                              <details class="d-inline-block ms-2">
+                                <summary class="btn btn-sm btn-warning" title="{% trans 'Consume from stock' %}"><i class="bi bi-fire"></i> {% trans 'Consume' %}</summary>
+                                <form method="post" action="{% url 'quick_consume' entity.pk %}" class="d-flex flex-wrap align-items-center gap-2 mt-2 p-2 bg-light rounded border">
+                                  {% csrf_token %}
+                                  <input type="hidden" name="product_id" value="{{ product.pk }}">
+                                  <div class="d-flex align-items-center gap-1">
+                                    <label class="small mb-0 fw-bold">{% trans 'Qty' %}</label>
+                                    <input type="number" name="quantity" value="1" step="{{ product.product_template.minimum_quantity }}" min="{{ product.product_template.minimum_quantity }}" class="form-control form-control-sm" style="width:90px" required>
+                                  </div>
+                                  <div class="d-flex align-items-center gap-1">
+                                    <label class="small mb-0 fw-bold">{% trans 'Unit Price' %}</label>
+                                    <input type="number" name="unit_price" value="{{ product.unit_price }}" step="0.01" min="0.01" class="form-control form-control-sm" style="width:110px" required>
+                                  </div>
+                                  <div class="d-flex align-items-center gap-1">
+                                    <label class="small mb-0 fw-bold">{% trans 'Date' %}</label>
+                                    <input type="date" name="date" value="{% now 'Y-m-d' %}" class="form-control form-control-sm" style="width:150px">
+                                  </div>
+                                  <input type="text" name="description" placeholder="{% trans 'Description (optional)' %}" class="form-control form-control-sm" style="width:170px">
+                                  <button type="submit" class="btn btn-sm btn-warning">{% trans 'Consume' %}</button>
+                                  <a href="{% url 'operation_create_view' pk=entity.pk op_type='consumption' %}" class="btn btn-sm btn-outline-warning" title="{% trans 'Full consumption form' %}">{% trans 'Advanced' %}</a>
+                                </form>
+                              </details>
                             {% endif %}
                           {% endif %}
                         </span>
@@ -256,7 +277,28 @@
                           <a href="{% url 'death_create_view' entity.pk %}" class="btn btn-lg btn-danger" title="{% trans 'Record Death' %}"><i class="bi bi-x-lg"></i> {% trans 'Death' %}</a>
                         {% endif %}
                         {% if product.product_template.nature == 'FEED' or product.product_template.nature == 'MEDICINE' %}
-                          <a href="{% url 'operation_create_view' pk=entity.pk op_type='consumption' %}" class="btn btn-lg btn-warning" title="{% trans 'Record Consumption' %}"><i class="bi bi-fire"></i> {% trans 'Consume' %}</a>
+                          <details>
+                            <summary class="btn btn-warning" title="{% trans 'Consume from stock' %}"><i class="bi bi-fire"></i> {% trans 'Consume' %}</summary>
+                            <form method="post" action="{% url 'quick_consume' entity.pk %}" class="d-flex flex-wrap align-items-center gap-2 mt-2 p-2 bg-light rounded border">
+                              {% csrf_token %}
+                              <input type="hidden" name="product_id" value="{{ product.pk }}">
+                              <div class="d-flex align-items-center gap-1">
+                                <label class="small mb-0 fw-bold">{% trans 'Qty' %}</label>
+                                <input type="number" name="quantity" value="1" step="{{ product.product_template.minimum_quantity }}" min="{{ product.product_template.minimum_quantity }}" class="form-control form-control-sm" style="width:90px" required>
+                              </div>
+                              <div class="d-flex align-items-center gap-1">
+                                <label class="small mb-0 fw-bold">{% trans 'Unit Price' %}</label>
+                                <input type="number" name="unit_price" value="{{ product.unit_price }}" step="0.01" min="0.01" class="form-control form-control-sm" style="width:110px" required>
+                              </div>
+                              <div class="d-flex align-items-center gap-1">
+                                <label class="small mb-0 fw-bold">{% trans 'Date' %}</label>
+                                <input type="date" name="date" value="{% now 'Y-m-d' %}" class="form-control form-control-sm" style="width:150px">
+                              </div>
+                              <input type="text" name="description" placeholder="{% trans 'Description (optional)' %}" class="form-control form-control-sm" style="width:170px">
+                              <button type="submit" class="btn btn-sm btn-warning">{% trans 'Consume' %}</button>
+                              <a href="{% url 'operation_create_view' pk=entity.pk op_type='consumption' %}" class="btn btn-sm btn-outline-warning" title="{% trans 'Full consumption form' %}">{% trans 'Advanced' %}</a>
+                            </form>
+                          </details>
                         {% endif %}
                       </div>
                     {% endif %}

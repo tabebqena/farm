@@ -233,3 +233,33 @@ class ConsumptionCreateTest(TestCase):
         self.assertEqual(op.amount_settled, Decimal("100.00"))
         self.assertTrue(op.is_fully_settled)
         self.assertEqual(op.amount_remaining_to_settle, Decimal("0.00"))
+
+    # ------------------------------------------------------------------
+    # COGS / P&L behaviour (Option B)
+    # ------------------------------------------------------------------
+
+    def test_create_reduces_profit_loss(self):
+        """Consumption reduces Entity.profit_loss() as COGS in the consumption period."""
+        product = self._make_moved_product()
+        profit_before = self.project_entity.profit_loss()
+
+        self._consume(product)
+
+        self.assertEqual(
+            self.project_entity.profit_loss(),
+            profit_before - Decimal("500.00"),
+            "Consumed feed/medicine must appear as COGS and reduce project profit.",
+        )
+
+    def test_create_does_not_drain_fund_balance(self):
+        """Option B: consumption is non-cash — balance_at() must be unchanged."""
+        product = self._make_moved_product()
+        balance_before = self.project_entity.balance_at(date.today())
+
+        self._consume(product)
+
+        self.assertEqual(
+            self.project_entity.balance_at(date.today()),
+            balance_before,
+            "Consumption must not drain the fund balance (payment is no longer a payment type).",
+        )

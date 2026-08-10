@@ -384,12 +384,16 @@ def purchase_add_item_view(request, pk, idx=None):
     )
 
     if request.method == "POST":
-        form = PurchaseItemForm(request.POST, template=template)
+        form = PurchaseItemForm(request.POST, template=template, entity=project)
         if form.is_valid():
             cd = form.cleaned_data
-            # Duplicate unique_id guard
+            # Duplicate unique_id guard (auto-suggested tags are unique by
+            # construction; only explicit user-typed tags need this check)
             uid = (cd.get("unique_id") or "").strip()
-            if uid and template.has_tag:
+            if (
+                uid
+                and template.tracking_mode == ProductTemplate.TrackingMode.INDIVIDUAL
+            ):
                 for i, existing in enumerate(items):
                     if i == idx:
                         continue
@@ -433,7 +437,9 @@ def purchase_add_item_view(request, pk, idx=None):
             }
         else:
             initial = {"product_template_id": template.pk, "received_qty": "0"}
-        form = PurchaseItemForm(initial=initial, template=template)
+        form = PurchaseItemForm(
+            initial=initial, template=template, entity=project
+        )
 
     return render(
         request,

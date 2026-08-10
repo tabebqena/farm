@@ -95,7 +95,8 @@ erDiagram
     ProductTemplate {
         string name
         string nature   "ANIMAL | FEED | MEDICINE | PRODUCT"
-        string tracking_mode "INDIVIDUAL | BATCH | COMMODITY"
+        string tracking_mode "INDIVIDUAL | COMMODITY"  "resolved from nature: ANIMAL → INDIVIDUAL, else → COMMODITY"
+        string tag_prefix      "auto-generated animal tag prefix (e.g. CALF)"
         M2M   entities "→ Entity"
     }
     Product {

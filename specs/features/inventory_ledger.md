@@ -11,6 +11,17 @@ This spec documents the complete ledger system and query capabilities.
 
 ---
 
+## Valuation basis
+
+Outbound movement rows (SALE/DEATH/CONSUMPTION) are valued at the **cost carried
+on the product** (`Product.unit_price` — the purchase price for goods received
+via PURCHASE/BIRTH), via `valuation_unit_cost()` in
+`apps/app_inventory/models.py`.  Other methods (moving average, FIFO) may be
+added there later.  Inbound movements (PURCHASE/BIRTH) are valued at the new
+asset's recorded unit price.
+
+---
+
 ## Ledger Entry Types
 
 All inventory-changing operations map to one of these entry types:
