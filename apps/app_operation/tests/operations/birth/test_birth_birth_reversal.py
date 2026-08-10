@@ -1,0 +1,160 @@
+from datetime import date
+from decimal import Decimal
+
+from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
+from django.test import TestCase
+
+from apps.app_entity.models import Entity, EntityType
+from apps.app_inventory.models import (
+    Product,
+    ProductLedgerEntry,
+    ProductTemplate,
+)
+from apps.app_operation.models.operation_type import OperationType
+from apps.app_operation.models.proxies import BirthOperation
+from apps.app_transaction.transaction_type import TransactionType
+
+User = get_user_model()
+
+
+class BirthReversalTest(TestCase):
+    """Reversing a birth reverses its auto-created movement lines and negates
+    the ledger while the reversal record and counter-transactions are created."""
+
+    def setUp(self):
+        self.system_entity = Entity.create(EntityType.SYSTEM)
+        self.officer_user = User.objects.create_user(
+            username="officer", password="testpass", is_staff=True
+        )
+        self.project_entity = Entity.create(
+            EntityType.PROJECT, name="Test Farm Project"
+        )
+        self.template = ProductTemplate.objects.create(
+            name="Calves",
+            nature=ProductTemplate.Nature.ANIMAL,
+            sub_category="Cattle",
+            tracking_mode=ProductTemplate.TrackingMode.BATCH,
+            default_unit="Head",
+        )
+        self.template.entities.add(self.project_entity)
+
+    def _make_born(self, qty=Decimal("5.00"), price=Decimal("100.00")):
+        raw_post = {
+            "items-TOTAL_FORMS": "1",
+            "items-INITIAL_FORMS": "0",
+            "items-MIN_NUM_FORMS": "0",
+            "items-MAX_NUM_FORMS": "1000",
+            "items-0-id": "",
+            "items-0-product_template": str(self.template.pk),
+            "items-0-quantity": str(qty),
+            "items-0-unit_price": str(price),
+            "items-0-description": "",
+            "items-0-unique_id": "",
+            "items-0-DELETE": "",
+        }
+        op = BirthOperation.create(
+            operation_type=OperationType.BIRTH,
+            source=self.system_entity,
+            destination=self.project_entity,
+            amount=(qty * price).quantize(Decimal("0.01")),
+            date=date.today(),
+            description="Test birth",
+            officer=self.officer_user,
+            amount_paid=Decimal("0.00"),
+            raw_post=raw_post,
+            project=self.project_entity,
+        )
+        product = op.movement_lines.first().product
+        return op, product
+
+    def test_reverse_creates_reversal_record(self):
+        op, _ = self._make_born()
+        reversal = op.reverse(officer=self.officer_user, reason="test reversal")
+
+        self.assertIsNotNone(reversal.pk)
+        self.assertEqual(reversal.reversal_of, op)
+        self.assertTrue(reversal.is_reversal)
+
+    def test_reverse_marks_original_as_reversed(self):
+        op, _ = self._make_born()
+        reversal = op.reverse(officer=self.officer_user, reason="test reversal")
+
+        op.refresh_from_db()
+        self.assertTrue(op.is_reversed)
+        self.assertEqual(op.reversed_by, reversal)
+
+    def test_reverse_creates_counter_transactions(self):
+        op, _ = self._make_born()
+        op.reverse(officer=self.officer_user, reason="test reversal")
+
+        counter = op.get_all_transactions().filter(reversal_of__isnull=False)
+        self.assertEqual(counter.count(), 2)
+
+        self.assertTrue(
+            counter.filter(type=TransactionType.BIRTH_ISSUANCE).exists(),
+            "Counter BIRTH_ISSUANCE missing",
+        )
+        self.assertTrue(
+            counter.filter(type=TransactionType.BIRTH_PAYMENT).exists(),
+            "Counter BIRTH_PAYMENT missing",
+        )
+
+    def test_reverse_reverses_auto_movement_lines(self):
+        op, product = self._make_born()
+
+        original_ml = op.movement_lines.get(reversal_of__isnull=True)
+        op.reverse(officer=self.officer_user, reason="test reversal")
+
+        reversal_ml = op.movement_lines.get(reversal_of__isnull=False)
+        self.assertEqual(reversal_ml.reversal_of, original_ml)
+        self.assertEqual(reversal_ml.product, product)
+        self.assertEqual(reversal_ml.quantity, Decimal("5.00"))
+        # The original line is preserved (the reversal links to it)
+        self.assertEqual(
+            op.movement_lines.filter(reversal_of__isnull=True).count(),
+            1,
+        )
+
+    def test_reverse_negates_ledger_entries(self):
+        op, product = self._make_born()
+        item = op.items.get()
+        op.reverse(officer=self.officer_user, reason="test reversal")
+
+        # Movement negation is linked to the product (qty -5.00 to undo +5.00)
+        movement_reversal = ProductLedgerEntry.objects.filter(
+            product=product,
+            entry_type=ProductLedgerEntry.EntryType.REVERSAL,
+        )
+        self.assertTrue(movement_reversal.exists())
+        self.assertEqual(movement_reversal.first().quantity_delta, Decimal("-5.00"))
+
+        # Issuance negation is written with product=None for the invoice item
+        issuance_reversal = ProductLedgerEntry.objects.filter(
+            invoice_item=item,
+            entry_type=ProductLedgerEntry.EntryType.REVERSAL,
+        )
+        self.assertTrue(
+            issuance_reversal.exists(),
+            "Negated issuance ledger entry missing",
+        )
+        self.assertEqual(issuance_reversal.first().quantity_delta, Decimal("-5.00"))
+
+    # ------------------------------------------------------------------
+    # Constraints
+    # ------------------------------------------------------------------
+
+    def test_cannot_reverse_already_reversed_operation(self):
+        op, _ = self._make_born()
+        op.reverse(officer=self.officer_user, reason="test reversal")
+        op.refresh_from_db()
+
+        with self.assertRaises(ValidationError):
+            op.reverse(officer=self.officer_user)
+
+    def test_cannot_reverse_a_reversal(self):
+        op, _ = self._make_born()
+        reversal = op.reverse(officer=self.officer_user, reason="test reversal")
+
+        with self.assertRaises(ValidationError):
+            reversal.reverse(officer=self.officer_user)

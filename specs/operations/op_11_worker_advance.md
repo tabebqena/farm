@@ -6,6 +6,9 @@
 - Payment: `project.fund → worker.fund` — type: `WORKER_ADVANCE_PAYMENT`
 - Repayment (recovery): `worker.fund → project.fund` — type: `WORKER_ADVANCE_REPAYMENT`
 
+**Actions:** create, repay, reverse.
+
+## create
 **Validation:**
 - Source must be a Project entity
 - Destination must be a Person entity
@@ -15,6 +18,30 @@
 - Source fund must have sufficient balance (`fund.balance >= amount`)
 - Amount must be positive
 - Officer must be a Person with `auth_user`, `auth_user.is_staff=True`, and `active=True`
+- One-shot issuance + payment pair fires on save (`E@create` pay)
+
+**Success effects:**
+- `WORKER_ADVANCE_ISSUANCE` + `WORKER_ADVANCE_PAYMENT` created together on save
+- Fund deltas: ▼ project → ▲ worker
+- Repayment-tracked (not immediately settled) — `amount_remaining_to_repay` = full amount
+
+## repay
+**Validation:**
+- Amount > 0 and ≤ remaining
+- Over-repayment guard
+
+**Success effects:**
+- `WORKER_ADVANCE_REPAYMENT` (`worker.fund → project.fund`)
+- ▼ worker → ▲ project; `amount_repayed` ↑
+
+## reverse
+**Validation:**
+- Not already reversed / not a reversal / reason required
+- Blocked if any repayment (`WORKER_ADVANCE_REPAYMENT`) exists
+
+**Success effects:**
+- Reversal record; counter-transactions for issuance + payment
+- Project & worker funds restored
 
 **Immutability:** `source`, `destination`, `amount` cannot be changed after save
 

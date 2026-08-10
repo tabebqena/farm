@@ -13,11 +13,11 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from apps.app_adjustment._item_type import InvoiceItemAdjustmentType
 from apps.app_adjustment.models import (
     AdjustmentType,
     InvoiceItemAdjustment,
     InvoiceItemAdjustmentLine,
+    InvoiceItemAdjustmentType,
 )
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
 from apps.app_inventory.models import (

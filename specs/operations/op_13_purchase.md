@@ -14,6 +14,9 @@
 - Source: a Project entity (`source.project` must be set)
 - Destination: a Vendor entity (`destination.is_vendor=True`), must be an active vendor of the source project (via Stakeholder)
 
+**Actions:** create, pay, move items, adjust items, adjust, reverse.
+
+## create
 **Validation:**
 - Source must be a Project entity
 - Destination must be a Vendor entity (`is_vendor=True`)
@@ -22,6 +25,65 @@
 - Source entity's fund must be `active=True`
 - Amount must be positive
 - Officer must be a Person with `auth_user`, `auth_user.is_staff=True`, and `active=True`
+- Balance @ create: **exempt** (issuance unguarded); not one-shot
+
+**Success effects:**
+- `PURCHASE_ISSUANCE` created on save (non-cash obligation)
+- No payment on save — payments happen later via **pay**
+- ✓ product ledger issuance entry; product status ACTIVE
+
+## pay
+**Validation:**
+- Balance enforced per payment (`check_balance_on_payment=True`)
+- Amount > 0 and ≤ remaining
+- Partial allowed — multiple payments
+- Over-payment guard
+
+**Success effects:**
+- `PURCHASE_PAYMENT` (`project.fund → vendor.fund`)
+- ▼ project → ▲ vendor; `amount_settled` ↑
+
+## move items
+**Validation:**
+- `can_create_movement=True`; operation not reversed
+- Qty ≤ item remaining qty
+- Product allowed (active/obligated); officer staff + active
+
+**Success effects:**
+- `PURCHASE_MOVEMENT` ledger entry
+- Lazy product creation; product status ACTIVE; remaining qty ↓
+
+## adjust items
+**Validation:**
+- `is_items_adjustable=True`; not reversed / not a reversal
+- ≥ 1 item changed; new qty/price parse
+- New qty ≥ already moved
+
+**Success effects:**
+- `InvoiceItemAdjustment` + lines; item adjusted qty/price
+- Accounting `Adjustment` + `*_ADJUSTMENT` transaction
+- Inventory ledger `*_ADJUSTMENT` entries
+
+## adjust
+**Validation:**
+- `can_adjust=True`; not reversed / not a reversal
+- Adjustment type allowed for PURCHASE
+- Amount > 0; officer staff + active
+
+**Success effects:**
+- `PURCHASE_ADJUSTMENT_INCREASE` / `PURCHASE_ADJUSTMENT_DECREASE` (non-cash)
+- `effective_amount` delta
+
+## reverse
+**Validation:**
+- Not already reversed / not a reversal / reason required
+- Blocked if any payment (`PURCHASE_PAYMENT`) exists
+- Blocked if any non-reversed movement lines exist
+- Blocked if any non-reversed adjustment exists
+
+**Success effects:**
+- Reversal record; counter-transaction for issuance only
+- Negated product ledger entry
 
 **Immutability:** `source`, `destination`, `amount` cannot be changed after save
 

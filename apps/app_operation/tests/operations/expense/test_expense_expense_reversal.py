@@ -54,11 +54,12 @@ def _inject_project(system_entity, dest_entity, amount, officer_user):
 
 
 def _make_expense_category(parent_entity, name="Veterinary Consultation"):
-    from apps.app_operation.models import FinancialCategoriesEntitiesRelations
+    from apps.app_entity.models.category import FinancialCategoriesEntitiesRelations
 
     cat, _ = FinancialCategory.objects.get_or_create(
         name=name,
-        defaults={"category_type": "EXPENSE", "is_active": True},
+        aspect="Medications",
+        defaults={"category_type": "EXPENSE"},
     )
     FinancialCategoriesEntitiesRelations.objects.get_or_create(
         entity=parent_entity, category=cat, defaults={"max_limit": Decimal("0.00")}
@@ -93,6 +94,7 @@ class ExpenseReversalTest(TestCase):
             Decimal("5000.00"),
             self.officer_user,
         )
+        self.category = _make_expense_category(self.project_entity)
 
         self.op = ExpenseOperation(
             source=self.project_entity,
@@ -102,6 +104,7 @@ class ExpenseReversalTest(TestCase):
             date=date.today(),
             description="Test expense",
             officer=self.officer_user,
+            category=self.category,
         )
         self.op.save()
 

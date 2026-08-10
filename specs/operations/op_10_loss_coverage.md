@@ -7,18 +7,40 @@
 
 **Settlement:** Fully settled immediately — `is_fully_settled=True`, `amount_settled == amount`, `amount_remaining_to_settle == 0`
 
+**Actions:** create, reverse.
+
+## create
 **Validation:**
-- Source must be a Person (shareholder) entity
-- Destination must be a Project entity
+- Source must be a Person (shareholder) entity — enforced via `clean_source()` (`is_shareholder=True`)
+- Destination must be a Project entity — enforced via `clean_destination()` (`is_project=True`)
 - Both entities must be `active=True`
 - Source entity's fund must be `active=True`
 - Source fund must have sufficient balance (`fund.balance >= amount`)
+- Plan required; plan must be a **loss** plan (profit / break-even reject)
+- Amount must not exceed `plan.remaining_coverable` (cumulative cap across partial coverage)
 - Amount must be positive
 - Officer must be a Person with `auth_user`, `auth_user.is_staff=True`, and `active=True`
+- One-shot auto-settled — payment transaction fires on save (`E@create` pay)
+
+**Success effects:**
+- `LOSS_COVERAGE_ISSUANCE` + `LOSS_COVERAGE_PAYMENT` created on save
+- Immediately settled (`is_fully_settled=True`)
+- Fund deltas: ▼ shareholder → ▲ project
+- Plan tracking: `covered` ↑ / `remaining_coverable` ↓
+
+## reverse
+**Validation:**
+- Not already reversed / not a reversal / reason required
+
+**Success effects:**
+- Reversal record; counter-transactions for issuance + payment
+- Restores `remaining_coverable`
 
 **Immutability:** `source`, `destination`, `amount` cannot be changed after save
 
 Tasks:
+- [x] Verify source must be a Person shareholder entity (`clean_source`) — non-shareholder raises
+- [x] Verify destination must be a Project entity (`clean_destination`) — non-project raises
 - [x] Verify both `LOSS_COVERAGE_ISSUANCE` and `LOSS_COVERAGE_PAYMENT` transactions are created on save
 - [x] Verify transaction fund direction: `shareholder.fund → project.fund` for both
 - [x] Verify operation is fully settled immediately

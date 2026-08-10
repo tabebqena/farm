@@ -126,6 +126,8 @@
                         <span class="badge bg-success">{{ status }}</span>
                       {% elif status == 'SOLD' %}
                         <span class="badge bg-secondary">{{ status }}</span>
+                      {% elif status == 'CONSUMED' %}
+                        <span class="badge bg-warning text-dark">{{ status }}</span>
                       {% else %}
                         <span class="badge bg-danger">{{ status }}</span>
                       {% endif %}

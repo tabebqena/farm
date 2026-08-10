@@ -44,6 +44,10 @@ class DeathOperation(Operation):
     def payment_target_fund(self):
         return self.destination  # system entity — exempt from balance validation
 
+    def clean_source(self):
+        if not self.source.is_project:
+            raise ValidationError("Death source must be a Project entity.")
+
     def clean_destination(self):
         if not self.destination.is_system:
             raise ValidationError("Death destination must be the System entity.")

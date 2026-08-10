@@ -1,5 +1,6 @@
 from typing import List
 
+from django.core.exceptions import ValidationError
 
 from apps.app_entity.models import EntityType
 from apps.app_operation.models.operation import Operation
@@ -48,6 +49,30 @@ class LoanOperation(Operation):
     def debtor(self):
         return self.destination
 
+    def clean_source(self):
+        if not (self.source.is_person or self.source.is_project):
+            raise ValidationError(
+                "Loan source (creditor) must be a Person or Project entity."
+            )
+
+    def clean_destination(self):
+        if not (self.destination.is_person or self.destination.is_project):
+            raise ValidationError(
+                "Loan destination (debtor) must be a Person or Project entity."
+            )
+
+    def clean(self):
+        # Enforce that creditor and debtor are distinct entities.
+        if (
+            self.source_id is not None
+            and self.destination_id is not None
+            and self.source_id == self.destination_id
+        ):
+            raise ValidationError(
+                "Loan source (creditor) and destination (debtor) must be different entities."
+            )
+        return super().clean()
+
     @property
     def _reversable_transaction_types(self) -> List[TransactionType]:
         # Loans must have repayments manually cleared before reversal is allowed.
@@ -68,5 +93,15 @@ class LoanOperation(Operation):
 
     @property
     def _implicit_reversable_transaction_types(self) -> List[TransactionType]:
-        # Only the issuance is implicitly reversed; payments must be cleared manually.
+        # Only the issuance is implicitly reversed; payments & repayments must be cleared manually.
         return [TransactionType.LOAN_ISSUANCE]
+
+    def _requires_transaction_reversal(self, all_txs) -> bool:
+        if super()._requires_transaction_reversal(all_txs):
+            return True
+        repayments = all_txs.filter(
+            type=TransactionType.LOAN_REPAYMENT,
+            reversal_of__isnull=True,
+            reversed_by__isnull=True,
+        )
+        return repayments.exists()

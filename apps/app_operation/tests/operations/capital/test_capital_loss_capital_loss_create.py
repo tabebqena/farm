@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from apps.app_entity.models import Entity, EntityType
+from apps.app_inventory.models import InventoryMovementLine, Product, ProductTemplate
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import CapitalLossOperation
 from apps.app_transaction.transaction_type import TransactionType
@@ -237,3 +238,91 @@ class CapitalLossCreateTest(TestCase):
     def test_check_balance_on_payment_is_disabled(self):
         """Destination is the system entity; no fund balance gate on payment."""
         self.assertFalse(CapitalLossOperation.check_balance_on_payment)
+
+    # ------------------------------------------------------------------
+    # Deficit behaviour — a loss-making project can go further into debt
+    # ------------------------------------------------------------------
+
+    def test_zero_balance_project_can_record_capital_loss(self):
+        """A project with no funds may still record a capital loss."""
+        self.project_entity.refresh_from_db()
+        self.assertEqual(self.project_entity.balance, Decimal("0.00"))
+
+        op = self._make_op(amount=Decimal("500.00"))
+        op.save()  # must NOT raise ValidationError for insufficient funds
+
+        self.project_entity.refresh_from_db()
+        self.assertEqual(self.project_entity.balance, Decimal("-500.00"))
+
+    def test_insufficient_balance_project_goes_into_deficit(self):
+        """A loss larger than the fund balance drives the fund into deficit."""
+        # Seed a small balance, then record a loss that exceeds it.
+        from apps.app_operation.models.proxies import CapitalGainOperation
+
+        seed = CapitalGainOperation(
+            source=self.system_entity,
+            destination=self.project_entity,
+            amount=Decimal("100.00"),
+            operation_type=OperationType.CAPITAL_GAIN,
+            date=date.today(),
+            description="Seed balance",
+            officer=self.officer_user,
+        )
+        seed.save()
+
+        self.project_entity.refresh_from_db()
+        self.assertEqual(self.project_entity.balance, Decimal("100.00"))
+
+        op = self._make_op(amount=Decimal("500.00"))
+        op.save()  # must NOT raise ValidationError for insufficient funds
+
+        self.project_entity.refresh_from_db()
+        self.assertEqual(self.project_entity.balance, Decimal("-400.00"))
+
+    def test_loss_making_project_can_record_further_losses(self):
+        """A project already in deficit can keep recording more losses."""
+        op1 = self._make_op(amount=Decimal("300.00"))
+        op1.save()
+
+        op2 = self._make_op(amount=Decimal("200.00"))
+        op2.save()
+
+        op3 = self._make_op(amount=Decimal("150.00"))
+        op3.save()
+
+        self.project_entity.refresh_from_db()
+        self.assertEqual(self.project_entity.balance, Decimal("-650.00"))
+
+    def test_capital_loss_is_value_only_no_movement_line(self):
+        """A capital loss never creates an InventoryMovementLine and keeps the
+        product ACTIVE — quantity is untouched, only value is written down."""
+        template = ProductTemplate.objects.create(
+            name="Calves",
+            nature=ProductTemplate.Nature.ANIMAL,
+            sub_category="Cattle",
+            tracking_mode=ProductTemplate.TrackingMode.BATCH,
+            default_unit="Head",
+        )
+        op = self._make_op(amount=Decimal("500.00"))
+        op.save()
+
+        from apps.app_inventory.models import InvoiceItem
+
+        item = InvoiceItem.objects.create(
+            operation=op,
+            product_template=template,
+            quantity=Decimal("1.00"),
+            unit_price=Decimal("500.00"),
+        )
+        product = Product.objects.create(
+            product_template=template,
+            unit_price=Decimal("500.00"),
+            quantity=1,
+        )
+        product.invoice_items.add(item)
+
+        self.assertEqual(product.status, Product.Status.ACTIVE)
+        self.assertFalse(
+            InventoryMovementLine.objects.filter(operation=op).exists(),
+            "Capital loss must not create an InventoryMovementLine.",
+        )

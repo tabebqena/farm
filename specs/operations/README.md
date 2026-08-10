@@ -1,5 +1,7 @@
 # Operations
 
+> **Cross-operation reference:** See [Operations Comparison — Validation & Success-Effects (per action)](operations-comparison.md) for the consolidated, **per-action** comparison (create / reverse / adjust / move items / adjust items / pay / repay): an action-applicability matrix, per-action validation matrices, per-action success-effects matrices, and per-operation × per-action reports. Not every operation accepts every action. Covers all 19 operation types.
+
 ## Core Operations
 - [Op 1: Cash Injection](op_1_cash_injection.md)
 - [Op 2: Cash Withdrawal](op_2_cash_withdrawal.md)
@@ -20,3 +22,8 @@
 - [Op 13: Purchase](op_13_purchase.md)
 - [Op 14: Sale](op_14_sale.md)
 - [Op 15: Correction](op_15_correction.md)
+
+## Inventory / Livestock
+- [Op 17: Birth](op_17_birth.md)
+- [Op 18: Death](op_18_death.md)
+- [Op 19: Consumption](op_19_consumption.md)

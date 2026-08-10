@@ -13,11 +13,11 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from apps.app_adjustment._item_type import InvoiceItemAdjustmentType
 from apps.app_adjustment.models import (
     AdjustmentType,
     InvoiceItemAdjustment,
     InvoiceItemAdjustmentLine,
+    InvoiceItemAdjustmentType,
 )
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
 from apps.app_inventory.models import (
@@ -111,7 +111,7 @@ def _make_product_template(name="Cattle"):
 
 def _make_invoice_with_item(operation, template, quantity, unit_price):
     item = InvoiceItem.objects.create(
-        operation=operation, product=template, quantity=quantity, unit_price=unit_price
+        operation=operation, product_template=template, quantity=quantity, unit_price=unit_price
     )
     return item
 

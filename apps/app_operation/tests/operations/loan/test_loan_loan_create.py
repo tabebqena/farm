@@ -167,6 +167,58 @@ class LoanCreateTest(TestCase):
             op.save()
 
     # ------------------------------------------------------------------
+    # Counterparty entity-type validation (person | project)
+    # ------------------------------------------------------------------
+
+    def test_source_can_be_person_or_project(self):
+        # Person source (default setUp) — already covered by happy path.
+        # Project source → person debtor must also succeed.
+        project_creditor = _make_project_entity("Creditor Project")
+        person_debtor = _make_person_entity("Debtor Person")
+        op = self._make_op(source=project_creditor, destination=person_debtor)
+        op.save()
+        self.assertIsNotNone(op.pk)
+
+    def test_source_vendor_person_is_still_a_valid_creditor(self):
+        """A Person flagged as vendor is still a Person entity (entity_type=PERSON),
+        so the person|project rule accepts it as a creditor."""
+        vendor = Entity.create(EntityType.PERSON, name="Vendor Creditor", is_vendor=True)
+        op = self._make_op(source=vendor)
+        op.save()
+        self.assertIsNotNone(op.pk)
+
+    def test_source_system_entity_raises_validation_error(self):
+        system_entity = Entity.create(EntityType.SYSTEM)
+        op = self._make_op(source=system_entity)
+        with self.assertRaises(ValidationError):
+            op.save()
+
+    def test_source_world_entity_raises_validation_error(self):
+        op = self._make_op(source=self.world_entity)
+        with self.assertRaises(ValidationError):
+            op.save()
+
+    def test_destination_world_entity_raises_validation_error(self):
+        op = self._make_op(destination=self.world_entity)
+        with self.assertRaises(ValidationError):
+            op.save()
+
+    def test_destination_system_entity_raises_validation_error(self):
+        system_entity = Entity.create(EntityType.SYSTEM)
+        op = self._make_op(destination=system_entity)
+        with self.assertRaises(ValidationError):
+            op.save()
+
+    # ------------------------------------------------------------------
+    # Counterparty distinctness (source != destination)
+    # ------------------------------------------------------------------
+
+    def test_source_and_destination_must_be_different(self):
+        op = self._make_op(destination=self.creditor_entity)
+        with self.assertRaises(ValidationError):
+            op.save()
+
+    # ------------------------------------------------------------------
     # Amount validation
     # ------------------------------------------------------------------
 

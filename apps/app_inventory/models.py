@@ -773,6 +773,7 @@ class Product(AmountCleanMixin, BaseModel):
         ACTIVE = "ACTIVE", _("Active")
         SOLD = "SOLD", _("Sold")
         DEAD = "DEAD", _("Dead")
+        CONSUMED = "CONSUMED", _("Consumed")
 
     entity = models.ForeignKey(
         "app_entity.Entity",
@@ -828,12 +829,14 @@ class Product(AmountCleanMixin, BaseModel):
             OperationType.BIRTH,
             OperationType.DEATH,
             OperationType.SALE,
+            OperationType.CONSUMPTION,
         }
         TYPE_TO_STATUS = {
             OperationType.PURCHASE: self.Status.ACTIVE,
             OperationType.BIRTH: self.Status.ACTIVE,
             OperationType.DEATH: self.Status.DEAD,
             OperationType.SALE: self.Status.SOLD,
+            OperationType.CONSUMPTION: self.Status.CONSUMED,
         }
 
         last_op = (
@@ -881,8 +884,9 @@ class Product(AmountCleanMixin, BaseModel):
         """
         Raise ValidationError if product can't participate in operations.
 
-        SOLD/DEAD products are forbidden in normal operations, but allowed in:
-        - Reversals (allow_reversal=True): undoing a sale or death
+        SOLD/DEAD/CONSUMED products are forbidden in normal operations, but
+        allowed in:
+        - Reversals (allow_reversal=True): undoing a sale, death or consumption
         - Adjustments (allow_adjustment=True): correcting records
 
         Obligated-only products (registered but not physically moved) are
@@ -892,7 +896,7 @@ class Product(AmountCleanMixin, BaseModel):
         - Reversals (allow_reversal=True)
         """
         status = self.status
-        if status in (self.Status.SOLD, self.Status.DEAD):
+        if status in (self.Status.SOLD, self.Status.DEAD, self.Status.CONSUMED):
             if allow_reversal or allow_adjustment:
                 return
             raise ValidationError(

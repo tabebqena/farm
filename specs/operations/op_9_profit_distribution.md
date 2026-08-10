@@ -7,14 +7,34 @@
 
 **Settlement:** Fully settled immediately — `is_fully_settled=True`, `amount_settled == amount`, `amount_remaining_to_settle == 0`
 
+**Actions:** create, reverse.
+
+## create
 **Validation:**
 - Source must be a Project entity
 - Destination must be a Person (shareholder) entity
 - Both entities must be `active=True`
 - Source entity's fund must be `active=True`
 - Source fund must have sufficient balance (`fund.balance >= amount`)
+- Plan required; plan must be a **profit** plan (loss / break-even reject)
+- Amount must not exceed `plan.remaining_distributable` (cumulative cap across partial distributions)
 - Amount must be positive
 - Officer must be a Person with `auth_user`, `auth_user.is_staff=True`, and `active=True`
+- One-shot auto-settled — payment transaction fires on save (`E@create` pay)
+
+**Success effects:**
+- `PROFIT_DISTRIBUTION_ISSUANCE` + `PROFIT_DISTRIBUTION_PAYMENT` created on save
+- Immediately settled (`is_fully_settled=True`)
+- Fund deltas: ▼ project → ▲ shareholder
+- Plan tracking: `distributed` ↑ / `remaining_distributable` ↓
+
+## reverse
+**Validation:**
+- Not already reversed / not a reversal / reason required
+
+**Success effects:**
+- Reversal record; counter-transactions for issuance + payment
+- Restores `remaining_distributable`
 
 **Immutability:** `source`, `destination`, `amount` cannot be changed after save
 

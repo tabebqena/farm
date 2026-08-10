@@ -5,6 +5,9 @@
 - Issuance: records receivable — type: `SALE_ISSUANCE` (no cash movement)
 - Collection: `client.fund → project.fund` — type: `SALE_COLLECTION`
 
+**Actions:** create, pay (collection), move items, adjust items, adjust, reverse.
+
+## create
 **Validation:**
 - Source must be a Client entity (`is_client=True`)
 - Source must be an active client of the destination project (via Stakeholder)
@@ -13,6 +16,65 @@
 - Source entity's fund must be `active=True`
 - Amount must be positive
 - Officer must be a Person with `auth_user`, `auth_user.is_staff=True`, and `active=True`
+- Balance @ create: **exempt** (issuance unguarded); not one-shot
+
+**Success effects:**
+- `SALE_ISSUANCE` created on save (non-cash receivable)
+- No payment on save — collections happen later via **pay**
+- ✓ product ledger issuance entry; product status SOLD
+
+## pay (collection)
+**Validation:**
+- Balance enforced per collection (`check_balance_on_payment=True`)
+- Amount > 0 and ≤ remaining
+- Partial allowed — multiple collections
+- Over-collection guard
+
+**Success effects:**
+- `SALE_COLLECTION` (`client.fund → project.fund`)
+- ▼ client → ▲ project; `amount_settled` ↑
+
+## move items
+**Validation:**
+- `can_create_movement=True`; operation not reversed
+- Qty ≤ item remaining qty
+- Product allowed (active/obligated); officer staff + active
+
+**Success effects:**
+- `SALE_MOVEMENT` ledger entry
+- Product status SOLD; remaining qty ↓
+
+## adjust items
+**Validation:**
+- `is_items_adjustable=True`; not reversed / not a reversal
+- ≥ 1 item changed; new qty/price parse
+- New qty ≥ already moved
+
+**Success effects:**
+- `InvoiceItemAdjustment` + lines; item adjusted qty/price
+- Accounting `Adjustment` + `*_ADJUSTMENT` transaction
+- Inventory ledger `*_ADJUSTMENT` entries
+
+## adjust
+**Validation:**
+- `can_adjust=True`; not reversed / not a reversal
+- Adjustment type allowed for SALE
+- Amount > 0; officer staff + active
+
+**Success effects:**
+- `SALE_ADJUSTMENT_INCREASE` / `SALE_ADJUSTMENT_DECREASE` (non-cash)
+- `effective_amount` delta
+
+## reverse
+**Validation:**
+- Not already reversed / not a reversal / reason required
+- Blocked if any collection (`SALE_COLLECTION`) exists
+- Blocked if any non-reversed movement lines exist
+- Blocked if any non-reversed adjustment exists
+
+**Success effects:**
+- Reversal record; counter-transaction for issuance only
+- Negated product ledger entry
 
 **Immutability:** `source`, `destination`, `amount` cannot be changed after save
 

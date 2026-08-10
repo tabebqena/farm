@@ -96,6 +96,7 @@ class ExpenseCreateTest(TestCase):
             Decimal("5000.00"),
             self.officer_user,
         )
+        self.category = _make_expense_category(self.project_entity)
 
     def _make_op(self, **kwargs):
         defaults = dict(
@@ -106,6 +107,7 @@ class ExpenseCreateTest(TestCase):
             date=date.today(),
             description="Test expense",
             officer=self.officer_user,
+            category=self.category,
         )
         defaults.update(kwargs)
         return ExpenseOperation(**defaults)
@@ -208,6 +210,55 @@ class ExpenseCreateTest(TestCase):
             entity=self.project_entity, category=income_cat
         )
         self.assertNotEqual(income_cat.category_type, "EXPENSE")
+
+    # ------------------------------------------------------------------
+    # Model-level category enforcement (model-level FK)
+    # ------------------------------------------------------------------
+
+    def test_category_required_missing_category_raises(self):
+        """Expense requires a category at the model level — missing FK is rejected."""
+        op = self._make_op(category=None)
+        with self.assertRaises(ValidationError):
+            op.save()
+
+    def test_category_must_be_expense_type(self):
+        """Expense rejects a category whose category_type is not EXPENSE."""
+        from apps.app_entity.models.category import FinancialCategoriesEntitiesRelations
+
+        income_cat = FinancialCategory.objects.create(
+            name="Animal Sale Income 2",
+            aspect="Sale",
+            category_type="INCOME",
+        )
+        FinancialCategoriesEntitiesRelations.objects.create(
+            entity=self.project_entity, category=income_cat
+        )
+
+        op = self._make_op(category=income_cat)
+        with self.assertRaises(ValidationError):
+            op.save()
+
+    def test_expense_category_is_stored_on_operation(self):
+        """The selected category is persisted on the operation via the FK."""
+        op = self._make_op()
+        op.save()
+
+        op.refresh_from_db()
+        self.assertEqual(op.category, self.category)
+
+    def test_non_category_operation_does_not_require_category(self):
+        """A non-category operation (e.g. Capital Gain) is unaffected by the check."""
+        op = CapitalGainOperation(
+            source=self.system_entity,
+            destination=self.project_entity,
+            amount=Decimal("500.00"),
+            operation_type=OperationType.CAPITAL_GAIN,
+            date=date.today(),
+            description="Seed balance",
+            officer=self.officer_user,
+        )
+        op.save()  # must NOT raise — no category required for non-category ops
+        self.assertIsNotNone(op.pk)
 
     # ------------------------------------------------------------------
     # Source validation

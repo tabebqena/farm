@@ -141,8 +141,6 @@ class SourceFundMixin(BaseModelMixin):
         fund = self.payment_source_fund
         if not fund.active:
             raise ValidationError(_("The Payment source entity should be active."))
-        if not fund.active:
-            raise ValidationError(_("The payment source fund is not active."))
 
     def clean(self) -> None:
         self._validate_payment_source_fund_exists()

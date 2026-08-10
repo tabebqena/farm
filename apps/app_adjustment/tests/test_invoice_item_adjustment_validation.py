@@ -13,10 +13,10 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from apps.app_adjustment._item_type import InvoiceItemAdjustmentType
 from apps.app_adjustment.models import (
     InvoiceItemAdjustment,
     InvoiceItemAdjustmentLine,
+    InvoiceItemAdjustmentType,
 )
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
 from apps.app_inventory.models import (
@@ -162,9 +162,15 @@ class ValidationTest(TestCase):
         self.template = _make_product_template()
 
     def test_item_adjustment_requires_purchase_or_sale(self):
+        from apps.app_entity.models.category import FinancialCategory
         from apps.app_operation.models.proxies import ExpenseOperation
 
         world = Entity.create(EntityType.WORLD)
+        cat, _ = FinancialCategory.objects.get_or_create(
+            name="Veterinary Consultation",
+            aspect="Medications",
+            defaults={"category_type": "EXPENSE"},
+        )
         op = ExpenseOperation.objects.create(
             source=self.project,
             destination=world,
@@ -172,6 +178,7 @@ class ValidationTest(TestCase):
             operation_type=OperationType.EXPENSE,
             date=date.today(),
             officer=self.officer,
+            category=cat,
         )
         ia = InvoiceItemAdjustment(
             operation=op,

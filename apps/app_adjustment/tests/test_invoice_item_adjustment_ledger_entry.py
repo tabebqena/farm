@@ -12,10 +12,10 @@ from decimal import Decimal
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
-from apps.app_adjustment._item_type import InvoiceItemAdjustmentType
 from apps.app_adjustment.models import (
     InvoiceItemAdjustment,
     InvoiceItemAdjustmentLine,
+    InvoiceItemAdjustmentType,
 )
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
 from apps.app_inventory.models import (

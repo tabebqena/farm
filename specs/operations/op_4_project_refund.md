@@ -7,6 +7,9 @@
 
 **Settlement:** Fully settled immediately — `is_fully_settled=True`, `amount_settled == amount`, `amount_remaining_to_settle == 0`
 
+**Actions:** create, reverse.
+
+## create
 **Validation:**
 - Source must be a Project entity
 - Destination must be a Person entity
@@ -14,9 +17,27 @@
 - Both entities must be `active=True`
 - Source entity's fund must be `active=True`
 - Source fund must have sufficient balance (`fund.balance >= amount`)
-- Refund amount must not exceed the net amount funded by the shareholder into this project
+- Refund amount must not exceed the net amount funded by the shareholder into this project (`total_funded − total_refunded`)
 - Amount must be positive
 - Officer must be a Person with `auth_user`, `auth_user.is_staff=True`, and `active=True`
+- One-shot auto-settled — payment transaction fires on save (`E@create` pay)
+
+**Success effects:**
+- `PROJECT_REFUND_ISSUANCE` + `PROJECT_REFUND_PAYMENT` created on save
+- Immediately settled (`is_fully_settled=True`)
+- Fund deltas: ▼ project → ▲ shareholder
+- No product ledger entries / no movement lines
+
+## reverse
+**Validation:**
+- Not already reversed
+- Not a reversal
+- Reason required (view-level)
+
+**Success effects:**
+- Reversal record created, linked via `reversal_of`
+- Counter-transactions for issuance + payment (`person.fund → project.fund`)
+- Project & shareholder balances restored
 
 **Immutability:** `source`, `destination`, `amount` cannot be changed after save
 

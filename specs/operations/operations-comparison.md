@@ -1,0 +1,242 @@
+# Operations — Validation & Success-Effects Comparison (per action)
+
+**Purpose:** Consolidated, cross-operation reference derived from the per-operation "eagle-eye" reviews (see `chats/`), the per-operation specs in this directory, and the implementation (`apps/app_operation/models/proxies/*`, `apps/app_base/mixins.py`, `apps/app_transaction/transaction_type.py`, `apps/app_inventory/models.py`, `apps/app_adjustment/models.py`).
+
+**Scope:** All 19 operation types.
+
+**Structure:** Each operation is acted upon through a subset of **7 actions** — `create`, `reverse`, `adjust`, `move items`, `adjust items`, `pay`, `repay`. Validation checks and success effects are documented **per action** below, arranged per operation. Not every operation accepts every action (see [Action applicability](#action-applicability)).
+
+---
+
+## Actions
+
+| # | Action | Meaning | Primary code path |
+|---|--------|---------|-------------------|
+| A1 | **create** | First save of the operation — establishes source/destination/amount/officer/period/plan and fires the issuance side-effects. | [`Operation.create()`](../../apps/app_operation/models/operation.py) → `save()` → `full_clean()` (proxy `clean()` + `clean_source`/`clean_destination` + mixin cleans) → `post_save_tasks` |
+| A2 | **reverse** | Reverse an operation — clones it, links via `reversal_of`, creates counter-transactions and negates ledger/movements. | [`Operation.reverse()`](../../apps/app_operation/models/operation.py) → [`ReversableModel.reverse()`](../../apps/app_base/models.py) → [`reverse.py`](../../apps/app_operation/views/reverse.py) |
+| A3 | **adjust** | Accounting adjustment on the operation amount (only Purchase / Sale / Expense). | [`Adjustment`](../../apps/app_adjustment/models.py) → [`record_accounting_adjustment`](../../apps/app_operation/views/adjustment.py) |
+| A4 | **move items** | Inventory movement lines — user-driven receipt/dispatch (Purchase / Sale) or auto-created (Birth / Death / Consumption). | [`InventoryMovementLine`](../../apps/app_inventory/models.py) → [`create_inventory_movement`](../../apps/app_inventory/views.py) |
+| A5 | **adjust items** | Invoice-item correction (qty / unit price) on Purchase / Sale. | [`InvoiceItemAdjustment.finalize()`](../../apps/app_adjustment/models.py) → [`record_item_adjustment`](../../apps/app_operation/views/adjustment.py) |
+| A6 | **pay** | Payment / settlement transaction (cash movement toward the receiver). Standalone after creation for Loan / Expense / Purchase / Sale; for one-shot operations it fires at creation. | [`create_payment_transaction`](../../apps/app_base/mixins.py) → [`record_transaction_payment`](../../apps/app_operation/views/record_transaction.py) |
+| A7 | **repay** | Repayment / collection transaction (cash movement back to the source). | [`create_repayment_transaction`](../../apps/app_base/mixins.py) → [`record_transaction_repayment`](../../apps/app_operation/views/record_transaction.py) |
+
+---
+
+## Action applicability
+
+Rows = operations. Columns = actions. **E** = applicable/enforced, **E@create** = the transaction/effect fires only at creation (no standalone post-create action), **B** = action exists but is restricted/blocked under conditions, **—** = not applicable.
+
+| Op | Operation | create | reverse | adjust | move items | adjust items | pay | repay |
+|----|-----------|--------|---------|--------|-----------|-------------|-----|-------|
+| CI | Cash Injection | E | E | — | — | — | E@create | — |
+| CW | Cash Withdrawal | E | E | — | — | — | E@create | — |
+| PF | Project Funding | E | E | — | — | — | E@create | — |
+| PR | Project Refund | E | E | — | — | — | E@create | — |
+| CG | Capital Gain | E | E | — | — | — | E@create | — |
+| CL | Capital Loss | E | E | — | — | — | E@create | — |
+| IT | Internal Transfer | E | E | — | — | — | E@create | — |
+| LN | Loan | E | B | — | — | — | E | E |
+| PD | Profit Distribution | E | E | — | — | — | E@create | — |
+| LC | Loss Coverage | E | E | — | — | — | E@create | — |
+| WA | Worker Advance | E | B | — | — | — | E@create | E |
+| EX | Expense | E | B | E | — | — | E | — |
+| PU | Purchase | E | B | E | E | E | E | — |
+| SA | Sale | E | B | E | E | E | E | —¹ |
+| CC | Correction Credit | E | E | — | — | — | E@create | — |
+| CD | Correction Debit | E | E | — | — | — | E@create | — |
+| BI | Birth | E | E | — | E (auto) | — | E@create | — |
+| DE | Death | E | E | — | E (auto) | — | E@create | — |
+| CO | Consumption | E | B | — | — | — | E@create | — |
+
+¹ Sale's **collection** is its pay action (`SALE_COLLECTION` is the payment transaction type; `has_repayment=False`) — folded into **pay**.
+
+---
+
+## Legend
+
+### Validation matrix markers
+
+| Marker | Meaning |
+|--------|---------|
+| **E** | Enforced — the check runs and rejects invalid input with `ValidationError`. |
+| **E@create** | Enforced only at creation (e.g. one-shot balance check). |
+| **X** | Exempt — deliberately skipped by design (system/world payer, admin correction tool, no-balance write-down, etc.). |
+| **B** | Blocked — the action is refused under this condition (reversal / pay guards). |
+| **N/A** | Not applicable — the parameter does not apply to this operation type / action. |
+| **gap** | Not enforced due to a documented deficiency (all previously documented gaps have been resolved). |
+
+### Success-effects matrix markers
+
+| Marker | Meaning |
+|--------|---------|
+| **✓** | Yes — this effect occurs on a successful action. |
+| **✗** | No — this effect does not occur. |
+| **▼ / ▲** | Balance direction on the fund of the relevant party (cash movement). |
+| **—** | Not a settlement-style outcome (tracked via repayment/collection instead) / not applicable. |
+
+---
+
+## Operation reference
+
+| # | Code | Operation | Proxy class | Spec |
+|---|------|-----------|-------------|------|
+| 1 | CI | Cash Injection | `CashInjectionOperation` | [op_1](op_1_cash_injection.md) |
+| 2 | CW | Cash Withdrawal | `CashWithdrawalOperation` | [op_2](op_2_cash_withdrawal.md) |
+| 3 | PF | Project Funding | `ProjectFundingOperation` | [op_3](op_3_project_funding.md) |
+| 4 | PR | Project Refund | `ProjectRefundOperation` | [op_4](op_4_project_refund.md) |
+| 5 | CG | Capital Gain | `CapitalGainOperation` | [op_5](op_5_capital_gain.md) |
+| 6 | CL | Capital Loss | `CapitalLossOperation` | [op_6](op_6_capital_loss.md) |
+| 7 | IT | Internal Transfer | `InternalTransferOperation` | [op_7](op_7_internal_transfer.md) |
+| 8 | LN | Loan | `LoanOperation` | [op_8](op_8_loan.md) |
+| 9 | PD | Profit Distribution | `ProfitDistributionOperation` | [op_9](op_9_profit_distribution.md) |
+| 10 | LC | Loss Coverage | `LossCoverageOperation` | [op_10](op_10_loss_coverage.md) |
+| 11 | WA | Worker Advance | `WorkerAdvanceOperation` | [op_11](op_11_worker_advance.md) |
+| 12 | EX | Expense | `ExpenseOperation` | [op_12](op_12_expense.md) |
+| 13 | PU | Purchase | `PurchaseOperation` | [op_13](op_13_purchase.md) |
+| 14 | SA | Sale | `SaleOperation` | [op_14](op_14_sale.md) |
+| 15 | CC | Correction Credit | `CorrectionCreditOperation` | [op_15](op_15_correction.md) |
+| 16 | CD | Correction Debit | `CorrectionDebitOperation` | [op_15](op_15_correction.md) |
+| 17 | BI | Birth | `BirthOperation` | [op_17](op_17_birth.md) |
+| 18 | DE | Death | `DeathOperation` | [op_18](op_18_death.md) |
+| 19 | CO | Consumption | `ConsumptionOperation` | [op_19](op_19_consumption.md) |
+
+---
+
+## Per-operation reference (validation + effects, condensed)
+
+Each operation lists its applicable **actions**, each with the condensed validation checks and success effects. Markers follow the [Legend](#legend).
+
+**Apply to all operations (omitted per action below):**
+- **create** — both parties active; fund active; amount > 0; officer present — all enforced (E).
+- **reverse** — not already reversed; not a reversal; reason required.
+
+### 1. Cash Injection (CI) — [`CashInjectionOperation`](../../apps/app_operation/models/proxies/op_cash_injection.py) — [op_1](op_1_cash_injection.md)
+
+Actions: create, reverse.
+- **create** — *Valid:* source=world; dest=person; balance ✗ (world exempt); one-shot auto-settled. *Effects:* `CASH_INJECTION_ISSUANCE` + `CASH_INJECTION_PAYMENT`; immediately settled; ▼world → ▲person; no ledger; no movements.
+- **reverse** — *Valid:* (constants). *Effects:* reversal record; counter-tx for issuance + payment.
+
+### 2. Cash Withdrawal (CW) — [`CashWithdrawalOperation`](../../apps/app_operation/models/proxies/op_cash_withdrawal.py) — [op_2](op_2_cash_withdrawal.md)
+
+Actions: create, reverse.
+- **create** — *Valid:* source=person; dest=world; balance E; one-shot auto-settled. *Effects:* `CAPITAL_WITHDRAWAL_ISSUANCE` + `CAPITAL_WITHDRAWAL_PAYMENT`; immediately settled; ▼person → ▲world; no ledger; no movements.
+- **reverse** — *Valid:* (constants). *Effects:* reversal record; counter-tx for issuance + payment.
+
+### 3. Project Funding (PF) — [`ProjectFundingOperation`](../../apps/app_operation/models/proxies/op_project_funding.py) — [op_3](op_3_project_funding.md)
+
+Actions: create, reverse.
+- **create** — *Valid:* source=person (shareholder of dest project); dest=project; balance E (clean()); one-shot auto-settled. *Effects:* `PROJECT_FUNDING_ISSUANCE` + `PROJECT_FUNDING_PAYMENT`; immediately settled; ▼funder → ▲project; no ledger; no movements.
+- **reverse** — *Valid:* (constants). *Effects:* reversal record; counter-tx for issuance + payment.
+
+### 4. Project Refund (PR) — [`ProjectRefundOperation`](../../apps/app_operation/models/proxies/op_project_refund.py) — [op_4](op_4_project_refund.md)
+
+Actions: create, reverse.
+- **create** — *Valid:* source=project; dest=shareholder; balance E (clean()); one-shot auto-settled; **extra:** amount ≤ `total_funded − total_refunded`. *Effects:* `PROJECT_REFUND_ISSUANCE` + `PROJECT_REFUND_PAYMENT`; immediately settled; ▼project → ▲shareholder; no ledger; no movements.
+- **reverse** — *Valid:* (constants). *Effects:* reversal record; counter-tx for issuance + payment.
+
+### 5. Capital Gain (CG) — [`CapitalGainOperation`](../../apps/app_operation/models/proxies/op_capital_gain.py) — [op_5](op_5_capital_gain.md)
+
+Actions: create, reverse.
+- **create** — *Valid:* source=system; dest=project (E, `clean_source`/`clean_destination`); balance ✗ (system exempt); one-shot auto-settled. *Effects:* `CAPITAL_GAIN_ISSUANCE` + `CAPITAL_GAIN_PAYMENT`; immediately settled; ▼system → ▲project; ✓ value-only ledger (qty 0, value +); status unchanged (ACTIVE).
+- **reverse** — *Valid:* (constants). *Effects:* reversal record; counter-tx for issuance + payment; negated ledger.
+
+### 6. Capital Loss (CL) — [`CapitalLossOperation`](../../apps/app_operation/models/proxies/op_capital_loss.py) — [op_6](op_6_capital_loss.md)
+
+Actions: create, reverse.
+- **create** — *Valid:* source=entity; dest=system; balance ✗ (no-balance write-down, may go into deficit); one-shot auto-settled; verified: source fund must NOT have sufficient balance (loss can deepen deficit). *Effects:* `CAPITAL_LOSS_ISSUANCE` + `CAPITAL_LOSS_PAYMENT`; immediately settled; ▼entity → ▲system; ✓ value-only ledger (qty 0, value −); status unchanged (ACTIVE).
+- **reverse** — *Valid:* (constants). *Effects:* reversal record; counter-tx for issuance + payment; negated ledger.
+
+### 7. Internal Transfer (IT) — [`InternalTransferOperation`](../../apps/app_operation/models/proxies/op_internal_transfer.py) — [op_7](op_7_internal_transfer.md)
+
+Actions: create, reverse.
+- **create** — *Valid:* source & dest internal (not system/world); src≠dst; balance E (clean()); one-shot auto-settled. *Effects:* `INTERNAL_TRANSFER_ISSUANCE` + `INTERNAL_TRANSFER_PAYMENT`; immediately settled; ▼fund A → ▲fund B; no ledger; no movements.
+- **reverse** — *Valid:* (constants). *Effects:* reversal record; counter-tx for issuance + payment.
+
+### 8. Loan (LN) — [`LoanOperation`](../../apps/app_operation/models/proxies/op_loan.py) — [op_8](op_8_loan.md)
+
+Actions: create, reverse, pay, repay.
+- **create** — *Valid:* source/dest person|project; src≠dst; balance ✗ (issuance unguarded); multi-stage (not one-shot). *Effects:* `LOAN_ISSUANCE` (non-cash); no payment at save.
+- **pay** — *Valid:* balance E per disbursement; amount>0 & ≤ remaining; partial E (multiple disbursements); over-payment guard. *Effects:* `LOAN_PAYMENT`; ▼creditor → ▲debtor; amount_settled ↑.
+- **repay** — *Valid:* amount>0 & ≤ remaining; over-repayment guard. *Effects:* `LOAN_REPAYMENT`; ▼debtor → ▲creditor; amount_repayed ↑.
+- **reverse** — *Valid:* blocked if any disbursement; blocked if outstanding repayments. *Effects:* reversal record; counter-tx for issuance only.
+
+### 9. Profit Distribution (PD) — [`ProfitDistributionOperation`](../../apps/app_operation/models/proxies/op_profit_distribution.py) — [op_9](op_9_profit_distribution.md)
+
+Actions: create, reverse.
+- **create** — *Valid:* source=project; dest=shareholder; balance E (check_balance_on_payment at creation); plan required (profit; loss/break-even reject); one-shot auto-settled; **extra:** amount ≤ `plan.remaining_distributable`. *Effects:* `PROFIT_DISTRIBUTION_ISSUANCE` + `PROFIT_DISTRIBUTION_PAYMENT`; immediately settled; ▼project → ▲shareholder; plan tracking `distributed` / `remaining_distributable`.
+- **reverse** — *Valid:* (constants). *Effects:* reversal record; counter-tx for issuance + payment; restores `remaining_distributable`.
+
+### 10. Loss Coverage (LC) — [`LossCoverageOperation`](../../apps/app_operation/models/proxies/op_loss_coverage.py) — [op_10](op_10_loss_coverage.md)
+
+Actions: create, reverse.
+- **create** — *Valid:* source=shareholder; dest=project (E, `clean_source`/`clean_destination`); balance E (check_balance_on_payment at creation); plan required (loss; profit/break-even reject); one-shot auto-settled; **extra:** amount ≤ `plan.remaining_coverable`. *Effects:* `LOSS_COVERAGE_ISSUANCE` + `LOSS_COVERAGE_PAYMENT`; immediately settled; ▼shareholder → ▲project; plan tracking `covered` / `remaining_coverable`.
+- **reverse** — *Valid:* (constants). *Effects:* reversal record; counter-tx for issuance + payment; restores `remaining_coverable`.
+
+### 11. Worker Advance (WA) — [`WorkerAdvanceOperation`](../../apps/app_operation/models/proxies/op_worker_advance.py) — [op_11](op_11_worker_advance.md)
+
+Actions: create, reverse, repay.
+- **create** — *Valid:* source=project; dest=active worker; balance E (clean()); one-shot (issuance + payment pair). *Effects:* `WORKER_ADVANCE_ISSUANCE` + `WORKER_ADVANCE_PAYMENT`; repayment-tracked (not immediately settled); ▼project → ▲worker.
+- **repay** — *Valid:* amount>0 & ≤ remaining; over-repayment guard. *Effects:* `WORKER_ADVANCE_REPAYMENT`; ▼worker → ▲project; amount_repayed ↑.
+- **reverse** — *Valid:* blocked if any repayment. *Effects:* reversal record; counter-tx for issuance + payment.
+
+### 12. Expense (EX) — [`ExpenseOperation`](../../apps/app_operation/models/proxies/op_expense.py) — [op_12](op_12_expense.md)
+
+Actions: create, reverse, adjust, pay.
+- **create** — *Valid:* source=project; dest=world; balance ✗ (issuance unguarded); category required (EXPENSE type, model-level FK enforced); not one-shot. *Effects:* `EXPENSE_ISSUANCE` (non-cash); no payment at save; no ledger; no movements.
+- **pay** — *Valid:* balance E per payment; amount>0 & ≤ remaining; partial E; over-payment guard. *Effects:* `EXPENSE_PAYMENT`; ▼project → ▲world; amount_settled ↑.
+- **adjust** — *Valid:* can_adjust; not reversed; type allowed for op; amount>0; officer staff + active; reduction can't drive below zero. *Effects:* `EXPENSE_ADJUSTMENT_INCREASE` / `EXPENSE_ADJUSTMENT_DECREASE` (non-cash); effective_amount delta.
+- **reverse** — *Valid:* blocked if payments; blocked if adjustments. *Effects:* reversal record; counter-tx for issuance only.
+
+### 13. Purchase (PU) — [`PurchaseOperation`](../../apps/app_operation/models/proxies/op_purchase.py) — [op_13](op_13_purchase.md)
+
+Actions: create, reverse, adjust, move items, adjust items, pay.
+- **create** — *Valid:* source=project; dest=active vendor; balance ✗ (issuance unguarded); not one-shot. *Effects:* `PURCHASE_ISSUANCE` (non-cash); no payment at save; ✓ issuance ledger entry; status ACTIVE.
+- **pay** — *Valid:* balance E per payment; amount>0 & ≤ remaining; partial E; over-payment guard. *Effects:* `PURCHASE_PAYMENT`; ▼project → ▲vendor; amount_settled ↑.
+- **move items** — *Valid:* not reversed; qty ≤ item remaining qty; product allowed (active/obligated); officer staff + active; template compatible. *Effects:* `PURCHASE_MOVEMENT` ledger; lazy product creation; status ACTIVE; remaining qty ↓.
+- **adjust items** — *Valid:* not reversed; ≥1 item changed; new qty/price parse; new qty ≥ already moved; finalize checks. *Effects:* ItemAdj + lines; adjusted qty/price; accounting Adjustment + tx; ledger `*_ADJUSTMENT` entries.
+- **adjust** — *Valid:* can_adjust; not reversed; type allowed for op; amount>0; officer staff + active; reduction can't drive below zero. *Effects:* `PURCHASE_ADJUSTMENT_INCREASE` / `PURCHASE_ADJUSTMENT_DECREASE` (non-cash); effective_amount delta.
+- **reverse** — *Valid:* blocked if payments; blocked if user movements; blocked if adjustments. *Effects:* reversal record; counter-tx for issuance only; negated ledger.
+
+### 14. Sale (SA) — [`SaleOperation`](../../apps/app_operation/models/proxies/op_sale.py) — [op_14](op_14_sale.md)
+
+Actions: create, reverse, adjust, move items, adjust items, pay.
+- **create** — *Valid:* source=active client; dest=project; balance ✗ (issuance unguarded); not one-shot. *Effects:* `SALE_ISSUANCE` (non-cash receivable); no payment at save; ✓ issuance ledger entry; status SOLD.
+- **pay** (the **collection**) — *Valid:* balance E per collection; amount>0 & ≤ remaining; partial E; over-payment guard. *Effects:* `SALE_COLLECTION`; ▼client → ▲project; amount_settled ↑.
+- **move items** — *Valid:* not reversed; qty ≤ item remaining qty; product allowed (active/obligated); officer staff + active; template compatible. *Effects:* `SALE_MOVEMENT` ledger; status SOLD; remaining qty ↓.
+- **adjust items** — *Valid:* not reversed; ≥1 item changed; new qty/price parse; new qty ≥ already moved; finalize checks. *Effects:* ItemAdj + lines; adjusted qty/price; accounting Adjustment + tx; ledger `*_ADJUSTMENT` entries.
+- **adjust** — *Valid:* can_adjust; not reversed; type allowed for op; amount>0; officer staff + active; reduction can't drive below zero. *Effects:* `SALE_ADJUSTMENT_INCREASE` / `SALE_ADJUSTMENT_DECREASE` (non-cash); effective_amount delta.
+- **reverse** — *Valid:* blocked if collections; blocked if user movements; blocked if adjustments. *Effects:* reversal record; counter-tx for issuance only; negated ledger.
+
+### 15. Correction Credit (CC) — [`CorrectionCreditOperation`](../../apps/app_operation/models/proxies/op_correction_credit.py) — [op_15](op_15_correction.md)
+
+Actions: create, reverse.
+- **create** — *Valid:* source=system; dest=project; balance ✗ (system exempt); one-shot auto-settled. *Effects:* `CORRECTION_CREDIT_ISSUANCE` + `CORRECTION_CREDIT_PAYMENT`; immediately settled; ▼system → ▲project; no ledger; no movements.
+- **reverse** — *Valid:* (constants). *Effects:* reversal record; counter-tx for issuance + payment.
+
+### 16. Correction Debit (CD) — [`CorrectionDebitOperation`](../../apps/app_operation/models/proxies/op_correction_debit.py) — [op_15](op_15_correction.md)
+
+Actions: create, reverse.
+- **create** — *Valid:* source=project; dest=system; balance ✗ (admin tool — can go into deficit); one-shot auto-settled. *Effects:* `CORRECTION_DEBIT_ISSUANCE` + `CORRECTION_DEBIT_PAYMENT`; immediately settled; ▼project → ▲system; no ledger; no movements.
+- **reverse** — *Valid:* (constants). *Effects:* reversal record; counter-tx for issuance + payment.
+
+### 17. Birth (BI) — [`BirthOperation`](../../apps/app_operation/models/proxies/op_birth.py) — [op_17](op_17_birth.md) — Inventory/Livestock
+
+Actions: create, move items (auto), reverse.
+- **create** — *Valid:* source=system; dest=project (E, `clean_source`/`clean_destination`); balance ✗ (system exempt); one-shot auto-settled. *Effects:* `BIRTH_ISSUANCE` + `BIRTH_PAYMENT`; immediately settled; ▼system → ▲project assets; issuance + auto movement; status ACTIVE (new asset).
+- **move items** (auto) — *Valid:* qty ≤ remaining. *Effects:* `BIRTH_MOVEMENT` ledger (auto inbound); lazy product creation; status ACTIVE.
+- **reverse** — *Valid:* (constants). *Effects:* reversal record; counter-tx for issuance + payment; negated ledger; auto lines reversed.
+
+### 18. Death (DE) — [`DeathOperation`](../../apps/app_operation/models/proxies/op_death.py) — [op_18](op_18_death.md) — Inventory/Livestock
+
+Actions: create, move items (auto), reverse.
+- **create** — *Valid:* source=project; dest=system; balance ✗ (no-balance write-off); one-shot auto-settled. *Effects:* `DEATH_ISSUANCE` + `DEATH_PAYMENT`; immediately settled; ▼project assets → ▲system; issuance + auto movement; status DEAD.
+- **move items** (auto) — *Valid:* qty ≤ remaining. *Effects:* `DEATH_MOVEMENT` ledger (auto outbound); status DEAD.
+- **reverse** — *Valid:* (constants). *Effects:* reversal record; counter-tx for issuance + payment; negated ledger; auto lines reversed.
+
+### 19. Consumption (CO) — [`ConsumptionOperation`](../../apps/app_operation/models/proxies/op_consumption.py) — [op_19](op_19_consumption.md) — Inventory/Livestock
+
+Actions: create, reverse.
+- **create** — *Valid:* source=project; dest=system; balance ✗ (no-balance write-off); one-shot auto-settled. *Effects:* `CONSUMPTION_ISSUANCE` + `CONSUMPTION_PAYMENT`; immediately settled; ▼project → ▲system; issuance + auto movement lines; status CONSUMED.
+- **reverse** — *Valid:* (constants). *Effects:* reversal record; counter-tx for issuance + payment; negated ledger; auto lines reversed.
+
+---

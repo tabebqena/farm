@@ -85,6 +85,13 @@ class Operation(
         blank=True,
         related_name="plan_operations",
     )
+    category = models.ForeignKey(
+        "app_entity.FinancialCategory",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="operations",
+    )
 
     objects = OperationManager()
     all_objects = AllOperationManager()
@@ -455,6 +462,26 @@ class Operation(
                 "date": str(self.date),
             },
         )
+
+        from django.utils.translation import gettext as _
+
+        # Explicit entity-active check — independent of the fund-active mixins, so the
+        # guarantee survives if a future operation's fund mapping ever diverges from its
+        # source/destination entity. System/World entities are always active, so the
+        # virtual-party operations (Birth/Death/Correction/Cash with system/world) are
+        # unaffected.
+        for entity in (self.source, self.destination):
+            if entity is None:
+                continue
+            if not entity.active:
+                DebugContext.error(
+                    "Inactive entity on operation",
+                    data={"entity": str(entity), "active": entity.active},
+                )
+                raise ValidationError(
+                    _("Entity '%(name)s' must be active to participate in this operation.")
+                    % {"name": entity}
+                )
         # Only block NEW, non-reversal operations from landing in a closed period.
         if not self.pk and not getattr(self, "reversal_of_id", None):
             from .period import FinancialPeriod
@@ -481,6 +508,37 @@ class Operation(
                     raise ValidationError(
                         "Cannot create an operation whose date falls within a closed financial period."
                     )
+        # Category enforcement (model-level FK) — only applies when the proxy
+        # opts in via class-level config (e.g. ExpenseOperation: has_category=True,
+        # category_required=True, category_type="EXPENSE").
+        if self.category_required and not self.category_id:
+            DebugContext.error(
+                "Missing required category on operation",
+                data={"operation_type": self.operation_type},
+            )
+            raise ValidationError(
+                _("Category is required for this operation.")
+            )
+        if self.category_id and getattr(self, "category_type", None):
+            if self.category.category_type != self.category_type:
+                DebugContext.error(
+                    "Category type mismatch on operation",
+                    data={
+                        "expected": self.category_type,
+                        "actual": self.category.category_type,
+                    },
+                )
+                raise ValidationError(
+                    _(
+                        "Category '%(category)s' is not a valid %(op_type)s category "
+                        "(must be of type '%(category_type)s')."
+                    )
+                    % {
+                        "category": self.category,
+                        "op_type": self.operation_type,
+                        "category_type": self.category_type,
+                    }
+                )
         DebugContext.success("Operation validation passed")
         return super().clean()
 
@@ -706,7 +764,8 @@ class Operation(
         For every operation with invoice items, writes **issuance** entries
         to the append-only ledger via ``ProductLedgerEntry.record()``.
 
-        * BIRTH/DEATH      → auto-creates movement lines AND writes issuance
+        * BIRTH/DEATH/CONSUMPTION → auto-creates movement lines AND writes
+          issuance
         * DEATH/CONSUMPTION → builds ``product_map`` so issuance entries link
           directly to the selected products
         * CAPITAL_GAIN/LOSS → links selected products to invoice items and
@@ -722,6 +781,7 @@ class Operation(
         if self.operation_type in (
             OperationType.BIRTH,
             OperationType.DEATH,
+            OperationType.CONSUMPTION,
         ):
             self._auto_create_inventory_movements(bound_formset)
 
@@ -749,10 +809,12 @@ class Operation(
 
     def _auto_create_inventory_movements(self, bound_formset):
         """
-        Auto-create InventoryMovementLine records for BIRTH and DEATH operations.
+        Auto-create InventoryMovementLine records for BIRTH, DEATH and
+        CONSUMPTION operations.
 
-        BIRTH:  System entity → Project entity  (product created lazily)
-        DEATH:  Project entity → System entity  (product must already exist)
+        BIRTH:       System entity → Project entity  (product created lazily)
+        DEATH:       Project entity → System entity  (product must already exist)
+        CONSUMPTION: Project entity → System entity  (product must already exist)
         """
         import uuid
 
@@ -776,7 +838,10 @@ class Operation(
                     # product=None → created lazily by InventoryMovementLine.save()
                 )
 
-            elif self.operation_type == OperationType.DEATH:
+            elif self.operation_type in (
+                OperationType.DEATH,
+                OperationType.CONSUMPTION,
+            ):
                 selected = form.cleaned_data.get("selected_product")
                 if selected:
                     InventoryMovementLine.objects.create(

@@ -61,7 +61,9 @@ class InternalTransferOperation(Operation):
                 "Internal Transfer destination cannot be a system or world entity."
             )
         source_fund = self.source
-        if source_fund.balance < self.amount:
+        # Route through can_pay so the virtual (system/world) exemption and the
+        # active-entity rule stay centralized on the Entity model.
+        if not source_fund.can_pay(self.amount):
             raise ValidationError(
                 f"Insufficient funds: source fund balance ({source_fund.balance}) "
                 f"is less than transfer amount ({self.amount})."

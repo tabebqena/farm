@@ -71,7 +71,9 @@ class WorkerAdvanceOperation(Operation):
         super().clean()
         if self.source_id and hasattr(self.source, "fund"):
             fund = self.source
-            if self.amount and fund.balance < self.amount:
+            # Route through can_pay so the virtual (system/world) exemption and the
+            # active-entity rule stay centralized on the Entity model.
+            if self.amount and not fund.can_pay(self.amount):
                 raise ValidationError(
                     f"Insufficient funds: project fund balance ({fund.balance}) "
                     f"is less than the advance amount ({self.amount})."

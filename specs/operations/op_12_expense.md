@@ -13,6 +13,9 @@
 - Source: a Project entity (`source.project` must be set)
 - Destination: the World entity (`destination.is_world=True`)
 
+**Actions:** create, pay, adjust, reverse.
+
+## create
 **Validation:**
 - Source must be a Project entity
 - Destination must be the World entity (`is_world=True`)
@@ -21,10 +24,46 @@
 - Category is required (`has_category=True`, `category_required=True`); category type must be `EXPENSE`
 - Amount must be positive
 - Officer must be a Person with `auth_user`, `auth_user.is_staff=True`, and `active=True`
+- Balance @ create: **exempt** (issuance unguarded); not one-shot
+
+**Success effects:**
+- `EXPENSE_ISSUANCE` created on save (non-cash obligation)
+- No payment on save — payments happen later via **pay**
+- No product ledger entries / no movement lines
+
+## pay
+**Validation:**
+- Balance enforced per payment (`check_balance_on_payment=True`)
+- Amount > 0 and ≤ remaining
+- Partial allowed — multiple payments
+- Over-payment guard
+
+**Success effects:**
+- `EXPENSE_PAYMENT` (`project.fund → world.fund`)
+- ▼ project → ▲ world; `amount_settled` ↑
+
+## adjust
+**Validation:**
+- `can_adjust=True`; not reversed / not a reversal
+- Adjustment type allowed for EXPENSE
+- Amount > 0; officer staff + active
+
+**Success effects:**
+- `EXPENSE_ADJUSTMENT_INCREASE` / `EXPENSE_ADJUSTMENT_DECREASE` (non-cash)
+- `effective_amount` delta (no inventory ledger entries)
+
+## reverse
+**Validation:**
+- Not already reversed / not a reversal / reason required
+- Blocked if any payment (`EXPENSE_PAYMENT`) exists
+- Blocked if any non-reversed adjustment exists
+
+**Success effects:**
+- Reversal record; counter-transaction for issuance only
 
 **Immutability:** `source`, `destination`, `amount` cannot be changed after save
 
-**Category note:** `has_category=True` and `category_required=True` are enforced as class-level config. A `FinancialCategory` with `category_type="EXPENSE"` must be linked to the project entity. A FK from `Operation` to `FinancialCategory` is needed to enforce this at the model save level.
+**Category note:** `has_category=True` and `category_required=True` are enforced as class-level config **and** at the model level via the `Operation.category` FK (`Operation.clean()` requires a category and validates `category_type`). A `FinancialCategory` with `category_type="EXPENSE"` must be linked to the project entity.
 
 Tasks:
 - [x] Verify save creates only one EXPENSE_ISSUANCE transaction (not payment — not one-shot)
@@ -59,6 +98,6 @@ Tasks:
 - [x] Verify reversal is blocked when any EXPENSE_PAYMENT transaction exists
 - [x] Verify cannot reverse an already-reversed operation
 - [x] Verify cannot reverse a reversal operation
-- [ ] Add FK from Operation to FinancialCategory to enforce category_required at model save level
+- [x] Add FK from Operation to FinancialCategory to enforce category_required at model save level (migration `0008_operation_category`; enforced in `Operation.clean()`; view passes `category_id` into `Operation.create()`)
 - [ ] UI: create form — source=Project (url entity), destination=World (auto), category dropdown (required, type=EXPENSE)
 - [ ] UI: detail shows category, amount paid, remaining; "Record Payment" button

@@ -116,6 +116,13 @@ def _make_sale_op(
 def _make_expense_op(
     project_entity, world_entity, officer_user, amount=Decimal("1000.00")
 ):
+    from apps.app_entity.models.category import FinancialCategory
+
+    cat, _ = FinancialCategory.objects.get_or_create(
+        name="Veterinary Consultation",
+        aspect="Medications",
+        defaults={"category_type": "EXPENSE"},
+    )
     op = ExpenseOperation(
         source=project_entity,
         destination=world_entity,
@@ -124,6 +131,7 @@ def _make_expense_op(
         date=date.today(),
         description="Test expense",
         officer=officer_user,
+        category=cat,
     )
     op.save()
     return op

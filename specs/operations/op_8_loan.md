@@ -6,13 +6,50 @@
 - Payment (disbursement): `creditor.fund → debtor.fund` — type: `LOAN_PAYMENT`
 - Repayment (recovery): `debtor.fund → creditor.fund` — type: `LOAN_REPAYMENT`
 
+**Actions:** create, pay, repay, reverse.
+
+## create
 **Validation:**
-- Source (creditor) can be a Person or Project entity
-- Destination (debtor) can be a Person or Project entity; must differ from source
+- Source (creditor) can be a Person or Project entity — enforced via `clean_source()`
+- Destination (debtor) can be a Person or Project entity; must differ from source — enforced via `clean_destination()` + `clean()` (`source_id != destination_id`)
 - Both entities must be `active=True`
 - Source entity's fund must be `active=True`
 - Amount must be positive
 - Officer must be a Person with `auth_user`, `auth_user.is_staff=True`, and `active=True`
+- Balance @ create: **exempt** (issuance unguarded); multi-stage (not one-shot)
+
+**Success effects:**
+- `LOAN_ISSUANCE` created on save (non-cash memo)
+- No payment on save — disbursements happen later via **pay**
+
+## pay (disbursement)
+**Validation:**
+- Balance enforced per disbursement (`check_balance_on_payment=True`)
+- Amount > 0 and ≤ remaining
+- Partial allowed — multiple disbursements (`max_payment_transaction_count=-1`)
+- Over-payment guard
+
+**Success effects:**
+- `LOAN_PAYMENT` (`creditor.fund → debtor.fund`)
+- ▼ creditor → ▲ debtor; `amount_settled` ↑
+
+## repay
+**Validation:**
+- Amount > 0 and ≤ remaining
+- Over-repayment guard
+
+**Success effects:**
+- `LOAN_REPAYMENT` (`debtor.fund → creditor.fund`)
+- ▼ debtor → ▲ creditor; `amount_repayed` ↑
+
+## reverse
+**Validation:**
+- Not already reversed / not a reversal / reason required
+- Blocked if any disbursement (`LOAN_PAYMENT`) exists
+- *Pending:* blocked if outstanding repayments exist (see Gap notes)
+
+**Success effects:**
+- Reversal record; counter-transaction for issuance only
 
 **Immutability:** `source`, `destination`, `amount` cannot be changed after save
 

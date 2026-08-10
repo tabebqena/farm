@@ -121,6 +121,18 @@ class CapitalGainCreateTest(TestCase):
         with self.assertRaises(ValidationError):
             op.save()
 
+    def test_destination_must_be_project_entity(self):
+        person = Entity.create(EntityType.PERSON, name="Non-Project Person")
+        op = self._make_op(destination=person)
+        with self.assertRaises(ValidationError):
+            op.save()
+
+    def test_destination_world_entity_raises_validation_error(self):
+        world_entity = Entity.create(EntityType.WORLD)
+        op = self._make_op(destination=world_entity)
+        with self.assertRaises(ValidationError):
+            op.save()
+
     # ------------------------------------------------------------------
     # Amount validation
     # ------------------------------------------------------------------

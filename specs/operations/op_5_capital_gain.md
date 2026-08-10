@@ -5,6 +5,34 @@
 - Issuance: `system.fund → entity` — type: `CAPITAL_GAIN_ISSUANCE`
 - Payment: `system.fund → entity` — type: `CAPITAL_GAIN_PAYMENT`
 
+**Actions:** create, reverse.
+
+## create
+**Validation:**
+- Source must be the System entity (`is_system=True`) — enforced via `clean_source()`
+- Destination must be a Project entity (`is_project=True`) — enforced via `clean_destination()`; must be `active=True`
+- Both entities' funds `active=True`
+- Amount must be positive
+- Officer must be a Person with `auth_user`, `auth_user.is_staff=True`, and `active=True`
+- Balance @ create: **exempt** (system payer) — `E@create` pay (one-shot)
+
+**Success effects:**
+- `CAPITAL_GAIN_ISSUANCE` + `CAPITAL_GAIN_PAYMENT` created on save
+- Immediately settled (`is_fully_settled=True`)
+- Fund deltas: ▼ system (virtual) → ▲ project
+- ✓ product ledger entry, value-only (qty 0, value +); product status unchanged (ACTIVE)
+
+## reverse
+**Validation:**
+- Not already reversed
+- Not a reversal
+- Reason required (view-level)
+
+**Success effects:**
+- Reversal record created, linked via `reversal_of`
+- Counter-transactions for issuance + payment (`project.fund → system.fund`)
+- Negated product ledger entry; project fund restored
+
 Tasks:
 - [x] Verify issuance and payment transactions are created
 - [x] Verify transaction types are `CAPITAL_GAIN_ISSUANCE` and `CAPITAL_GAIN_PAYMENT`

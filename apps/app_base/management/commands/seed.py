@@ -39,9 +39,9 @@ PRODUCT_TEMPLATES = [
     ("Breeding Ducks / Geese", "أمهات بط وإوز", "ANIMAL", "Head", False, "Poultry"),
     ("Fattening Rabbits", "أرانب تسمين", "ANIMAL", "Head", False, "Rabbits"),
     ("Breeding Rabbits", "أمهات أرانب", "ANIMAL", "Head", False, "Rabbits"),
-    ("Quails", "سمان", "ANIMAL", "Head", False, "Poultry"),
-    ("Pigeons", "حمام", "ANIMAL", "Head", False, "Poultry"),
-    ("Honeybee Colonies", "طوائف نحل", "ANIMAL", "Colony", False, "Apiculture"),
+    # ("Quails", "سمان", "ANIMAL", "Head", False, "Poultry"),
+    # ("Pigeons", "حمام", "ANIMAL", "Head", False, "Poultry"),
+    # ("Honeybee Colonies", "طوائف نحل", "ANIMAL", "Colony", False, "Apiculture"),
     # --- FEED ---
     ("Date", "بلح", "FEED", "Kg", False, "Consumable"),
     ("Barley", "شعير", "FEED", "Kg", False, "Consumable"),

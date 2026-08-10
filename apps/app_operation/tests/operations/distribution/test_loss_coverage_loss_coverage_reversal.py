@@ -62,11 +62,43 @@ def _force_close_period(period):
 
 
 def _set_period_amount(period, amount):
-    DjangoQuerySet.update(
-        FinancialPeriod.all_objects.filter(pk=period.pk),
-        amount=amount,
+    """Make the closed period's computed P&L equal `amount` by writing a
+    capital gain (profit) or capital loss (loss) issuance transaction dated
+    inside the period. FinancialPeriod.amount is computed, not stored."""
+    if amount == 0:
+        return
+    import datetime as _datetime
+
+    from django.utils import timezone
+
+    from apps.app_transaction.models import Transaction
+    from apps.app_transaction.transaction_type import TransactionType
+
+    system = Entity.objects.filter(entity_type=EntityType.SYSTEM).first()
+    if system is None:
+        system = Entity.create(EntityType.SYSTEM)
+    officer = _make_officer(f"officer_pnl_{period.pk}")
+    tx_date = timezone.make_aware(
+        _datetime.datetime.combine(
+            period.start_date + timedelta(days=1), _datetime.time.min
+        )
     )
-    period.refresh_from_db()
+    if amount > 0:
+        tx_type = TransactionType.CAPITAL_GAIN_ISSUANCE
+        source, target = system, period.entity
+    else:
+        tx_type = TransactionType.CAPITAL_LOSS_ISSUANCE
+        source, target = period.entity, system
+    Transaction.objects.create(
+        source=source,
+        target=target,
+        type=tx_type,
+        amount=abs(amount),
+        description=f"Test P&L seed for period #{period.pk}",
+        document=period,
+        officer=officer,
+        date=tx_date,
+    )
 
 
 def _seed_cash_injection(world, destination, amount, officer):

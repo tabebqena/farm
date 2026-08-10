@@ -7,6 +7,9 @@
 
 **Settlement:** Fully settled immediately — `is_fully_settled=True`, `amount_settled == amount`, `amount_remaining_to_settle == 0`
 
+**Actions:** create, reverse.
+
+## create
 **Validation:**
 - Source must be a Person entity
 - Destination must be the World entity (`is_world=True`)
@@ -15,6 +18,24 @@
 - Source fund must have sufficient balance (`fund.balance >= amount`)
 - Amount must be positive
 - Officer must be a Person with `auth_user`, `auth_user.is_staff=True`, and `active=True`
+- One-shot auto-settled — payment transaction fires on save (`E@create` pay)
+
+**Success effects:**
+- `CAPITAL_WITHDRAWAL_ISSUANCE` + `CAPITAL_WITHDRAWAL_PAYMENT` created on save
+- Immediately settled (`is_fully_settled=True`)
+- Fund deltas: ▼ person → ▲ world (virtual)
+- No product ledger entries / no movement lines
+
+## reverse
+**Validation:**
+- Not already reversed
+- Not a reversal
+- Reason required (view-level)
+
+**Success effects:**
+- Reversal record created, linked via `reversal_of`
+- Counter-transactions for issuance + payment (`world.fund → person.fund`)
+- Withdrawer balance restored
 
 **Immutability:** `source`, `destination`, `amount` cannot be changed after save
 

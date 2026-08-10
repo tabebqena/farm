@@ -234,6 +234,7 @@ class OperationCreateView(View):
                             amount_paid=parsed.amount_paid,
                             raw_post=request.POST,
                             project=self.project,
+                            category_id=selected_category_id,
                         )
                         DebugContext.success(
                             "Operation created",

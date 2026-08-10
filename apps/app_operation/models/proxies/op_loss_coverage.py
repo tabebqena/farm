@@ -61,6 +61,18 @@ class LossCoverageOperation(Operation):
     def project(self):
         return self.destination
 
+    def clean_source(self):
+        if not self.source.is_shareholder:
+            raise ValidationError(
+                "Loss Coverage source must be a Shareholder entity."
+            )
+
+    def clean_destination(self):
+        if not self.destination.is_project:
+            raise ValidationError(
+                "Loss Coverage destination must be a Project entity."
+            )
+
     def clean(self):
         if self.plan_id is None:
             raise ValidationError("Loss Coverage requires a Distribution Plan.")

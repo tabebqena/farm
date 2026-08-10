@@ -48,3 +48,7 @@ class BirthOperation(Operation):
     def clean_source(self):
         if not self.source.is_system:
             raise ValidationError("Birth source must be the System entity.")
+
+    def clean_destination(self):
+        if not self.destination.is_project:
+            raise ValidationError("Birth destination must be a Project entity.")

@@ -16,6 +16,9 @@
 - Source: the System entity (`source.is_system=True`)
 - Destination: a Project entity (`destination.project` must be set)
 
+**Actions:** create, reverse.
+
+## create
 **Validation:**
 - Source must be the System entity (`is_system=True`)
 - Destination must be a Project entity
@@ -24,6 +27,21 @@
 - No category (`has_category=False`, `category_required=False`)
 - Amount must be positive
 - Officer must be a Person with `auth_user`, `auth_user.is_staff=True`, and `active=True`
+- Balance @ create: **exempt** (system payer) — `E@create` pay (one-shot)
+
+**Success effects:**
+- `CORRECTION_CREDIT_ISSUANCE` + `CORRECTION_CREDIT_PAYMENT` created on save
+- Immediately settled (`is_fully_settled=True`)
+- Fund deltas: ▼ system (virtual) → ▲ project
+- No product ledger entries / no movement lines
+
+## reverse
+**Validation:**
+- Not already reversed / not a reversal / reason required
+
+**Success effects:**
+- Reversal record; counter-transactions for issuance + payment (`project.fund → system.fund`)
+- Project fund restored
 
 **Immutability:** `source`, `destination`, `amount` cannot be changed after save
 
@@ -65,15 +83,33 @@ Tasks:
 - Source: a Project entity (`source.project` must be set)
 - Destination: the System entity (`destination.is_system=True`)
 
+**Actions:** create, reverse.
+
+## create
 **Validation:**
 - Source must be a Project entity
 - Destination must be the System entity (`is_system=True`)
 - Both entities must be `active=True`
 - Source entity's fund must be `active=True`
-- Source fund must have sufficient balance (`fund.balance >= amount`)
+- Source fund never blocked by insufficient balance (`check_balance_on_payment=False` — admin tool, can go into deficit)
 - No category (`has_category=False`, `category_required=False`)
 - Amount must be positive
-- Officer must be a Person with `auth_user`, `auth_user.is_staff=True`, and `active=True`
+- Officer User must have (is_staff + is_active)
+- `E@create` pay (one-shot)
+
+**Success effects:**
+- `CORRECTION_DEBIT_ISSUANCE` + `CORRECTION_DEBIT_PAYMENT` created on save
+- Immediately settled (`is_fully_settled=True`)
+- Fund deltas: ▼ project → ▲ system (virtual)
+- No product ledger entries / no movement lines
+
+## reverse
+**Validation:**
+- Not already reversed / not a reversal / reason required
+
+**Success effects:**
+- Reversal record; counter-transactions for issuance + payment (`system.fund → project.fund`)
+- Project fund restored
 
 **Immutability:** `source`, `destination`, `amount` cannot be changed after save
 

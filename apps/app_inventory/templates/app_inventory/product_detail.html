@@ -68,6 +68,16 @@
               </p>
             </div>
           </div>
+        {% elif status == 'CONSUMED' %}
+          <div class="alert alert-warning d-flex align-items-center" role="alert">
+            <span class="badge bg-warning text-dark fs-5 me-3" style="padding: 0.5rem 0.75rem;">{{ status }}</span>
+            <div>
+              <strong class="fs-5">{% trans 'Consumed Product' %}</strong>
+              <p class="mb-0 text-muted">
+                {% trans 'Cannot be used in new operations' %}
+              </p>
+            </div>
+          </div>
         {% else %}
           <div class="alert alert-danger d-flex align-items-center" role="alert">
             <span class="badge bg-danger fs-5 me-3" style="padding: 0.5rem 0.75rem;">{{ status }}</span>
@@ -165,6 +175,8 @@
                     <span class="badge bg-success">{{ status }}</span>
                   {% elif status == 'SOLD' %}
                     <span class="badge bg-secondary">{{ status }}</span>
+                  {% elif status == 'CONSUMED' %}
+                    <span class="badge bg-warning text-dark">{{ status }}</span>
                   {% else %}
                     <span class="badge bg-danger">{{ status }}</span>
                   {% endif %}

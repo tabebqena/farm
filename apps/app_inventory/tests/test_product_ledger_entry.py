@@ -73,7 +73,7 @@ class ProductLedgerEntryTest(TestCase):
         created, skipped = ProductLedgerEntry.record(op)
         self.assertEqual((created, skipped), (1, 0))
         entry = ProductLedgerEntry.objects.get(product=self.product)
-        self.assertEqual(entry.entry_type, ProductLedgerEntry.EntryType.PURCHASE)
+        self.assertEqual(entry.entry_type, ProductLedgerEntry.EntryType.PURCHASE_ISSUANCE)
         self.assertEqual(entry.quantity_delta, Decimal("5.00"))
         self.assertEqual(entry.value_delta, Decimal("500.00"))
 
@@ -83,7 +83,7 @@ class ProductLedgerEntryTest(TestCase):
         )
         ProductLedgerEntry.record(op)
         entry = ProductLedgerEntry.objects.get(product=self.product)
-        self.assertEqual(entry.entry_type, ProductLedgerEntry.EntryType.SALE)
+        self.assertEqual(entry.entry_type, ProductLedgerEntry.EntryType.SALE_ISSUANCE)
         self.assertEqual(entry.quantity_delta, Decimal("-5.00"))
         self.assertEqual(entry.value_delta, Decimal("-500.00"))
 
@@ -93,7 +93,7 @@ class ProductLedgerEntryTest(TestCase):
         )
         ProductLedgerEntry.record(op)
         entry = ProductLedgerEntry.objects.get(product=self.product)
-        self.assertEqual(entry.entry_type, ProductLedgerEntry.EntryType.BIRTH)
+        self.assertEqual(entry.entry_type, ProductLedgerEntry.EntryType.BIRTH_ISSUANCE)
         self.assertEqual(entry.quantity_delta, Decimal("5.00"))
         self.assertEqual(entry.value_delta, Decimal("500.00"))
 
@@ -103,7 +103,7 @@ class ProductLedgerEntryTest(TestCase):
         )
         ProductLedgerEntry.record(op)
         entry = ProductLedgerEntry.objects.get(product=self.product)
-        self.assertEqual(entry.entry_type, ProductLedgerEntry.EntryType.DEATH)
+        self.assertEqual(entry.entry_type, ProductLedgerEntry.EntryType.DEATH_ISSUANCE)
         self.assertEqual(entry.quantity_delta, Decimal("-5.00"))
         self.assertEqual(entry.value_delta, Decimal("-500.00"))
 

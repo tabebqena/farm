@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
+from apps.app_inventory.models import ProductLedgerEntry, ProductTemplate
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import CapitalGainOperation, PurchaseOperation
 from apps.app_transaction.transaction_type import TransactionType
