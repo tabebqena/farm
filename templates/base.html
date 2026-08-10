@@ -84,6 +84,11 @@
                   </li>
                   <li><hr class="dropdown-divider my-1"></li>
                   <li>
+                    <a class="dropdown-item d-flex align-items-center gap-2" href="{% url 'profile' %}">
+                      <i class="bi bi-person"></i>{% trans "Profile" %}
+                    </a>
+                  </li>
+                  <li>
                     <form method="post" action="{% url 'logout' %}">
                       {% csrf_token %}
                       <button type="submit" class="dropdown-item text-danger d-flex align-items-center gap-2">

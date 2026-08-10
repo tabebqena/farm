@@ -31,8 +31,15 @@ class LoginView(auth_views.LoginView):
         return super().dispatch(request, *args, **kwargs)
 
 
-@require_http_methods(["GET", "POST"])
+@require_http_methods(["GET"])
 def profile(request):
+    """Show the current user's profile (read-only detail page)."""
+    return render(request, 'registration/profile.html')
+
+
+@require_http_methods(["GET", "POST"])
+def profile_edit(request):
+    """Edit the current user's profile."""
     if request.method == 'POST':
         form = UserProfileForm(request.POST, instance=request.user)
         if form.is_valid():
@@ -41,4 +48,4 @@ def profile(request):
             return redirect('profile')
     else:
         form = UserProfileForm(instance=request.user)
-    return render(request, 'registration/profile.html', {'form': form})
+    return render(request, 'registration/profile_edit.html', {'form': form})

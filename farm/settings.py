@@ -168,7 +168,7 @@ MESSAGE_TAGS = {
 CURRENCY_SYMBOL = "$"
 
 LOGIN_URL = "login"  # Name of your login URL pattern
-LOGIN_REDIRECT_URL = "profile"  # Where to go after success
+LOGIN_REDIRECT_URL = "/"  # Where to go after success (home unless a next param is given)
 # Where to send users after they log out
 LOGOUT_REDIRECT_URL = "login"
 
