@@ -564,6 +564,71 @@ class ProductTemplate(BaseModel):
             "COMMODITY."
         ),
     )
+
+    # ------------------------------------------------------------------
+    # Animal-specific attributes (only meaningful when nature == ANIMAL)
+    # ------------------------------------------------------------------
+
+    class Gender(models.TextChoices):
+        MALE = "MALE", _("Male")
+        FEMALE = "FEMALE", _("Female")
+        MIXED = "MIXED", _("Mixed")
+        NA = "NA", _("Not applicable")
+
+    animal_type = models.CharField(
+        _("animal type"),
+        max_length=50,
+        blank=True,
+        default="",
+        help_text=_("Species/type of animal, e.g. Cow, Buffalo, Sheep, Goat."),
+    )
+    gender = models.CharField(
+        _("gender"),
+        choices=Gender.choices,
+        max_length=10,
+        default=Gender.NA,
+        help_text=_(
+            "Default gender for animals created from this template "
+            "(MALE/FEMALE/MIXED). NA for non-animal templates."
+        ),
+    )
+    produces = models.ManyToManyField(
+        "self",
+        related_name="produced_by",
+        verbose_name=_("produces"),
+        blank=True,
+        symmetrical=False,
+        help_text=_(
+            "Output templates this animal can produce (e.g. Milk, Manure). "
+            "Metadata only — no production operation yet."
+        ),
+    )
+    gives_birth_to = models.ForeignKey(
+        "self",
+        related_name="born_from",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name=_("gives birth to"),
+        help_text=_(
+            "Offspring template produced at birth (e.g. Dairy Cow → Calf). "
+            "Only valid for ANIMAL templates with gender FEMALE or MIXED."
+        ),
+    )
+    can_die = models.BooleanField(
+        _("can die"),
+        default=True,
+        help_text=_("Whether this product can die. All animals can die."),
+    )
+    can_be_consumed = models.BooleanField(
+        _("can be consumed"),
+        default=True,
+        help_text=_(
+            "Whether this product can be consumed. No animal can be consumed "
+            "(forced to False for ANIMAL templates)."
+        ),
+    )
+
     # TODO: only project entities are allowed
     entities = models.ManyToManyField(
         "app_entity.Entity",
@@ -586,7 +651,17 @@ class ProductTemplate(BaseModel):
     }
 
     def accepts_operation(self, op_type: str) -> bool:
-        return op_type in self._ALLOWED_OP_TYPES.get(self.nature, frozenset())
+        from apps.app_operation.models.operation_type import OperationType
+
+        allowed = self._ALLOWED_OP_TYPES.get(self.nature, frozenset())
+        if op_type not in allowed:
+            return False
+        # Flag-level gating on top of the nature-based allow-list.
+        if op_type == OperationType.DEATH and not self.can_die:
+            return False
+        if op_type == OperationType.CONSUMPTION and not self.can_be_consumed:
+            return False
+        return True
 
     @classmethod
     def tracking_mode_for_nature(cls, nature) -> str:
@@ -599,6 +674,42 @@ class ProductTemplate(BaseModel):
         # Tracking mode is derived from nature — there is no free choice.
         if self.nature:
             self.tracking_mode = self.tracking_mode_for_nature(self.nature)
+
+        if self.nature == self.Nature.ANIMAL:
+            # No animal can ever be consumed — force the flag off.
+            self.can_be_consumed = False
+            # A template that gives birth must be a female/mixed animal and its
+            # offspring must itself be an animal template.
+            if self.gives_birth_to is not None:
+                if self.gives_birth_to.nature != self.Nature.ANIMAL:
+                    raise ValidationError(
+                        _("'gives birth to' must reference an ANIMAL template.")
+                    )
+                if self.gender not in (self.Gender.FEMALE, self.Gender.MIXED):
+                    raise ValidationError(
+                        _(
+                            "Only templates with gender FEMALE or MIXED can give "
+                            "birth."
+                        )
+                    )
+            # 'produces' may only reference output (FEED/PRODUCT) templates.
+            # M2M is only queryable once the instance is persisted.
+            if self.pk is not None and self.produces.exists():
+                bad = self.produces.exclude(
+                    nature__in=(self.Nature.FEED, self.Nature.PRODUCT)
+                )
+                if bad.exists():
+                    raise ValidationError(
+                        _(
+                            "'produces' may only reference FEED or PRODUCT "
+                            "templates."
+                        )
+                    )
+        else:
+            # Non-animals don't die (they aren't livestock).
+            if self.can_die:
+                self.can_die = False
+
         return super().clean()
 
     @property
@@ -783,7 +894,15 @@ class InvoiceItem(AmountCleanMixin, BaseModel):
 
     @classmethod
     def create_products_for_item(
-        cls, invoice_item, entity, quantity, unit_price, unique_id=None
+        cls,
+        invoice_item,
+        entity,
+        quantity,
+        unit_price,
+        unique_id=None,
+        gender=None,
+        birth_date=None,
+        mother=None,
     ):
         """
         Create Product record(s) for *invoice_item* based on the template's
@@ -796,6 +915,13 @@ class InvoiceItem(AmountCleanMixin, BaseModel):
 
         **COMMODITY** → a single ``Product`` with the full quantity (bulk).
 
+        Animal attributes:
+        - ``gender`` (optional): MALE/FEMALE; when omitted, defaults to the
+          template's gender when it is MALE/FEMALE, otherwise UNKNOWN.
+        - ``birth_date`` (optional): set on the created animal (e.g. from a
+          birth operation).
+        - ``mother`` (optional): the Product that gave birth to this animal.
+
         Returns the list of created ``Product`` instances.
         """
         from apps.app_inventory.models import Product
@@ -803,6 +929,19 @@ class InvoiceItem(AmountCleanMixin, BaseModel):
         template = invoice_item.product_template
         qty = int(quantity)  # Product.quantity is PositiveIntegerField
         products = []
+
+        if gender in (Product.Gender.MALE, Product.Gender.FEMALE):
+            resolved_gender = gender
+        elif template.gender in (Product.Gender.MALE, Product.Gender.FEMALE):
+            resolved_gender = template.gender
+        else:
+            resolved_gender = Product.Gender.UNKNOWN
+
+        animal_kwargs = {
+            "gender": resolved_gender,
+            "birth_date": birth_date,
+            "mother": mother,
+        }
 
         if template.tracking_mode == ProductTemplate.TrackingMode.INDIVIDUAL:
             # One Product per head — each gets its own unique tag.
@@ -816,6 +955,7 @@ class InvoiceItem(AmountCleanMixin, BaseModel):
                     quantity=1,
                     unit_price=unit_price,
                     unique_id=uid,
+                    **animal_kwargs,
                 )
                 product.invoice_items.add(invoice_item)
                 products.append(product)
@@ -827,6 +967,7 @@ class InvoiceItem(AmountCleanMixin, BaseModel):
                 quantity=qty,
                 unit_price=unit_price,
                 unique_id=unique_id,
+                **animal_kwargs,
             )
             product.invoice_items.add(invoice_item)
             products.append(product)
@@ -897,6 +1038,30 @@ class Product(AmountCleanMixin, BaseModel):
     quantity = models.PositiveIntegerField(_("quantity"), default=1)
     unit_price = models.DecimalField(_("unit price"), max_digits=15, decimal_places=2)
     notes = models.TextField(_("notes"), blank=True)
+
+    # --- Per-animal attributes (only meaningful for ANIMAL templates) ---
+    class Gender(models.TextChoices):
+        MALE = "MALE", _("Male")
+        FEMALE = "FEMALE", _("Female")
+        UNKNOWN = "UNKNOWN", _("Unknown")
+
+    gender = models.CharField(
+        _("gender"),
+        choices=Gender.choices,
+        max_length=10,
+        default=Gender.UNKNOWN,
+        help_text=_("Individual animal sex; defaults from the template when born."),
+    )
+    birth_date = models.DateField(_("birth date"), null=True, blank=True)
+    mother = models.ForeignKey(
+        "self",
+        related_name="offspring",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name=_("mother"),
+        help_text=_("Mother animal that gave birth to this animal."),
+    )
 
     @property
     def is_physically_moved(self) -> bool:
@@ -1178,6 +1343,67 @@ class Product(AmountCleanMixin, BaseModel):
         ]
 
 
+class MedicalRecord(BaseModel):
+    """
+    A health/veterinary record linked to an individual animal (Product).
+
+    Health state is captured per record via ``status`` (there is no single
+    ``health_status`` field on Product).
+    """
+
+    class RecordType(models.TextChoices):
+        CHECKUP = "CHECKUP", _("Check-up")
+        VACCINATION = "VACCINATION", _("Vaccination")
+        TREATMENT = "TREATMENT", _("Treatment")
+        DIAGNOSIS = "DIAGNOSIS", _("Diagnosis")
+        OTHER = "OTHER", _("Other")
+
+    class HealthStatus(models.TextChoices):
+        HEALTHY = "HEALTHY", _("Healthy")
+        SICK = "SICK", _("Sick")
+        UNDER_TREATMENT = "UNDER_TREATMENT", _("Under treatment")
+        RECOVERED = "RECOVERED", _("Recovered")
+        UNKNOWN = "UNKNOWN", _("Unknown")
+
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.PROTECT,
+        related_name="medical_records",
+        verbose_name=_("product"),
+        help_text=_("The animal this medical record belongs to."),
+    )
+    date = models.DateField(_("date"), default=today_date.today)
+    record_type = models.CharField(
+        _("record type"), choices=RecordType.choices, max_length=20
+    )
+    status = models.CharField(
+        _("status"),
+        choices=HealthStatus.choices,
+        max_length=20,
+        default=HealthStatus.UNKNOWN,
+        help_text=_("Health status at the time this record was made."),
+    )
+    next_due_date = models.DateField(
+        _("next due date"), null=True, blank=True, help_text=_("e.g. next vaccination.")
+    )
+    notes = models.TextField(_("notes"), blank=True)
+    officer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name=_("officer"),
+    )
+
+    def __str__(self):
+        return f"{self.product} – {self.get_record_type_display()} ({self.date})"
+
+    class Meta:
+        verbose_name = _("medical record")
+        verbose_name_plural = _("medical records")
+        ordering = ["-date", "-created_at"]
+
+
 class InventoryMovementLine(ImmutableMixin, BaseModel):
     """
     A flat record of a physical inventory movement (receipt or dispatch).
@@ -1397,6 +1623,10 @@ class InventoryMovementLine(ImmutableMixin, BaseModel):
         # forward the user-edited tag through to the created product; when
         # absent, create_products_for_item() auto-generates one for INDIVIDUAL
         # templates.
+        #
+        # ``_lazy_gender`` / ``_lazy_birth_date`` / ``_lazy_mother`` are set by
+        # the birth flow so a lazily-created newborn carries its sex, birth date
+        # and mother link.
         if is_new and self.product_id is None and self.invoice_item_id is not None:
             products = InvoiceItem.create_products_for_item(
                 invoice_item=self.invoice_item,
@@ -1404,6 +1634,9 @@ class InventoryMovementLine(ImmutableMixin, BaseModel):
                 quantity=self.quantity,
                 unit_price=self.invoice_item.unit_price,
                 unique_id=getattr(self, "_lazy_unique_id", None) or None,
+                gender=getattr(self, "_lazy_gender", None),
+                birth_date=getattr(self, "_lazy_birth_date", None),
+                mother=getattr(self, "_lazy_mother", None),
             )
             self.product = products[0]
         super().save(*args, **kwargs)
