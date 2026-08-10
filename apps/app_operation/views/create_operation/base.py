@@ -16,6 +16,7 @@ from apps.app_entity.models.category import (
     FinancialCategory,
 )
 from apps.app_inventory.forms import InvoiceItemCreateFormSet, InvoiceItemSelectFormSet
+from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import PROXY_MAP, get_canonical_type
 from apps.app_operation.validators import OperationDataValidator
 
@@ -28,13 +29,17 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 
-def _build_formset(proxy_cls, data=None, instance=None, project=None):
+def _build_formset(proxy_cls, data=None, instance=None, project=None, is_birth=False):
     """Return the correct formset class for this operation, bound or unbound."""
     if proxy_cls.creates_assets:
         return (
-            InvoiceItemCreateFormSet(data, instance=instance, project=project)
+            InvoiceItemCreateFormSet(
+                data, instance=instance, project=project, is_birth=is_birth
+            )
             if data is not None
-            else InvoiceItemCreateFormSet(instance=instance, project=project)
+            else InvoiceItemCreateFormSet(
+                instance=instance, project=project, is_birth=is_birth
+            )
         )
     return (
         InvoiceItemSelectFormSet(data, instance=instance)
@@ -312,6 +317,7 @@ class OperationCreateView(View):
             data=data,
             instance=instance or self.proxy_cls(),
             project=self.project,
+            is_birth=self.canonical_op_type == OperationType.BIRTH,
         )
 
     def _build_context(

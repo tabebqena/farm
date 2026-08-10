@@ -403,6 +403,9 @@ class Operation(
                 formset_kwargs = {"data": raw_post, "instance": op}
                 if cls.creates_assets:
                     formset_kwargs["project"] = project
+                    formset_kwargs["is_birth"] = (
+                        operation_type == OperationType.BIRTH
+                    )
                 else:
                     # Select-mode operations (SALE/DEATH/CONSUMPTION/CAPITAL):
                     # restrict product selection to the owning entity so stock
@@ -900,6 +903,17 @@ class Operation(
                     item.product_template.tracking_mode
                     == ProductTemplate.TrackingMode.INDIVIDUAL
                 ):
+                    # Forward the birth-specific attributes (mother, newborn
+                    # gender, birth date) to the lazily-created Product via
+                    # transient attributes, mirroring `_lazy_unique_id`.
+                    birth_attrs = {}
+                    if getattr(form, "is_birth", False):
+                        birth_attrs = {
+                            "_lazy_gender": form.cleaned_data.get("gender") or None,
+                            "_lazy_birth_date": form.cleaned_data.get("birth_date")
+                            or self.date,
+                            "_lazy_mother": form.cleaned_data.get("mother") or None,
+                        }
                     # One line per head — each lazy-creates its own tagged
                     # Product (e.g. 5 calves → 5 movement lines, 5 products).
                     for head_idx in range(int(item.quantity)):
@@ -911,6 +925,8 @@ class Operation(
                             officer=self.officer,
                             group_key=group_key,
                         )
+                        for attr, value in birth_attrs.items():
+                            setattr(line, attr, value)
                         line.full_clean()
                         line.save()
                     continue

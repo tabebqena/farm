@@ -40,6 +40,40 @@
                   </div>
                 {% endif %}
               </div>
+              {% if formset.is_birth %}
+                <div class="row g-2 mt-1">
+                  <div class="col-md-4">
+                    <label class="form-label small text-muted mb-1">{% trans 'Mother' %}</label>
+                    {{ item_form.mother }}
+                    {% if item_form.mother.errors %}
+                      <div class="invalid-feedback d-block small text-danger">
+                        {% for e in item_form.mother.errors %}{{ e }}{% endfor %}
+                      </div>
+                    {% endif %}
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label small text-muted mb-1">{% trans 'Newborn Gender' %}</label>
+                    {{ item_form.gender }}
+                    {% if item_form.gender.errors %}
+                      <div class="invalid-feedback d-block small text-danger">
+                        {% for e in item_form.gender.errors %}{{ e }}{% endfor %}
+                      </div>
+                    {% endif %}
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label small text-muted mb-1">{% trans 'Birth Date' %}</label>
+                    {{ item_form.birth_date }}
+                    {% if item_form.birth_date.errors %}
+                      <div class="invalid-feedback d-block small text-danger">
+                        {% for e in item_form.birth_date.errors %}{{ e }}{% endfor %}
+                      </div>
+                    {% endif %}
+                  </div>
+                  <div class="col-md-2 d-flex align-items-end">
+                    <small class="text-muted">{% trans 'Defaults to today.' %}</small>
+                  </div>
+                </div>
+              {% endif %}
             </div>
             <div class="row g-2 align-items-end">
               <div class="col-4 col-md-3">
