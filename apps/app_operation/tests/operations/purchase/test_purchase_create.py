@@ -373,6 +373,20 @@ class PurchaseCreateFromSessionTest(TestCase):
 
         self.template = _make_product_template("Test Animal", self.project_entity)
 
+    def _make_op(self):
+        """Create a persisted PurchaseOperation via create_from_session."""
+        items = [_item_data(self.template.pk)]
+        session = _session_data(
+            vendor_id=self.vendor_entity.pk,
+            total_amount=Decimal("1000.00"),
+            items=items,
+        )
+        return PurchaseOperation.create_from_session(
+            project=self.project_entity,
+            session_data=session,
+            officer=self.officer_user,
+        )
+
     # ------------------------------------------------------------------
     # Happy path — basic creation without inventory movement or payment
     # ------------------------------------------------------------------
@@ -417,7 +431,9 @@ class PurchaseCreateFromSessionTest(TestCase):
         self.assertEqual(op.movement_lines.count(), 0)
 
         # Product ledger entries recorded
-        self.assertTrue(ProductLedgerEntry.objects.filter(operation=op).exists())
+        self.assertTrue(
+            ProductLedgerEntry.objects.filter(invoice_item__operation=op).exists()
+        )
 
     def test_create_from_session_multiple_items(self):
         """Multiple invoice items are created and totals validated."""
@@ -445,7 +461,7 @@ class PurchaseCreateFromSessionTest(TestCase):
         items = [_item_data(self.template.pk)]
         session = _session_data(
             vendor_id=self.vendor_entity.pk,
-            total_amount=Decimal("500.00"),
+            total_amount=Decimal("1000.00"),
             items=items,
         )
 
@@ -458,7 +474,7 @@ class PurchaseCreateFromSessionTest(TestCase):
         tx = op.get_all_transactions().get(type=TransactionType.PURCHASE_ISSUANCE)
         self.assertEqual(tx.source, self.project_entity)
         self.assertEqual(tx.target, self.vendor_entity)
-        self.assertEqual(tx.amount, Decimal("500.00"))
+        self.assertEqual(tx.amount, Decimal("1000.00"))
 
     # ------------------------------------------------------------------
     # Happy path — with inventory movement (received quantities)
@@ -652,7 +668,9 @@ class PurchaseCreateFromSessionTest(TestCase):
         self.assertEqual(op.get_all_transactions().count(), 2)
 
         # Ledger entries
-        self.assertTrue(ProductLedgerEntry.objects.filter(operation=op).exists())
+        self.assertTrue(
+            ProductLedgerEntry.objects.filter(invoice_item__operation=op).exists()
+        )
 
         # Fund balances
         self.project_entity.refresh_from_db()
@@ -786,14 +804,15 @@ class PurchaseCreateFromSessionTest(TestCase):
             )
 
     def test_create_from_session_empty_items_raises_error(self):
-        """Empty items list raises ValueError from totals validation."""
+        """Empty items list is rejected by the operation's own validation."""
         session = _session_data(
             vendor_id=self.vendor_entity.pk,
             total_amount=Decimal("0.00"),
             items=[],
         )
 
-        with self.assertRaises(ValueError):
+        # Empty items → amount 0 → the operation's clean() rejects it.
+        with self.assertRaises(ValidationError):
             PurchaseOperation.create_from_session(
                 project=self.project_entity,
                 session_data=session,
@@ -819,7 +838,7 @@ class PurchaseCreateFromSessionTest(TestCase):
             officer=self.officer_user,
         )
 
-        entries = ProductLedgerEntry.objects.filter(operation=op)
+        entries = ProductLedgerEntry.objects.filter(invoice_item__operation=op)
         self.assertTrue(entries.exists())
 
         # Verify entry references the invoice item
@@ -850,7 +869,9 @@ class PurchaseCreateFromSessionTest(TestCase):
 
     def test_create_from_session_custom_date(self):
         """Operation date matches the date provided in session data."""
-        custom_date = "2024-06-15"
+        # Use a date inside the project's auto-created open financial period
+        # (the entity's period starts at creation, i.e. today).
+        custom_date = date.today().isoformat()
         items = [_item_data(self.template.pk)]
         session = _session_data(
             vendor_id=self.vendor_entity.pk,

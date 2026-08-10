@@ -111,7 +111,10 @@ def _make_product_template(name="Cattle"):
 
 def _make_invoice_with_item(operation, template, quantity, unit_price):
     item = InvoiceItem.objects.create(
-        operation=operation, product=template, quantity=quantity, unit_price=unit_price
+        operation=operation,
+        product_template=template,
+        quantity=quantity,
+        unit_price=unit_price,
     )
     return item
 

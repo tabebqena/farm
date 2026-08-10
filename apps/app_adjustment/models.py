@@ -1,3 +1,4 @@
+ 
 import logging
 from decimal import Decimal
 from typing import List
@@ -705,16 +706,16 @@ class InvoiceItemAdjustmentLine(
         line is applied — i.e. the most recent ``new_quantity`` from a
         non-reversed adjustment line that was created *before* this one, or
         the original ``invoice_item.quantity`` if none."""
-        last_qty = (
-            self.invoice_item.item_adjustment_lines.filter(
-                adjustment__reversed_by__isnull=True,
-                new_quantity__isnull=False,
-                pk__lt=self.pk,
-            )
-            .order_by("-pk")
-            .values_list("new_quantity", flat=True)
-            .first()
+        qs = self.invoice_item.item_adjustment_lines.filter(
+            adjustment__reversed_by__isnull=True,
+            new_quantity__isnull=False,
         )
+        # A brand-new (unsaved) line has pk=None; it is not yet in the DB,
+        # so the pk__lt filter must be omitted to avoid "Cannot use None as
+        # a query value".
+        if self.pk is not None:
+            qs = qs.filter(pk__lt=self.pk)
+        last_qty = qs.order_by("-pk").values_list("new_quantity", flat=True).first()
         return last_qty if last_qty is not None else self.invoice_item.quantity
 
     def _before_effective_unit_price(self) -> Decimal:
@@ -722,16 +723,14 @@ class InvoiceItemAdjustmentLine(
         line is applied — i.e. the most recent ``new_unit_price`` from a
         non-reversed adjustment line that was created *before* this one, or
         the original ``invoice_item.unit_price`` if none."""
-        last_price = (
-            self.invoice_item.item_adjustment_lines.filter(
-                adjustment__reversed_by__isnull=True,
-                new_unit_price__isnull=False,
-                pk__lt=self.pk,
-            )
-            .order_by("-pk")
-            .values_list("new_unit_price", flat=True)
-            .first()
+        qs = self.invoice_item.item_adjustment_lines.filter(
+            adjustment__reversed_by__isnull=True,
+            new_unit_price__isnull=False,
         )
+        # See _before_effective_quantity(): pk is None on a new, unsaved line.
+        if self.pk is not None:
+            qs = qs.filter(pk__lt=self.pk)
+        last_price = qs.order_by("-pk").values_list("new_unit_price", flat=True).first()
         return last_price if last_price is not None else self.invoice_item.unit_price
 
     def clean(self):

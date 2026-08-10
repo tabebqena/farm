@@ -72,7 +72,8 @@ class ProductLedgerEntryTest(TestCase):
         )
         created, skipped = ProductLedgerEntry.record(op)
         self.assertEqual((created, skipped), (1, 0))
-        entry = ProductLedgerEntry.objects.get(product=self.product)
+        # Issuance entries are written per invoice_item with product=None.
+        entry = ProductLedgerEntry.objects.get(invoice_item=op.items.first())
         self.assertEqual(entry.entry_type, ProductLedgerEntry.EntryType.PURCHASE_ISSUANCE)
         self.assertEqual(entry.quantity_delta, Decimal("5.00"))
         self.assertEqual(entry.value_delta, Decimal("500.00"))
@@ -82,7 +83,7 @@ class ProductLedgerEntryTest(TestCase):
             SaleOperation, OperationType.SALE, self.client, self.project
         )
         ProductLedgerEntry.record(op)
-        entry = ProductLedgerEntry.objects.get(product=self.product)
+        entry = ProductLedgerEntry.objects.get(invoice_item=op.items.first())
         self.assertEqual(entry.entry_type, ProductLedgerEntry.EntryType.SALE_ISSUANCE)
         self.assertEqual(entry.quantity_delta, Decimal("-5.00"))
         self.assertEqual(entry.value_delta, Decimal("-500.00"))
@@ -92,7 +93,7 @@ class ProductLedgerEntryTest(TestCase):
             BirthOperation, OperationType.BIRTH, self.system, self.project
         )
         ProductLedgerEntry.record(op)
-        entry = ProductLedgerEntry.objects.get(product=self.product)
+        entry = ProductLedgerEntry.objects.get(invoice_item=op.items.first())
         self.assertEqual(entry.entry_type, ProductLedgerEntry.EntryType.BIRTH_ISSUANCE)
         self.assertEqual(entry.quantity_delta, Decimal("5.00"))
         self.assertEqual(entry.value_delta, Decimal("500.00"))
@@ -102,7 +103,7 @@ class ProductLedgerEntryTest(TestCase):
             DeathOperation, OperationType.DEATH, self.project, self.system
         )
         ProductLedgerEntry.record(op)
-        entry = ProductLedgerEntry.objects.get(product=self.product)
+        entry = ProductLedgerEntry.objects.get(invoice_item=op.items.first())
         self.assertEqual(entry.entry_type, ProductLedgerEntry.EntryType.DEATH_ISSUANCE)
         self.assertEqual(entry.quantity_delta, Decimal("-5.00"))
         self.assertEqual(entry.value_delta, Decimal("-500.00"))
@@ -112,7 +113,7 @@ class ProductLedgerEntryTest(TestCase):
             CapitalGainOperation, OperationType.CAPITAL_GAIN, self.system, self.project
         )
         ProductLedgerEntry.record(op)
-        entry = ProductLedgerEntry.objects.get(product=self.product)
+        entry = ProductLedgerEntry.objects.get(invoice_item=op.items.first())
         self.assertEqual(entry.entry_type, ProductLedgerEntry.EntryType.CAPITAL_GAIN)
         self.assertEqual(entry.quantity_delta, Decimal("0.00"))
         self.assertEqual(entry.value_delta, Decimal("500.00"))
@@ -122,7 +123,7 @@ class ProductLedgerEntryTest(TestCase):
             CapitalLossOperation, OperationType.CAPITAL_LOSS, self.project, self.system
         )
         ProductLedgerEntry.record(op)
-        entry = ProductLedgerEntry.objects.get(product=self.product)
+        entry = ProductLedgerEntry.objects.get(invoice_item=op.items.first())
         self.assertEqual(entry.entry_type, ProductLedgerEntry.EntryType.CAPITAL_LOSS)
         self.assertEqual(entry.quantity_delta, Decimal("0.00"))
         self.assertEqual(entry.value_delta, Decimal("-500.00"))
@@ -165,15 +166,16 @@ class ProductLedgerEntryTest(TestCase):
         self.assertEqual(state["value"], Decimal("0.00"))
 
     def test_state_as_of_sums_entries(self):
-        op = self._make_operation_with_item(
-            PurchaseOperation,
-            OperationType.PURCHASE,
-            self.project,
-            self.vendor,
-            qty=Decimal("10.00"),
-            price=Decimal("50.00"),
+        # state_as_of() only counts MOVEMENT_TYPES entries, so create a
+        # PURCHASE_MOVEMENT ledger row directly.
+        ProductLedgerEntry.objects.create(
+            product=self.product,
+            entry_type=ProductLedgerEntry.EntryType.PURCHASE_MOVEMENT,
+            date=date.today(),
+            quantity_delta=Decimal("10.00"),
+            value_delta=Decimal("500.00"),
+            idempotency_key="state_sums_movement_test",
         )
-        ProductLedgerEntry.record(op)
         state = ProductLedgerEntry.state_as_of(self.product, date.today())
         self.assertEqual(state["quantity"], Decimal("10.00"))
         self.assertEqual(state["value"], Decimal("500.00"))
@@ -204,7 +206,7 @@ class ProductLedgerEntryTest(TestCase):
         future = date.today() + timedelta(days=1)
         ProductLedgerEntry.objects.create(
             product=self.product,
-            entry_type=ProductLedgerEntry.EntryType.PURCHASE,
+            entry_type=ProductLedgerEntry.EntryType.PURCHASE_MOVEMENT,
             date=future,
             quantity_delta=Decimal("10.00"),
             value_delta=Decimal("1000.00"),
@@ -215,42 +217,36 @@ class ProductLedgerEntryTest(TestCase):
         self.assertEqual(state["value"], Decimal("0.00"))
 
     def test_portfolio_as_of_excludes_zero_quantity_products(self):
-        # Purchase 5 units of self.product
-        purchase_op = self._make_operation_with_item(
-            PurchaseOperation,
-            OperationType.PURCHASE,
-            self.project,
-            self.vendor,
-            qty=Decimal("5.00"),
-            price=Decimal("100.00"),
-        )
-        ProductLedgerEntry.record(purchase_op)
-
-        # A second template/product still in stock
+        # portfolio_as_of() only counts MOVEMENT_TYPES entries. Give product2 a
+        # net +3 (included) and self.product a net 0 (+5 purchase, -5 sale,
+        # excluded).
         template2 = make_product_template("Sheep")
         template2.entities.add(self.project)
         product2 = make_product(template2, Decimal("80.00"), 3)
-        op2 = make_operation(
-            self.project,
-            self.vendor,
-            self.officer,
-            PurchaseOperation,
-            OperationType.PURCHASE,
+        ProductLedgerEntry.objects.create(
+            product=product2,
+            entry_type=ProductLedgerEntry.EntryType.PURCHASE_MOVEMENT,
+            date=date.today(),
+            quantity_delta=Decimal("3.00"),
+            value_delta=Decimal("240.00"),
+            idempotency_key="portfolio_product2_in",
         )
-        item2 = make_invoice_item(op2, template2, Decimal("3.00"), Decimal("80.00"))
-        product2.invoice_items.add(item2)
-        ProductLedgerEntry.record(op2)
-
-        # Sell all 5 units of self.product → net quantity = 0
-        sell_op = self._make_operation_with_item(
-            SaleOperation,
-            OperationType.SALE,
-            self.client,
-            self.project,
-            qty=Decimal("5.00"),
-            price=Decimal("100.00"),
+        ProductLedgerEntry.objects.create(
+            product=self.product,
+            entry_type=ProductLedgerEntry.EntryType.PURCHASE_MOVEMENT,
+            date=date.today(),
+            quantity_delta=Decimal("5.00"),
+            value_delta=Decimal("500.00"),
+            idempotency_key="portfolio_product1_in",
         )
-        ProductLedgerEntry.record(sell_op)
+        ProductLedgerEntry.objects.create(
+            product=self.product,
+            entry_type=ProductLedgerEntry.EntryType.SALE_MOVEMENT,
+            date=date.today(),
+            quantity_delta=Decimal("-5.00"),
+            value_delta=Decimal("-500.00"),
+            idempotency_key="portfolio_product1_out",
+        )
 
         portfolio = list(ProductLedgerEntry.portfolio_as_of(self.project, date.today()))
         product_ids = {row["product_id"] for row in portfolio}
@@ -262,7 +258,7 @@ class ProductLedgerEntryTest(TestCase):
         future = date.today() + timedelta(days=1)
         ProductLedgerEntry.objects.create(
             product=self.product,
-            entry_type=ProductLedgerEntry.EntryType.PURCHASE,
+            entry_type=ProductLedgerEntry.EntryType.PURCHASE_MOVEMENT,
             date=future,
             quantity_delta=Decimal("5.00"),
             value_delta=Decimal("500.00"),

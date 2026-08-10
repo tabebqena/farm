@@ -325,9 +325,10 @@ class DecreaseWithMovementsTest(TestCase):
 
         from apps.app_inventory.models import ProductLedgerEntry
 
+        # record_adjustment_line() writes product=None — query by invoice item.
         entry = ProductLedgerEntry.objects.filter(
-            product=self.product,
-            entry_type=ProductLedgerEntry.EntryType.ADJUSTMENT,
+            invoice_item=self.item,
+            entry_type=ProductLedgerEntry.EntryType.PURCHASE_ADJUSTMENT_DECREASE,
         ).latest("id")
         self.assertEqual(entry.quantity_delta, Decimal("-2.00"))
         self.assertEqual(entry.value_delta, Decimal("-200.00"))

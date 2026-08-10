@@ -171,19 +171,14 @@ class InvoiceItemAdjustmentPropertiesTest(TestCase):
     def _make_line(
         self, item_adj, invoice_item, new_quantity=None, new_unit_price=None
     ):
-        from unittest import mock
-
         from apps.app_adjustment.models import InvoiceItemAdjustmentLine
 
-        with mock.patch.object(
-            InvoiceItemAdjustmentLine, "_sync_products", return_value=None
-        ):
-            return InvoiceItemAdjustmentLine.objects.create(
-                adjustment=item_adj,
-                invoice_item=invoice_item,
-                new_quantity=new_quantity,
-                new_unit_price=new_unit_price,
-            )
+        return InvoiceItemAdjustmentLine.objects.create(
+            adjustment=item_adj,
+            invoice_item=invoice_item,
+            new_quantity=new_quantity,
+            new_unit_price=new_unit_price,
+        )
 
     # ------------------------------------------------------------------
     # Tests

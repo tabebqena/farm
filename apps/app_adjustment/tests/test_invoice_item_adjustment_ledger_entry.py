@@ -108,7 +108,10 @@ def _make_product_template(name="Cattle"):
 
 def _make_invoice_with_item(operation, template, quantity, unit_price):
     item = InvoiceItem.objects.create(
-        operation=operation, product=template, quantity=quantity, unit_price=unit_price
+        operation=operation,
+        product_template=template,
+        quantity=quantity,
+        unit_price=unit_price,
     )
     return item
 
@@ -181,8 +184,10 @@ class LedgerEntryTest(TestCase):
         )
         _make_line(ia, item, new_unit_price=Decimal("90.00"))
 
+        # record_adjustment_line() writes product=None — query by invoice item.
         entry = ProductLedgerEntry.objects.filter(
-            product=product, entry_type=ProductLedgerEntry.EntryType.ADJUSTMENT
+            invoice_item=item,
+            entry_type=ProductLedgerEntry.EntryType.PURCHASE_ADJUSTMENT_DECREASE,
         ).latest("id")
 
         self.assertEqual(entry.quantity_delta, Decimal("0.00"))
@@ -197,8 +202,10 @@ class LedgerEntryTest(TestCase):
         )
         _make_line(ia, item, new_quantity=Decimal("8.00"))
 
+        # record_adjustment_line() writes product=None — query by invoice item.
         entry = ProductLedgerEntry.objects.filter(
-            product=product, entry_type=ProductLedgerEntry.EntryType.ADJUSTMENT
+            invoice_item=item,
+            entry_type=ProductLedgerEntry.EntryType.PURCHASE_ADJUSTMENT_DECREASE,
         ).latest("id")
 
         self.assertEqual(entry.quantity_delta, Decimal("-2.00"))
@@ -213,8 +220,10 @@ class LedgerEntryTest(TestCase):
         )
         _make_line(ia, item, new_quantity=Decimal("0"))
 
+        # record_adjustment_line() writes product=None — query by invoice item.
         entry = ProductLedgerEntry.objects.filter(
-            product=product, entry_type=ProductLedgerEntry.EntryType.ADJUSTMENT
+            invoice_item=item,
+            entry_type=ProductLedgerEntry.EntryType.PURCHASE_ADJUSTMENT_DECREASE,
         ).latest("id")
 
         self.assertEqual(entry.quantity_delta, Decimal("-5.00"))
@@ -227,14 +236,16 @@ class LedgerEntryTest(TestCase):
         )
         _make_line(ia, item, new_unit_price=Decimal("40.00"))
 
+        # record_adjustment_line() writes product=None — query by invoice item.
         entry = ProductLedgerEntry.objects.filter(
-            product=product, entry_type=ProductLedgerEntry.EntryType.ADJUSTMENT
+            invoice_item=item,
+            entry_type=ProductLedgerEntry.EntryType.SALE_ADJUSTMENT_DECREASE,
         ).latest("id")
 
-        # SALE sign: val_sign = -1, so value_delta = (-40) * -1 = +40
         self.assertEqual(entry.quantity_delta, Decimal("0.00"))
-        # value_delta of the line = 4*(40-50) = -40; SALE val_sign = -1 → stored as +40
-        self.assertEqual(entry.value_delta, Decimal("40.00"))
+        # Direction is carried by the entry type (SALE_ADJUSTMENT_DECREASE);
+        # the stored delta is the line's raw value_delta = 4*(40-50) = -40.
+        self.assertEqual(entry.value_delta, Decimal("-40.00"))
 
     def test_sale_item_removal_ledger_entry(self):
         op, item, product = self._sale_setup(qty=Decimal("3"), price=Decimal("100.00"))
@@ -243,14 +254,16 @@ class LedgerEntryTest(TestCase):
         )
         _make_line(ia, item, new_quantity=Decimal("0"))
 
+        # record_adjustment_line() writes product=None — query by invoice item.
         entry = ProductLedgerEntry.objects.filter(
-            product=product, entry_type=ProductLedgerEntry.EntryType.ADJUSTMENT
+            invoice_item=item,
+            entry_type=ProductLedgerEntry.EntryType.SALE_ADJUSTMENT_DECREASE,
         ).latest("id")
 
         # quantity_delta = 0-3 = -3; value_delta = (0*0)-(3*100) = -300
-        # SALE val_sign=-1 → stored as +300
-        self.assertEqual(entry.quantity_delta, Decimal("3.00"))
-        self.assertEqual(entry.value_delta, Decimal("300.00"))
+        # Stored as-is; direction is carried by the SALE_ADJUSTMENT_DECREASE type.
+        self.assertEqual(entry.quantity_delta, Decimal("-3.00"))
+        self.assertEqual(entry.value_delta, Decimal("-300.00"))
 
     def test_idempotency_key_prevents_duplicate_entries(self):
         op, item, product = self._purchase_setup(

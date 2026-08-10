@@ -1149,11 +1149,26 @@ class InventoryMovementLine(ImmutableMixin, BaseModel):
         # Validate the product can be moved (SOLD/DEAD allowed for reversals)
         # (skip when product is not yet assigned, e.g. during form validation)
         if self.product_id is not None:
+            from apps.app_operation.models.operation_type import OperationType
+
             # Movement lines ARE the physical move, so obligated-only products
-            # (registered but not yet moved) are allowed here.
+            # (registered but not yet moved) are allowed here. For terminal
+            # operations (SALE/DEATH/CONSUMPTION) the moved product legitimately
+            # carries the matching terminal status (SOLD/DEAD/CONSUMED), so it
+            # must be allowed too.
+            terminal_status_by_op = {
+                OperationType.SALE: Product.Status.SOLD,
+                OperationType.DEATH: Product.Status.DEAD,
+                OperationType.CONSUMPTION: Product.Status.CONSUMED,
+            }
+            allow_terminal = (
+                self.product.status
+                == terminal_status_by_op.get(self.operation.operation_type)
+            )
             self.product.validate_active(
                 allow_reversal=self.reversal_of_id is not None,
                 allow_obligated=True,
+                allow_adjustment=allow_terminal,
             )
 
         super().clean()

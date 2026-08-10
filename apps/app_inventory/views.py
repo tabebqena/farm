@@ -421,6 +421,7 @@ def create_inventory_movement(request, operation_pk):
                     request.POST,
                     queryset=InventoryMovementLine.objects.none(),
                     operation=operation,
+                    prefix="lines",
                 )
                 if formset.is_valid():
                     lines = formset.save(commit=False)
@@ -466,6 +467,7 @@ def create_inventory_movement(request, operation_pk):
                 request.POST,
                 queryset=InventoryMovementLine.objects.none(),
                 operation=operation,
+                prefix="lines",
             )
             return render(
                 request,
@@ -480,6 +482,7 @@ def create_inventory_movement(request, operation_pk):
     formset = InventoryMovementLineFormSet(
         queryset=InventoryMovementLine.objects.none(),
         operation=operation,
+        prefix="lines",
     )
 
     return render(

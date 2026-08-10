@@ -194,7 +194,9 @@ class ProductTest(TestCase):
 
     def test_validate_active_passes_for_active_product(self):
         product = make_product(self.template)
-        product.validate_active()  # must not raise
+        # A fresh product is "obligated only" (not yet physically moved), which
+        # is allowed for movement/reversal contexts.
+        product.validate_active(allow_obligated=True)  # must not raise
 
     def test_validate_active_raises_for_sold_product(self):
         product = self._linked_product(
