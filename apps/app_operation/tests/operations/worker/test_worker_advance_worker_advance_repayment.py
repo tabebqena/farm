@@ -196,6 +196,60 @@ class WorkerAdvanceRepaymentTest(TestCase):
         with self.assertRaises(ValidationError):
             self._repay(Decimal("0.00"))
 
+    # ------------------------------------------------------------------
+    # Reversal of repayment restores the repaid state
+    # ------------------------------------------------------------------
+
+    def test_full_repayment_reversed_restores_remaining_balance(self):
+        """Reversing the only (full) repayment must un-mark the operation as repaid."""
+        self._repay(Decimal("1000.00"))
+        self.assertTrue(self.op.is_fully_repayed)
+
+        repayment = self.op.get_all_transactions().get(
+            type=TransactionType.WORKER_ADVANCE_REPAYMENT,
+            reversal_of__isnull=True,
+        )
+        repayment.reverse(officer=self.officer)
+
+        self.op.refresh_from_db()
+        self.assertEqual(self.op.amount_repayed, Decimal("0.00"))
+        self.assertFalse(self.op.is_fully_repayed)
+        self.assertEqual(self.op.amount_remaining_to_repay, Decimal("1000.00"))
+
+    def test_partial_repayment_reversed_restores_remaining_balance(self):
+        """Reversing a partial repayment increases the remaining balance again."""
+        self._repay(Decimal("400.00"))
+        self.assertEqual(self.op.amount_remaining_to_repay, Decimal("600.00"))
+
+        repayment = self.op.get_all_transactions().get(
+            type=TransactionType.WORKER_ADVANCE_REPAYMENT,
+            reversal_of__isnull=True,
+        )
+        repayment.reverse(officer=self.officer)
+
+        self.op.refresh_from_db()
+        self.assertEqual(self.op.amount_repayed, Decimal("0.00"))
+        self.assertFalse(self.op.is_fully_repayed)
+        self.assertEqual(self.op.amount_remaining_to_repay, Decimal("1000.00"))
+
+    def test_only_reversed_repayment_is_net_out(self):
+        """Reversing one of several repayments nets out only that amount."""
+        self._repay(Decimal("600.00"))
+        self._repay(Decimal("400.00"))
+        self.assertTrue(self.op.is_fully_repayed)
+
+        repayment = self.op.get_all_transactions().get(
+            type=TransactionType.WORKER_ADVANCE_REPAYMENT,
+            reversal_of__isnull=True,
+            amount=Decimal("400.00"),
+        )
+        repayment.reverse(officer=self.officer)
+
+        self.op.refresh_from_db()
+        self.assertEqual(self.op.amount_repayed, Decimal("600.00"))
+        self.assertFalse(self.op.is_fully_repayed)
+        self.assertEqual(self.op.amount_remaining_to_repay, Decimal("400.00"))
+
 
 # ---------------------------------------------------------------------------
 # WorkerAdvanceReversalTest

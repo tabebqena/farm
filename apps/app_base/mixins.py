@@ -479,6 +479,10 @@ class LinkedRePaymentTransactionMixin(
 
     @property
     def amount_repayed(self):
+        # Net-of-reversal approach (mirrors amount_settled): sum money flowing
+        # into the source fund (repayments) minus money flowing back out of it
+        # (the mirror reversals of reversed repayments). Without the offset term
+        # a reversed repayment would keep counting towards the repaid amount.
         valid_txs = self.get_undeleted_transactions()
         if not valid_txs:
             return Decimal("0")
@@ -487,7 +491,10 @@ class LinkedRePaymentTransactionMixin(
         to_source = valid_txs.filter(target=self.payment_source_fund).aggregate(
             total=Sum(self._tx_amount_field_name)
         )["total"] or Decimal("0.00")
-        return to_source
+        from_source = valid_txs.filter(source=self.payment_source_fund).aggregate(
+            total=Sum(self._tx_amount_field_name)
+        )["total"] or Decimal("0.00")
+        return to_source - from_source
 
     @property
     def amount_remaining_to_repay(self):

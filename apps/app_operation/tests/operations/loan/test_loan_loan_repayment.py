@@ -196,3 +196,73 @@ class LoanRepaymentTest(TestCase):
                 officer=self.officer_user,
                 date=date.today(),
             )
+
+    # ------------------------------------------------------------------
+    # Reversal of repayment restores the repaid state
+    # ------------------------------------------------------------------
+
+    def test_full_repayment_reversed_restores_remaining_balance(self):
+        """Reversing the only (full) repayment must un-mark the operation as repaid."""
+        self.op.create_repayment_transaction(
+            amount=Decimal("1000.00"),
+            officer=self.officer_user,
+            date=date.today(),
+        )
+        self.assertTrue(self.op.is_fully_repayed)
+
+        repayment = self.op.get_all_transactions().get(
+            type=TransactionType.LOAN_REPAYMENT,
+            reversal_of__isnull=True,
+        )
+        repayment.reverse(officer=self.officer_user)
+
+        self.op.refresh_from_db()
+        self.assertEqual(self.op.amount_repayed, Decimal("0.00"))
+        self.assertFalse(self.op.is_fully_repayed)
+        self.assertEqual(self.op.amount_remaining_to_repay, Decimal("1000.00"))
+
+    def test_partial_repayment_reversed_restores_remaining_balance(self):
+        """Reversing a partial repayment increases the remaining balance again."""
+        self.op.create_repayment_transaction(
+            amount=Decimal("400.00"),
+            officer=self.officer_user,
+            date=date.today(),
+        )
+        self.assertEqual(self.op.amount_remaining_to_repay, Decimal("600.00"))
+
+        repayment = self.op.get_all_transactions().get(
+            type=TransactionType.LOAN_REPAYMENT,
+            reversal_of__isnull=True,
+        )
+        repayment.reverse(officer=self.officer_user)
+
+        self.op.refresh_from_db()
+        self.assertEqual(self.op.amount_repayed, Decimal("0.00"))
+        self.assertFalse(self.op.is_fully_repayed)
+        self.assertEqual(self.op.amount_remaining_to_repay, Decimal("1000.00"))
+
+    def test_only_reversed_repayment_is_net_out(self):
+        """Reversing one of several repayments nets out only that amount."""
+        self.op.create_repayment_transaction(
+            amount=Decimal("600.00"),
+            officer=self.officer_user,
+            date=date.today(),
+        )
+        self.op.create_repayment_transaction(
+            amount=Decimal("400.00"),
+            officer=self.officer_user,
+            date=date.today(),
+        )
+        self.assertTrue(self.op.is_fully_repayed)
+
+        repayment = self.op.get_all_transactions().get(
+            type=TransactionType.LOAN_REPAYMENT,
+            reversal_of__isnull=True,
+            amount=Decimal("400.00"),
+        )
+        repayment.reverse(officer=self.officer_user)
+
+        self.op.refresh_from_db()
+        self.assertEqual(self.op.amount_repayed, Decimal("600.00"))
+        self.assertFalse(self.op.is_fully_repayed)
+        self.assertEqual(self.op.amount_remaining_to_repay, Decimal("400.00"))
