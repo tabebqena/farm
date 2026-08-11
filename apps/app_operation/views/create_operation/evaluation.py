@@ -258,6 +258,8 @@ class EvaluationCreateView(OperationCreateView):
                 )
 
     def _build_evaluation_context(self, form, errors=None):
+        from django.conf import settings
+
         product_data = {}
 
         for p in form.fields["product"].queryset:
@@ -272,6 +274,9 @@ class EvaluationCreateView(OperationCreateView):
             }
         return {
             "primary": self.project,
+            "source_entity": self.project,
+            "source_balance": self.project.balance,
+            "currency": getattr(settings, "CURRENCY_SYMBOL", "$"),
             "form": form,
             "today": timezone.now().date(),
             "product_data_json": json.dumps(product_data),

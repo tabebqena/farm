@@ -1,5 +1,6 @@
 import traceback
 
+from django.conf import settings
 from django.contrib import messages
 from django.db import transaction as db_transaction
 from django.http import HttpResponseBadRequest, HttpResponseNotFound
@@ -116,6 +117,8 @@ def record_transaction_payment(request, pk):
             }
         )
 
+    # The payment transaction debits the operation's payment source fund.
+    source_entity = getattr(operation, "payment_source_fund", None)
     return render(
         request,
         "app_operation/add_payment_form.html",
@@ -123,6 +126,9 @@ def record_transaction_payment(request, pk):
             "form": form,
             "operation": operation,
             "remaining_balance": operation.amount_remaining_to_settle,
+            "source_entity": source_entity,
+            "source_balance": source_entity.balance if source_entity else None,
+            "currency": getattr(settings, "CURRENCY_SYMBOL", "$"),
         },
     )
 
@@ -260,6 +266,9 @@ def record_transaction_repayment(request, pk):
             }
         )
 
+    # The repayment transaction is sourced from the payment target fund (the
+    # entity that pays the money back).
+    source_entity = getattr(operation, "payment_target_fund", None)
     return render(
         request,
         "app_operation/add_repayment_form.html",
@@ -267,5 +276,8 @@ def record_transaction_repayment(request, pk):
             "form": form,
             "operation": operation,
             "remaining_balance": remaining_amount,
+            "source_entity": source_entity,
+            "source_balance": source_entity.balance if source_entity else None,
+            "currency": getattr(settings, "CURRENCY_SYMBOL", "$"),
         },
     )

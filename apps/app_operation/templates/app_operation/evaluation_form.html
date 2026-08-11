@@ -15,6 +15,9 @@
           </div>
 
           <div class="card-body p-4">
+            {% trans 'Source Fund' as source_fund_label %}
+            {% include 'app_operation/snippets/create-form/fund-balance.html' with fund_entity=source_entity fund_label=source_fund_label fund_currency=currency fund_color='info' %}
+
             {% if messages %}
               {% for message in messages %}
                 <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">

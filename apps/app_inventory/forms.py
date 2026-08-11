@@ -91,10 +91,10 @@ class HasTagSelect(forms.Select):
         super().__init__(*args, **kwargs)
 
     def create_option(
-        self, name, value, label, selected, index, subgroup=None, attrs=None
+        self, name, value, label, selected, index, subindex=None, attrs=None
     ):
         option = super().create_option(
-            name, value, label, selected, index, subgroup=subgroup, attrs=attrs
+            name, value, label, selected, index, subindex=subindex, attrs=attrs
         )
         if value:
             pk = str(value.value if hasattr(value, "value") else value)

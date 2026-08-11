@@ -16,6 +16,10 @@
         <li class="breadcrumb-item active">{{ current_step.title }}</li>
       </ol>
     </nav>
+
+    {% trans 'Source Fund' as source_fund_label %}
+    {% include 'app_operation/snippets/create-form/fund-balance.html' with fund_entity=project fund_label=source_fund_label fund_color='primary' %}
+
     <!-- Step Progress Indicator -->
     <div class="mb-4 d-flex justify-content-between align-items-center">
       <h2 class="mb-0">{{ current_step.title }}</h2>

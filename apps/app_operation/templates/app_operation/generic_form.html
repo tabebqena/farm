@@ -35,6 +35,10 @@
               {% csrf_token %}
 
               {% include 'app_operation/snippets/create-form/primary-entity.html' %}
+
+              {% trans 'Source Fund' as source_fund_label %}
+              {% include 'app_operation/snippets/create-form/fund-balance.html' with fund_entity=source_entity fund_label=source_fund_label fund_currency=currency fund_color=theme_color %}
+
               <div class="row g-4">
                 {% include 'app_operation/snippets/create-form/secondary-entity.html' %}
                 {% include 'app_operation/snippets/create-form/date.html' %}

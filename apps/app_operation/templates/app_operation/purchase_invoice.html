@@ -16,6 +16,9 @@
 
     <h2 class="mb-4">{% trans "Purchase Invoice" %}</h2>
 
+    {% trans 'Source Fund' as source_fund_label %}
+    {% include 'app_operation/snippets/create-form/fund-balance.html' with fund_entity=project fund_label=source_fund_label fund_color='primary' %}
+
     {% if messages %}
         {% for message in messages %}
             <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">

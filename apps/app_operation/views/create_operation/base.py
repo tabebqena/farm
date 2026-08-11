@@ -2,6 +2,7 @@ import traceback
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
+from django.conf import settings
 from django.contrib import messages
 from django.db import transaction as db_transaction
 from django.http import HttpResponseBadRequest
@@ -337,9 +338,17 @@ class OperationCreateView(View):
                 entities_relations__is_active=True,
                 category_type=self.proxy_cls.category_type,
             )
+        # The entity whose fund backs this operation. When the source role is
+        # "url" this is the project itself; for "post"/"system"/"world" source
+        # roles the source is only known after the secondary entity is chosen,
+        # so fall back to the URL (primary) entity until then.
+        source_entity = self.data["source_entity"] or self.data["url_entity"]
         return {
             "primary": self.data["url_entity"],
             "config": self.data,
+            "source_entity": source_entity,
+            "source_balance": source_entity.balance,
+            "currency": getattr(settings, "CURRENCY_SYMBOL", "$"),
             "op_type": self.canonical_op_type,
             "today": timezone.now().date(),
             "entities": self.proxy_cls.get_related_entities(

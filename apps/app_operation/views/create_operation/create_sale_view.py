@@ -47,6 +47,7 @@ class SaleCreateView(OperationCreateView):
         return super().post(request, *args, **kwargs)
 
     def _build_context(self, **kwargs):
-        ctx = super()._build_context(**kwargs)
-        ctx["project_balance"] = self.project.balance
-        return ctx
+        # The source of a sale is the client (chosen on POST); the generic
+        # form's fund balance falls back to the URL entity (the project) until
+        # a client is selected, so no extra context is needed here.
+        return super()._build_context(**kwargs)

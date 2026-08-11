@@ -9,6 +9,9 @@
       <h5 class="mb-0">{% trans "Repay" %} {{ operation.operation_type }} #{{ operation.pk }}</h5>
     </div>
     <div class="card-body">
+      {% trans 'Repaying Fund' as repaying_fund_label %}
+      {% include 'app_operation/snippets/create-form/fund-balance.html' with fund_entity=source_entity fund_label=repaying_fund_label fund_currency=currency fund_color='success' %}
+
       <div class="mb-4 p-3 bg-light rounded">
         <label class="text-muted small d-block">{% trans "Creditor" %}</label>
         <span class="fw-bold d-block mb-3">{{ operation.source.name }}</span>

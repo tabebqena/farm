@@ -47,3 +47,14 @@ class SaleWizardViewTest(TestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, 200)
+
+    def test_sale_wizard_renders_source_fund(self):
+        """The sale wizard shows the project's current fund."""
+        self.client.login(username="officer_sale", password="testpass")
+        url = reverse("sale_wizard_step1", kwargs={"pk": self.project.pk})
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertIn("Source Fund", content)
+        self.assertIn(self.project.name, content)
