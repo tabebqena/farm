@@ -19,6 +19,7 @@ from apps.app_operation.models.proxies import (
     CapitalGainOperation,
     PurchaseOperation,
     CashInjectionOperation,
+    WorkerAdvanceOperation,
 )
 from apps.app_transaction.models import Transaction
 from apps.app_transaction.transaction_type import TransactionType
@@ -37,8 +38,10 @@ def _make_officer(username="officer"):
     )
 
 
-def _make_entity(name, entity_type=EntityType.PERSON, is_vendor=False):
-    return Entity.create(entity_type, name=name, is_vendor=is_vendor)
+def _make_entity(name, entity_type=EntityType.PERSON, is_vendor=False, is_worker=False):
+    return Entity.create(
+        entity_type, name=name, is_vendor=is_vendor, is_worker=is_worker
+    )
 
 
 def _make_vendor_stakeholder(project, vendor):
@@ -496,7 +499,7 @@ class EntityTransactionsViewTests(TestCase):
 
     def _url(self):
         return reverse(
-            "entity_transactions_list", kwargs={"entity_pk": self.entity.pk}
+            "entity_payment_transactions_list", kwargs={"entity_pk": self.entity.pk}
         )
 
     def _login(self):
@@ -535,6 +538,18 @@ class EntityTransactionsViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["entity"], self.entity)
         self.assertEqual(len(response.context["transactions"]), 1)
+
+    def test_navigation_shows_entity_display_name(self):
+        """Entity transactions navigation shows the real entity name instead of 'Entity'."""
+        self._login()
+        self._inject(Decimal("1000.00"))
+
+        response = self.client.get(self._url())
+
+        self.assertEqual(response.status_code, 200)
+        related_titles = [v["title"] for v in response.context["related_views"]]
+        self.assertIn("Balance Project", related_titles)
+        self.assertNotIn("Entity", related_titles)
 
     def test_only_payment_transactions_are_listed(self):
         """Issuance transactions (no cash flow) must be excluded."""
@@ -589,7 +604,7 @@ class EntityTransactionsViewTests(TestCase):
         other = _make_entity("Other Project", EntityType.PROJECT)
 
         url = reverse(
-            "entity_transactions_list", kwargs={"entity_pk": other.pk}
+            "entity_payment_transactions_list", kwargs={"entity_pk": other.pk}
         )
         response = self.client.get(url)
 
@@ -599,7 +614,7 @@ class EntityTransactionsViewTests(TestCase):
     def test_nonexistent_entity_returns_404(self):
         """Requesting a non-existent entity returns 404."""
         self._login()
-        url = reverse("entity_transactions_list", kwargs={"entity_pk": 99999})
+        url = reverse("entity_payment_transactions_list", kwargs={"entity_pk": 99999})
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, 404)
@@ -644,3 +659,323 @@ class EntityTransactionsViewTests(TestCase):
         self.assertEqual(response2.status_code, 200)
         self.assertEqual(response2.context["page_obj"].number, 2)
         self.assertEqual(len(response2.context["transactions"]), 2)
+
+
+class TransactionDetailViewTests(TestCase):
+    """Test the transaction detail view (entry point for reversal)."""
+
+    def setUp(self):
+        self.client = Client()
+        self.officer = _make_officer()
+        self.system = _get_or_create_system()
+        self.entity = _make_entity("Detail Project", EntityType.PROJECT)
+
+    def _create_transaction(self):
+        """Create an incoming CAPITAL_GAIN_PAYMENT transaction."""
+        _inject_funds(self.entity, Decimal("1000.00"), self.officer)
+        return Transaction.objects.filter(
+            type=TransactionType.CAPITAL_GAIN_PAYMENT
+        ).first()
+
+    def _url(self, tx):
+        return reverse("transaction_detail", kwargs={"transaction_pk": tx.pk})
+
+    def test_authorized_user_can_load_transaction_detail(self):
+        """Logged-in user can view the transaction detail page."""
+        self.client.force_login(self.officer)
+        tx = self._create_transaction()
+        self.assertIsNotNone(tx)
+
+        response = self.client.get(self._url(tx))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["transaction"], tx)
+        self.assertTrue(response.context["can_reverse"])
+
+    def test_unauthenticated_user_redirected(self):
+        """Unauthenticated users are redirected away from the page."""
+        tx = self._create_transaction()
+        self.assertIsNotNone(tx)
+
+        response = self.client.get(self._url(tx))
+
+        self.assertEqual(response.status_code, 302)
+
+    def test_nonexistent_transaction_returns_404(self):
+        """Requesting a non-existent transaction returns 404."""
+        self.client.force_login(self.officer)
+        url = reverse("transaction_detail", kwargs={"transaction_pk": 99999})
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_active_transaction_can_be_reversed(self):
+        """An active (non-reversed, non-reversal) transaction can be reversed."""
+        self.client.force_login(self.officer)
+        tx = self._create_transaction()
+        self.assertIsNotNone(tx)
+
+        response = self.client.get(self._url(tx))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["can_reverse"])
+        self.assertContains(
+            response,
+            reverse("transaction_reverse_view", kwargs={"pk": tx.pk}),
+        )
+
+    def test_reversed_transaction_cannot_be_reversed(self):
+        """A reversed transaction is not offered for reversal."""
+        self.client.force_login(self.officer)
+        tx = self._create_transaction()
+        self.assertIsNotNone(tx)
+        tx.reverse(officer=self.officer, reason="Test reversal")
+
+        response = self.client.get(self._url(tx))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context["can_reverse"])
+
+    def test_reversal_transaction_cannot_be_reversed(self):
+        """A reversal transaction is not offered for reversal."""
+        self.client.force_login(self.officer)
+        tx = self._create_transaction()
+        self.assertIsNotNone(tx)
+        reversal = tx.reverse(officer=self.officer, reason="Test reversal")
+
+        response = self.client.get(
+            reverse("transaction_detail", kwargs={"transaction_pk": reversal.pk})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context["can_reverse"])
+
+
+# =============================================================================
+# Entity Payables List View Tests
+# =============================================================================
+
+
+class EntityPayablesViewTests(TestCase):
+    """Test the entity payables list view used to track outstanding payables."""
+
+    def setUp(self):
+        self.client = Client()
+        self.officer = _make_officer()
+        self.entity = _make_entity("Payables Project", EntityType.PROJECT)
+        self.vendor = _make_entity("Payables Vendor", EntityType.PERSON, is_vendor=True)
+        _make_vendor_stakeholder(self.entity, self.vendor)
+
+    def _url(self):
+        return reverse("entity_payables_list", kwargs={"entity_pk": self.entity.pk})
+
+    def _login(self):
+        self.client.force_login(self.officer)
+
+    def _make_purchase_issuance(self, amount=Decimal("500.00")):
+        """Create a PURCHASE operation (generates PURCHASE_ISSUANCE -> payables)."""
+        return PurchaseOperation.objects.create(
+            source=self.entity,
+            destination=self.vendor,
+            amount=amount,
+            operation_type=OperationType.PURCHASE,
+            date=timezone.now().date(),
+            officer=self.officer,
+            description="Test purchase",
+        )
+
+    def _pay(self, op, amount=Decimal("200.00")):
+        """Pay part of a purchase (generates PURCHASE_PAYMENT -> reduces payables)."""
+        op.create_payment_transaction(
+            amount=amount,
+            officer=self.officer,
+            date=timezone.now().date(),
+        )
+
+    def test_authorized_user_can_load_entity_payables(self):
+        """Logged-in user can view the entity payables page."""
+        self._login()
+        self._make_purchase_issuance(Decimal("500.00"))
+
+        response = self.client.get(self._url())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["entity"], self.entity)
+        self.assertEqual(len(response.context["transactions"]), 1)
+
+    def test_payables_show_issuance_and_payment(self):
+        """Issuance increases payables, payment decreases them."""
+        self._login()
+        # Inject funds so the purchase payment can be recorded (the injected
+        # CAPITAL_GAIN transactions are not payables types and stay excluded).
+        _inject_funds(self.entity, Decimal("1000.00"), self.officer)
+        op = self._make_purchase_issuance(Decimal("500.00"))
+        self._pay(op, Decimal("200.00"))
+
+        response = self.client.get(self._url())
+        transactions = response.context["transactions"]
+
+        self.assertEqual(len(transactions), 2)
+        self.assertEqual(transactions[0].type, TransactionType.PURCHASE_ISSUANCE)
+        self.assertEqual(transactions[0].direction, "increase")
+        self.assertEqual(transactions[0].running_balance, Decimal("500.00"))
+        self.assertEqual(transactions[1].type, TransactionType.PURCHASE_PAYMENT)
+        self.assertEqual(transactions[1].direction, "decrease")
+        self.assertEqual(transactions[1].running_balance, Decimal("300.00"))
+
+        self.assertEqual(response.context["total_increase"], Decimal("500.00"))
+        self.assertEqual(response.context["total_decrease"], Decimal("200.00"))
+        self.assertEqual(response.context["current_obligation"], Decimal("300.00"))
+
+    def test_non_payable_transactions_are_excluded(self):
+        """CAPITAL_GAIN_PAYMENT (not a payable) must be excluded."""
+        self._login()
+        _inject_funds(self.entity, Decimal("1000.00"), self.officer)
+
+        response = self.client.get(self._url())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context["transactions"]), 0)
+
+    def test_nonexistent_entity_returns_404(self):
+        """Requesting a non-existent entity returns 404."""
+        self._login()
+        url = reverse("entity_payables_list", kwargs={"entity_pk": 99999})
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_unauthenticated_user_redirected(self):
+        """Unauthenticated users are redirected away from the page."""
+        response = self.client.get(self._url())
+
+        self.assertEqual(response.status_code, 302)
+
+    def test_pagination_splits_payables(self):
+        """The payables list is paginated (25 per page) with a working page 2."""
+        self._login()
+        for i in range(26):
+            self._make_purchase_issuance(Decimal("10.00"))
+
+        response = self.client.get(self._url())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context["transactions"]), 25)
+        self.assertTrue(response.context["page_obj"].has_next)
+
+        response2 = self.client.get(f"{self._url()}?page=2")
+        self.assertEqual(response2.status_code, 200)
+        self.assertEqual(response2.context["page_obj"].number, 2)
+        self.assertEqual(len(response2.context["transactions"]), 1)
+
+
+class EntityReceivablesViewTests(TestCase):
+    """Test the entity receivables list view used to track outstanding receivables."""
+
+    def setUp(self):
+        self.client = Client()
+        self.officer = _make_officer()
+        self.system = _get_or_create_system()
+        self.entity = _make_entity("Receivables Project", EntityType.PROJECT)
+        self.worker = _make_entity("Ali Worker", EntityType.PERSON, is_worker=True)
+        Stakeholder(
+            parent=self.entity,
+            target=self.worker,
+            role=StakeholderRole.WORKER,
+            active=True,
+        ).save()
+
+    def _url(self):
+        return reverse("entity_receivables_list", kwargs={"entity_pk": self.entity.pk})
+
+    def _login(self):
+        self.client.force_login(self.officer)
+
+    def _make_worker_advance(self, amount=Decimal("500.00")):
+        """Create a WorkerAdvance (generates WORKER_ADVANCE_PAYMENT -> receivables)."""
+        _inject_funds(self.entity, Decimal("1000.00"), self.officer)
+        return WorkerAdvanceOperation.objects.create(
+            source=self.entity,
+            destination=self.worker,
+            amount=amount,
+            operation_type=OperationType.WORKER_ADVANCE,
+            date=timezone.now().date(),
+            officer=self.officer,
+            description="Test worker advance",
+        )
+
+    def test_authorized_user_can_load_entity_receivables(self):
+        """Logged-in user can view the entity receivables page."""
+        self._login()
+        self._make_worker_advance(Decimal("500.00"))
+
+        response = self.client.get(self._url())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["entity"], self.entity)
+        self.assertEqual(len(response.context["transactions"]), 1)
+
+    def test_receivables_show_advance_and_repayment(self):
+        """Advance increases receivables, repayment decreases them."""
+        self._login()
+        op = self._make_worker_advance(Decimal("500.00"))
+        op.create_repayment_transaction(
+            amount=Decimal("200.00"),
+            officer=self.officer,
+            date=timezone.now().date(),
+        )
+
+        response = self.client.get(self._url())
+        transactions = response.context["transactions"]
+
+        self.assertEqual(len(transactions), 2)
+        self.assertEqual(transactions[0].type, TransactionType.WORKER_ADVANCE_PAYMENT)
+        self.assertEqual(transactions[0].direction, "increase")
+        self.assertEqual(transactions[0].running_balance, Decimal("500.00"))
+        self.assertEqual(transactions[1].type, TransactionType.WORKER_ADVANCE_REPAYMENT)
+        self.assertEqual(transactions[1].direction, "decrease")
+        self.assertEqual(transactions[1].running_balance, Decimal("300.00"))
+
+        self.assertEqual(response.context["total_increase"], Decimal("500.00"))
+        self.assertEqual(response.context["total_decrease"], Decimal("200.00"))
+        self.assertEqual(response.context["current_obligation"], Decimal("300.00"))
+
+    def test_non_receivable_transactions_are_excluded(self):
+        """CAPITAL_GAIN_PAYMENT (not a receivable) must be excluded."""
+        self._login()
+        _inject_funds(self.entity, Decimal("1000.00"), self.officer)
+
+        response = self.client.get(self._url())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context["transactions"]), 0)
+
+    def test_nonexistent_entity_returns_404(self):
+        """Requesting a non-existent entity returns 404."""
+        self._login()
+        url = reverse("entity_receivables_list", kwargs={"entity_pk": 99999})
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_unauthenticated_user_redirected(self):
+        """Unauthenticated users are redirected away from the page."""
+        response = self.client.get(self._url())
+
+        self.assertEqual(response.status_code, 302)
+
+    def test_pagination_splits_receivables(self):
+        """The receivables list is paginated (25 per page) with a working page 2."""
+        self._login()
+        for i in range(26):
+            self._make_worker_advance(Decimal("10.00"))
+
+        response = self.client.get(self._url())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context["transactions"]), 25)
+        self.assertTrue(response.context["page_obj"].has_next)
+
+        response2 = self.client.get(f"{self._url()}?page=2")
+        self.assertEqual(response2.status_code, 200)
+        self.assertEqual(response2.context["page_obj"].number, 2)
+        self.assertEqual(len(response2.context["transactions"]), 1)

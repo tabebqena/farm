@@ -1,0 +1,150 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}
+  {% trans 'Transaction' %} #{{ transaction.pk }}
+{% endblock %}
+
+{% block content %}
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4 pb-3 border-bottom py-4">
+    <span class="flex-grow-1">
+      <div class="d-flex align-items-center">
+        <h2 class="fw-bold mb-0 me-3"><i class="bi bi-receipt me-2"></i>{% trans 'Transaction' %} #{{ transaction.pk }}</h2>
+        {% if transaction.is_reversed %}
+          <span class="badge bg-danger">{% trans 'REVERSED' %}</span>
+        {% elif transaction.is_reversal %}
+          <span class="badge bg-secondary">{% trans 'REVERSAL' %}</span>
+        {% else %}
+          <span class="badge bg-success">{% trans 'ACTIVE' %}</span>
+        {% endif %}
+      </div>
+      <p class="text-muted mt-1 mb-0">
+        <a href="{% url 'operation_detail_view' transaction.object_id %}" class="link-secondary">{% trans 'Operation' %} #{{ transaction.object_id }}</a>
+      </p>
+    </span>
+    <span class="d-flex align-items-center gap-2">
+      {% if transaction.target %}
+        <a class="btn btn-outline-secondary" href="{% url 'entity_payment_transactions_list' transaction.target.pk %}">
+          <i class="bi bi-arrow-left me-2"></i>{% trans 'Target Payment Transactions' %}
+        </a>
+      {% endif %}
+      {% if transaction.source %}
+        <a class="btn btn-outline-secondary" href="{% url 'entity_payment_transactions_list' transaction.source.pk %}">
+          <i class="bi bi-arrow-left me-2"></i>{% trans 'Source Payment Transactions' %}
+        </a>
+      {% endif %}
+    </span>
+  </div>
+
+  {% if transaction.is_reversed and transaction.reversed_by %}
+    <div class="alert alert-warning border-warning d-flex justify-content-between align-items-center">
+      <span>
+        <i class="bi bi-arrow-counterclockwise me-2"></i>
+        {% trans 'This transaction has been reversed.' %}
+      </span>
+      <a href="{% url 'transaction_detail' transaction.reversed_by.pk %}" class="btn btn-sm btn-outline-danger">
+        {% trans 'View Reversal' %} #{{ transaction.reversed_by.pk }}
+      </a>
+    </div>
+  {% elif transaction.is_reversal and transaction.reversal_of %}
+    <div class="alert alert-secondary border-secondary d-flex justify-content-between align-items-center">
+      <span>
+        <i class="bi bi-arrow-counterclockwise me-2"></i>
+        {% trans 'This transaction is a reversal of an earlier transaction.' %}
+      </span>
+      <a href="{% url 'transaction_detail' transaction.reversal_of.pk %}" class="btn btn-sm btn-outline-secondary">
+        {% trans 'View Original' %} #{{ transaction.reversal_of.pk }}
+      </a>
+    </div>
+  {% endif %}
+
+  <div class="row g-4">
+    <!-- Transaction details -->
+    <div class="col-lg-7">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white py-3">
+          <h5 class="mb-0 fw-bold"><i class="bi bi-info-circle me-2"></i>{% trans 'Details' %}</h5>
+        </div>
+        <div class="card-body">
+          <div class="bg-light p-3 rounded mb-3 border">
+            <div class="d-flex justify-content-between align-items-center">
+              <span class="text-muted small text-uppercase fw-bold">{% trans 'Flow Direction' %}</span>
+              <span class="badge bg-secondary">{{ transaction.get_type_display }}</span>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mt-2">
+              <span class="badge bg-dark">{{ transaction.source.get_display_name }}</span>
+              <i class="bi bi-arrow-right text-primary"></i>
+              <span class="badge bg-primary">{{ transaction.target.get_display_name }}</span>
+            </div>
+          </div>
+
+          <dl class="row mb-0">
+            <dt class="col-4 text-muted">{% trans 'Date' %}</dt>
+            <dd class="col-8">{{ transaction.date|date:'Y-m-d H:i' }}</dd>
+
+            <dt class="col-4 text-muted">{% trans 'Type' %}</dt>
+            <dd class="col-8">{{ transaction.get_type_display }}</dd>
+
+            <dt class="col-4 text-muted">{% trans 'Amount' %}</dt>
+            <dd class="col-8 fw-bold">{{ currency }}{{ transaction.amount|floatformat:2 }}</dd>
+
+            <dt class="col-4 text-muted">{% trans 'Source' %}</dt>
+            <dd class="col-8">
+              <a href="{% url 'entity_detail' transaction.source.pk %}" class="text-dark text-decoration-none">{{ transaction.source.get_display_name }}</a>
+            </dd>
+
+            <dt class="col-4 text-muted">{% trans 'Target' %}</dt>
+            <dd class="col-8">
+              <a href="{% url 'entity_detail' transaction.target.pk %}" class="text-dark text-decoration-none">{{ transaction.target.get_display_name }}</a>
+            </dd>
+
+            <dt class="col-4 text-muted">{% trans 'Officer' %}</dt>
+            <dd class="col-8">{{ transaction.officer.get_full_name|default:transaction.officer.username }}</dd>
+
+            <dt class="col-4 text-muted">{% trans 'Operation' %}</dt>
+            <dd class="col-8">
+              <a href="{% url 'operation_detail_view' transaction.object_id %}" class="link-primary">{% trans 'Operation' %} #{{ transaction.object_id }}</a>
+            </dd>
+
+            {% if transaction.note %}
+              <dt class="col-4 text-muted">{% trans 'Note' %}</dt>
+              <dd class="col-8">{{ transaction.note }}</dd>
+            {% endif %}
+          </dl>
+        </div>
+      </div>
+    </div>
+
+    <!-- Description & Actions -->
+    <div class="col-lg-5">
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white py-3">
+          <h5 class="mb-0 fw-bold"><i class="bi bi-chat-left-text me-2"></i>{% trans 'Description' %}</h5>
+        </div>
+        <div class="card-body">
+          <p class="mb-0 text-muted">{{ transaction.description }}</p>
+        </div>
+      </div>
+
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white py-3">
+          <h5 class="mb-0 fw-bold"><i class="bi bi-sliders me-2"></i>{% trans 'Actions' %}</h5>
+        </div>
+        <div class="card-body">
+          {% if can_reverse %}
+            <a href="{% url 'transaction_reverse_view' transaction.pk %}" class="btn btn-danger w-100">
+              <i class="bi bi-arrow-counterclockwise me-2"></i>{% trans 'Reverse Transaction' %}
+            </a>
+            <small class="text-muted d-block mt-2">
+              <i class="bi bi-exclamation-triangle me-1"></i>{% trans 'Creates a mirror-image reversal. This is a critical audit action.' %}
+            </small>
+          {% else %}
+            <div class="alert alert-secondary mb-0">
+              <i class="bi bi-shield-lock me-2"></i>{% trans 'This transaction cannot be reversed.' %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

@@ -20,9 +20,29 @@ NAVIGATION_MAP = {
             ("Edit", "person_edit", {"pk": "pk"}),
         ],
     },
-    "entity_transactions_list": {
-        "title": "Entity Transactions",
+    "entity_payment_transactions_list": {
+        "title": "Payment Transactions",
         "icon": "bi-arrow-left-right",
+        "parent": ("Entities", "entity_list"),
+        "related": [
+            ("Entity", "entity_detail", {"pk": "entity_pk"}),
+            ("Operations", "operation_list_view", {"person_pk": "entity_pk"}),
+            ("Periods", "period_list_view", {"entity_pk": "entity_pk"}),
+        ],
+    },
+    "entity_payables_list": {
+        "title": "Payables",
+        "icon": "bi-receipt",
+        "parent": ("Entities", "entity_list"),
+        "related": [
+            ("Entity", "entity_detail", {"pk": "entity_pk"}),
+            ("Operations", "operation_list_view", {"person_pk": "entity_pk"}),
+            ("Periods", "period_list_view", {"entity_pk": "entity_pk"}),
+        ],
+    },
+    "entity_receivables_list": {
+        "title": "Receivables",
+        "icon": "bi-cash-coin",
         "parent": ("Entities", "entity_list"),
         "related": [
             ("Entity", "entity_detail", {"pk": "entity_pk"}),

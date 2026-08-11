@@ -1,9 +1,13 @@
+from datetime import date
+
+from django.conf import settings
 from django.shortcuts import render
 from django.urls import reverse
 
 from apps.app_base.debug import DebugContext, debug_view
 from farm.shortcuts import get_object_or_404
 from apps.app_entity.models import Entity, EntityType
+from apps.app_inventory.models import ProductLedgerEntry
 
 
 @debug_view
@@ -31,8 +35,24 @@ def entity_detail_view(request, pk):
         }
     }
 
+    with DebugContext.section("Computing entity financial summary", {
+        "entity_id": entity.id,
+    }):
+        payables = entity.payables
+        receivables = entity.receivables
+        stock_value = ProductLedgerEntry.inventory_value_at(entity, date.today())
+        DebugContext.success("Financial summary computed", {
+            "payables": str(payables),
+            "receivables": str(receivables),
+            "stock_value": str(stock_value),
+        })
+
     context = {
         "entity": entity,
+        "payables": payables,
+        "receivables": receivables,
+        "stock_value": stock_value,
+        "currency": getattr(settings, "CURRENCY_SYMBOL", "$"),
     }
 
     return render(request, "app_entity/entity_detail.html", context)

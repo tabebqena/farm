@@ -1,0 +1,215 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}
+  {% trans 'Receivables' %} - {{ entity.get_display_name }}
+{% endblock %}
+
+{% block content %}
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4 pb-3 border-bottom py-4">
+    <span class="flex-grow-1">
+      <div class="d-flex align-items-center">
+        <h2 class="fw-bold mb-0 me-3">{{ entity.get_display_name }}</h2>
+        {% if entity.active %}
+          <span class="badge bg-success-subtle text-success border border-success-subtle">{% trans 'Active' %}</span>
+        {% else %}
+          <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">{% trans 'Inactive' %}</span>
+        {% endif %}
+        {% if entity.is_internal %}
+          <span class="ms-2 badge bg-primary">{% trans 'Internal' %}</span>
+        {% else %}
+          <span class="ms-2 badge bg-danger">{% trans 'External' %}</span>
+        {% endif %}
+      </div>
+      <p class="text-muted mt-1 mb-0">{% trans 'Transactions that contribute to the outstanding receivables of this entity.' %}</p>
+    </span>
+    <span class="d-flex align-items-center">
+      <a class="btn btn-outline-secondary" href="{% url 'entity_detail' entity.pk %}">
+        <i class="bi bi-arrow-left me-2"></i>{% trans 'Back to Entity' %}
+      </a>
+    </span>
+  </div>
+
+  <!-- Summary cards -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="small text-muted text-uppercase fw-bold mb-1">{% trans 'Current Receivables' %}</div>
+          <div class="fw-bold fs-4 {% if current_obligation > 0 %}text-success{% else %}text-dark{% endif %}">
+            {{ currency }}{{ current_obligation|floatformat:2 }}
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="small text-muted text-uppercase fw-bold mb-1">{% trans 'Total Added' %}</div>
+          <div class="fw-bold fs-4 text-success">{{ currency }}{{ total_increase|floatformat:2 }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="small text-muted text-uppercase fw-bold mb-1">{% trans 'Total Collected' %}</div>
+          <div class="fw-bold fs-4 text-danger">{{ currency }}{{ total_decrease|floatformat:2 }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="small text-muted text-uppercase fw-bold mb-1">{% trans 'Transactions' %}</div>
+          <div class="fw-bold fs-4 text-primary">{{ transactions|length }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Receivables table -->
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+      <h5 class="mb-0 fw-bold"><i class="bi bi-cash-coin me-2"></i>{% trans 'Receivables Transactions' %}</h5>
+      <span class="badge bg-secondary">{{ transactions|length }}</span>
+    </div>
+    <div class="card-body p-0">
+      {% if transactions %}
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th class="py-3 ps-3">{% trans 'Date' %}</th>
+                <th class="py-3">{% trans 'Type' %}</th>
+                <th class="py-3 text-center">{% trans 'Effect' %}</th>
+                <th class="py-3">{% trans 'Counterparty' %}</th>
+                <th class="py-3">{% trans 'Description' %}</th>
+                <th class="py-3 text-end">{% trans 'Amount' %}</th>
+                <th class="py-3 text-end">{% trans 'Receivables' %}</th>
+                <th class="py-3 text-center">{% trans 'Status' %}</th>
+                <th class="py-3 text-center pe-3">{% trans 'Actions' %}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for tx in transactions %}
+                <tr class="{% if tx.is_reversed %}table-danger{% endif %}">
+                  <td class="py-2 ps-3 text-nowrap">{{ tx.date|date:'Y-m-d H:i' }}</td>
+                  <td class="py-2 text-nowrap">
+                    <span class="badge bg-light text-dark border">{{ tx.get_type_display }}</span>
+                  </td>
+                  <td class="py-2 text-center">
+                    {% if tx.direction == 'increase' %}
+                      <span class="badge bg-success-subtle text-success border border-success-subtle">
+                        <i class="bi bi-plus-circle me-1"></i>{% trans 'Add' %}
+                      </span>
+                    {% else %}
+                      <span class="badge bg-danger-subtle text-danger border border-danger-subtle">
+                        <i class="bi bi-dash-circle me-1"></i>{% trans 'Collect' %}
+                      </span>
+                    {% endif %}
+                  </td>
+                  <td class="py-2">
+                    {% if tx.source == entity %}
+                      <a href="{% url 'entity_detail' tx.target.pk %}" class="text-dark text-decoration-none">{{ tx.target.get_display_name }}</a>
+                    {% else %}
+                      <a href="{% url 'entity_detail' tx.source.pk %}" class="text-dark text-decoration-none">{{ tx.source.get_display_name }}</a>
+                    {% endif %}
+                  </td>
+                  <td class="py-2">
+                    {% if tx.description|length > 60 %}
+                      <span title="{{ tx.description }}">{{ tx.description|truncatechars:60 }}</span>
+                    {% else %}
+                      {{ tx.description }}
+                    {% endif %}
+                  </td>
+                  <td class="py-2 text-end text-nowrap {% if tx.direction == 'increase' %}text-success{% else %}text-danger{% endif %} fw-semibold">
+                    {% if tx.direction == 'increase' %}+{% else %}-{% endif %}{{ currency }}{{ tx.amount|floatformat:2 }}
+                  </td>
+                  <td class="py-2 text-end text-nowrap fw-semibold {% if tx.running_balance > 0 %}text-success{% else %}text-dark{% endif %}">
+                    {{ currency }}{{ tx.running_balance|floatformat:2 }}
+                  </td>
+                  <td class="py-2 text-center">
+                    {% if tx.is_reversed %}
+                      <span class="badge bg-danger">{% trans 'REVERSED' %}</span>
+                    {% elif tx.is_reversal %}
+                      <span class="badge bg-secondary">{% trans 'REVERSAL' %}</span>
+                    {% else %}
+                      <span class="badge bg-success">{% trans 'ACTIVE' %}</span>
+                    {% endif %}
+                  </td>
+                  <td class="py-2 text-center text-nowrap pe-3">
+                    <a href="{% url 'transaction_detail' tx.pk %}" class="btn btn-sm btn-outline-primary" title="{% trans 'View transaction details' %}"><i class="bi bi-eye me-1"></i>{% trans 'View' %}</a>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="p-5 text-center text-muted">
+          <i class="bi bi-inbox fs-1 d-block mb-3"></i>
+          {% trans 'No receivables transactions recorded for this entity yet.' %}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Pagination Controls -->
+  {% if page_obj.has_other_pages %}
+    <nav aria-label="Page navigation" class="mt-4">
+      <ul class="pagination justify-content-center mb-0">
+        {% if page_obj.has_previous %}
+          <li class="page-item">
+            <a class="page-link" href="?page=1" aria-label="First page"><span aria-hidden="true">&laquo;&laquo;</span></a>
+          </li>
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.previous_page_number }}" aria-label="Previous page"><span aria-hidden="true">&laquo;</span></a>
+          </li>
+        {% else %}
+          <li class="page-item disabled">
+            <span class="page-link">&laquo;&laquo;</span>
+          </li>
+          <li class="page-item disabled">
+            <span class="page-link">&laquo;</span>
+          </li>
+        {% endif %}
+
+        {% for num in paginator.page_range %}
+          {% if page_obj.number == num %}
+            <li class="page-item active" aria-current="page">
+              <span class="page-link">
+                {{ num }}
+                <span class="visually-hidden">(current)</span>
+              </span>
+            </li>
+          {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+            <li class="page-item">
+              <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+            </li>
+          {% endif %}
+        {% endfor %}
+
+        {% if page_obj.has_next %}
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.next_page_number }}" aria-label="Next page"><span aria-hidden="true">&raquo;</span></a>
+          </li>
+          <li class="page-item">
+            <a class="page-link" href="?page={{ paginator.num_pages }}" aria-label="Last page"><span aria-hidden="true">&raquo;&raquo;</span></a>
+          </li>
+        {% else %}
+          <li class="page-item disabled">
+            <span class="page-link">&raquo;</span>
+          </li>
+          <li class="page-item disabled">
+            <span class="page-link">&raquo;&raquo;</span>
+          </li>
+        {% endif %}
+      </ul>
+    </nav>
+    <div class="text-center mt-2 text-muted small">
+      {% trans 'Page' %} {{ page_obj.number }} {% trans 'of' %} {{ paginator.num_pages }} |
+      {% blocktrans count counter=paginator.count %}{{ counter }} transaction{% plural %}{{ counter }} transactions{% endblocktrans %}
+    </div>
+  {% endif %}
+{% endblock %}

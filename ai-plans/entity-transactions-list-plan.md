@@ -40,3 +40,22 @@ be tracked over time.
 - `python manage.py check` — no issues.
 - `python manage.py test --parallel=8 apps.app_transaction
   apps.app_entity.tests.test_views_get_entity_detail_view` — 44 tests OK.
+
+## Implemented changes (transaction detail link replaces one-click reverse)
+- Removed the one-click reverse button from the transaction list table in
+  `apps/app_transaction/templates/app_transaction/entity_transactions.html` to
+  prevent accidental reversals. The Actions column now shows a "View" button
+  linking to the transaction detail page.
+- Added `transaction_detail_view` in `apps/app_transaction/views.py` which loads
+  a single transaction (soft-deleted rows excluded via `deleted_at__isnull=True`)
+  and provides `can_reverse` = `not is_reversed and not is_reversal`.
+- Added URL `transaction/<int:transaction_pk>/` → `transaction_detail` in
+  `apps/app_transaction/urls.py` (matches `Transaction.get_absolute_url()`).
+- Added new template
+  `apps/app_transaction/templates/app_transaction/transaction_detail.html`
+  showing transaction details, source/target entity links, operation link,
+  reversal/original links, and a guarded "Reverse Transaction" button that only
+  appears when `can_reverse` is true.
+- Added `TransactionDetailViewTests` in `apps/app_transaction/tests.py`
+  (6 tests: authorized load, auth redirect, 404, active can reverse,
+  reversed cannot, reversal cannot).
