@@ -145,8 +145,12 @@ def _build_obligation_transactions(
     )
 
     # Match Entity.payables_at()/receivables_at(): exclude transactions already
-    # reversed as of today (or reversed after today — still counted today).
+    # reversed as of today (or reversed after today — still counted today) and
+    # exclude reversal (mirror) transactions — they are not obligations and
+    # their swapped source/target role would otherwise be miscounted.
     transactions = transactions.filter(
+        reversal_of__isnull=True,
+    ).filter(
         Q(reversed_by__isnull=True) | Q(reversed_by__date__date__gt=date.today())
     )
 

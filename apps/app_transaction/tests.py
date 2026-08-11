@@ -979,3 +979,93 @@ class EntityReceivablesViewTests(TestCase):
         self.assertEqual(response2.status_code, 200)
         self.assertEqual(response2.context["page_obj"].number, 2)
         self.assertEqual(len(response2.context["transactions"]), 1)
+
+
+class EntityObligationRepaymentReversalTests(TestCase):
+    """
+    Regression tests: reversing a worker-advance repayment must not leak a
+    phantom row into the project's payables, and must keep the project's
+    receivable (and the worker's payable) intact.
+    """
+
+    def setUp(self):
+        self.client = Client()
+        self.officer = _make_officer()
+        self.system = _get_or_create_system()
+        self.project = _make_entity("Oblig Project", EntityType.PROJECT)
+        self.worker = _make_entity("Oblig Worker", EntityType.PERSON, is_worker=True)
+        Stakeholder(
+            parent=self.project,
+            target=self.worker,
+            role=StakeholderRole.WORKER,
+            active=True,
+        ).save()
+        _inject_funds(self.project, Decimal("5000.00"), self.officer)
+
+    def _advance_repay_full_and_reverse(self):
+        """Advance 1000 to the worker, repay it in full, then reverse the repayment."""
+        op = WorkerAdvanceOperation.objects.create(
+            source=self.project,
+            destination=self.worker,
+            amount=Decimal("1000.00"),
+            operation_type=OperationType.WORKER_ADVANCE,
+            date=timezone.now().date(),
+            officer=self.officer,
+            description="Test worker advance",
+        )
+        op.create_repayment_transaction(
+            amount=Decimal("1000.00"),
+            officer=self.officer,
+            date=timezone.now().date(),
+        )
+        repayment = op.get_all_transactions().get(
+            type=TransactionType.WORKER_ADVANCE_REPAYMENT,
+            reversal_of__isnull=True,
+        )
+        repayment.reverse(officer=self.officer)
+        return op
+
+    def test_reversed_repayment_does_not_create_phantom_payables(self):
+        """Project payables must stay 0 and the receivable must stay 1000."""
+        self._advance_repay_full_and_reverse()
+
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.payables, Decimal("0.00"))
+        self.assertEqual(self.project.receivables, Decimal("1000.00"))
+
+    def test_worker_still_owes_advance_after_repayment_reversed(self):
+        """The worker's payable returns to the full advance after the reversal."""
+        self._advance_repay_full_and_reverse()
+
+        self.worker.refresh_from_db()
+        self.assertEqual(self.worker.payables, Decimal("1000.00"))
+        self.assertEqual(self.worker.receivables, Decimal("0.00"))
+
+    def test_payables_page_excludes_repayment_reversal_mirror(self):
+        """The project's payables page must not list the reversal mirror row."""
+        self._advance_repay_full_and_reverse()
+        self.client.force_login(self.officer)
+        url = reverse("entity_payables_list", kwargs={"entity_pk": self.project.pk})
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context["transactions"]), 0)
+        self.assertEqual(response.context["total_increase"], Decimal("0.00"))
+        self.assertEqual(response.context["total_decrease"], Decimal("0.00"))
+        self.assertEqual(response.context["current_obligation"], Decimal("0.00"))
+
+    def test_receivables_page_still_shows_advance_after_repayment_reversed(self):
+        """The project's receivables page keeps the advance as the only row."""
+        self._advance_repay_full_and_reverse()
+        self.client.force_login(self.officer)
+        url = reverse("entity_receivables_list", kwargs={"entity_pk": self.project.pk})
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        transactions = response.context["transactions"]
+        self.assertEqual(len(transactions), 1)
+        self.assertEqual(transactions[0].type, TransactionType.WORKER_ADVANCE_PAYMENT)
+        self.assertEqual(transactions[0].direction, "increase")
+        self.assertEqual(response.context["total_increase"], Decimal("1000.00"))
+        self.assertEqual(response.context["total_decrease"], Decimal("0.00"))
+        self.assertEqual(response.context["current_obligation"], Decimal("1000.00"))

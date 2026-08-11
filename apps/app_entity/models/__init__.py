@@ -447,7 +447,13 @@ class Entity(ImmutableMixin, BaseModel):
     def _tx_sum_excluding_reversed(
         self, direction: str, types: typing.Iterable[str], dt: typing.Any
     ) -> Decimal:
-        """Helper to sum transactions excluding those reversed before dt."""
+        """Helper to sum transactions excluding those reversed before dt.
+
+        Also excludes reversal (mirror) transactions: they are not independent
+        obligations — they only undo an original that is already excluded here —
+        and their swapped source/target role would otherwise be miscounted in
+        the payables/receivables buckets.
+        """
         from django.db.models import Q, Sum
 
         from apps.app_transaction.models import Transaction
@@ -456,6 +462,7 @@ class Entity(ImmutableMixin, BaseModel):
             deleted_at__isnull=True,
             type__in=types,
             date__date__lte=dt,
+            reversal_of__isnull=True,
         )
         if direction == "incoming":
             filters["target"] = self  # type: ignore

@@ -191,3 +191,108 @@ state is restored:
 - Note: `pytest` is not usable here (pytest-django is not installed); the project
   relies on Django's built-in test runner (`manage.py test`), matching the
   `testinparallel` rule.
+
+## Follow-up: repayment reversal mirror leaks onto the project's payables page
+
+### Reported symptom
+After reversing a worker-advance repayment, the mirror (reversal) transaction
+appears on the **project's payables** page as a "Settle" (decrease) row and
+drives the payables figure negative.
+
+### Is it correct? No.
+For the project that advanced money to a worker, the worker advance is a
+**receivable**, not a payable:
+- Advance payment `A` (project -> worker, WORKER_ADVANCE_PAYMENT) is counted as
+  an increase of the project's receivables.
+- Original repayment `R` (worker -> project, WORKER_ADVANCE_REPAYMENT) decreases
+  that receivable.
+- Reversal mirror `R'` (project -> worker, WORKER_ADVANCE_REPAYMENT): the original
+  `R` is correctly excluded once reversed (via the `reversed_by` filter), so the
+  receivable correctly returns to the full advance. BUT `R'` has the project as
+  its **source** and matches `decrease_as_source` (WORKER_ADVANCE_REPAYMENT is in
+  the payables decrease bucket), so it is wrongly counted as a payables decrease.
+
+The same classification error exists in both the model and the view:
+- [`Entity.payables_at`](apps/app_entity/models/__init__.py:469) via
+  [`_tx_sum_excluding_reversed`](apps/app_entity/models/__init__.py:447) (excludes
+  reversed originals but **includes** reversal mirrors), so the project's
+  `payables` value itself is wrong (negative).
+- [`_build_obligation_transactions`](apps/app_transaction/views.py:117) (the
+  payables/receivables pages), which likewise only excludes reversed originals
+  (line 149-151) and lets `R'` appear as a spurious row.
+
+### Root cause
+Reversal mirror transactions (`reversal_of__isnull=False`) are included in the
+payables/receivables bucket sums. Because `reverse()` swaps source/target, the
+mirror lands in a source/target bucket intended for the *opposite* party (the
+debtor repaying). The type+role matching cannot tell a genuine repayment by the
+debtor from a reversal mirror created for the creditor.
+
+### Fix
+Exclude reversal transactions (`reversal_of__isnull=True`) from payables/receivables,
+consistent with how reversed originals are already excluded and how active
+transactions are identified elsewhere (e.g. `_requires_transaction_reversal`):
+1. [`_tx_sum_excluding_reversed`](apps/app_entity/models/__init__.py:447) — add
+   `reversal_of__isnull=True` to the filter (fixes `payables_at`/`receivables_at`
+   and the entity detail summary).
+2. [`_build_obligation_transactions`](apps/app_transaction/views.py:117) — add
+   `reversal_of__isnull=True` to the query filter (removes the spurious row from
+   the payables/receivables pages).
+
+This is safe: reversal mirrors are not independent obligations; the original is
+already excluded once reversed, so excluding the mirror cannot double-count or
+under-count. `balance_at`/`profit_loss` are intentionally left unchanged (they
+rely on including reversals with negation for period correctness).
+
+### Audit-trail consideration (why users can still see reversals)
+Excluding reversal mirrors from the payables/receivables pages does NOT remove
+visibility of reversed transactions. They remain visible, with `REVERSED` /
+`REVERSAL` badges and links, on:
+- The **operation detail** page's repayment table
+  ([`invoice_repayment_summary.html`](apps/app_operation/templates/app_operation/snippets/detail/invoice_repayment_summary.html:39)),
+  rendered for repayable operations via
+  [`financial_summary.html`](apps/app_operation/templates/app_operation/snippets/detail/financial_summary.html:25).
+- The **entity payment transactions / balance** page
+  ([`entity_payment_transactions.html`](apps/app_transaction/templates/app_transaction/entity_payment_transactions.html:132)),
+  which lists every payment-type transaction (both reversed originals and
+  reversal mirrors) with a status badge and a link to each transaction detail.
+- The **transaction detail** page, which links an original to its reversal.
+
+The payables/receivables pages are obligation *summaries*; the reversal mirror
+is not an obligation, so it belongs only in the transaction/audit views, not in
+the obligation balance.
+
+### Tests
+- Entity model: give a worker advance, repay in full, reverse the repayment ->
+  assert the project's `payables` is `0` (not negative) and its `receivables`
+  equals the advance amount; assert the worker's payables return to the full
+  advance (still owed).
+- Payables view: after the same scenario, the project's payables page has no
+  transactions (no repayment-reversal row) and `current_obligation` is `0`.
+
+### Verification
+- `python manage.py check`
+- `manage.py test --parallel=8 apps.app_entity apps.app_transaction`
+
+## Implementation notes (follow-up completed)
+
+- Model: [`Entity._tx_sum_excluding_reversed`](apps/app_entity/models/__init__.py:447) now
+  also filters `reversal_of__isnull=True`, so `payables_at()`/`receivables_at()` (and the
+  entity detail summary) ignore reversal mirrors. `balance_at()`/`profit_loss()` are
+  unchanged (they intentionally include reversals with negation).
+- View: [`_build_obligation_transactions`](apps/app_transaction/views.py:117) now also
+  filters `reversal_of__isnull=True`, so the payables/receivables pages no longer show the
+  spurious reversal-mirror row and `current_obligation` matches the model.
+- Added `EntityObligationRepaymentReversalTests` in
+  [`apps/app_transaction/tests.py`](apps/app_transaction/tests.py): after a full
+  worker-advance repayment is reversed, the project's `payables` stay `0` (not negative),
+  its `receivables` stay at the advance amount, the worker's `payables` return to the full
+  advance, the project's payables page is empty, and its receivables page shows only the
+  advance.
+- Audit trail preserved: reversed/reversal transactions remain visible with badges on the
+  operation detail page, the entity payment-transactions (balance) page, and the
+  transaction detail page.
+- Verification:
+  - `python manage.py check` — no issues.
+  - `manage.py test --parallel=8 apps.app_transaction apps.app_entity` — 148 tests, OK.
+  - Full `manage.py test --parallel=8` — 1320 tests, OK.
