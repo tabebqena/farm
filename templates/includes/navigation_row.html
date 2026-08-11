@@ -3,6 +3,11 @@
 {% if show_navigation %}
   <nav class="navbar navbar-expand-lg bg-light border-bottom mb-4" aria-label="Views navigation">
     <div class="container-fluid px-0 ms-2 me-2">
+      <!-- JavaScript-managed back button -->
+      <button type="button" class="btn btn-lg btn-outline-secondary back-nav-btn me-2" onclick="window.history.back()" title="{% trans 'Go back to the previous page' %}">
+        <i class="bi bi-arrow-left me-1"></i>{% trans 'Back' %}
+      </button>
+
       <!-- Parent breadcrumb -->
       {% if parent %}
         <div class="breadcrumb-nav me-auto">
@@ -30,7 +35,7 @@
           <small class="text-muted text-uppercase fw-bold ls-1">{% trans 'Related' %}</small>
           <div class="mt-1 d-flex gap-2 flex-wrap">
             {% for view in related_views %}
-              <a href="{{ view.url }}" class="btn btn-sm btn-outline-secondary">{{ view.title }}</a>
+              <a href="{{ view.url }}" class="btn btn-sm btn-outline-secondary related-view-btn" title="{{ view.title }}">{{ view.title }}</a>
             {% endfor %}
           </div>
         </div>

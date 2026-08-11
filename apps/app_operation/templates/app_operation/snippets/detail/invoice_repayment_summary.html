@@ -8,7 +8,9 @@
       <span class="fw-semibold">{{ operation.repayment_label|default:_('Repayment Transactions') }}</span>
       <span class="badge bg-warning text-dark ms-2">{{ repayment_transactions|length }}</span>
     </span>
-    <a href="{% url 'record_transaction_repayment' operation.pk %}" class="btn btn-outline-warning bg-white"><i class="bi bi-cash-coin me-1"></i> {% trans 'Record Repayment' %}</a>
+    {% if not operation.is_fully_repayed %}
+      <a href="{% url 'record_transaction_repayment' operation.pk %}" class="btn btn-outline-warning bg-white"><i class="bi bi-cash-coin me-1"></i> {% trans 'Record Repayment' %}</a>
+    {% endif %}
   </div>
 
   {% if repayment_transactions %}

@@ -3,6 +3,7 @@ from decimal import Decimal
 from django.conf import settings
 from django.shortcuts import render
 from django.urls import reverse
+from django.utils.translation import gettext as _
 
 from apps.app_base.debug import DebugContext, debug_view
 from apps.app_operation.models import Operation
@@ -134,24 +135,52 @@ def operation_detail_view(request, pk):
             },
         )
 
-    # Set navigation overrides for entity detail links
-    source_url = (
-        reverse("entity_detail", kwargs={"pk": operation.source.pk})
-        if operation.source.entity_type not in ("system", "world")
-        else None
-    )
-    destination_url = (
-        reverse("entity_detail", kwargs={"pk": operation.destination.pk})
-        if operation.destination.entity_type not in ("system", "world")
-        else None
-    )
+    # Set navigation overrides for entity detail links.
+    # Replace the generic "Source Entity"/"Destination Entity" labels with the
+    # real entity names so the navigation is unambiguous. Long names are kept on
+    # one line via CSS (fixed-width, ellipsis) in the navigation template.
+    # A None value drops the related link entirely (system/world entities have
+    # no detail page).
     related_url_overrides = {}
-    if source_url:
-        related_url_overrides["Source Entity"] = source_url
-    if destination_url:
-        related_url_overrides["Destination Entity"] = destination_url
+    if operation.source.entity_type not in ("system", "world"):
+        related_url_overrides["Source Entity"] = {
+            "title": operation.source.get_display_name(),
+            "url": reverse("entity_detail", kwargs={"pk": operation.source.pk}),
+        }
+    else:
+        related_url_overrides["Source Entity"] = None
+    if operation.destination.entity_type not in ("system", "world"):
+        related_url_overrides["Destination Entity"] = {
+            "title": operation.destination.get_display_name(),
+            "url": reverse("entity_detail", kwargs={"pk": operation.destination.pk}),
+        }
+    else:
+        related_url_overrides["Destination Entity"] = None
+
+    # Add an operations-list link for each real (non-virtual) counterpart entity
+    # so the navigation bar always offers a way back to that entity's operation
+    # history. System/World entities have no operations list, so they are exempt.
+    add_related = []
+    for entity in (operation.source, operation.destination):
+        if entity.entity_type in ("system", "world"):
+            continue
+        add_related.append(
+            {
+                "title": _("Operations: %(name)s")
+                % {"name": entity.get_display_name()},
+                "url": reverse(
+                    "operation_list_view", kwargs={"person_pk": entity.pk}
+                ),
+            }
+        )
+
+    navigation_overrides = {}
     if related_url_overrides:
-        request.navigation_overrides = {"related_urls": related_url_overrides}
+        navigation_overrides["related_urls"] = related_url_overrides
+    if add_related:
+        navigation_overrides["add_related"] = add_related
+    if navigation_overrides:
+        request.navigation_overrides = navigation_overrides
 
     context = {
         "operation": operation,

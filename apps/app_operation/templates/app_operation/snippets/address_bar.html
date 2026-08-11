@@ -17,6 +17,13 @@
     {% else %}
       | <span class="text-success fw-semibold">{% trans 'Outstanding:' %} {{ currency }}{{ outstanding_balance }}</span>
     {% endif %}
+  {% elif operation.has_repayment %}
+    | <span class="text-success fw-semibold">{% trans 'Repaid:' %} {{ currency }}{{ operation.amount_repayed }}</span>
+    {% if operation.is_fully_repayed %}
+      | <span class="text-success fw-semibold">{% trans 'Remaining:' %} {{ currency }}{{ operation.amount_remaining_to_repay }}</span>
+    {% else %}
+      | <span class="text-danger fw-semibold">{% trans 'Remaining:' %} {{ currency }}{{ operation.amount_remaining_to_repay }}</span>
+    {% endif %}
   {% endif %}
 </p>
 
