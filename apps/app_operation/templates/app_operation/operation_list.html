@@ -2,363 +2,294 @@
 {% load i18n %}
 
 {% block content %}
-  <div class="container mt-4">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-      <h2>{% trans 'Operation History:' %} <a href="{% url 'entity_detail' entity_person.pk %}">{{ entity_person.name }}</a></h2>
-      <div class="dropdown">
-        <button class="btn btn-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">{% trans 'New Operation' %}</button>
-        <ul class="dropdown-menu">
-          {% if entity_person.is_shareholder %}
-            <li>
-              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'cash-injection' %}">{% trans 'Cash Injection' %}</a>
-            </li>
-            <li>
-              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'cash-withdrawal' %}">{% trans 'Cash Withdrawal' %}</a>
-            </li>
-            <li>
-              <hr class="dropdown-divider" />
-            </li>
-            <li>
-              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'project-funding' %}">{% trans 'Project Funding' %}</a>
-            </li>
-
-            <li>
-              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'project-refunding' %}">{% trans 'Project ReFunding' %}</a>
-            </li>
-
-            <li>
-              <hr class="dropdown-divider" />
-            </li>
-
-            <li>
-              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'loss-coverage' %}">{% trans 'Loss Coverage' %}</a>
-            </li>
-          {% endif %}
-          {% if entity_person.is_project %}
-            <li>
-              <a class="dropdown-item" href="{% url 'purchase_wizard_step1' entity_person.pk %}">{% trans 'Purchase' %}</a>
-            </li>
-            <li>
-              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'sale' %}">{% trans 'Sale' %}</a>
-            </li>
-            <li>
-              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'expense' %}">{% trans 'Expense' %}</a>
-            </li>
-
-            {% comment %} <li>
-              <hr class="dropdown-divider" />
-            </li>
-            <li>
-              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'capital-gain' %}">{% trans 'Capital Gain' %}</a>
-            </li>
-            <li>
-              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'capital-loss' %}">{% trans 'Capital Loss' %}</a>
-            </li> {% endcomment %}
-            <li>
-              <hr class="dropdown-divider" />
-            </li>
-            <li>
-              <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'worker-advance' %}">{% trans 'Worker Advance' %}</a>
-            </li>
-          {% endif %}
-          <li>
-            <hr class="dropdown-divider" />
-          </li>
-          <li>
-            <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'loan' %}">{% trans 'Loan' %}</a>
-          </li>
-          <li>
-            {% comment %} <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'loan-repayment' %}">Loan Repayment</a> {% endcomment %}
-          </li>
-
-          <li>
-            <hr class="dropdown-divider" />
-          </li>
-          <li>
-            <a class="dropdown-item" href="{% url 'operation_create_view' entity_person.pk 'internal-transfer' %}">{% trans 'Internal Transfer' %}</a>
-          </li>
-        </ul>
-      </div>
+<div class="container mt-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+    <h2>{% trans 'Operation History:' %} <a
+        href="{% url 'entity_detail' entity_person.pk %}">{{ entity_person.name }}</a></h2>
+    <div class="fs-2 fw-bold mb-3 {% if balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+      {{ currency }}{{ balance|floatformat:2 }}
+      <i class="bi bi-wallet2 fs-4 {% if balance >= 0 %}text-success{% else %}text-danger{% endif %}"></i>
     </div>
+    <div class="dropdown">
+      <button class="btn btn-primary dropdown-toggle" type="button"
+        data-bs-toggle="dropdown">{% trans 'New Operation' %}</button>
+      <ul class="dropdown-menu">
+        {% if entity_person.is_shareholder %}
+        <li>
+          <a class="dropdown-item"
+            href="{% url 'operation_create_view' entity_person.pk 'cash-injection' %}">{% trans 'Cash Injection' %}</a>
+        </li>
+        <li>
+          <a class="dropdown-item"
+            href="{% url 'operation_create_view' entity_person.pk 'cash-withdrawal' %}">{% trans 'Cash Withdrawal' %}</a>
+        </li>
+        <li>
+          <hr class="dropdown-divider" />
+        </li>
+        <li>
+          <a class="dropdown-item"
+            href="{% url 'operation_create_view' entity_person.pk 'project-funding' %}">{% trans 'Project Funding' %}</a>
+        </li>
 
-    <div class="card shadow-sm">
-      <!-- Legend for column meanings & Column Toggle -->
-      <div class="card-body bg-light border-bottom">
-        <div class="row g-3 small align-items-start">
-          <div class="col-12 col-md-6">
-            <div class="d-flex gap-3 flex-wrap align-items-center">
-              <strong>{% trans 'Column Legend:' %}</strong>
-              <span><strong>P:</strong> {% trans 'Paid/Settled' %}</span>
-              <span><strong>R:</strong> {% trans 'Remaining' %}</span>
-            </div>
-          </div>
-          <div class="col-12 col-md-6 text-md-end">
-            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#columnTogglePanel" aria-expanded="false" aria-controls="columnTogglePanel"><i class="bi bi-gear"></i> {% trans 'Customize Columns' %}</button>
-            <div class="collapse mt-2 text-start border rounded bg-white p-2" id="columnTogglePanel">
-              <small class="text-muted d-block mb-1">{% trans 'Show / hide columns:' %}</small>
-              <div class="form-check form-check-inline">
-                <input class="form-check-input column-toggle" type="checkbox" id="toggle-col-direction" data-column="col-direction" checked />
-                <label class="form-check-label" for="toggle-col-direction">{% trans 'Direction / Counterparty' %}</label>
-              </div>
-              <div class="form-check form-check-inline">
-                <input class="form-check-input column-toggle" type="checkbox" id="toggle-col-amount" data-column="col-amount" checked />
-                <label class="form-check-label" for="toggle-col-amount">{% trans 'Amount' %}</label>
-              </div>
-              <div class="form-check form-check-inline">
-                <input class="form-check-input column-toggle" type="checkbox" id="toggle-col-settlement" data-column="col-settlement" checked />
-                <label class="form-check-label" for="toggle-col-settlement">{% trans 'Paid / Remaining' %}</label>
-              </div>
-              <div class="form-check form-check-inline">
-                <input class="form-check-input column-toggle" type="checkbox" id="toggle-col-status" data-column="col-status" checked />
-                <label class="form-check-label" for="toggle-col-status">{% trans 'Status' %}</label>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="list-group list-group-flush">
-        {% for op in operations %}
-          <div class="list-group-item {% if op.is_reversed %}bg-light opacity-75{% endif %}">
-            <div class="row g-2 align-items-center operation-row">
-              <div class="col-12 col-md-3">
-                <small class="text-muted d-md-none">{% trans 'Type' %}:</small>
-                <div class="fw-bold">{{ op.get_operation_type_display }}</div>
+        <li>
+          <a class="dropdown-item"
+            href="{% url 'operation_create_view' entity_person.pk 'project-refunding' %}">{% trans 'Project ReFunding' %}</a>
+        </li>
+
+        <li>
+          <hr class="dropdown-divider" />
+        </li>
+
+        <li>
+          <a class="dropdown-item"
+            href="{% url 'operation_create_view' entity_person.pk 'loss-coverage' %}">{% trans 'Loss Coverage' %}</a>
+        </li>
+        {% endif %}
+        {% if entity_person.is_project %}
+        <li>
+          <a class="dropdown-item" href="{% url 'purchase_wizard_step1' entity_person.pk %}">{% trans 'Purchase' %}</a>
+        </li>
+        <li>
+          <a class="dropdown-item"
+            href="{% url 'operation_create_view' entity_person.pk 'sale' %}">{% trans 'Sale' %}</a>
+        </li>
+        <li>
+          <a class="dropdown-item"
+            href="{% url 'operation_create_view' entity_person.pk 'expense' %}">{% trans 'Expense' %}</a>
+        </li>
+
+        {% comment %} <li>
+          <hr class="dropdown-divider" />
+        </li>
+        <li>
+          <a class="dropdown-item"
+            href="{% url 'operation_create_view' entity_person.pk 'capital-gain' %}">{% trans 'Capital Gain' %}</a>
+        </li>
+        <li>
+          <a class="dropdown-item"
+            href="{% url 'operation_create_view' entity_person.pk 'capital-loss' %}">{% trans 'Capital Loss' %}</a>
+        </li> {% endcomment %}
+        <li>
+          <hr class="dropdown-divider" />
+        </li>
+        <li>
+          <a class="dropdown-item"
+            href="{% url 'operation_create_view' entity_person.pk 'worker-advance' %}">{% trans 'Worker Advance' %}</a>
+        </li>
+        {% endif %}
+        <li>
+          <hr class="dropdown-divider" />
+        </li>
+        <li>
+          <a class="dropdown-item"
+            href="{% url 'operation_create_view' entity_person.pk 'loan' %}">{% trans 'Loan' %}</a>
+        </li>
+        <li>
+          {% comment %} <a class="dropdown-item"
+            href="{% url 'operation_create_view' entity_person.pk 'loan-repayment' %}">Loan Repayment</a>
+          {% endcomment %}
+        </li>
+
+        <li>
+          <hr class="dropdown-divider" />
+        </li>
+        <li>
+          <a class="dropdown-item"
+            href="{% url 'operation_create_view' entity_person.pk 'internal-transfer' %}">{% trans 'Internal Transfer' %}</a>
+        </li>
+      </ul>
+    </div>
+    
+  </div>
+  <div class="card shadow-sm">
+    <div class="list-group list-group-flush">
+      {% for item in operations %}
+      {% with op=item.operation %}
+      <div class="list-group-item p-3 {% if op.is_reversed %}bg-light opacity-75{% endif %}">
+        <div class="row g-3">
+          <!-- Operation identity -->
+          <div class="col-12 col-lg-3">
+            <div class="d-flex align-items-start gap-2">
+              {% if not op.is_reversed and not op.is_reversal %}
+              {% if op.destination == entity_person %}
+              <span class="badge bg-success-subtle text-success border border-success-subtle mt-1"><i
+                  class="bi bi-arrow-down-left"></i> {% trans 'IN' %}</span>
+              {% else %}
+              <span class="badge bg-danger-subtle text-danger border border-danger-subtle mt-1"><i
+                  class="bi bi-arrow-up-right"></i> {% trans 'OUT' %}</span>
+              {% endif %}
+              {% else %}
+              <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle mt-1"><i
+                  class="bi bi-arrow-left-right"></i></span>
+              {% endif %}
+              <div>
+                <div class="fw-bold text-break">{{ op.get_operation_type_display }}</div>
                 <small class="text-muted">{{ op.date }}</small>
               </div>
-              <div class="col-12 col-md-3" data-column="col-direction">
-                <small class="text-muted d-md-none">{% trans 'Direction & Counterparty' %}</small>
-                <div class="d-flex align-items-center gap-2">
-                  {% if not op.is_reversed and not op.is_reversal %}
-                    {% if op.destination == entity_person %}
-                      <span class="badge bg-success-soft text-success"><i class="bi bi-arrow-down-left"></i> IN</span>
-                    {% else %}
-                      <span class="badge bg-danger-soft text-danger"><i class="bi bi-arrow-up-right"></i> OUT</span>
-                    {% endif %}
-                  {% else %}
-                    <span class="badge text-primary"><i class="bi bi-arrow-left-right"></i></span>
-                  {% endif %}
-                  <span class="small text-break">
-                    {% if op.destination == entity_person %}
-                      <span class="text-muted">{% trans 'From:' %}</span> {{ op.source.name }}
-                    {% else %}
-                      <span class="text-muted">{% trans 'To:' %}</span> {{ op.destination.name }}
-                    {% endif %}
-                  </span>
-                </div>
-              </div>
-              <div class="col-6 col-md-2 text-end" data-column="col-amount">
-                <small class="text-muted d-md-none d-block">{% trans 'Amount' %}</small>
-                <span class="fw-bold d-block">
-                  {% if op.destination == entity_person %}
-                    +
-                  {% else %}
-                    -
-                  {% endif %}${{ op.effective_amount }}
-                </span>
-              </div>
-              {% if op.amount_settled or op.amount_repayed or op.amount_remaining_to_repay or op.amount_remaining_to_settle %}
-                <div class="col-6 col-md-2" data-column="col-settlement">
-                  <small class="text-muted d-md-none d-block">{% trans 'Paid/Rem' %}</small>
-                  <div class="small">
-                    {% if op.amount_settled or op.amount_repayed %}
-                      <span class="badge bg-info-soft text-info">P: ${{ op.amount_settled|default:op.amount_repayed|default:0 }}</span>
-                    {% endif %}
-                    {% if op.amount_remaining_to_repay %}
-                      <span class="badge bg-warning-soft text-warning d-block">R: ${{ op.amount_remaining_to_repay }}</span>
-                    {% elif op.amount_remaining_to_settle %}
-                      <span class="badge bg-warning-soft text-warning d-block">R: ${{ op.amount_remaining_to_settle }}</span>
-                    {% endif %}
-                  </div>
-                </div>
+            </div>
+            <small class="text-muted d-block mt-2 text-break">
+              {% if op.destination == entity_person %}
+              <i class="bi bi-arrow-return-left me-1"></i>{% trans 'From:' %} <span
+                class="text-dark">{{ op.source.name }}</span>
               {% else %}
-                <div class="col-6 col-md-2" data-column="col-settlement">
-                  <small class="text-muted d-md-none d-block">{% trans 'Status' %}</small>
-                </div>
+              <i class="bi bi-arrow-return-right me-1"></i>{% trans 'To:' %} <span
+                class="text-dark">{{ op.destination.name }}</span>
               {% endif %}
-              <div class="col-6 col-md-2 text-md-center" data-column="col-status">
-                {% if op.is_reversed %}
-                  <span class="badge rounded-pill bg-danger">{% trans 'Reversed' %}</span>
-                {% elif op.is_reversal %}
-                  <span class="badge rounded-pill bg-danger">{% trans 'Reversal' %}</span>
-                {% else %}
-                  <span class="badge rounded-pill bg-success">{% trans 'Active' %}</span>
-                {% endif %}
-              </div>
-              <div class="col-12 col-md-2 d-flex gap-1">
-                <a href="{% url 'operation_detail_view' op.pk %}" class="btn btn-sm btn-outline-primary flex-grow-1">{% trans 'View' %}</a>
-                {% if not op.is_reversed and not op.is_reversal %}
-                  <a href="{% url 'operation_update_view' op.pk %}" class="btn btn-sm btn-outline-secondary flex-grow-1">{% trans 'Edit' %}</a>
-                {% endif %}
-              </div>
+            </small>
+          </div>
+
+          <!-- Settlement status -->
+          <div class="col-6 col-lg-2">
+            <small class="text-muted d-lg-none d-block mb-1">{% trans 'Status' %}</small>
+            {% if op.is_reversed %}
+            <span class="badge rounded-pill bg-danger"><i
+                class="bi bi-arrow-counterclockwise me-1"></i>{% trans 'Reversed' %}</span>
+            {% elif op.is_reversal %}
+            <span class="badge rounded-pill bg-danger"><i
+                class="bi bi-arrow-left-right me-1"></i>{% trans 'Reversal' %}</span>
+            {% elif item.fully_settled %}
+            <span class="badge rounded-pill bg-success"><i class="bi bi-check-circle-fill me-1"></i>
+              {% if item.kind == 'repayed' %}{% trans 'Fully Repaid' %}
+              {% elif item.kind == 'one_shot' %}{% trans 'Settled' %}
+              {% else %}{% trans 'Fully Paid' %}{% endif %}
+            </span>
+            {% elif item.paid %}
+            <span class="badge rounded-pill bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>
+              {% if item.kind == 'repayed' %}{% trans 'Partially Repaid' %}{% else %}{% trans 'Partially Paid' %}{% endif %}
+            </span>
+            {% else %}
+            <span class="badge rounded-pill bg-danger-subtle text-danger border border-danger-subtle"><i
+                class="bi bi-exclamation-circle-fill me-1"></i>
+              {% if item.kind == 'repayed' %}{% trans 'Unrepaid' %}{% else %}{% trans 'Unpaid' %}{% endif %}
+            </span>
+            {% endif %}
+          </div>
+
+          <!-- Amount -->
+          <div class="col-6 col-lg-2">
+            <small class="text-muted d-lg-none d-block mb-1">{% trans 'Amount' %}</small>
+            <div
+              class="fw-bold fs-5 {% if op.destination == entity_person %}text-success{% else %}text-danger{% endif %}">
+              {% if op.destination == entity_person %}+{% else %}-{% endif %}{{ currency }}{{ item.total|floatformat:2 }}
             </div>
           </div>
-        {% empty %}
-          <div class="list-group-item text-center py-5 text-muted">
-            {% trans 'No operations found for this person.' %}
+
+          <!-- Paid / Repaid -->
+          <div class="col-6 col-lg-2">
+            <small class="text-muted d-lg-none d-block mb-1">
+              {% if item.kind == 'repayed' %}{% trans 'Repaid' %}{% else %}{% trans 'Paid' %}{% endif %}
+            </small>
+            {% if op.is_reversed or op.is_reversal %}
+            <span class="text-muted">&mdash;</span>
+            {% else %}
+            <div class="fw-semibold">{{ currency }}{{ item.paid|floatformat:2 }}</div>
+            {% endif %}
           </div>
-        {% endfor %}
-      </div>
 
-      <!-- Pagination Controls -->
-      {% if page_obj.has_other_pages %}
-        <nav aria-label="Page navigation" class="mt-4">
-          <ul class="pagination justify-content-center mb-0">
-            {% if page_obj.has_previous %}
-              <li class="page-item">
-                <a class="page-link" href="?page=1" aria-label="First page"><span aria-hidden="true">&laquo;&laquo;</span></a>
-              </li>
-              <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.previous_page_number }}" aria-label="Previous page"><span aria-hidden="true">&laquo;</span></a>
-              </li>
+          <!-- Remaining -->
+          <div class="col-6 col-lg-1">
+            <small class="text-muted d-lg-none d-block mb-1">{% trans 'Remaining' %}</small>
+            {% if op.is_reversed or op.is_reversal %}
+            <span class="text-muted">&mdash;</span>
             {% else %}
-              <li class="page-item disabled">
-                <span class="page-link">&laquo;&laquo;</span>
-              </li>
-              <li class="page-item disabled">
-                <span class="page-link">&laquo;</span>
-              </li>
+            <div class="fw-semibold text-warning">{{ currency }}{{ item.remaining|floatformat:2 }}</div>
             {% endif %}
+          </div>
 
-            {% for num in paginator.page_range %}
-              {% if page_obj.number == num %}
-                <li class="page-item active" aria-current="page">
-                  <span class="page-link">
-                    {{ num }}
-                    <span class="visually-hidden">(current)</span>
-                  </span>
-                </li>
-              {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
-                <li class="page-item">
-                  <a class="page-link" href="?page={{ num }}">{{ num }}</a>
-                </li>
-              {% endif %}
-            {% endfor %}
-
-            {% if page_obj.has_next %}
-              <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.next_page_number }}" aria-label="Next page"><span aria-hidden="true">&raquo;</span></a>
-              </li>
-              <li class="page-item">
-                <a class="page-link" href="?page={{ paginator.num_pages }}" aria-label="Last page"><span aria-hidden="true">&raquo;&raquo;</span></a>
-              </li>
-            {% else %}
-              <li class="page-item disabled">
-                <span class="page-link">&raquo;</span>
-              </li>
-              <li class="page-item disabled">
-                <span class="page-link">&raquo;&raquo;</span>
-              </li>
+          <!-- Actions -->
+          <div class="col-12 col-lg-2 d-flex gap-1 align-items-lg-end justify-content-lg-end">
+            <a href="{% url 'operation_detail_view' op.pk %}"
+              class="btn btn-sm btn-outline-primary flex-grow-1">{% trans 'View' %}</a>
+            {% if not op.is_reversed and not op.is_reversal %}
+            <a href="{% url 'operation_update_view' op.pk %}"
+              class="btn btn-sm btn-outline-secondary flex-grow-1">{% trans 'Edit' %}</a>
             {% endif %}
-          </ul>
-        </nav>
-        <div class="text-center mt-2 text-muted small">
-          {% trans 'Page' %} {{ page_obj.number }} {% trans 'of' %} {{ paginator.num_pages }} |{% blocktrans count counter=paginator.count %}{{ counter }} operation{% plural %}{{ counter }} operations{% endblocktrans %}
+          </div>
+
+          <!-- Settlement progress (only for ongoing multi-step settlement) -->
+          {% if not op.is_reversed and not op.is_reversal and item.kind != 'one_shot' %}
+          <div class="col-12">
+            <div class="d-flex align-items-center gap-2">
+              <div class="progress flex-grow-1" style="height: 6px;">
+                <div class="progress-bar {% if item.fully_settled %}bg-success{% else %}bg-warning{% endif %}"
+                  role="progressbar" style="width: {{ item.percent }}%;" aria-valuenow="{{ item.percent }}"
+                  aria-valuemin="0" aria-valuemax="100"></div>
+              </div>
+              <small class="text-muted">{{ item.percent }}%</small>
+            </div>
+          </div>
+          {% endif %}
         </div>
-      {% endif %}
+      </div>
+      {% endwith %}
+      {% empty %}
+      <div class="list-group-item text-center py-5 text-muted">
+        {% trans 'No operations found for this person.' %}
+      </div>
+      {% endfor %}
     </div>
+
+    <!-- Pagination Controls -->
+    {% if page_obj.has_other_pages %}
+    <nav aria-label="Page navigation" class="mt-4">
+      <ul class="pagination justify-content-center mb-0">
+        {% if page_obj.has_previous %}
+        <li class="page-item">
+          <a class="page-link" href="?page=1" aria-label="First page"><span aria-hidden="true">&laquo;&laquo;</span></a>
+        </li>
+        <li class="page-item">
+          <a class="page-link" href="?page={{ page_obj.previous_page_number }}" aria-label="Previous page"><span
+              aria-hidden="true">&laquo;</span></a>
+        </li>
+        {% else %}
+        <li class="page-item disabled">
+          <span class="page-link">&laquo;&laquo;</span>
+        </li>
+        <li class="page-item disabled">
+          <span class="page-link">&laquo;</span>
+        </li>
+        {% endif %}
+
+        {% for num in paginator.page_range %}
+        {% if page_obj.number == num %}
+        <li class="page-item active" aria-current="page">
+          <span class="page-link">
+            {{ num }}
+            <span class="visually-hidden">(current)</span>
+          </span>
+        </li>
+        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+        <li class="page-item">
+          <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+        </li>
+        {% endif %}
+        {% endfor %}
+
+        {% if page_obj.has_next %}
+        <li class="page-item">
+          <a class="page-link" href="?page={{ page_obj.next_page_number }}" aria-label="Next page"><span
+              aria-hidden="true">&raquo;</span></a>
+        </li>
+        <li class="page-item">
+          <a class="page-link" href="?page={{ paginator.num_pages }}" aria-label="Last page"><span
+              aria-hidden="true">&raquo;&raquo;</span></a>
+        </li>
+        {% else %}
+        <li class="page-item disabled">
+          <span class="page-link">&raquo;</span>
+        </li>
+        <li class="page-item disabled">
+          <span class="page-link">&raquo;&raquo;</span>
+        </li>
+        {% endif %}
+      </ul>
+    </nav>
+    <div class="text-center mt-2 text-muted small">
+      {% trans 'Page' %} {{ page_obj.number }} {% trans 'of' %} {{ paginator.num_pages }}
+      |{% blocktrans count counter=paginator.count %}{{ counter }} operation{% plural %}{{ counter }}
+      operations{% endblocktrans %}
+    </div>
+    {% endif %}
   </div>
-{% endblock %}
-
-{% block extra_css %}
-<style>
-  /* Make toggleable columns fill available width evenly when visible */
-  .operation-row .toggle-column-visible {
-    flex: 1 1 0% !important;
-    max-width: none !important;
-  }
-</style>
-{% endblock %}
-
-{% block extra_js %}
-  <script>
-    ;(function () {
-      var STORAGE_KEY = 'operation_list_columns'
-      var TOGGLE_SELECTOR = '.column-toggle'
-      var TOGGLEABLE_COLS = ['col-direction', 'col-amount', 'col-settlement', 'col-status']
-    
-      function getSavedColumns() {
-        try {
-          var data = localStorage.getItem(STORAGE_KEY)
-          return data ? JSON.parse(data) : null
-        } catch (e) {
-          return null
-        }
-      }
-    
-      function saveColumns(state) {
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
-        } catch (e) {
-          // localStorage unavailable
-        }
-      }
-    
-      function refreshLayout() {
-        // For each row, add toggle-column-visible class to visible toggleable cells
-        var rows = document.querySelectorAll('.operation-row')
-        rows.forEach(function (row) {
-          TOGGLEABLE_COLS.forEach(function (colId) {
-            var cells = row.querySelectorAll('[data-column="' + colId + '"]')
-            cells.forEach(function (el) {
-              if (el.classList.contains('d-none')) {
-                el.classList.remove('toggle-column-visible')
-              } else {
-                el.classList.add('toggle-column-visible')
-              }
-            })
-          })
-        })
-      }
-    
-      function applyColumnState(columnId, visible) {
-        var els = document.querySelectorAll('[data-column="' + columnId + '"]')
-        els.forEach(function (el) {
-          if (visible) {
-            el.classList.remove('d-none')
-          } else {
-            el.classList.add('d-none')
-          }
-        })
-        refreshLayout()
-      }
-    
-      function initToggles() {
-        var checkboxes = document.querySelectorAll(TOGGLE_SELECTOR)
-        if (!checkboxes.length) return
-    
-        var saved = getSavedColumns()
-    
-        checkboxes.forEach(function (cb) {
-          var columnId = cb.getAttribute('data-column')
-    
-          // Restore saved state, default to checked (visible)
-          if (saved && saved.hasOwnProperty(columnId)) {
-            cb.checked = saved[columnId]
-          }
-    
-          // Apply initial visibility
-          applyColumnState(columnId, cb.checked)
-    
-          // Listen for changes
-          cb.addEventListener('change', function () {
-            applyColumnState(columnId, cb.checked)
-    
-            // Save to localStorage
-            var currentState = {}
-            document.querySelectorAll(TOGGLE_SELECTOR).forEach(function (c) {
-              currentState[c.getAttribute('data-column')] = c.checked
-            })
-            saveColumns(currentState)
-          })
-        })
-      }
-    
-      // Run on DOM ready
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initToggles)
-      } else {
-        initToggles()
-      }
-    })()
-  </script>
+</div>
 {% endblock %}

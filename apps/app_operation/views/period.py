@@ -5,6 +5,7 @@ from django.core.exceptions import ValidationError
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db import transaction
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
 from apps.app_base.debug import DebugContext, debug_view
@@ -74,6 +75,19 @@ def period_list_view(request, entity_pk):
         page_obj = paginator.page(1)
     except EmptyPage:
         page_obj = paginator.page(paginator.num_pages)
+
+    # Replace the ambiguous "Entity" navigation label with the entity's display name
+    if entity.entity_type in ("system", "world"):
+        request.navigation_overrides = {"related_urls": {"Entity": None}}
+    else:
+        request.navigation_overrides = {
+            "related_urls": {
+                "Entity": {
+                    "title": entity.get_display_name(),
+                    "url": reverse("entity_detail", kwargs={"pk": entity.pk}),
+                },
+            }
+        }
 
     context = {
         "entity": entity,

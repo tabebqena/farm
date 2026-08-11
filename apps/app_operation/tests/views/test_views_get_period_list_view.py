@@ -43,3 +43,14 @@ class PeriodListViewTest(TestCase):
         periods = response.context["periods"]
         # Entity auto-creates one period
         self.assertGreaterEqual(len(periods), 1)
+
+    def test_period_list_navigation_shows_entity_display_name(self):
+        """Period list navigation shows the real entity name instead of 'Entity'."""
+        self.client.login(username="officer_period", password="testpass")
+        url = reverse("period_list_view", kwargs={"entity_pk": self.entity.pk})
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        related_titles = [v["title"] for v in response.context["related_views"]]
+        self.assertIn("Farm Project", related_titles)
+        self.assertNotIn("Entity", related_titles)
