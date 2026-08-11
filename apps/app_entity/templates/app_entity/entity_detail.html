@@ -50,6 +50,7 @@
       <p class="text-muted mt-1 mb-0">{{ entity.owner.description|default:'No description provided.' }}</p>
     </span>
     <span class="d-flex align-items-center">
+      <span class="ms-2 gap-2"><a class="btn btn-outline-secondary" href="{% url 'entity_transactions_list' entity.pk %}"><i class="bi bi-arrow-left-right me-2"></i>{% trans 'Transactions' %}</a></span>
       {% if entity.is_project %}
         <span class="ms-2 gap-2"><a class="btn btn-outline-secondary" href="{% url 'stock_detail' entity.pk %}"><i class="bi bi-archive me-2"></i>{% trans 'Stock' %}</a></span>
       {% endif %}
@@ -86,6 +87,7 @@
           <div class="bg-light rounded p-3 text-start">
             <label class="small text-muted text-uppercase fw-bold">{% trans 'Current Fund Balance' %}</label>
             <h2 class="mb-0 fw-bold text-dark">{{ entity.currency|default:'$' }} {{ entity.balance|default:'0.00' }}</h2>
+            <a href="{% url 'entity_transactions_list' entity.pk %}" class="btn btn-sm btn-outline-primary w-100 mt-2"><i class="bi bi-arrow-left-right me-1"></i>{% trans 'View Transactions' %}</a>
             {% if not entity.active %}
               <small class="text-danger"><i class="bi bi-lock-fill"></i> {% trans 'Fund is locked for payments' %}</small>
             {% endif %}

@@ -8,3 +8,4 @@ test_screenshots/*
 .roo/*
 .zooignore
 test_results.txt
+**/.*.csv#

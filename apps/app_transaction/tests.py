@@ -9,7 +9,8 @@ from decimal import Decimal
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
-from django.test import TestCase
+from django.test import Client, TestCase
+from django.urls import reverse
 from django.utils import timezone
 
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
@@ -477,3 +478,169 @@ class TransactionGenericForeignKeyTests(TestCase):
         self.assertIsNotNone(tx)
 
         self.assertEqual(tx.owner, self.operation)
+
+
+# =============================================================================
+# Entity Transactions List View Tests (balance tracking)
+# =============================================================================
+
+
+class EntityTransactionsViewTests(TestCase):
+    """Test the entity transactions list view used for balance tracking."""
+
+    def setUp(self):
+        self.client = Client()
+        self.officer = _make_officer()
+        self.system = _get_or_create_system()
+        self.entity = _make_entity("Balance Project", EntityType.PROJECT)
+
+    def _url(self):
+        return reverse(
+            "entity_transactions_list", kwargs={"entity_pk": self.entity.pk}
+        )
+
+    def _login(self):
+        self.client.force_login(self.officer)
+
+    def _inject(self, amount=Decimal("1000.00")):
+        """Record an incoming CAPITAL_GAIN_PAYMENT (target of transaction)."""
+        _inject_funds(self.entity, amount, self.officer)
+
+    def _outgoing(self, amount=Decimal("200.00")):
+        """Record an outgoing PURCHASE_PAYMENT (source of transaction)."""
+        vendor = _make_entity("Vendor X", EntityType.PERSON, is_vendor=True)
+        _make_vendor_stakeholder(self.entity, vendor)
+        op = PurchaseOperation.objects.create(
+            source=self.entity,
+            destination=vendor,
+            amount=amount,
+            operation_type=OperationType.PURCHASE,
+            date=timezone.now().date(),
+            officer=self.officer,
+            description="Test purchase",
+        )
+        op.create_payment_transaction(
+            amount=amount,
+            officer=self.officer,
+            date=timezone.now().date(),
+        )
+
+    def test_authorized_user_can_load_entity_transactions(self):
+        """Logged-in user can view the entity transactions page."""
+        self._login()
+        self._inject(Decimal("1000.00"))
+
+        response = self.client.get(self._url())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["entity"], self.entity)
+        self.assertEqual(len(response.context["transactions"]), 1)
+
+    def test_only_payment_transactions_are_listed(self):
+        """Issuance transactions (no cash flow) must be excluded."""
+        self._login()
+        # _inject_funds creates both a CAPITAL_GAIN_ISSUANCE and a
+        # CAPITAL_GAIN_PAYMENT; only the payment type must be listed.
+        self._inject(Decimal("1000.00"))
+
+        response = self.client.get(self._url())
+        transactions = response.context["transactions"]
+
+        self.assertEqual(len(transactions), 1)
+        self.assertEqual(transactions[0].type, TransactionType.CAPITAL_GAIN_PAYMENT)
+
+    def test_incoming_and_outgoing_are_shown_with_directions(self):
+        """Both incoming and outgoing payment transactions are listed."""
+        self._login()
+        self._inject(Decimal("1000.00"))  # incoming (target)
+        self._outgoing(Decimal("200.00"))  # outgoing (source)
+
+        response = self.client.get(self._url())
+        transactions = response.context["transactions"]
+
+        self.assertEqual(len(transactions), 2)
+        self.assertEqual(
+            {tx.direction for tx in transactions}, {"incoming", "outgoing"}
+        )
+
+    def test_running_balance_and_totals_are_computed(self):
+        """Running balance, totals and current balance are correct."""
+        self._login()
+        self._inject(Decimal("1000.00"))
+        self._outgoing(Decimal("200.00"))
+
+        response = self.client.get(self._url())
+        transactions = response.context["transactions"]
+
+        # Ordered by date, then pk: the injection payment comes first.
+        self.assertEqual(transactions[0].direction, "incoming")
+        self.assertEqual(transactions[0].running_balance, Decimal("1000.00"))
+        self.assertEqual(transactions[1].direction, "outgoing")
+        self.assertEqual(transactions[1].running_balance, Decimal("800.00"))
+
+        self.assertEqual(response.context["total_incoming"], Decimal("1000.00"))
+        self.assertEqual(response.context["total_outgoing"], Decimal("200.00"))
+        self.assertEqual(response.context["current_balance"], Decimal("800.00"))
+
+    def test_transactions_for_other_entities_are_excluded(self):
+        """Only transactions where the entity is source or target are listed."""
+        self._login()
+        self._inject(Decimal("1000.00"))
+        other = _make_entity("Other Project", EntityType.PROJECT)
+
+        url = reverse(
+            "entity_transactions_list", kwargs={"entity_pk": other.pk}
+        )
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context["transactions"]), 0)
+
+    def test_nonexistent_entity_returns_404(self):
+        """Requesting a non-existent entity returns 404."""
+        self._login()
+        url = reverse("entity_transactions_list", kwargs={"entity_pk": 99999})
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_unauthenticated_user_redirected(self):
+        """Unauthenticated users are redirected away from the page."""
+        self._inject(Decimal("1000.00"))
+        response = self.client.get(self._url())
+
+        self.assertEqual(response.status_code, 302)
+
+    def test_pagination_splits_transactions(self):
+        """The list is paginated (25 per page) with a working page 2."""
+        self._login()
+        self._inject(Decimal("1000.00"))  # 1 incoming transaction
+
+        vendor = _make_entity("Vendor Pagination", EntityType.PERSON, is_vendor=True)
+        _make_vendor_stakeholder(self.entity, vendor)
+        for i in range(26):
+            op = PurchaseOperation.objects.create(
+                source=self.entity,
+                destination=vendor,
+                amount=Decimal("10.00"),
+                operation_type=OperationType.PURCHASE,
+                date=timezone.now().date(),
+                officer=self.officer,
+                description=f"Bulk purchase {i}",
+            )
+            op.create_payment_transaction(
+                amount=Decimal("10.00"),
+                officer=self.officer,
+                date=timezone.now().date(),
+            )
+
+        # 1 incoming + 26 outgoing = 27 payment transactions -> 2 pages.
+        response = self.client.get(self._url())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context["transactions"]), 25)
+        self.assertTrue(response.context["page_obj"].has_next)
+
+        response2 = self.client.get(f"{self._url()}?page=2")
+        self.assertEqual(response2.status_code, 200)
+        self.assertEqual(response2.context["page_obj"].number, 2)
+        self.assertEqual(len(response2.context["transactions"]), 2)

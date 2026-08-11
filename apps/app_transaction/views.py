@@ -1,11 +1,102 @@
 import traceback
+from decimal import Decimal
 
+from django.conf import settings
 from django.contrib import messages
+from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
+from django.db.models import Q
 from django.shortcuts import redirect, render
 from django.utils import timezone
 
 from apps.app_base.debug import DebugContext, debug_view
+from apps.app_entity.models import Entity
 from apps.app_transaction.models import Transaction
+from apps.app_transaction.transaction_type import TransactionType
+from farm.shortcuts import get_object_or_404
+
+
+@debug_view
+def entity_transactions_view(request, entity_pk):
+    """List all payment transactions related to an entity for balance tracking.
+
+    Shows actual cash-flow (payment) transactions where the entity is either
+    the source (outgoing) or the target (incoming). A running balance is
+    computed for each row so the page can be used to track the fund balance
+    over time. Issuance transactions are excluded because they do not affect
+    the fund balance.
+    """
+    with DebugContext.section("Fetching entity transactions", {
+        "entity_pk": entity_pk,
+        "user": request.user.username,
+    }):
+        entity = get_object_or_404(
+            Entity,
+            pk=entity_pk,
+            error_message="Entity not found or has been deleted.",
+        )
+        DebugContext.success("Entity loaded", {
+            "entity_id": entity.id,
+            "entity_type": entity.entity_type,
+            "entity_name": entity.name,
+        })
+
+        transactions = (
+            Transaction.objects.filter(
+                Q(source=entity) | Q(target=entity),
+                type__in=TransactionType.payment_types(),
+                deleted_at__isnull=True,
+            )
+            .select_related("source", "target", "officer")
+            .order_by("date", "pk")
+        )
+
+        # Annotate each transaction with its direction relative to this entity
+        # and compute a running balance (incoming increases, outgoing decreases).
+        running_balance = Decimal("0.00")
+        total_incoming = Decimal("0.00")
+        total_outgoing = Decimal("0.00")
+        annotated_transactions = []
+        for tx in transactions:
+            if tx.target == entity:
+                tx.direction = "incoming"
+                running_balance += tx.amount
+                total_incoming += tx.amount
+            else:
+                tx.direction = "outgoing"
+                running_balance -= tx.amount
+                total_outgoing += tx.amount
+            tx.running_balance = running_balance
+            annotated_transactions.append(tx)
+
+        DebugContext.success("Transactions loaded", {
+            "count": len(annotated_transactions),
+            "total_incoming": str(total_incoming),
+            "total_outgoing": str(total_outgoing),
+            "running_balance": str(running_balance),
+        })
+
+    # Paginate the annotated list (running balance is computed over ALL rows
+    # first, so it remains correct across pages).
+    paginator = Paginator(annotated_transactions, 25)
+    page_number = request.GET.get("page", 1)
+    try:
+        page_obj = paginator.page(page_number)
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
+
+    context = {
+        "entity": entity,
+        "transactions": page_obj.object_list,
+        "page_obj": page_obj,
+        "paginator": paginator,
+        "currency": getattr(settings, "CURRENCY_SYMBOL", "$"),
+        "total_incoming": total_incoming,
+        "total_outgoing": total_outgoing,
+        "current_balance": entity.balance,
+    }
+    return render(request, "app_transaction/entity_transactions.html", context)
 
 
 @debug_view

@@ -20,6 +20,16 @@ NAVIGATION_MAP = {
             ("Edit", "person_edit", {"pk": "pk"}),
         ],
     },
+    "entity_transactions_list": {
+        "title": "Entity Transactions",
+        "icon": "bi-arrow-left-right",
+        "parent": ("Entities", "entity_list"),
+        "related": [
+            ("Entity", "entity_detail", {"pk": "entity_pk"}),
+            ("Operations", "operation_list_view", {"person_pk": "entity_pk"}),
+            ("Periods", "period_list_view", {"entity_pk": "entity_pk"}),
+        ],
+    },
     "person_create": {
         "title": "Create Person",
         "icon": "bi-person-plus",
