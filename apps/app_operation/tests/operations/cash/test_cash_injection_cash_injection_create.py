@@ -240,3 +240,45 @@ class CashInjectionCreateTest(TestCase):
             self.receiver_entity.balance,
             balance_before + Decimal("1000.00"),
         )
+
+    # ------------------------------------------------------------------
+    # Financial period validation
+    # ------------------------------------------------------------------
+
+    def test_operation_blocked_when_destination_in_closed_period(self):
+        from datetime import timedelta
+
+        from apps.app_operation.models.period import FinancialPeriod
+
+        today = date.today()
+        FinancialPeriod.objects.create(
+            entity=self.receiver_entity,
+            start_date=today - timedelta(days=10),
+            end_date=today - timedelta(days=1),  # Closed: end_date in the past
+        )
+
+        op = self._make_op(date=today - timedelta(days=5))
+        with self.assertRaises(ValidationError):
+            op.save()
+
+    def test_operation_blocked_when_no_covering_period(self):
+        """Regression: a new operation requires a period covering its date."""
+        from datetime import timedelta
+
+        # The receiver's only period opens today; a backdated date has no
+        # covering period and must be rejected at save.
+        op = self._make_op(date=date.today() - timedelta(days=10))
+        with self.assertRaises(ValidationError):
+            op.save()
+
+    # ------------------------------------------------------------------
+    # No inventory side-effects
+    # ------------------------------------------------------------------
+
+    def test_no_invoice_items_and_no_movements(self):
+        op = self._make_op()
+        op.save()
+
+        self.assertFalse(type(op).has_invoice)
+        self.assertEqual(op.items.count(), 0)
+        self.assertEqual(op.movement_lines.count(), 0)

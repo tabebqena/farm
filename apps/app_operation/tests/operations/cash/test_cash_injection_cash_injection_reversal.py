@@ -153,3 +153,24 @@ class CashInjectionReversalTest(TestCase):
         op.reverse(officer=self.officer_user)
 
         assert_derived_state_unchanged(self, before, msg="cash injection create+reverse")
+
+    # ------------------------------------------------------------------
+    # Focused branch tests (one behavior each)
+    # ------------------------------------------------------------------
+
+    def test_reversal_operation_owns_no_transactions(self):
+        reversal = self.op.reverse(officer=self.officer_user)
+        self.assertEqual(reversal.get_all_transactions().count(), 0)
+
+    def test_reversal_clears_settlement_state(self):
+        self.op.reverse(officer=self.officer_user)
+        self.op.refresh_from_db()
+
+        self.assertEqual(self.op.amount_settled, Decimal("0.00"))
+        self.assertFalse(self.op.is_fully_settled)
+
+    def test_reason_flows_to_reversal_description(self):
+        reversal = self.op.reverse(
+            officer=self.officer_user, reason="Duplicate injection"
+        )
+        self.assertIn("Duplicate injection", reversal.description)

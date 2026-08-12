@@ -686,6 +686,25 @@ COVERAGE_MANIFEST: dict[tuple[str, str, str], str] = {
     ("CASH_INJECTION", "reverse", "differential"): _path(
         f"{_OPS_TESTS}.cash.test_cash_injection_cash_injection_reversal",
         "CashInjectionReversalTest", "test_create_then_reverse_leaves_world_unchanged"),
+    # Branch-level cells (widened contract — see specs/operations/op_1_cash_injection.md)
+    ("CASH_INJECTION", "create", "VC10"): _path(
+        f"{_OPS_TESTS}.cash.test_cash_injection_cash_injection_create",
+        "CashInjectionCreateTest", "test_operation_blocked_when_destination_in_closed_period"),
+    ("CASH_INJECTION", "create", "VC11"): _path(
+        f"{_OPS_TESTS}.cash.test_cash_injection_cash_injection_create",
+        "CashInjectionCreateTest", "test_operation_blocked_when_no_covering_period"),
+    ("CASH_INJECTION", "create", "SC8"): _path(
+        f"{_OPS_TESTS}.cash.test_cash_injection_cash_injection_create",
+        "CashInjectionCreateTest", "test_no_invoice_items_and_no_movements"),
+    ("CASH_INJECTION", "reverse", "SR7"): _path(
+        f"{_OPS_TESTS}.cash.test_cash_injection_cash_injection_reversal",
+        "CashInjectionReversalTest", "test_reversal_operation_owns_no_transactions"),
+    ("CASH_INJECTION", "reverse", "SR9"): _path(
+        f"{_OPS_TESTS}.cash.test_cash_injection_cash_injection_reversal",
+        "CashInjectionReversalTest", "test_reversal_clears_settlement_state"),
+    ("CASH_INJECTION", "reverse", "SR10"): _path(
+        f"{_OPS_TESTS}.cash.test_cash_injection_cash_injection_reversal",
+        "CashInjectionReversalTest", "test_reason_flows_to_reversal_description"),
 
     # ---------------------------------------------------------- CASH_WITHDRAWAL
     ("CASH_WITHDRAWAL", "create", "SE2"): _path(

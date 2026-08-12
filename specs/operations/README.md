@@ -2,6 +2,8 @@
 
 > **Cross-operation reference:** See [Operations Comparison — Validation & Success-Effects (per action)](operations-comparison.md) for the consolidated, **per-action** comparison (create / reverse / adjust / move items / adjust items / pay / repay): an action-applicability matrix, per-action validation matrices, per-action success-effects matrices, and per-operation × per-action reports. Not every operation accepts every action. Covers all 19 operation types.
 
+> **Operation contracts:** Each per-operation spec is being widened into a **primary-source contract** that records **all possible branches** and **registers every affected business-logic file** (models, mixins, transaction types, views, templates) plus the tests that pin each branch. Where code and spec disagree, the spec is authoritative — fix the code, not the spec. The widened structure is defined in [_OPERATION_SPEC_TEMPLATE.md](_OPERATION_SPEC_TEMPLATE.md); **Cash Injection ([op_1](op_1_cash_injection.md)) is the worked example.** Remaining operations are being registered under the same structure.
+
 ## Core Operations
 - [Op 1: Cash Injection](op_1_cash_injection.md)
 - [Op 2: Cash Withdrawal](op_2_cash_withdrawal.md)
