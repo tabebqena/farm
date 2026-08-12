@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     "apps.app_operation",
     "apps.app_adjustment",
     "apps.app_inventory",
+    "apps.app_animal",
 ]
 
 MIDDLEWARE = [
