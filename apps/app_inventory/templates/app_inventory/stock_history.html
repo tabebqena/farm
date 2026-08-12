@@ -1,0 +1,341 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}
+  {% trans 'Stock History' %}
+{% endblock %}
+
+{% block content %}
+  <div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <div>
+        <a href="{% url 'stock_detail' entity.pk %}" class="text-decoration-none text-muted small"><i class="bi bi-chevron-left"></i> {{ entity.name }}</a>
+        <h4 class="mb-0">{% trans 'Stock History' %}</h4>
+      </div>
+      <a href="{% url 'stock_detail' entity.pk %}" class="btn btn-outline-primary">
+        <i class="bi bi-box-seam"></i> {% trans 'Back to Stock' %}
+      </a>
+    </div>
+
+    {# ------------------------------------------------------------------ #}
+    {# Filter bar #}
+    {# ------------------------------------------------------------------ #}
+    <div class="card shadow-sm mb-4">
+      <div class="card-body">
+        <form method="get" action="{% url 'stock_history' entity.pk %}" class="row g-2 align-items-end">
+          <div class="col-md-2">
+            <label class="form-label small mb-1">{% trans 'Direction' %}</label>
+            <select name="direction" class="form-select form-select-sm">
+              <option value="all" {% if active_direction == 'all' %}selected{% endif %}>{% trans 'All' %}</option>
+              <option value="in" {% if active_direction == 'in' %}selected{% endif %}>{% trans 'Inbound' %}</option>
+              <option value="out" {% if active_direction == 'out' %}selected{% endif %}>{% trans 'Outbound' %}</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small mb-1">{% trans 'Operation Type' %}</label>
+            <select name="op_type" class="form-select form-select-sm">
+              <option value="">{% trans 'All' %}</option>
+              {% for value, label in op_type_choices %}
+                <option value="{{ value }}" {% if active_op_type == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small mb-1">{% trans 'Search' %}</label>
+            <input type="search" name="q" value="{{ search_query }}" class="form-control form-control-sm" placeholder="{% trans 'Tag or template...' %}">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small mb-1">{% trans 'From' %}</label>
+            <input type="date" name="from" value="{{ from_date }}" class="form-control form-control-sm">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small mb-1">{% trans 'To' %}</label>
+            <input type="date" name="to" value="{{ to_date }}" class="form-control form-control-sm">
+          </div>
+          <div class="col-md-1 d-flex gap-1">
+            <button type="submit" class="btn btn-sm btn-primary w-100">{% trans 'Apply' %}</button>
+          </div>
+          <div class="col-12">
+            <a href="{% url 'stock_history' entity.pk %}" class="btn btn-sm btn-outline-secondary">{% trans 'Reset' %}</a>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    {# ------------------------------------------------------------------ #}
+    {# Summary line #}
+    {# ------------------------------------------------------------------ #}
+    <div class="d-flex gap-3 mb-3">
+      <span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-arrow-down-left"></i> {% trans 'Inbound' %} {{ inbound_count }} {% trans 'movements' %}</span>
+      <span class="badge bg-danger-subtle text-danger border border-danger-subtle"><i class="bi bi-arrow-up-right"></i> {% trans 'Outbound' %} {{ outbound_count }} {% trans 'movements' %}</span>
+    </div>
+
+    {# ------------------------------------------------------------------ #}
+    {# Movement history table #}
+    {# ------------------------------------------------------------------ #}
+    <div class="card shadow-sm mb-4">
+      <div class="card-header fw-bold d-flex justify-content-between align-items-center">
+        <span>{% trans 'Movements' %}</span>
+        <span class="badge bg-secondary rounded-pill">{{ paginator.count }}</span>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>
+                  {% trans 'Date' %}
+                </th>
+                <th>
+                  {% trans 'Direction' %}
+                </th>
+                <th>
+                  {% trans 'Operation' %}
+                </th>
+                <th>
+                  {% trans 'Product' %}
+                </th>
+                <th class="text-end">
+                  {% trans 'Quantity' %}
+                </th>
+                <th>
+                  {% trans 'Counterparty' %}
+                </th>
+                <th>
+                  {% trans 'Reversal' %}
+                </th>
+                <th>
+                  {% trans 'Officer' %}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for entry in movements %}
+                {% with line=entry.line %}
+                  <tr {% if line.reversal_of_id %}class="bg-light opacity-75"{% endif %}>
+                    <td>{{ line.date }}</td>
+                    <td>
+                      {% if entry.direction == 'IN' %}
+                        <span class="badge bg-success"><i class="bi bi-arrow-down-left"></i> {% trans 'IN' %}</span>
+                      {% else %}
+                        <span class="badge bg-danger"><i class="bi bi-arrow-up-right"></i> {% trans 'OUT' %}</span>
+                      {% endif %}
+                    </td>
+                    <td>
+                      <span class="badge bg-secondary">{{ line.operation.get_operation_type_display }}</span>
+                      <a href="{% url 'operation_detail_view' line.operation_id %}" class="btn btn-sm btn-outline-primary ms-1">{% trans 'View' %}</a>
+                    </td>
+                    <td>
+                      {% if line.product_id %}
+                        <a href="{% url 'product_detail' line.product_id %}">{{ line.product.product_template.name }}</a>
+                        {% if line.product.unique_id %}
+                          <span class="text-muted">#{{ line.product.unique_id }}</span>
+                        {% endif %}
+                      {% else %}
+                        <span class="text-muted">—</span>
+                      {% endif %}
+                    </td>
+                    <td class="text-end">{{ line.quantity }}</td>
+                    <td>
+                      {% if entry.direction == 'IN' %}
+                        {{ line.operation.source.name }}
+                      {% else %}
+                        {{ line.operation.destination.name }}
+                      {% endif %}
+                    </td>
+                    <td>
+                      {% if line.reversal_of_id %}
+                        <span class="badge bg-warning text-dark">{% trans 'Reversal' %}</span>
+                      {% else %}
+                        <span class="text-muted">—</span>
+                      {% endif %}
+                    </td>
+                    <td>{{ line.officer|default:'—' }}</td>
+                  </tr>
+                {% endwith %}
+              {% empty %}
+                <tr>
+                  <td colspan="8" class="text-center text-muted py-3">
+                    {% trans 'No movements found.' %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Pagination Controls -->
+      {% if page_obj.has_other_pages %}
+        <div class="card-footer">
+          <nav aria-label="Page navigation" class="mt-2">
+            <ul class="pagination justify-content-center mb-0">
+              {% if page_obj.has_previous %}
+                <li class="page-item">
+                  <a class="page-link" href="?page=1{% if active_direction != 'all' %}&direction={{ active_direction }}{% endif %}{% if active_op_type %}&op_type={{ active_op_type }}{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if from_date %}&from={{ from_date }}{% endif %}{% if to_date %}&to={{ to_date }}{% endif %}" aria-label="First page"><span aria-hidden="true">&laquo;&laquo;</span></a>
+                </li>
+                <li class="page-item">
+                  <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if active_direction != 'all' %}&direction={{ active_direction }}{% endif %}{% if active_op_type %}&op_type={{ active_op_type }}{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if from_date %}&from={{ from_date }}{% endif %}{% if to_date %}&to={{ to_date }}{% endif %}" aria-label="Previous page"><span aria-hidden="true">&laquo;</span></a>
+                </li>
+              {% else %}
+                <li class="page-item disabled">
+                  <span class="page-link">&laquo;&laquo;</span>
+                </li>
+                <li class="page-item disabled">
+                  <span class="page-link">&laquo;</span>
+                </li>
+              {% endif %}
+
+              {% for num in paginator.page_range %}
+                {% if page_obj.number == num %}
+                  <li class="page-item active" aria-current="page">
+                    <span class="page-link">
+                      {{ num }}
+                      <span class="visually-hidden">(current)</span>
+                    </span>
+                  </li>
+                {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                  <li class="page-item">
+                    <a class="page-link" href="?page={{ num }}{% if active_direction != 'all' %}&direction={{ active_direction }}{% endif %}{% if active_op_type %}&op_type={{ active_op_type }}{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if from_date %}&from={{ from_date }}{% endif %}{% if to_date %}&to={{ to_date }}{% endif %}">{{ num }}</a>
+                  </li>
+                {% endif %}
+              {% endfor %}
+
+              {% if page_obj.has_next %}
+                <li class="page-item">
+                  <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if active_direction != 'all' %}&direction={{ active_direction }}{% endif %}{% if active_op_type %}&op_type={{ active_op_type }}{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if from_date %}&from={{ from_date }}{% endif %}{% if to_date %}&to={{ to_date }}{% endif %}" aria-label="Next page"><span aria-hidden="true">&raquo;</span></a>
+                </li>
+                <li class="page-item">
+                  <a class="page-link" href="?page={{ paginator.num_pages }}{% if active_direction != 'all' %}&direction={{ active_direction }}{% endif %}{% if active_op_type %}&op_type={{ active_op_type }}{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if from_date %}&from={{ from_date }}{% endif %}{% if to_date %}&to={{ to_date }}{% endif %}" aria-label="Last page"><span aria-hidden="true">&raquo;&raquo;</span></a>
+                </li>
+              {% else %}
+                <li class="page-item disabled">
+                  <span class="page-link">&raquo;</span>
+                </li>
+                <li class="page-item disabled">
+                  <span class="page-link">&raquo;&raquo;</span>
+                </li>
+              {% endif %}
+            </ul>
+          </nav>
+          <div class="text-center mt-2 text-muted small">
+            {% trans 'Page' %} {{ page_obj.number }} {% trans 'of' %} {{ paginator.num_pages }}
+            | {% blocktrans count counter=paginator.count %}{{ counter }} movement{% plural %}{{ counter }} movements{% endblocktrans %}
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    {# ------------------------------------------------------------------ #}
+    {# Pending Inbound (obligated but not yet physically received)        #}
+    {# ------------------------------------------------------------------ #}
+    {% if pending_inbound_items %}
+      <hr class="my-4" />
+      <div class="card shadow-sm mb-4">
+        <div class="card-header fw-bold d-flex justify-content-between align-items-center">
+          <span>{% trans 'Pending Inbound (Purchase / Birth)' %}</span>
+          <span class="badge bg-warning text-dark">{{ pending_inbound_items|length }}</span>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>
+                    {% trans 'Product' %}
+                  </th>
+                  <th class="text-end">
+                    {% trans 'Ordered' %}
+                  </th>
+                  <th class="text-end">
+                    {% trans 'Moved' %}
+                  </th>
+                  <th class="text-end">
+                    {% trans 'Pending' %}
+                  </th>
+                  <th>
+                    {% trans 'Date' %}
+                  </th>
+                  <th>
+                    {% trans 'Operation' %}
+                  </th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in pending_inbound_items %}
+                  <tr>
+                    <td>{{ item.product_template__name }}</td>
+                    <td class="text-end">{{ item.issued_qty|floatformat:2 }}</td>
+                    <td class="text-end">{{ item.moved_qty|floatformat:2 }}</td>
+                    <td class="text-end fw-bold text-warning">{{ item.pending_qty|floatformat:2 }}</td>
+                    <td>{{ item.operation__date }}</td>
+                    <td>
+                      <a href="{% url 'operation_detail_view' item.operation__id %}" class="btn btn-sm btn-outline-primary">{% trans 'View' %}</a>
+                    </td>
+                    <td>
+                      <a href="{% url 'create_inventory_movement' operation_pk=item.operation__id %}" class="btn btn-sm btn-outline-success">{% trans 'Create Movement' %}</a>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
+    {# ------------------------------------------------------------------ #}
+    {# Pending Outbound (obligated for delivery but not yet moved)        #}
+    {# ------------------------------------------------------------------ #}
+    {% if pending_outbound_items %}
+      <hr class="my-4" />
+      <div class="card shadow-sm mb-4">
+        <div class="card-header fw-bold d-flex justify-content-between align-items-center">
+          <span>{% trans 'Pending Outbound (Sale / Death / Consumption)' %}</span>
+          <span class="badge bg-danger text-white">{{ pending_outbound_items|length }}</span>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>
+                    {% trans 'Product' %}
+                  </th>
+                  <th class="text-end">
+                    {% trans 'Ordered' %}
+                  </th>
+                  <th class="text-end">
+                    {% trans 'Moved' %}
+                  </th>
+                  <th class="text-end">
+                    {% trans 'Pending' %}
+                  </th>
+                  <th>
+                    {% trans 'Date' %}
+                  </th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in pending_outbound_items %}
+                  <tr>
+                    <td>{{ item.product_template__name }}</td>
+                    <td class="text-end">{{ item.issued_qty|floatformat:2 }}</td>
+                    <td class="text-end">{{ item.moved_qty|floatformat:2 }}</td>
+                    <td class="text-end fw-bold text-danger">{{ item.pending_qty|floatformat:2 }}</td>
+                    <td>{{ item.operation__date }}</td>
+                    <td>
+                      <a href="{% url 'create_inventory_movement' operation_pk=item.operation__id %}" class="btn btn-sm btn-outline-success">{% trans 'Create Movement' %}</a>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}

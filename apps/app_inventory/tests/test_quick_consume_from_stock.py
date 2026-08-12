@@ -56,6 +56,9 @@ class QuickConsumeFromStockTest(TestCase):
             default_unit="Kg",
             minimum_quantity=Decimal("1.00"),
         )
+        # The template must be assigned to the project so ledger-based
+        # portfolio queries (stock detail cards) see its products.
+        self.template.entities.add(self.project_entity)
 
     def _make_moved_product(self, qty=Decimal("5.00"), price=Decimal("100.00")):
         """Return an ACTIVE, physically-moved product owned by the project."""

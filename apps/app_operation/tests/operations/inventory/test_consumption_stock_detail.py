@@ -97,22 +97,26 @@ class ConsumptionStockDetailTest(TestCase):
             project=self.project_entity,
         )
 
-    def test_consumed_tab_shows_consumed_product(self):
+    def test_consumed_product_movement_in_stock_history(self):
+        """The consumed product leaves stock detail but its OUT movement shows
+        up on the Stock History page (tabs were dropped in the rework)."""
         product = self._make_moved_product()
-        self._consume(product)
+        consumption = self._consume(product)
+        consumption_line = consumption.movement_lines.first()
+        self.assertIsNotNone(consumption_line)
 
         self.client.login(username="officer_stock", password="testpass")
-        url = reverse("stock_detail", kwargs={"entity_pk": self.project_entity.pk})
-        response = self.client.get(url, {"tab": "consumed"})
+        url = reverse("stock_history", kwargs={"entity_pk": self.project_entity.pk})
+        response = self.client.get(url)
 
         self.assertEqual(response.status_code, 200)
-        products = response.context["products"]
-        self.assertIn(product, products)
+        lines = [m["line"] for m in response.context["movements"]]
+        self.assertIn(consumption_line, lines)
         self.assertEqual(
             Product.objects.get(pk=product.pk).status, Product.Status.CONSUMED
         )
 
-    def test_live_tab_excludes_consumed_product(self):
+    def test_live_stock_excludes_consumed_product(self):
         product = self._make_moved_product()
         self._consume(product)
 

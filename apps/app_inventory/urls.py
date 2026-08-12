@@ -12,6 +12,11 @@ urlpatterns = [
         name="stock_detail",
     ),
     path(
+        "entity/<int:entity_pk>/stock/history/",
+        views.stock_history,
+        name="stock_history",
+    ),
+    path(
         "entity/<int:entity_pk>/stock/consume/",
         views.quick_consume,
         name="quick_consume",

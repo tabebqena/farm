@@ -26,7 +26,8 @@ def stock_detail(request, entity_pk):
     from datetime import date
     from decimal import Decimal
 
-    from django.db.models import Case, DecimalField, F, Sum, Value, When
+    from django.core.paginator import Paginator
+    from django.db.models import Case, DecimalField, F, Q, Sum, Value, When
 
     from apps.app_entity.models import Entity
     from apps.app_inventory.models import (
@@ -39,8 +40,6 @@ def stock_detail(request, entity_pk):
         Entity, pk=entity_pk, error_message="Entity not found or has been deleted."
     )
 
-    active_tab = request.GET.get("tab", "live")
-
     # ------------------------------------------------------------------
     # 1. All products belonging to this entity with movement lines
     # ------------------------------------------------------------------
@@ -50,6 +49,14 @@ def stock_detail(request, entity_pk):
         .prefetch_related("invoice_items__operation", "movement_lines")
         .order_by("product_template__nature", "product_template__name", "pk")
     )
+
+    # Search: template name or unique tag
+    search_query = request.GET.get("q", "").strip()
+    if search_query:
+        base_qs = base_qs.filter(
+            Q(product_template__name__icontains=search_query)
+            | Q(unique_id__icontains=search_query)
+        )
 
     # Annotate with net movement quantity (incoming - outgoing)
     incoming_ops = [OperationType.PURCHASE, OperationType.BIRTH]
@@ -80,128 +87,211 @@ def stock_detail(request, entity_pk):
                 output_field=DecimalField(max_digits=10, decimal_places=2),
             )
         ),
-    )
-
-    # Derive net quantity (incoming - outgoing) for tab filtering.
-    # Tab filtering also checks movement line types in Python (below) to
-    # determine which exit category a product belongs to.
-    products_with_qty = products_with_qty.annotate(
         net_qty=F("incoming") - F("outgoing"),
     )
 
-    # Filter by active tab
-    if active_tab == "live":
-        products = [
-            p for p in products_with_qty if (p.incoming or 0) - (p.outgoing or 0) > 0
-        ]
-    elif active_tab == "dead":
-        products = [
-            p
-            for p in products_with_qty
-            if (p.incoming or 0) - (p.outgoing or 0) <= 0
-            and p.movement_lines.filter(
-                operation__operation_type=OperationType.DEATH,
-                reversal_of__isnull=True,
-            ).exists()
-        ]
-    elif active_tab == "consumed":
-        products = [
-            p
-            for p in products_with_qty
-            if (p.incoming or 0) - (p.outgoing or 0) <= 0
-            and p.movement_lines.filter(
-                operation__operation_type=OperationType.CONSUMPTION,
-                reversal_of__isnull=True,
-            ).exists()
-        ]
-    elif active_tab == "sold":
-        products = [
-            p
-            for p in products_with_qty
-            if (p.incoming or 0) - (p.outgoing or 0) <= 0
-            and p.movement_lines.filter(
-                operation__operation_type=OperationType.SALE,
-                reversal_of__isnull=True,
-            ).exists()
-        ]
-    else:
-        products = list(products_with_qty)
-
     # ------------------------------------------------------------------
-    # 2. Pending items (contracts not yet fully moved) — ledger-based
+    # 2. Physically present products (ledger-based, per-product cards)
     # ------------------------------------------------------------------
-    pending = ProductLedgerEntry.pending_items(entity=entity, as_of=date.today())
-    pending_inbound = [p for p in pending if p["pending_qty"] > 0]
-    pending_outbound = [p for p in pending if p["pending_qty"] < 0]
-
-    # ------------------------------------------------------------------
-    # 3. Summary calculations — ledger-based (issuance − movement)
-    # ------------------------------------------------------------------
-    from collections import defaultdict
-
+    # portfolio_as_of() returns one row per physically present product,
+    # counting only MOVEMENT_TYPES entries with a positive net quantity.
     portfolio = ProductLedgerEntry.portfolio_as_of(entity, date.today())
-    physically_present_qty = sum(item["quantity"] for item in portfolio)
+    portfolio_by_product = {row["product_id"]: row for row in portfolio}
+    present_product_ids = list(portfolio_by_product.keys())
 
-    # Aggregate obligated quantities directly from the ledger.
-    # pending_items() returns positive = inbound, negative = outbound.
-    obligated_inbound_qty = Decimal("0.00")
-    obligated_outbound_qty = Decimal("0.00")
-    inbound_by_tmpl_name: dict[str, Decimal] = defaultdict(Decimal)
-    outbound_by_tmpl_name: dict[str, Decimal] = defaultdict(Decimal)
+    if present_product_ids:
+        # Physically present = ledger portfolio AND a positive net movement.
+        # The net_qty guard is movement-line based (reversal-aware), so a
+        # product whose only movement was a now-reversed birth no longer
+        # counts as physically present.
+        products_qs = products_with_qty.filter(
+            pk__in=present_product_ids,
+            net_qty__gt=0,
+        )
+    else:
+        products_qs = products_with_qty.none()
 
-    for p in pending:
-        name = p["product_template__name"]
-        if p["pending_qty"] > 0:
-            obligated_inbound_qty += p["pending_qty"]
-            inbound_by_tmpl_name[name] += p["pending_qty"]
-        else:
-            outbound_qty = abs(p["pending_qty"])
-            obligated_outbound_qty += outbound_qty
-            outbound_by_tmpl_name[name] += outbound_qty
-
-    # ------------------------------------------------------------------
-    # 4. Per-template summary cards
-    # ------------------------------------------------------------------
-    assigned_templates = entity.product_templates.all().order_by("nature", "name")
-
-    # Build product_id → template_id mapping from the base queryset
-    product_tmpl_map = {p.pk: p.product_template_id for p in products_with_qty}
-
-    # Group portfolio quantities by template
-    physically_present_by_tmpl: dict[int, Decimal] = defaultdict(Decimal)
-    for p_item in portfolio:
-        tmpl_id = product_tmpl_map.get(p_item["product_id"])
-        if tmpl_id:
-            physically_present_by_tmpl[tmpl_id] += p_item["quantity"]
-
-    # Build per-template summary list (match by template name for obligations)
-    templates_summary = []
-    for tmpl in assigned_templates:
-        present = physically_present_by_tmpl.get(tmpl.pk, Decimal("0.00"))
-        inbound = inbound_by_tmpl_name.get(tmpl.name, Decimal("0.00"))
-        outbound = outbound_by_tmpl_name.get(tmpl.name, Decimal("0.00"))
-        templates_summary.append(
+    # Build one dict per physically present product for the per-product cards.
+    physically_present_products = []
+    for p in products_qs:
+        row = portfolio_by_product[p.pk]
+        physically_present_products.append(
             {
-                "template": tmpl,
-                "physically_present_qty": present,
-                "obligated_inbound_qty": inbound,
-                "obligated_outbound_qty": outbound,
+                "product": p,
+                "quantity": row["quantity"],
+                "value": row["value"],
+                "is_animal": p.product_template.nature == ProductTemplate.Nature.ANIMAL,
             }
         )
+
+    # ------------------------------------------------------------------
+    # 3. Obligated outbound — aggregate warning only (not per-card metric)
+    # ------------------------------------------------------------------
+    pending = ProductLedgerEntry.pending_items(entity=entity, as_of=date.today())
+    obligated_outbound_qty = sum(
+        abs(p["pending_qty"]) for p in pending if p["pending_qty"] < 0
+    )
+
+    # ------------------------------------------------------------------
+    # 4. Pagination (live physically present products table)
+    # ------------------------------------------------------------------
+    paginator = Paginator(products_qs, 25)
+    page_obj = paginator.get_page(request.GET.get("page"))
 
     return render(
         request,
         "app_inventory/stock_detail.html",
         {
             "entity": entity,
-            "active_tab": active_tab,
-            "products": products,
-            "physically_present_qty": physically_present_qty,
-            "obligated_inbound_qty": obligated_inbound_qty,
+            "physically_present_products": physically_present_products,
             "obligated_outbound_qty": obligated_outbound_qty,
+            "products": page_obj.object_list,
+            "page_obj": page_obj,
+            "paginator": paginator,
+            "search_query": search_query,
+        },
+    )
+
+
+def stock_history(request, entity_pk):
+    from datetime import date
+
+    from django.core.paginator import Paginator
+    from django.db.models import Q
+    from django.utils.dateparse import parse_date
+
+    from apps.app_entity.models import Entity
+    from apps.app_inventory.models import InventoryMovementLine, ProductLedgerEntry
+    from apps.app_operation.models.operation_type import OperationType
+
+    entity = get_object_or_404(
+        Entity, pk=entity_pk, error_message="Entity not found or has been deleted."
+    )
+
+    inbound_ops = [OperationType.PURCHASE, OperationType.BIRTH]
+    outbound_ops = [OperationType.SALE, OperationType.DEATH, OperationType.CONSUMPTION]
+
+    movements = (
+        InventoryMovementLine.objects.filter(product__entity=entity)
+        .select_related(
+            "operation",
+            "operation__source",
+            "operation__destination",
+            "product",
+            "product__product_template",
+            "invoice_item",
+            "officer",
+            "reversal_of",
+            "reversal_of__operation",
+        )
+        .order_by("-date", "-created_at")
+    )
+
+    # ------------------------------------------------------------------
+    # Filters (direction / op-type / search / date range)
+    # ------------------------------------------------------------------
+    active_direction = request.GET.get("direction", "all")
+    active_op_type = request.GET.get("op_type", "")
+    search_query = request.GET.get("q", "").strip()
+    from_date = request.GET.get("from", "").strip()
+    to_date = request.GET.get("to", "").strip()
+
+    if active_direction == "in":
+        movements = movements.filter(
+            Q(operation__operation_type__in=inbound_ops, reversal_of__isnull=True)
+            | Q(reversal_of__operation__operation_type__in=outbound_ops)
+        )
+    elif active_direction == "out":
+        movements = movements.filter(
+            Q(operation__operation_type__in=outbound_ops, reversal_of__isnull=True)
+            | Q(reversal_of__operation__operation_type__in=inbound_ops)
+        )
+
+    if active_op_type:
+        movements = movements.filter(operation__operation_type=active_op_type)
+
+    if search_query:
+        movements = movements.filter(
+            Q(product__unique_id__icontains=search_query)
+            | Q(product__product_template__name__icontains=search_query)
+        )
+
+    parsed_from = parse_date(from_date) if from_date else None
+    if parsed_from:
+        movements = movements.filter(date__gte=parsed_from)
+    parsed_to = parse_date(to_date) if to_date else None
+    if parsed_to:
+        movements = movements.filter(date__lte=parsed_to)
+
+    # ------------------------------------------------------------------
+    # Summary counts (IN / OUT) over the filtered queryset
+    # ------------------------------------------------------------------
+    in_q = (
+        Q(operation__operation_type__in=inbound_ops, reversal_of__isnull=True)
+        | Q(reversal_of__operation__operation_type__in=outbound_ops)
+    )
+    out_q = (
+        Q(operation__operation_type__in=outbound_ops, reversal_of__isnull=True)
+        | Q(reversal_of__operation__operation_type__in=inbound_ops)
+    )
+    inbound_count = movements.filter(in_q).count()
+    outbound_count = movements.filter(out_q).count()
+
+    # Attach a per-row direction label for display. A line is IN when it is a
+    # forward PURCHASE/BIRTH (or a reversal of an OUT op); otherwise OUT.
+    movement_rows = [
+        {
+            "line": line,
+            "direction": (
+                "OUT"
+                if (
+                    line.reversal_of_id is None
+                    and line.operation.operation_type in outbound_ops
+                )
+                or (
+                    line.reversal_of_id is not None
+                    and line.reversal_of.operation.operation_type in inbound_ops
+                )
+                else "IN"
+            ),
+        }
+        for line in movements
+    ]
+
+    paginator = Paginator(movement_rows, 25)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    # Pending inbound / outbound obligations (moved from stock detail)
+    pending = ProductLedgerEntry.pending_items(entity=entity, as_of=date.today())
+    pending_inbound = [p for p in pending if p["pending_qty"] > 0]
+    pending_outbound = [p for p in pending if p["pending_qty"] < 0]
+
+    op_type_choices = [
+        (OperationType.PURCHASE.value, OperationType.PURCHASE.label),
+        (OperationType.BIRTH.value, OperationType.BIRTH.label),
+        (OperationType.SALE.value, OperationType.SALE.label),
+        (OperationType.DEATH.value, OperationType.DEATH.label),
+        (OperationType.CONSUMPTION.value, OperationType.CONSUMPTION.label),
+    ]
+
+    return render(
+        request,
+        "app_inventory/stock_history.html",
+        {
+            "entity": entity,
+            "movements": page_obj.object_list,
+            "page_obj": page_obj,
+            "paginator": paginator,
+            "active_direction": active_direction,
+            "active_op_type": active_op_type,
+            "search_query": search_query,
+            "from_date": from_date,
+            "to_date": to_date,
+            "op_type_choices": op_type_choices,
+            "inbound_count": inbound_count,
+            "outbound_count": outbound_count,
             "pending_inbound_items": pending_inbound,
             "pending_outbound_items": pending_outbound,
-            "templates_summary": templates_summary,
         },
     )
 
