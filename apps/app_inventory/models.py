@@ -1017,6 +1017,7 @@ class Product(AmountCleanMixin, BaseModel):
         SOLD = "SOLD", _("Sold")
         DEAD = "DEAD", _("Dead")
         CONSUMED = "CONSUMED", _("Consumed")
+        REMOVED = "REMOVED", _("Removed")
 
     entity = models.ForeignKey(
         "app_entity.Entity",
@@ -1121,6 +1122,15 @@ class Product(AmountCleanMixin, BaseModel):
         )
 
         if last_op is None:
+            # A product whose only entry into stock was a BIRTH that has since
+            # been reversed no longer belongs in stock → REMOVED. Any other
+            # non-reversed status-changing operation keeps its precedence (e.g.
+            # a born-then-sold animal stays SOLD even if the birth is reversed).
+            if self.invoice_items.filter(
+                operation__operation_type=OperationType.BIRTH,
+                operation__reversed_by__isnull=False,
+            ).exists():
+                return self.Status.REMOVED
             return self.Status.ACTIVE
         return TYPE_TO_STATUS[last_op]
 
@@ -1156,8 +1166,8 @@ class Product(AmountCleanMixin, BaseModel):
         """
         Raise ValidationError if product can't participate in operations.
 
-        SOLD/DEAD/CONSUMED products are forbidden in normal operations, but
-        allowed in:
+        SOLD/DEAD/CONSUMED/REMOVED products are forbidden in normal operations,
+        but allowed in:
         - Reversals (allow_reversal=True): undoing a sale, death or consumption
         - Adjustments (allow_adjustment=True): correcting records
 
@@ -1168,7 +1178,12 @@ class Product(AmountCleanMixin, BaseModel):
         - Reversals (allow_reversal=True)
         """
         status = self.status
-        if status in (self.Status.SOLD, self.Status.DEAD, self.Status.CONSUMED):
+        if status in (
+            self.Status.SOLD,
+            self.Status.DEAD,
+            self.Status.CONSUMED,
+            self.Status.REMOVED,
+        ):
             if allow_reversal or allow_adjustment:
                 return
             raise ValidationError(
@@ -1479,19 +1494,11 @@ class InventoryMovementLine(ImmutableMixin, BaseModel):
         """
         The entity whose physical inventory this movement line reduces.
 
-        Returns None for inbound operations (PURCHASE/BIRTH) and for
-        non-inventory operations, where no ownership constraint applies.
+        Delegates to the operation's canonical ``inventory_owner_entity`` so the
+        ownership mapping lives in one place. Returns None for inbound
+        (PURCHASE/BIRTH) and non-inventory operations.
         """
-        from apps.app_operation.models.operation_type import OperationType
-
-        ot = self.operation.operation_type
-        if ot == OperationType.SALE:
-            # The selling project is the destination (source is the client).
-            return self.operation.destination
-        if ot in (OperationType.DEATH, OperationType.CONSUMPTION):
-            # The project whose assets are written off is the source.
-            return self.operation.source
-        return None
+        return self.operation.inventory_owner_entity
 
     def _validate_availability(self):
         """
@@ -1628,9 +1635,12 @@ class InventoryMovementLine(ImmutableMixin, BaseModel):
         # the birth flow so a lazily-created newborn carries its sex, birth date
         # and mother link.
         if is_new and self.product_id is None and self.invoice_item_id is not None:
+            # The owning entity is the project — for PURCHASE that is the source,
+            # for BIRTH the destination (its source is the System entity).
+            receiving_entity = self.operation.inventory_receiving_entity
             products = InvoiceItem.create_products_for_item(
                 invoice_item=self.invoice_item,
-                entity=self.operation.source,  # project entity
+                entity=receiving_entity or self.operation.source,
                 quantity=self.quantity,
                 unit_price=self.invoice_item.unit_price,
                 unique_id=getattr(self, "_lazy_unique_id", None) or None,

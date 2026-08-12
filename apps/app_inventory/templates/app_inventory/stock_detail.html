@@ -161,6 +161,8 @@
                           <span class="badge bg-secondary">{{ product.get_status_display|default:status }}</span>
                         {% elif status == 'CONSUMED' %}
                           <span class="badge bg-warning text-dark">{{ product.get_status_display|default:status }}</span>
+                        {% elif status == 'REMOVED' %}
+                          <span class="badge bg-dark">{{ product.get_status_display|default:status }}</span>
                         {% else %}
                           <span class="badge bg-danger">{{ product.get_status_display|default:status }}</span>
                         {% endif %}

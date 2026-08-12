@@ -61,6 +61,7 @@ def stock_detail(request, entity_pk):
                 When(
                     movement_lines__operation__operation_type__in=incoming_ops,
                     movement_lines__reversal_of__isnull=True,
+                    movement_lines__reversed_by__isnull=True,
                     then=F("movement_lines__quantity"),
                 ),
                 default=Value(Decimal("0.00")),
@@ -72,6 +73,7 @@ def stock_detail(request, entity_pk):
                 When(
                     movement_lines__operation__operation_type__in=outgoing_ops,
                     movement_lines__reversal_of__isnull=True,
+                    movement_lines__reversed_by__isnull=True,
                     then=F("movement_lines__quantity"),
                 ),
                 default=Value(Decimal("0.00")),

@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from django import forms
 from django.contrib import messages
+from django.core.exceptions import ValidationError
 from django.db import transaction as db_transaction
 from django.shortcuts import redirect, render
 from django.utils import timezone
@@ -45,8 +46,11 @@ class EvaluationForm(forms.Form):
     def __init__(self, *args, project=None, **kwargs):
         super().__init__(*args, **kwargs)
         if project:
+            # Ownership-restricted: only products physically owned by the project
+            # can be evaluated (avoids recording a gain/loss on another entity's
+            # asset just because its template is assigned here).
             self.fields["product"].queryset = (
-                Product.objects.filter(product_template__entities=project)
+                Product.objects.filter(entity=project)
                 .select_related("product_template")
                 .order_by("product_template__name", "pk")
             )
@@ -186,6 +190,17 @@ class EvaluationCreateView(OperationCreateView):
                             "amount": str(amount),
                         },
                     ):
+                        # Ownership guard (defense-in-depth — the form queryset
+                        # already restricts choices to entity=project): never
+                        # record a gain/loss on another entity's asset.
+                        if product.entity_id != self.project.id:
+                            raise ValidationError(
+                                _(
+                                    "Product '%(p)s' does not belong to '%(entity)s' "
+                                    "and cannot be evaluated."
+                                )
+                                % {"p": product, "entity": self.project}
+                            )
                         op = self._create_operation(amount, date, description)
                         item = InvoiceItem.objects.create(
                             operation=op,

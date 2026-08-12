@@ -145,6 +145,24 @@ class Operation(
             return self.destination
         return None
 
+    @property
+    def inventory_receiving_entity(self):
+        """
+        The entity whose physical inventory receives the products created by
+        this operation's inbound movements (PURCHASE / BIRTH).
+
+        PURCHASE: the project is the source; BIRTH: the project is the
+        destination (the source is the System entity). Returns None for
+        non-inbound operations.
+        """
+        from .operation_type import OperationType
+
+        if self.operation_type == OperationType.BIRTH:
+            return self.destination
+        if self.operation_type == OperationType.PURCHASE:
+            return self.source
+        return None
+
     # ------------------------------------------------------------------
     # Eligibility helpers
     # ------------------------------------------------------------------
