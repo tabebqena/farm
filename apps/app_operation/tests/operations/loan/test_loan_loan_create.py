@@ -104,11 +104,16 @@ class LoanCreateTest(TestCase):
         tx = op.get_all_transactions().get(type=TransactionType.LOAN_ISSUANCE)
         self.assertEqual(tx.amount, Decimal("750.00"))
 
-    def test_amount_remaining_to_repay_equals_issuance_amount_initially(self):
+    def test_amount_remaining_to_repay_is_zero_without_disbursement(self):
+        """An undisbursed loan has nothing repayable yet.
+
+        Repayments are capped by the disbursed (payment) amount, so without any
+        LOAN_PAYMENT the remaining-to-repay is zero.
+        """
         op = self._make_op(amount=Decimal("1000.00"))
         op.save()
 
-        self.assertEqual(op.amount_remaining_to_repay, Decimal("1000.00"))
+        self.assertEqual(op.amount_remaining_to_repay, Decimal("0.00"))
 
     def test_creditor_property(self):
         op = self._make_op()

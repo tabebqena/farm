@@ -19,7 +19,11 @@ from django.contrib.contenttypes.models import ContentType
 
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
 from apps.app_operation.models.operation_type import OperationType
-from apps.app_operation.models.proxies import PurchaseOperation, LoanOperation
+from apps.app_operation.models.proxies import (
+    CashInjectionOperation,
+    PurchaseOperation,
+    LoanOperation,
+)
 from apps.app_transaction.models import Transaction
 from apps.app_transaction.transaction_type import TransactionType
 
@@ -46,6 +50,17 @@ class RepaymentRecordingViewTest(TestCase):
         # For Loan: source is lender (giver), destination is borrower (receiver)
         self.lender = Entity.create(EntityType.PERSON, name="Lender", is_client=True)
         self.borrower = Entity.create(EntityType.PROJECT, name="Borrower")
+        # Seed the lender fund so a disbursement (LOAN_PAYMENT) can be recorded.
+        world = Entity.create(EntityType.WORLD)
+        CashInjectionOperation.objects.create(
+            source=world,
+            destination=self.lender,
+            officer=self.officer,
+            operation_type=OperationType.CASH_INJECTION,
+            amount=Decimal("5000.00"),
+            date=date.today(),
+            deletable=False,
+        )
 
         # Create a loan operation with outstanding repayment
         self.loan_operation = LoanOperation.objects.create(
@@ -56,6 +71,12 @@ class RepaymentRecordingViewTest(TestCase):
             date=date.today(),
             officer=self.officer,
             deletable=False,
+        )
+        # Disburse the full amount so repayments are backed by a LOAN_PAYMENT.
+        self.loan_operation.create_payment_transaction(
+            amount=Decimal("2000.00"),
+            officer=self.officer,
+            date=date.today(),
         )
 
     def test_valid_form_no_validation_errors(self):

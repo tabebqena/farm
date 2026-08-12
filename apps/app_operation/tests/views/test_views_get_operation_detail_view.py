@@ -223,6 +223,12 @@ class OperationDetailViewTest(TestCase):
             date=datetime.date.today(),
             deletable=False,
         )
+        # Disburse the full amount so repayments are backed by a LOAN_PAYMENT.
+        loan.create_payment_transaction(
+            amount=Decimal("1000.00"),
+            officer=self.officer,
+            date=datetime.date.today(),
+        )
         return loan, creditor
 
     def test_operation_detail_hides_record_repayment_when_fully_repayed(self):

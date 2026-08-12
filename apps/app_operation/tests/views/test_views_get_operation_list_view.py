@@ -137,6 +137,12 @@ class OperationListViewTest(TestCase):
             date=datetime.date.today(),
             deletable=False,
         )
+        # Disburse the full amount so the repayment is backed by a LOAN_PAYMENT.
+        loan.create_payment_transaction(
+            amount=Decimal("1000.00"),
+            officer=self.officer,
+            date=datetime.date.today(),
+        )
         loan.create_repayment_transaction(
             amount=Decimal("1000.00"),
             officer=self.officer,

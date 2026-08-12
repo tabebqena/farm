@@ -81,6 +81,27 @@ class LoanRepaymentTest(TestCase):
             officer=self.officer_user,
         )
         self.op.save()
+        # Disburse the full loan amount so repayments are backed by an actual
+        # LOAN_PAYMENT. Repayments may never exceed the disbursed total.
+        self.op.create_payment_transaction(
+            amount=Decimal("1000.00"),
+            officer=self.officer_user,
+            date=date.today(),
+        )
+
+    def _make_loan(self, amount=Decimal("1000.00")):
+        """Create a fresh loan (undisbursed) for cap/guard scenarios."""
+        op = LoanOperation(
+            source=self.creditor_entity,
+            destination=self.debtor_entity,
+            amount=amount,
+            operation_type=OperationType.LOAN,
+            date=date.today(),
+            description="Test loan",
+            officer=self.officer_user,
+        )
+        op.save()
+        return op
 
     # ------------------------------------------------------------------
     # Happy path
@@ -174,46 +195,83 @@ class LoanRepaymentTest(TestCase):
 
     def test_repayment_decreases_debtor_payables(self):
         """Repayment reduces the debtor's outstanding payable to the creditor."""
-        self.op.create_payment_transaction(
-            amount=Decimal("500.00"),
-            officer=self.officer_user,
-            date=date.today(),
-        )
+        # setUp already disbursed the full 1000 (payables = 1000).
         self.op.create_repayment_transaction(
             amount=Decimal("200.00"),
             officer=self.officer_user,
             date=date.today(),
         )
 
-        self.assertEqual(self.debtor_entity.payables, Decimal("300.00"))
+        self.assertEqual(self.debtor_entity.payables, Decimal("800.00"))
 
     def test_repayment_decreases_creditor_receivables(self):
         """Repayment reduces the creditor's outstanding receivable from the debtor."""
-        self.op.create_payment_transaction(
-            amount=Decimal("500.00"),
-            officer=self.officer_user,
-            date=date.today(),
-        )
+        # setUp already disbursed the full 1000 (receivables = 1000).
         self.op.create_repayment_transaction(
             amount=Decimal("200.00"),
             officer=self.officer_user,
             date=date.today(),
         )
 
-        self.assertEqual(self.creditor_entity.receivables, Decimal("300.00"))
+        self.assertEqual(self.creditor_entity.receivables, Decimal("800.00"))
 
-    def test_repayment_without_disbursement_drives_obligations_negative(self):
-        """Payables/receivables are net sums without clamping: a repayment with no
-        prior LOAN_PAYMENT drives the debtor payable / creditor receivable to the
-        negative of the repaid amount."""
-        self.op.create_repayment_transaction(
-            amount=Decimal("200.00"),
+    def test_repayment_blocked_when_no_disbursement(self):
+        """A loan with no LOAN_PAYMENT (disbursement) cannot be repaid.
+
+        The active repayment sum may never exceed the payment transaction sum.
+        """
+        op = self._make_loan(Decimal("1000.00"))
+        self.assertEqual(op.amount_remaining_to_repay, Decimal("0.00"))
+
+        with self.assertRaises(ValidationError):
+            op.create_repayment_transaction(
+                amount=Decimal("200.00"),
+                officer=self.officer_user,
+                date=date.today(),
+            )
+
+        # No repayment was recorded for the undisbursed loan.
+        self.assertEqual(
+            op.get_all_transactions()
+            .filter(type=TransactionType.LOAN_REPAYMENT)
+            .count(),
+            0,
+        )
+        self.assertEqual(op.amount_repayed, Decimal("0.00"))
+
+    def test_amount_remaining_to_repay_reflects_disbursed_cap(self):
+        """amount_remaining_to_repay is capped by the disbursed amount."""
+        op = self._make_loan(Decimal("1000.00"))
+        self.assertEqual(op.amount_remaining_to_repay, Decimal("0.00"))
+
+        op.create_payment_transaction(
+            amount=Decimal("400.00"),
             officer=self.officer_user,
             date=date.today(),
         )
+        self.assertEqual(op.amount_remaining_to_repay, Decimal("400.00"))
 
-        self.assertEqual(self.debtor_entity.payables, Decimal("-200.00"))
-        self.assertEqual(self.creditor_entity.receivables, Decimal("-200.00"))
+    def test_repayment_cannot_exceed_total_disbursed(self):
+        """Repayment is capped by the total disbursed, not the loan agreement."""
+        op = self._make_loan(Decimal("1000.00"))
+        op.create_payment_transaction(
+            amount=Decimal("400.00"),
+            officer=self.officer_user,
+            date=date.today(),
+        )
+        op.create_repayment_transaction(
+            amount=Decimal("400.00"),
+            officer=self.officer_user,
+            date=date.today(),
+        )
+        self.assertEqual(op.amount_remaining_to_repay, Decimal("0.00"))
+
+        with self.assertRaises(ValidationError):
+            op.create_repayment_transaction(
+                amount=Decimal("100.00"),
+                officer=self.officer_user,
+                date=date.today(),
+            )
 
     # ------------------------------------------------------------------
     # Differential invariant — repay then reverse the repayment returns to

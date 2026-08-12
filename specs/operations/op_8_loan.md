@@ -37,6 +37,9 @@
 **Validation:**
 - Amount > 0 and ≤ remaining
 - Over-repayment guard
+- Remaining is capped by the disbursed amount: active repayments can never
+  exceed the total `LOAN_PAYMENT` sum. A loan with **no** disbursement is not
+  repayable (`amount_remaining_to_repay` = 0).
 
 **Success effects:**
 - `LOAN_REPAYMENT` (`debtor.fund → creditor.fund`)
@@ -61,8 +64,11 @@ Tasks:
 - [x] Verify immutability of `source`, `destination`, `amount` after save
 - [x] Verify repayment view creates transaction in correct direction: `destination.fund → source.fund` (debtor → creditor)
 - [x] Verify repayment transaction type is `LOAN_REPAYMENT`
-- [x] Verify `amount_remaining_to_repay` property: `issuance_amount - sum(repayments)`
+- [x] Verify `amount_remaining_to_repay` property: capped by the disbursed amount
+  (`min(issuance_amount, sum(LOAN_PAYMENT)) - sum(repayments)`)
 - [x] Verify repayment cannot exceed remaining balance (`amount_remaining_to_repay`)
+- [x] Verify repayment is blocked when no disbursement (`LOAN_PAYMENT`) exists
+- [x] Verify repayment cannot exceed the total disbursed amount (payment sum)
 - [x] Verify creditor fund decreases after payment disbursement
 - [x] Verify debtor fund increases after payment disbursement
 - [x] Verify multiple payment disbursements allowed

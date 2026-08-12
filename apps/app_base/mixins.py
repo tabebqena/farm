@@ -478,6 +478,18 @@ class LinkedRePaymentTransactionMixin(
         return getattr(self, self._amount_field_name, Decimal("0.00"))
 
     @property
+    def repayable_amount(self):
+        """
+        Maximum total that may be repaid: the lesser of the operation total and
+        the net amount actually disbursed (the payment transaction sum). This
+        enforces the rule that repayments recover only what was really paid out,
+        so a loan with no disbursement is not repayable.
+        """
+        if hasattr(self, "amount_settled"):
+            return min(self.total_repayable_amount, self.amount_settled)
+        return self.total_repayable_amount
+
+    @property
     def amount_repayed(self):
         # Net-of-reversal approach (mirrors amount_settled): sum money flowing
         # into the source fund (repayments) minus money flowing back out of it
@@ -498,15 +510,15 @@ class LinkedRePaymentTransactionMixin(
 
     @property
     def amount_remaining_to_repay(self):
-        return self.total_repayable_amount - self.amount_repayed
+        return self.repayable_amount - self.amount_repayed
 
     @property
     def is_fully_repayed(self) -> bool:
-        return self.amount_repayed >= self.total_repayable_amount
+        return self.amount_repayed >= self.repayable_amount
 
     @property
     def is_overpaid_repayed(self) -> bool:
-        return self.amount_repayed > self.total_repayable_amount
+        return self.amount_repayed > self.repayable_amount
 
     def validate_repayement_amount(self, amount_to_pay: Decimal):
         if amount_to_pay <= 0:

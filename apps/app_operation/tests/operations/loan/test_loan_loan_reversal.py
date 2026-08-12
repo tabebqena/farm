@@ -170,6 +170,13 @@ class LoanReversalTest(TestCase):
             self.op.reverse(officer=self.officer_user)
 
     def test_reversal_blocked_when_repayment_exists(self):
+        # Repayments require a disbursement; the outstanding LOAN_PAYMENT (and
+        # the repayment) prevent the loan from being reversed.
+        self.op.create_payment_transaction(
+            amount=Decimal("500.00"),
+            officer=self.officer_user,
+            date=date.today(),
+        )
         self.op.create_repayment_transaction(
             amount=Decimal("500.00"),
             officer=self.officer_user,
@@ -179,8 +186,15 @@ class LoanReversalTest(TestCase):
         with self.assertRaises(ValidationError):
             self.op.reverse(officer=self.officer_user)
 
-    def test_reversal_allowed_when_repayment_is_reversed(self):
-        """A reversed (counter) repayment does not block the operation reversal."""
+    def test_reversal_still_blocked_after_repayment_reversed(self):
+        """Reversing the repayment unblocks the repayment itself, but the
+        outstanding disbursement (LOAN_PAYMENT) still blocks the operation
+        reversal."""
+        self.op.create_payment_transaction(
+            amount=Decimal("500.00"),
+            officer=self.officer_user,
+            date=date.today(),
+        )
         repayment = self.op.create_repayment_transaction(
             amount=Decimal("500.00"),
             officer=self.officer_user,
@@ -188,8 +202,8 @@ class LoanReversalTest(TestCase):
         )
         repayment.reverse(officer=self.officer_user)
 
-        reversal = self.op.reverse(officer=self.officer_user)
-        self.assertIsNotNone(reversal.pk)
+        with self.assertRaises(ValidationError):
+            self.op.reverse(officer=self.officer_user)
 
     # ------------------------------------------------------------------
     # Constraints

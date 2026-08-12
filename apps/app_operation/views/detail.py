@@ -123,7 +123,7 @@ def operation_detail_view(request, pk):
         )
 
         over_repayment_amount = float(
-            operation.amount_repayed - operation.total_repayable_amount
+            operation.amount_repayed - operation.repayable_amount
             if operation.is_overpaid_repayed
             else Decimal("0.00")
         )

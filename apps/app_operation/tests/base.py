@@ -516,7 +516,7 @@ COVERAGE_MANIFEST: dict[tuple[str, str, str], str] = {
         "LoanCreateTest", "test_creates_issuance_transaction_on_save"),
     ("LOAN", "create", "SE8"): _path(
         f"{_OPS_TESTS}.loan.test_loan_loan_create",
-        "LoanCreateTest", "test_amount_remaining_to_repay_equals_issuance_amount_initially"),
+        "LoanCreateTest", "test_amount_remaining_to_repay_is_zero_without_disbursement"),
     ("LOAN", "pay", "SE2"): _path(
         f"{_OPS_TESTS}.loan.test_loan_loan_disbursement",
         "LoanDisbursementTest", "test_payment_creates_loan_payment_transaction"),
@@ -535,9 +535,9 @@ COVERAGE_MANIFEST: dict[tuple[str, str, str], str] = {
     ("LOAN", "repay", "SE4"): _path(
         f"{_OPS_TESTS}.loan.test_loan_loan_repayment",
         "LoanRepaymentTest", "test_repayment_decreases_debtor_payables"),
-    ("LOAN", "repay", "SE4+no_disbursement_negative"): _path(
+    ("LOAN", "repay", "SE4+no_disbursement_blocked"): _path(
         f"{_OPS_TESTS}.loan.test_loan_loan_repayment",
-        "LoanRepaymentTest", "test_repayment_without_disbursement_drives_obligations_negative"),
+        "LoanRepaymentTest", "test_repayment_blocked_when_no_disbursement"),
     ("LOAN", "repay", "SE8"): _path(
         f"{_OPS_TESTS}.loan.test_loan_loan_repayment",
         "LoanRepaymentTest", "test_amount_remaining_to_repay_decreases_after_repayment"),
