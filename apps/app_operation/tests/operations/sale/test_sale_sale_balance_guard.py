@@ -85,7 +85,8 @@ def _make_client_stakeholder(project_entity, client_entity, active=True):
 
 class SaleBalanceGuardTest(TestCase):
     """
-    Tests that check_balance_on_payment=True on SaleOperation is enforced.
+    Tests that check_balance_on_payment=True on SaleOperation is enforced
+    for internal client funds and skipped for external client funds.
 
     The client fund balance is seeded below the sale amount so the
     over-collection guard never fires; only the fund-balance check matters.
@@ -126,10 +127,27 @@ class SaleBalanceGuardTest(TestCase):
         """Balance is checked before each collection transaction is created."""
         self.assertTrue(SaleOperation.check_balance_on_payment)
 
-    def test_collection_blocked_when_client_fund_has_insufficient_balance(self):
-        """check_balance_on_payment=True: collection is rejected when the client
-        fund balance is below the requested payment amount, even though the
-        remaining-to-settle allows it."""
+    def test_collection_allowed_when_external_client_fund_has_insufficient_balance(
+        self,
+    ):
+        """An external client's fund is exempt from the balance check: collection
+        is allowed even when the client fund balance is below the requested amount
+        (external counterparties are not balance-checked)."""
+        self.op.create_payment_transaction(
+            amount=Decimal("600.00"),
+            officer=self.officer,
+            date=date.today(),
+        )
+        self.client_entity.refresh_from_db()
+        self.assertEqual(self.client_entity.balance, Decimal("-400.00"))
+
+    def test_collection_blocked_when_internal_client_fund_has_insufficient_balance(
+        self,
+    ):
+        """An internal client's fund IS balance-checked: collection is rejected
+        when the fund balance is below the requested payment amount."""
+        self.client_entity.is_internal = True
+        self.client_entity.save()
         with self.assertRaises(ValidationError):
             self.op.create_payment_transaction(
                 amount=Decimal("600.00"),

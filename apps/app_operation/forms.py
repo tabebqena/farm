@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django import forms
+from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 
 from apps.app_base.form_logging import LoggingFormMixin
@@ -35,7 +36,10 @@ class PurchaseWizardStep1Form(LoggingFormMixin, forms.Form):
                 role=StakeholderRole.VENDOR,
                 active=True,
             ).values_list("target_id", flat=True)
-            self.fields["vendor"].queryset = Entity.objects.filter(pk__in=vendor_ids)
+            # Internal entities cannot be vendors — purchases are external-only.
+            self.fields["vendor"].queryset = Entity.objects.filter(
+                pk__in=vendor_ids
+            ).exclude(is_internal=True)
 
 
 class PurchaseWizardStep2Form(LoggingFormMixin, forms.Form):
@@ -260,9 +264,11 @@ class SaleWizardStep3Form(LoggingFormMixin, forms.Form):
 
 
 class SaleItemForm(LoggingFormMixin, forms.Form):
-    """Form for adding or editing a single invoice item in the sale invoice view."""
+    """Form for adding/editing a sale invoice item — selects an EXISTING product
+    from the seller's stock. The sale affects that product (a SALE_MOVEMENT line
+    reduces its presence / marks it SOLD); no new product is minted."""
 
-    product_template_id = forms.IntegerField(widget=forms.HiddenInput)
+    product_id = forms.IntegerField(widget=forms.HiddenInput)
 
     description = forms.CharField(
         label=_("Description"),
@@ -300,64 +306,63 @@ class SaleItemForm(LoggingFormMixin, forms.Form):
         ),
     )
 
-    unique_id = forms.CharField(
-        label=_("Tag / ID"),
-        required=False,
-        widget=forms.TextInput(
-            attrs={"class": "form-control", "placeholder": _("Tag / ID")}
-        ),
-    )
-
-    delivered_qty = forms.DecimalField(
-        label=_("Delivered Qty"),
-        min_value=Decimal("0"),
-        decimal_places=2,
-        max_digits=10,
-        required=False,
-        initial=Decimal("0"),
-        help_text=_("Quantity physically delivered (0 = none yet)"),
-        widget=forms.NumberInput(
-            attrs={
-                "class": "form-control amount-input",
-                "step": "0.01",
-                "inputmode": "decimal",
-            }
-        ),
-    )
-
-    def __init__(self, *args, template=None, entity=None, **kwargs):
+    def __init__(self, *args, product=None, entity=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self._template = template
+        self._product = product
         self._entity = entity
-        if template:
-            step = str(template.minimum_quantity)
+        if product is not None:
+            step = str(product.product_template.minimum_quantity)
             self.fields["quantity"].widget.attrs["step"] = step
-            self.fields["delivered_qty"].widget.attrs["step"] = step
 
     def clean(self):
-        from apps.app_inventory.models import ProductTemplate
+        from datetime import date
+
+        from apps.app_inventory.models import Product
+        from apps.app_inventory.stock import movement_state
 
         cleaned: dict = super().clean() or {}
-        template = self._template
 
-        # Individual tracking: auto-suggest a unique tag when left blank.
-        if (
-            template
-            and template.tracking_mode == ProductTemplate.TrackingMode.INDIVIDUAL
-        ):
-            uid = (cleaned.get("unique_id") or "").strip()
-            if not uid and self._entity is not None:
-                uid = template.next_tag(self._entity)
-                cleaned["unique_id"] = uid
-
-        delivered: Decimal = cleaned.get("delivered_qty") or Decimal("0")
-        qty: Decimal = cleaned.get("quantity") or Decimal("0")
-        if delivered > qty:
+        # Resolve the product being sold (passed in by the view, but re-validated
+        # here so a crafted request cannot bypass ownership/availability).
+        product = self._product
+        if product is None:
+            product_id = cleaned.get("product_id")
+            if product_id:
+                product = Product.objects.filter(pk=product_id).first()
+        if product is None:
             self.add_error(
-                "delivered_qty", _("Delivered quantity cannot exceed ordered quantity.")
+                "product_id", _("Please choose a product from your stock.")
+            )
+            return cleaned
+
+        # Ownership: the product must belong to the selling project.
+        if self._entity is not None and product.entity_id != self._entity.id:
+            self.add_error(
+                "product_id",
+                _("Product does not belong to this project and cannot be sold."),
+            )
+            return cleaned
+
+        # Status: cannot sell a product that is already SOLD/DEAD/CONSUMED.
+        try:
+            product.validate_active()
+        except ValidationError as e:
+            self.add_error(
+                "product_id", e.messages[0] if e.messages else str(e)
+            )
+            return cleaned
+
+        # Availability: cannot sell more than the physically-present on-hand.
+        qty: Decimal = cleaned.get("quantity") or Decimal("0")
+        available = movement_state(product, as_of=date.today())["quantity"]
+        if qty > available:
+            self.add_error(
+                "quantity",
+                _("Only %(avail)s available in stock.") % {"avail": available},
             )
 
-        cleaned["delivered_qty"] = delivered
+        cleaned["product"] = product
+        cleaned["available"] = available
         return cleaned
 
 

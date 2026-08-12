@@ -27,33 +27,31 @@
         </a>
     </div>
 
-    <!-- Product template info card -->
+    <!-- Selected product info card -->
     <div class="card mb-4 border-primary">
         <div class="card-header bg-primary text-white">
-            <strong>{{ template.name }}</strong>
-            {% if template.name_ar %}
-                <span class="ms-2 opacity-75" dir="rtl">{{ template.name_ar }}</span>
+            <strong>{{ product.product_template.name }}</strong>
+            {% if product.unique_id %}
+                <span class="ms-2 font-monospace opacity-75">{{ product.unique_id }}</span>
             {% endif %}
         </div>
         <div class="card-body d-flex flex-wrap gap-4">
             <div>
                 <small class="text-muted d-block">{% trans "Nature" %}</small>
-                <span class="badge bg-secondary">{{ template.get_nature_display }}</span>
+                <span class="badge bg-secondary">{{ product.product_template.get_nature_display }}</span>
             </div>
             <div>
                 <small class="text-muted d-block">{% trans "Tracking" %}</small>
-                <span class="badge bg-light text-dark border">{{ template.get_tracking_mode_display }}</span>
+                <span class="badge bg-light text-dark border">{{ product.product_template.get_tracking_mode_display }}</span>
             </div>
             <div>
                 <small class="text-muted d-block">{% trans "Unit" %}</small>
-                <strong>{{ template.default_unit }}</strong>
+                <strong>{{ product.product_template.default_unit }}</strong>
             </div>
-            {% if template.has_tag %}
             <div>
-                <small class="text-muted d-block">{% trans "Tag ID" %}</small>
-                <span class="text-warning fw-bold">{% trans "Required" %}</span>
+                <small class="text-muted d-block">{% trans "On Hand" %}</small>
+                <strong>{{ available }}</strong>
             </div>
-            {% endif %}
         </div>
     </div>
 
@@ -62,86 +60,57 @@
         <div class="card-body">
             <form method="post" novalidate>
                 {% csrf_token %}
-                {{ form.product_template_id }}
-
-                {% if template.has_tag %}
-                <div class="mb-3">
-                    <label for="{{ form.unique_id.id_for_label }}" class="form-label fw-bold">
-                        {{ form.unique_id.label }} <span class="text-danger">*</span>
-                    </label>
-                    {{ form.unique_id }}
-                    {% if form.unique_id.errors %}
-                        <div class="invalid-feedback d-block">{{ form.unique_id.errors.0 }}</div>
-                    {% endif %}
-                </div>
-                {% endif %}
-
-                <div class="row g-3 mb-3">
-                    <div class="col-12 col-md-6">
-                        <label for="{{ form.quantity.id_for_label }}" class="form-label fw-bold">
-                            {{ form.quantity.label }} <span class="text-danger">*</span>
-                        </label>
-                        <div class="input-group amount-input-group">
-                            {{ form.quantity }}
-                            <span class="input-group-text">{{ template.default_unit }}</span>
-                        </div>
-                        {% if form.quantity.errors %}
-                            <div class="invalid-feedback d-block small text-danger">
-                                <i class="bi bi-exclamation-circle me-1"></i>{{ form.quantity.errors.0 }}
-                            </div>
-                        {% endif %}
-                    </div>
-                    <div class="col-12 col-md-6">
-                        <label for="{{ form.unit_price.id_for_label }}" class="form-label fw-bold">
-                            {{ form.unit_price.label }} <span class="text-danger">*</span>
-                        </label>
-                        <div class="input-group amount-input-group">
-                            <span class="input-group-text">$</span>
-                            {{ form.unit_price }}
-                        </div>
-                        {% if form.unit_price.errors %}
-                            <div class="invalid-feedback d-block small text-danger">
-                                <i class="bi bi-exclamation-circle me-1"></i>{{ form.unit_price.errors.0 }}
-                            </div>
-                        {% endif %}
-                    </div>
-                </div>
+                {{ form.product_id }}
 
                 <div class="mb-3">
-                    <label for="{{ form.delivered_qty.id_for_label }}" class="form-label fw-bold">
-                        {{ form.delivered_qty.label }}
+                    <label for="{{ form.quantity.id_for_label }}" class="form-label fw-bold">
+                        {{ form.quantity.label }} <span class="text-danger">*</span>
                     </label>
                     <div class="input-group amount-input-group">
-                        {{ form.delivered_qty }}
-                        <span class="input-group-text">{{ template.default_unit }}</span>
+                        {{ form.quantity }}
+                        <span class="input-group-text">{{ product.product_template.default_unit }}</span>
                     </div>
-                    {% if form.delivered_qty.errors %}
+                    {% if form.quantity.errors %}
                         <div class="invalid-feedback d-block small text-danger">
-                            <i class="bi bi-exclamation-circle me-1"></i>{{ form.delivered_qty.errors.0 }}
+                            <i class="bi bi-exclamation-circle me-1"></i>{{ form.quantity.errors.0 }}
                         </div>
-                    {% endif %}
-                    {% if form.delivered_qty.help_text %}
-                        <small class="text-muted d-block mt-2">{{ form.delivered_qty.help_text }}</small>
                     {% endif %}
                 </div>
 
-                <div class="mb-4">
-                    <label for="{{ form.description.id_for_label }}" class="form-label">
+                <div class="mb-3">
+                    <label for="{{ form.unit_price.id_for_label }}" class="form-label fw-bold">
+                        {{ form.unit_price.label }} <span class="text-danger">*</span>
+                    </label>
+                    <div class="input-group amount-input-group">
+                        <span class="input-group-text">$</span>
+                        {{ form.unit_price }}
+                    </div>
+                    {% if form.unit_price.errors %}
+                        <div class="invalid-feedback d-block small text-danger">
+                            <i class="bi bi-exclamation-circle me-1"></i>{{ form.unit_price.errors.0 }}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="mb-3">
+                    <label for="{{ form.description.id_for_label }}" class="form-label fw-bold">
                         {{ form.description.label }}
                     </label>
                     {{ form.description }}
                     {% if form.description.errors %}
-                        <div class="invalid-feedback d-block">{{ form.description.errors.0 }}</div>
+                        <div class="invalid-feedback d-block small text-danger">
+                            <i class="bi bi-exclamation-circle me-1"></i>{{ form.description.errors.0 }}
+                        </div>
                     {% endif %}
                 </div>
 
-                <div class="d-flex justify-content-between">
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        {% if is_edit %}{% trans "Save Changes" %}{% else %}{% trans "Add to Invoice" %}{% endif %}
+                    </button>
                     <a href="{% url 'sale_invoice' pk=project.pk %}" class="btn btn-outline-secondary">
                         {% trans "Cancel" %}
                     </a>
-                    <button type="submit" class="btn btn-primary">
-                        {% if is_edit %}{% trans "Update Item" %}{% else %}{% trans "Add Item" %}{% endif %}
-                    </button>
                 </div>
             </form>
         </div>

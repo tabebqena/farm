@@ -85,7 +85,7 @@
     <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
             <span class="fw-bold">{% trans "Invoice Items" %}</span>
-            <a href="{% url 'sale_select_template' pk=project.pk %}" class="btn btn-sm btn-outline-primary">
+            <a href="{% url 'sale_select_product' pk=project.pk %}" class="btn btn-sm btn-outline-primary">
                 + {% trans "Add Item" %}
             </a>
         </div>
@@ -98,7 +98,6 @@
                         <th>{% trans "Qty" %}</th>
                         <th>{% trans "Unit Price" %}</th>
                         <th>{% trans "Total" %}</th>
-                        <th>{% trans "Delivered" %}</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -108,13 +107,12 @@
                         <td>{{ forloop.counter }}</td>
                         <td>
                             {{ item.template_name }}
-                            {% if item.unique_id %}<br><small class="text-muted font-monospace">{{ item.unique_id }}</small>{% endif %}
+                            {% if item.tag %}<br><small class="text-muted font-monospace">{{ item.tag }}</small>{% endif %}
                             {% if item.description %}<br><small class="text-muted">{{ item.description }}</small>{% endif %}
                         </td>
                         <td>{{ item.quantity }}</td>
                         <td>${{ item.unit_price }}</td>
                         <td class="fw-bold">${{ item.total_price }}</td>
-                        <td>{{ item.delivered_qty }}</td>
                         <td class="text-nowrap">
                             <a href="{% url 'sale_edit_item' pk=project.pk idx=item.idx %}"
                                class="btn btn-sm btn-outline-secondary">{% trans "Edit" %}</a>

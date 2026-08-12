@@ -115,9 +115,9 @@ urlpatterns = [
         name="sale_invoice",
     ),
     path(
-        "<int:pk>/sale/invoice/select-template/",
-        views.sale_select_template_view,
-        name="sale_select_template",
+        "<int:pk>/sale/invoice/select-product/",
+        views.sale_select_product_view,
+        name="sale_select_product",
     ),
     path(
         "<int:pk>/sale/invoice/add-item/",
@@ -138,11 +138,6 @@ urlpatterns = [
         "<int:pk>/sale/invoice/submit/",
         views.sale_submit_view,
         name="sale_submit",
-    ),
-    path(
-        "<int:pk>/sale/create",
-        views.SaleCreateView.as_view(),
-        name="sale_create_view",
     ),
     path(
         "<int:pk>/<op_type>/create",

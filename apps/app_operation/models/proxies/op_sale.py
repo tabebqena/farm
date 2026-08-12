@@ -101,20 +101,19 @@ class SaleOperation(Operation):
         """
         Create a fully-formed SaleOperation from wizard session data.
 
+        The wizard selects the seller's **existing** products from stock; this
+        factory links them to the SALE ``InvoiceItem``(s) and records
+        ``SALE_MOVEMENT`` lines that affect them (the sold product leaves the
+        seller's stock, status → SOLD). No new products are minted.
+
         Orchestrates the full creation pipeline inside a single transaction:
           1. Integrity check (item totals vs declared total)
           2. ``SaleOperation`` record
-          3. ``InvoiceItem`` per session item
-          4. ``Product``(s) for the **project** — branching on tracking mode
-             (INDIVIDUAL → N products qty=1; BATCH/COMMODITY → 1 product qty=N).
-             The project's product(s) will show status=SOLD via linked operation.
-          5. If the **client is internal**, clone product(s) for the client so
-             they appear in the client's stock page.
-          6. ``InventoryMovementLine`` for any delivered quantities
-          7. Payment transaction (if ``amount_paid > 0``)
-
-        Uses shared base class methods for item validation, InvoiceItem
-        creation, and payment processing.
+          3. ``InvoiceItem`` per session item (template from the selected product)
+          4. Availability + ownership validation on the selected product
+          5. ``InventoryMovementLine`` (SALE_MOVEMENT) against the selected
+             product + link it to the invoice item
+          6. Payment transaction (if ``amount_paid > 0``)
 
         Returns the created ``SaleOperation``.
 
@@ -155,78 +154,93 @@ class SaleOperation(Operation):
         )
         op.save()
 
-        # ── 3. Create InvoiceItems (shared base method) ────────────────
-        invoice_items = cls._build_invoice_items(op, items_data)
+        # ── 3. Resolve the seller's existing products & record movements ──
+        group_key = uuid.uuid4().hex[:8]
 
-        movement_lines = []
+        # Concurrency: lock the products being sold so concurrent sales on the
+        # same stock serialize (SELECT ... FOR UPDATE; no-op on SQLite).
+        Product.lock_ids([int(item_data["product_id"]) for item_data in items_data])
 
-        for item_data, invoice_item in zip(items_data, invoice_items):
-            # ── 4. Create Product(s) for the project (seller) ──────────
-            #      The project's stock decreases; product.status → SOLD via linked op.
-            uid = (item_data.get("unique_id") or "").strip() or None
+        for item_data in items_data:
+            # The selected product already exists in the project's stock — the
+            # sale AFFECTS it (SALE_MOVEMENT), it is never minted here.
+            product = Product.objects.filter(
+                pk=item_data["product_id"], entity=project
+            ).first()
+            if product is None:
+                raise ValidationError(
+                    _("Selected product not found or does not belong to this project.")
+                )
+            product.validate_active()
+
             qty = Decimal(item_data["quantity"])
             unit_price = Decimal(item_data["unit_price"])
-            project_products = InvoiceItem.create_products_for_item(
-                invoice_item=invoice_item,
-                entity=project,
+
+            # Availability: cannot sell more than the physically-present on-hand.
+            from apps.app_inventory.stock import movement_state
+
+            available = movement_state(product, as_of=date_val)["quantity"]
+            if qty > available:
+                raise ValidationError(
+                    _(
+                        "Insufficient stock: %(qty)s requested but only %(avail)s "
+                        "available for '%(p)s'."
+                    )
+                    % {"qty": qty, "avail": available, "p": product}
+                )
+
+            # ── 4. InvoiceItem (from the selected product's template) ───
+            invoice_item = InvoiceItem.objects.create(
+                operation=op,
+                product_template=product.product_template,
+                description=item_data.get("description", ""),
                 quantity=qty,
                 unit_price=unit_price,
-                unique_id=uid,
             )
 
-            # ── 5. If client is internal, clone product(s) for the client ──
-            #      so the client can track them in their own stock page.
-            #
-            #      INTENTIONAL (see ai-plans/inventory-integrity-fixes-plan.md,
-            #      Fix 7): the source copy stays SOLD in the seller's stock and
-            #      the client copy becomes ACTIVE in the client's stock — the
-            #      same physical goods are NOT double-counted as available in
-            #      both places, so there is no duplication error. This is the
-            #      intra-farm transfer mechanism; a dedicated Stock Transfer
-            #      operation is out of scope for now.
+            # ── 5. Link the sold product + record the outbound movement ──
+            #      The product leaves the seller's stock (status → SOLD via the
+            #      linked SALE item); SALE_MOVEMENT writes the ledger row.
+            product.invoice_items.add(invoice_item)
+            InventoryMovementLine.objects.create(
+                operation=op,
+                invoice_item=invoice_item,
+                product=product,
+                quantity=qty,
+                date=date_val,
+                officer=officer,
+                notes="",
+                group_key=group_key,
+            )
+
+            # ── 5b. Internal client: the buyer receives the goods ─────────
+            #      The sale preselects the product, so the exact template,
+            #      quantity and price are known. Create the buyer's copy owned
+            #      by the client (direction-aware status → ACTIVE) and record
+            #      its receipt (inbound movement, direction-aware ledger).
             if client.is_internal:
-                InvoiceItem.create_products_for_item(
+                buyer_products = InvoiceItem.create_products_for_item(
                     invoice_item=invoice_item,
                     entity=client,
                     quantity=qty,
                     unit_price=unit_price,
-                    unique_id=uid,
                 )
-
-            delivered_qty = Decimal(item_data.get("delivered_qty", "0"))
-            if delivered_qty > Decimal("0"):
-                for product in project_products:
-                    movement_lines.append(
-                        (
-                            invoice_item,
-                            product,
-                            (
-                                delivered_qty / len(project_products)
-                                if len(project_products) > 1
-                                else delivered_qty
-                            ),
-                        )
+                per_product_qty = (
+                    Decimal("1") if len(buyer_products) > 1 else qty
+                )
+                for buyer_product in buyer_products:
+                    InventoryMovementLine.objects.create(
+                        operation=op,
+                        invoice_item=invoice_item,
+                        product=buyer_product,
+                        quantity=per_product_qty,
+                        date=date_val,
+                        officer=officer,
+                        notes="",
+                        group_key=group_key,
                     )
 
-        # ── 6. InventoryMovementLine records if any delivered quantities ──
-        if movement_lines:
-            group_key = uuid.uuid4().hex[:8]
-            # Concurrency: lock the products being delivered so concurrent
-            # movements on the same stock serialize (SELECT ... FOR UPDATE).
-            Product.lock_ids([product.pk for _, product, _ in movement_lines])
-            for invoice_item, product, delivered_qty in movement_lines:
-                InventoryMovementLine.objects.create(
-                    operation=op,
-                    invoice_item=invoice_item,
-                    product=product,
-                    quantity=delivered_qty,
-                    date=date_val,
-                    officer=officer,
-                    notes="",
-                    group_key=group_key,
-                )
-
-        # ── 7. Payment processing (shared base method) ─────────────────
+        # ── 6. Payment processing (shared base method) ─────────────────
         if paid > Decimal("0"):
             op.process_payment(
                 amount_paid=paid,

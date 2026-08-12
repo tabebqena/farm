@@ -124,6 +124,12 @@ class OperationCreateView(View):
             # else: proxy_cls already set as class attribute on child class
 
             self._setup_view(kwargs["pk"], request)
+            # SALE is only created through the sale wizard — the generic create
+            # view must not offer a second, divergent sale path.
+            from apps.app_operation.models.proxies import SaleOperation
+
+            if self.proxy_cls is SaleOperation:
+                return redirect("sale_wizard_step1", pk=kwargs["pk"])
             DebugContext.success(
                 "View setup complete", {"op_type": self.canonical_op_type}
             )

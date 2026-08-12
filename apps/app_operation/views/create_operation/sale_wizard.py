@@ -9,7 +9,8 @@ from django.utils.translation import gettext as _
 from apps.app_base.debug import debug_view
 from farm.shortcuts import get_object_or_404
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
-from apps.app_inventory.models import ProductTemplate
+from apps.app_inventory.models import Product
+from apps.app_inventory.stock import movement_state, portfolio as stock_portfolio
 from apps.app_operation.forms import (
     SaleItemForm,
     SaleWizardStep1Form,
@@ -50,6 +51,16 @@ def _items_total(items: list) -> Decimal:
     )
 
 
+def _get_project_product(project, product_id):
+    """Return a product owned by *project*, or None."""
+    if not product_id:
+        return None
+    try:
+        return Product.objects.get(pk=product_id, entity=project)
+    except Product.DoesNotExist:
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Project guard
 # ---------------------------------------------------------------------------
@@ -63,15 +74,17 @@ def _load_project(request, pk):
         entity_type=EntityType.PROJECT,
         error_message="Project not found or has been deleted.",
     )
-    client_count = Stakeholder.objects.filter(
-        parent=project, role=StakeholderRole.CLIENT, active=True
-    ).count()
-    if client_count == 0:
-        messages.warning(
-            request,
-            _("Cannot create sale: no active clients configured for this project."),
-        )
-        return None, redirect("operation_list_view", person_pk=pk)
+    # Commented because it is weired, 
+    # The user can see warning & link to click instead.
+    # client_count = Stakeholder.objects.filter(
+    #     parent=project, role=StakeholderRole.CLIENT, active=True
+    # ).count()
+    # if client_count == 0:
+    #     messages.warning(
+    #         request,
+    #         _("Cannot create sale: no active clients configured for this project."),
+    #     )
+    #     return None, redirect("operation_list_view", person_pk=pk)
     return project, None
 
 
@@ -277,18 +290,25 @@ def sale_invoice_view(request, pk):
     total_amount = Decimal(session["total_amount"])
     raw_items = session.get("items", [])
 
-    # Augment each item with display fields
+    # Augment each item with display fields (product-based)
     items = []
     for item in raw_items:
-        try:
-            template = ProductTemplate.objects.get(pk=item["product_template_id"])
-            template_name = template.name
-        except ProductTemplate.DoesNotExist:
+        product = _get_project_product(project, item.get("product_id"))
+        if product is not None:
+            template_name = product.product_template.name
+            tag = product.unique_id or ""
+        else:
             template_name = _("(unknown)")
+            tag = ""
         qty = Decimal(item["quantity"])
         price = Decimal(item["unit_price"])
         items.append(
-            {**item, "template_name": template_name, "total_price": qty * price}
+            {
+                **item,
+                "template_name": template_name,
+                "tag": tag,
+                "total_price": qty * price,
+            }
         )
 
     items_total = _items_total(raw_items)
@@ -318,7 +338,10 @@ def sale_invoice_view(request, pk):
 
 
 @debug_view
-def sale_select_template_view(request, pk):
+def sale_select_product_view(request, pk):
+    """List the seller's EXISTING on-hand products to pick for the sale."""
+    from datetime import date
+
     project, redir = _load_project(request, pk)
     if redir:
         return redir
@@ -328,12 +351,29 @@ def sale_select_template_view(request, pk):
         messages.error(request, _("Session expired. Please start from the beginning."))
         return redirect("sale_wizard_step1", pk=pk)
 
-    templates = ProductTemplate.objects.filter(entities=project).order_by(
-        "nature", "name"
+    # Physically-present products owned by the project (the seller's stock).
+    portfolio_rows = list(stock_portfolio(project, date.today()))
+    portfolio = {r["product_id"]: r["quantity"] for r in portfolio_rows}
+    product_ids = list(portfolio.keys())
+    products = (
+        Product.objects.filter(entity=project, pk__in=product_ids)
+        .select_related("product_template")
+        .order_by("product_template__nature", "product_template__name", "pk")
     )
+
+    # Group by template; only ACTIVE products are sellable.
+    by_template: dict = {}
+    for p in products:
+        if p.status != Product.Status.ACTIVE:
+            continue
+        by_template.setdefault(p.product_template, []).append(
+            {"product": p, "available": portfolio[p.pk]}
+        )
+    templates = sorted(by_template.items(), key=lambda kv: (kv[0].nature, kv[0].name))
+
     return render(
         request,
-        "app_operation/sale_select_template.html",
+        "app_operation/sale_select_product.html",
         {
             "project": project,
             "templates": templates,
@@ -348,6 +388,7 @@ def sale_select_template_view(request, pk):
 
 @debug_view
 def sale_add_item_view(request, pk, idx=None):
+    """Add/edit a sale invoice item by selecting an EXISTING product from stock."""
     project, redir = _load_project(request, pk)
     if redir:
         return redir
@@ -360,65 +401,24 @@ def sale_add_item_view(request, pk, idx=None):
     items = session.setdefault("items", [])
     is_edit = idx is not None
 
-    # Resolve template
     if request.method == "POST":
         try:
-            template_pk = int(request.POST.get("product_template_id", 0))
+            product_id = int(request.POST.get("product_id", 0))
         except (ValueError, TypeError):
-            messages.error(request, _("Invalid product template."))
-            return redirect("sale_select_template", pk=pk)
-    elif is_edit:
-        if idx < 0 or idx >= len(items):
-            messages.warning(request, _("Item not found."))
-            return redirect("sale_invoice", pk=pk)
-        template_pk = items[idx]["product_template_id"]
-    else:
-        try:
-            template_pk = int(request.GET.get("template_id", 0))
-        except (ValueError, TypeError):
-            template_pk = 0
-
-    template = get_object_or_404(
-        ProductTemplate,
-        pk=template_pk,
-        entities=project,
-        error_message="Product template not found or is not assigned to this project.",
-    )
-
-    if request.method == "POST":
-        form = SaleItemForm(request.POST, template=template, entity=project)
-        if form.is_valid():
-            cd = form.cleaned_data
-            # Duplicate unique_id guard (auto-suggested tags are unique by
-            # construction; only explicit user-typed tags need this check)
-            uid = (cd.get("unique_id") or "").strip()
-            if (
-                uid
-                and template.tracking_mode == ProductTemplate.TrackingMode.INDIVIDUAL
-            ):
-                for i, existing in enumerate(items):
-                    if i == idx:
-                        continue
-                    if (
-                        existing["product_template_id"] == template.pk
-                        and existing.get("unique_id") == uid
-                    ):
-                        form.add_error(
-                            "unique_id",
-                            _("This Tag/ID is already used by another item."),
-                        )
-                        break
-
+            product_id = 0
+        product = _get_project_product(project, product_id)
+        if product is None:
+            messages.error(request, _("Please choose a product from your stock."))
+            return redirect("sale_select_product", pk=pk)
+        form = SaleItemForm(request.POST, product=product, entity=project)
         if form.is_valid():
             cd = form.cleaned_data
             item_data = {
                 "idx": idx if is_edit else len(items),
-                "product_template_id": template.pk,
+                "product_id": product.pk,
                 "description": cd.get("description", ""),
                 "quantity": str(cd["quantity"]),
                 "unit_price": str(cd["unit_price"]),
-                "unique_id": (cd.get("unique_id") or "").strip(),
-                "delivered_qty": str(cd["delivered_qty"]),
             }
             if is_edit:
                 items[idx] = item_data
@@ -428,26 +428,50 @@ def sale_add_item_view(request, pk, idx=None):
             return redirect("sale_invoice", pk=pk)
     else:
         if is_edit:
+            if idx < 0 or idx >= len(items):
+                messages.warning(request, _("Item not found."))
+                return redirect("sale_invoice", pk=pk)
             item = items[idx]
+            product = _get_project_product(project, item.get("product_id"))
+            if product is None:
+                messages.error(
+                    request,
+                    _("Selected product not found or is no longer available."),
+                )
+                return redirect("sale_invoice", pk=pk)
             initial = {
-                "product_template_id": template.pk,
+                "product_id": product.pk,
                 "description": item.get("description", ""),
                 "quantity": item["quantity"],
                 "unit_price": item["unit_price"],
-                "unique_id": item.get("unique_id", ""),
-                "delivered_qty": item.get("delivered_qty", "0"),
             }
         else:
-            initial = {"product_template_id": template.pk, "delivered_qty": "0"}
-        form = SaleItemForm(initial=initial, template=template, entity=project)
+            try:
+                product_id = int(request.GET.get("product_id", 0))
+            except (ValueError, TypeError):
+                product_id = 0
+            product = _get_project_product(project, product_id)
+            if product is None:
+                messages.error(request, _("Please choose a product from your stock."))
+                return redirect("sale_select_product", pk=pk)
+            initial = {
+                "product_id": product.pk,
+                "quantity": "1",
+                "unit_price": str(product.unit_price),
+            }
+        form = SaleItemForm(initial=initial, product=product, entity=project)
 
+    from datetime import date
+
+    available = movement_state(product, as_of=date.today())["quantity"]
     return render(
         request,
         "app_operation/sale_add_item.html",
         {
             "project": project,
             "form": form,
-            "template": template,
+            "product": product,
+            "available": available,
             "is_edit": is_edit,
             "idx": idx,
         },

@@ -109,12 +109,12 @@ class OperationCreateViewSourceFundTests(TestCase):
         self.assertEqual(response.context["source_entity"], self.project)
         self.assertEqual(response.context["source_balance"], self.project.balance)
 
-    def test_sale_create_falls_back_to_project_fund_on_get(self):
-        """Sale source is a client (post) not yet chosen on GET → falls back to project."""
+    def test_sale_create_redirects_to_sale_wizard(self):
+        """SALE is only created through the sale wizard — the generic create view
+        redirects to it (there is no second sale path)."""
         response = self._get_create("sale")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["source_entity"], self.project)
-        self.assertEqual(response.context["source_balance"], self.project.balance)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("sale", response.url)
 
     def test_worker_advance_create_source_fund_is_project(self):
         """Worker advance source is the project → fund is the project balance."""

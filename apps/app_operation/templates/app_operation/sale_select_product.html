@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item">
+                <a href="{% url 'operation_list_view' person_pk=project.pk %}">{{ project.name }}</a>
+            </li>
+            <li class="breadcrumb-item">
+                <a href="{% url 'sale_invoice' pk=project.pk %}">{% trans "Sale Invoice" %}</a>
+            </li>
+            <li class="breadcrumb-item active">{% trans "Select Product" %}</li>
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">{% trans "Select Product from Stock" %}</h2>
+        <a href="{% url 'sale_invoice' pk=project.pk %}" class="btn btn-outline-secondary">
+            &larr; {% trans "Back to Invoice" %}
+        </a>
+    </div>
+
+    {% if templates %}
+        {% for template, rows in templates %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <strong>{{ template.name }}</strong>
+                {% if template.name_ar %}
+                    <span class="ms-2 opacity-75" dir="rtl">{{ template.name_ar }}</span>
+                {% endif %}
+                <span class="badge bg-secondary ms-2">{{ template.get_nature_display }}</span>
+                <span class="badge bg-light text-dark border ms-1">{{ template.get_tracking_mode_display }}</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "Tag / ID" %}</th>
+                            <th>{% trans "Available" %}</th>
+                            <th>{% trans "Unit" %}</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                        <tr>
+                            <td>
+                                {% if row.product.unique_id %}
+                                    <span class="font-monospace">{{ row.product.unique_id }}</span>
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ row.available }}</td>
+                            <td>{{ template.default_unit }}</td>
+                            <td class="text-end">
+                                <a href="{% url 'sale_add_item' pk=project.pk %}?product_id={{ row.product.pk }}"
+                                   class="btn btn-sm btn-outline-primary">{% trans "Add to Sale" %}</a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-muted">{% trans "No stock for this product." %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+    <div class="alert alert-warning">
+        {% trans "No products are currently in this project's stock. Receive goods via a purchase or birth first." %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

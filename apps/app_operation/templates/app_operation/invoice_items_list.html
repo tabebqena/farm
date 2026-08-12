@@ -328,7 +328,7 @@
                       {% if movement_data.is_fully_moved %}
                         <span class="badge bg-success bg-opacity-10 text-success"><i class="bi bi-check-circle me-1"></i>{% trans 'Complete' %}</span>
                       {% else %}
-                        <a href="{% url 'create_inventory_movement' operation.pk %}" class="btn btn-sm btn-success">
+                        <a href="{% if operation.operation_type == 'PURCHASE' %}{% url 'create_purchase_movement' operation.pk %}{% else %}{% url 'create_sale_movement' operation.pk %}{% endif %}" class="btn btn-sm btn-success">
                           <i class="bi bi-plus-circle me-1"></i>
                           {% if movement_data.is_inbound %}
                             {% trans 'Receive' %}
