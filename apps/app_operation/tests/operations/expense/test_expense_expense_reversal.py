@@ -9,6 +9,10 @@ from apps.app_entity.models import Entity, EntityType
 from apps.app_entity.models.category import FinancialCategory
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import CapitalGainOperation, ExpenseOperation
+from apps.app_operation.tests.base import (
+    assert_derived_state_unchanged,
+    snapshot_derived_state,
+)
 from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
@@ -167,6 +171,47 @@ class ExpenseReversalTest(TestCase):
 
         self.project_entity.refresh_from_db()
         self.assertEqual(self.project_entity.balance, balance_before_reversal)
+
+    # ------------------------------------------------------------------
+    # SE4 — payables / receivables restored on reversal (regression class:
+    # reversal mirrors must not leak into the obligation buckets)
+    # ------------------------------------------------------------------
+
+    def test_reverse_restores_project_payables(self):
+        """EXPENSE_ISSUANCE makes the project owe the payee; reversal clears it."""
+        self.assertEqual(self.project_entity.payables, Decimal("1000.00"))
+        self.op.reverse(officer=self.officer_user)
+
+        self.assertEqual(self.project_entity.payables, Decimal("0.00"))
+
+    def test_reverse_project_receivables_unchanged(self):
+        self.op.reverse(officer=self.officer_user)
+
+        self.assertEqual(self.project_entity.receivables, Decimal("0.00"))
+
+    # ------------------------------------------------------------------
+    # Differential invariant — create + reverse leaves the world unchanged
+    # ------------------------------------------------------------------
+
+    def test_create_then_reverse_leaves_world_unchanged(self):
+        """Balances, payables, receivables and ledger must all return to the
+        pre-operation state after a full create + reverse cycle."""
+        before = snapshot_derived_state()
+
+        op = ExpenseOperation(
+            source=self.project_entity,
+            destination=self.world_entity,
+            amount=Decimal("1000.00"),
+            operation_type=OperationType.EXPENSE,
+            date=date.today(),
+            description="Test expense",
+            officer=self.officer_user,
+            category=self.category,
+        )
+        op.save()
+        op.reverse(officer=self.officer_user)
+
+        assert_derived_state_unchanged(self, before, msg="expense create+reverse")
 
     # ------------------------------------------------------------------
     # Reversal blocked by existing payment

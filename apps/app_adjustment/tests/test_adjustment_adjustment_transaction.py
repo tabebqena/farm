@@ -15,6 +15,7 @@ from apps.app_operation.models.proxies import (
     SaleOperation,
 )
 from apps.app_operation.models.proxies.op_cash_injection import CashInjectionOperation
+from apps.app_operation.tests.base import assert_tx_types
 from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
@@ -193,30 +194,22 @@ class AdjustmentTransactionTest(TestCase):
         op = _make_purchase_op(self.project_entity, self.vendor_entity, self.officer)
         adj = _make_adjustment(op, AdjustmentType.PURCHASE_RETURN, self.officer)
 
-        txs = adj.get_all_transactions()
-        self.assertEqual(txs.count(), 1)
-        self.assertTrue(
-            txs.filter(type=TransactionType.PURCHASE_ADJUSTMENT_DECREASE).exists()
+        assert_tx_types(
+            self, adj, {TransactionType.PURCHASE_ADJUSTMENT_DECREASE: 1}
         )
 
     def test_sale_adjustment_creates_sale_adjustment_transaction(self):
         op = _make_sale_op(self.client_entity, self.project_entity, self.officer)
         adj = _make_adjustment(op, AdjustmentType.SALE_RETURN, self.officer)
 
-        txs = adj.get_all_transactions()
-        self.assertEqual(txs.count(), 1)
-        self.assertTrue(
-            txs.filter(type=TransactionType.SALE_ADJUSTMENT_DECREASE).exists()
-        )
+        assert_tx_types(self, adj, {TransactionType.SALE_ADJUSTMENT_DECREASE: 1})
 
     def test_expense_adjustment_creates_expense_adjustment_transaction(self):
         op = _make_expense_op(self.project_entity, self.world_entity, self.officer)
         adj = _make_adjustment(op, AdjustmentType.PURCHASE_RETURN, self.officer)
 
-        txs = adj.get_all_transactions()
-        self.assertEqual(txs.count(), 1)
-        self.assertTrue(
-            txs.filter(type=TransactionType.EXPENSE_ADJUSTMENT_DECREASE).exists()
+        assert_tx_types(
+            self, adj, {TransactionType.EXPENSE_ADJUSTMENT_DECREASE: 1}
         )
 
     def test_adjustment_transaction_source_and_target_match_adjustment_funds(self):

@@ -137,3 +137,39 @@ class LoanDisbursementTest(TestCase):
             type=TransactionType.LOAN_PAYMENT
         )
         self.assertEqual(payment_txs.count(), 2)
+
+    # ------------------------------------------------------------------
+    # SE4 — payables / receivables from a disbursement (LOAN_PAYMENT)
+    # ------------------------------------------------------------------
+
+    def test_payment_increases_debtor_payables(self):
+        """The debtor owes the creditor the disbursed amount."""
+        self.op.create_payment_transaction(
+            amount=Decimal("500.00"),
+            officer=self.officer_user,
+            date=date.today(),
+        )
+
+        self.assertEqual(self.debtor_entity.payables, Decimal("500.00"))
+
+    def test_payment_increases_creditor_receivables(self):
+        """The creditor is owed the disbursed amount by the debtor."""
+        self.op.create_payment_transaction(
+            amount=Decimal("500.00"),
+            officer=self.officer_user,
+            date=date.today(),
+        )
+
+        self.assertEqual(self.creditor_entity.receivables, Decimal("500.00"))
+
+    def test_payment_leaves_other_obligation_buckets_zero(self):
+        """LOAN_ISSUANCE and LOAN_PAYMENT only create obligations in the
+        debtor-payables / creditor-receivables direction."""
+        self.op.create_payment_transaction(
+            amount=Decimal("500.00"),
+            officer=self.officer_user,
+            date=date.today(),
+        )
+
+        self.assertEqual(self.creditor_entity.payables, Decimal("0.00"))
+        self.assertEqual(self.debtor_entity.receivables, Decimal("0.00"))

@@ -21,6 +21,7 @@ from apps.app_operation.models.proxies import (
     CashInjectionOperation,
     WorkerAdvanceOperation,
 )
+from apps.app_operation.tests.base import assert_tx_types
 from apps.app_transaction.models import Transaction
 from apps.app_transaction.transaction_type import TransactionType
 
@@ -106,12 +107,19 @@ class TransactionAutoCreationTests(TestCase):
             description="Test injection",
         )
 
-        # Should have auto-created at least one transaction
-        txs = Transaction.objects.filter(object_id=operation.pk)
-        self.assertGreaterEqual(txs.count(), 1)
-        # At least one should have the right amount
-        amounts = txs.values_list("amount", flat=True)
-        self.assertIn(Decimal("1000"), amounts)
+        # Should have auto-created the exact one-shot issuance + payment pair
+        assert_tx_types(
+            self,
+            operation,
+            {
+                TransactionType.CAPITAL_GAIN_ISSUANCE: 1,
+                TransactionType.CAPITAL_GAIN_PAYMENT: 1,
+            },
+        )
+        amounts = Transaction.objects.filter(
+            object_id=operation.pk
+        ).values_list("amount", flat=True)
+        self.assertEqual(set(amounts), {Decimal("1000")})
 
     def test_cash_injection_creates_payment_transaction(self):
         """CashInjectionOperation should auto-create transaction"""
@@ -133,8 +141,14 @@ class TransactionAutoCreationTests(TestCase):
             description="Test injection",
         )
 
-        txs = Transaction.objects.filter(object_id=operation.pk)
-        self.assertGreater(txs.count(), 0)
+        assert_tx_types(
+            self,
+            operation,
+            {
+                TransactionType.CASH_INJECTION_ISSUANCE: 1,
+                TransactionType.CASH_INJECTION_PAYMENT: 1,
+            },
+        )
 
     def test_purchase_creates_issuance_transaction(self):
         """PurchaseOperation should auto-create issuance transaction"""
@@ -148,9 +162,8 @@ class TransactionAutoCreationTests(TestCase):
             description="Test purchase",
         )
 
-        # Should have auto-created issuance transaction
-        txs = Transaction.objects.filter(object_id=operation.pk)
-        self.assertGreater(txs.count(), 0)
+        # Should have auto-created exactly one issuance transaction (no payment)
+        assert_tx_types(self, operation, {TransactionType.PURCHASE_ISSUANCE: 1})
 
 
 # =============================================================================

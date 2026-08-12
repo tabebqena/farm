@@ -13,6 +13,7 @@ from apps.app_operation.models.proxies import (
     CapitalGainOperation,
     ProfitDistributionOperation,
 )
+from apps.app_operation.tests.base import assert_tx_types
 from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
@@ -155,17 +156,13 @@ class ProfitDistributionCreateTest(TestCase):
         op = self._make_op()
         op.save()
 
-        transactions = op.get_all_transactions()
-        self.assertEqual(transactions.count(), 2)
-        self.assertTrue(
-            transactions.filter(
-                type=TransactionType.PROFIT_DISTRIBUTION_ISSUANCE
-            ).exists()
-        )
-        self.assertTrue(
-            transactions.filter(
-                type=TransactionType.PROFIT_DISTRIBUTION_PAYMENT
-            ).exists()
+        assert_tx_types(
+            self,
+            op,
+            {
+                TransactionType.PROFIT_DISTRIBUTION_ISSUANCE: 1,
+                TransactionType.PROFIT_DISTRIBUTION_PAYMENT: 1,
+            },
         )
 
     def test_transaction_amounts_match_operation(self):
@@ -209,6 +206,19 @@ class ProfitDistributionCreateTest(TestCase):
             self.shareholder.balance,
             balance_before + Decimal("500.00"),
         )
+
+    # ------------------------------------------------------------------
+    # SE4 — payables / receivables at creation (one-shot nets to zero)
+    # ------------------------------------------------------------------
+
+    def test_create_leaves_payables_receivables_zero(self):
+        """PROFIT_DISTRIBUTION is one-shot: the immediate payment settles the
+        issuance, so payables/receivables net to zero."""
+        op = self._make_op()
+        op.save()
+
+        self.assertEqual(self.project_entity.payables, Decimal("0.00"))
+        self.assertEqual(self.shareholder.receivables, Decimal("0.00"))
 
     # ------------------------------------------------------------------
     # Properties

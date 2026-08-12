@@ -13,6 +13,10 @@ from apps.app_operation.models.proxies import (
     CapitalGainOperation,
     ProfitDistributionOperation,
 )
+from apps.app_operation.tests.base import (
+    assert_derived_state_unchanged,
+    snapshot_derived_state,
+)
 from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
@@ -223,6 +227,45 @@ class ProfitDistributionReversalTest(TestCase):
         self.assertEqual(self.period.remaining_distributable, Decimal("500.00"))
         self.op.reverse(officer=self.officer)
         self.assertEqual(self.period.remaining_distributable, Decimal("1000.00"))
+
+    # ------------------------------------------------------------------
+    # SE4 — payables / receivables stay zero through reversal
+    # ------------------------------------------------------------------
+
+    def test_reverse_leaves_payables_receivables_zero(self):
+        """Both the one-shot distribution and its reversal are net-zero for
+        obligations (reversal mirrors must not leak into the buckets)."""
+        self.op.reverse(officer=self.officer)
+
+        self.assertEqual(self.project_entity.payables, Decimal("0.00"))
+        self.assertEqual(self.shareholder.receivables, Decimal("0.00"))
+
+    # ------------------------------------------------------------------
+    # Differential invariant — create + reverse leaves the world unchanged
+    # ------------------------------------------------------------------
+
+    def test_create_then_reverse_leaves_world_unchanged(self):
+        """Balances, payables, receivables and ledger must all return to the
+        pre-operation state after a full create + reverse cycle."""
+        before = snapshot_derived_state()
+
+        # The reversal guard requires remaining_distributable >= amount, so the
+        # differential op must be small enough to reverse after self.op (500).
+        op = ProfitDistributionOperation(
+            source=self.project_entity,
+            destination=self.shareholder,
+            amount=Decimal("200.00"),
+            operation_type=OperationType.PROFIT_DISTRIBUTION,
+            date=TODAY,
+            plan=self.period,
+            officer=self.officer,
+        )
+        op.save()
+        op.reverse(officer=self.officer)
+
+        assert_derived_state_unchanged(
+            self, before, msg="profit distribution create+reverse"
+        )
 
     # ------------------------------------------------------------------
     # Constraints

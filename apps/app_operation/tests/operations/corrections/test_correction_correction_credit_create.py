@@ -12,6 +12,7 @@ from apps.app_operation.models.proxies import (
     CorrectionCreditOperation,
     CorrectionDebitOperation,
 )
+from apps.app_operation.tests.base import assert_tx_types
 from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
@@ -78,15 +79,13 @@ class CorrectionCreditCreateTest(TestCase):
         op = self._make_op()
         op.save()
 
-        transactions = op.get_all_transactions()
-        self.assertEqual(transactions.count(), 2)
-        self.assertTrue(
-            transactions.filter(
-                type=TransactionType.CORRECTION_CREDIT_ISSUANCE
-            ).exists()
-        )
-        self.assertTrue(
-            transactions.filter(type=TransactionType.CORRECTION_CREDIT_PAYMENT).exists()
+        assert_tx_types(
+            self,
+            op,
+            {
+                TransactionType.CORRECTION_CREDIT_ISSUANCE: 1,
+                TransactionType.CORRECTION_CREDIT_PAYMENT: 1,
+            },
         )
 
     def test_transaction_funds_are_correct(self):

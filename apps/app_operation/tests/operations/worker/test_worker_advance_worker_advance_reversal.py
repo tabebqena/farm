@@ -1,93 +1,23 @@
 from datetime import date
 from decimal import Decimal
 
-from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
-from django.test import TestCase
 
-from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
-from apps.app_operation.models.operation_type import OperationType
-from apps.app_operation.models.proxies import (
-    CapitalGainOperation,
-    CashInjectionOperation,
-    WorkerAdvanceOperation,
-)
 from apps.app_transaction.transaction_type import TransactionType
 
-User = get_user_model()
+from apps.app_operation.tests.base import (
+    BaseOperationTestCase,
+    make_worker,
+    make_worker_advance,
+)
+
+AMOUNT = Decimal("1000.00")
 
 
-# ---------------------------------------------------------------------------
-# Shared helpers
-# ---------------------------------------------------------------------------
-
-
-def _make_officer(username="officer"):
-    return User.objects.create_user(
-        username=username, password="testpass", is_staff=True
-    )
-
-
-def _make_person_entity(name, is_worker=False):
-    return Entity.create(EntityType.PERSON, name=name, is_worker=is_worker)
-
-
-def _make_client_entity(name, is_client=False):
-    return Entity.create(EntityType.CLIENT, name=name, is_client=is_client)
-
-
-def _make_vendor_entity(name):
-    return Entity.create(EntityType.VENDOR, name)
-
-
-def _make_project_entity(name):
-    return Entity.create(EntityType.PROJECT, name)
-
-
-def _inject_person(world_entity, dest_entity, amount, officer):
-    """Seed a Person entity's fund via CashInjection."""
-    CashInjectionOperation(
-        source=world_entity,
-        destination=dest_entity,
-        amount=amount,
-        operation_type=OperationType.CASH_INJECTION,
-        date=date.today(),
-        description="Seed balance",
-        officer=officer,
-    ).save()
-
-
-def _inject_project(system_entity, dest_entity, amount, officer):
-    """Seed a Project entity's fund via CapitalGain."""
-    CapitalGainOperation(
-        source=system_entity,
-        destination=dest_entity,
-        amount=amount,
-        operation_type=OperationType.CAPITAL_GAIN,
-        date=date.today(),
-        description="Seed project balance",
-        officer=officer,
-    ).save()
-
-
-def _make_worker_stakeholder(
-    project_entity, worker_entity, role=StakeholderRole.WORKER, active=True
-):
-    sh = Stakeholder(
-        parent=project_entity, target=worker_entity, role=role, active=active
-    )
-    sh.save()
-    return sh
-
-
-# ---------------------------------------------------------------------------
-# WorkerAdvanceCreateTest
-# ---------------------------------------------------------------------------
-
-
-class WorkerAdvanceReversalTest(TestCase):
+class WorkerAdvanceReversalTest(BaseOperationTestCase):
     """
-    Tests for operation reversal.
+    Operation reversal: reversal record, counter-transactions, and restored
+    balances / payables / receivables.
 
     Reversal is only allowed when no repayments exist. Both the issuance and
     payment transactions are implicitly reversed (counter-transactions created
@@ -95,95 +25,125 @@ class WorkerAdvanceReversalTest(TestCase):
     """
 
     def setUp(self):
-        self.system_entity = Entity.create(EntityType.SYSTEM)
-        self.officer = _make_officer()
-
-        self.project_entity = _make_project_entity("Farm Project")
-        _inject_project(
-            self.system_entity, self.project_entity, Decimal("5000.00"), self.officer
+        super().setUp()
+        self.worker = make_worker(self.project, "Ali Worker")
+        self.op = make_worker_advance(
+            self.project, self.worker, self.officer, AMOUNT
         )
 
-        self.worker_entity = _make_person_entity("Ali Worker", is_worker=True)
-        _make_worker_stakeholder(self.project_entity, self.worker_entity)
-
-        self.op = WorkerAdvanceOperation(
-            source=self.project_entity,
-            destination=self.worker_entity,
-            amount=Decimal("1000.00"),
-            operation_type=OperationType.WORKER_ADVANCE,
-            date=date.today(),
-            description="Test worker advance",
-            officer=self.officer,
-        )
-        self.op.save()
+    def _reversal(self):
+        return self.op.reverse(officer=self.officer)
 
     # ------------------------------------------------------------------
-    # Happy path — no repayments, reversal is allowed
+    # SE1 — reversal record
     # ------------------------------------------------------------------
 
     def test_reverse_creates_reversal_operation(self):
-        reversal = self.op.reverse(officer=self.officer)
+        reversal = self._reversal()
 
         self.assertIsNotNone(reversal.pk)
         self.assertEqual(reversal.reversal_of, self.op)
 
     def test_reverse_marks_original_as_reversed(self):
-        reversal = self.op.reverse(officer=self.officer)
+        reversal = self._reversal()
 
         self.op.refresh_from_db()
         self.assertTrue(self.op.is_reversed)
         self.assertEqual(self.op.reversed_by, reversal)
 
     def test_reversal_is_marked_as_reversal(self):
-        reversal = self.op.reverse(officer=self.officer)
+        reversal = self._reversal()
 
         self.assertTrue(reversal.is_reversal)
         self.assertFalse(reversal.is_reversed)
 
     def test_reverse_inherits_amount_source_destination(self):
-        reversal = self.op.reverse(officer=self.officer)
+        reversal = self._reversal()
 
         self.assertEqual(reversal.amount, self.op.amount)
         self.assertEqual(reversal.source, self.op.source)
         self.assertEqual(reversal.destination, self.op.destination)
 
-    def test_reverse_creates_counter_transactions_for_both_issuance_and_payment(self):
-        self.op.reverse(officer=self.officer)
+    # ------------------------------------------------------------------
+    # SE2 — counter-transactions
+    # ------------------------------------------------------------------
 
-        all_txs = self.op.get_all_transactions()
+    def test_reverse_creates_counter_transactions_for_issuance_and_payment(self):
+        self._reversal()
+
         # 2 original (issuance + payment) + 2 counter-transactions
-        self.assertEqual(all_txs.count(), 4)
-
-        counter_txs = all_txs.filter(reversal_of__isnull=False)
-        self.assertEqual(counter_txs.count(), 2)
+        self.assert_tx_types(
+            self.op,
+            {
+                TransactionType.WORKER_ADVANCE_ISSUANCE: 2,
+                TransactionType.WORKER_ADVANCE_PAYMENT: 2,
+            },
+        )
 
     def test_reverse_counter_transactions_flip_funds(self):
-        self.op.reverse(officer=self.officer)
+        self._reversal()
 
-        original_txs = self.op.get_all_transactions().filter(reversal_of__isnull=True)
-        for tx in original_txs:
-            counter = tx.reversed_by
-            self.assertEqual(counter.source, tx.target)
-            self.assertEqual(counter.target, tx.source)
-            self.assertEqual(counter.amount, tx.amount)
+        originals = self.op.get_all_transactions().filter(reversal_of__isnull=True)
+        self.assertEqual(originals.count(), 2)
+        for tx in originals:
+            self.assert_counter_tx(tx)
+
+    # ------------------------------------------------------------------
+    # SE3 — fund balances restored
+    # ------------------------------------------------------------------
 
     def test_project_fund_restored_after_reversal(self):
-        balance_after_advance = self.project_entity.balance
-        self.op.reverse(officer=self.officer)
+        self._reversal()
 
-        self.assertEqual(
-            self.project_entity.balance,
-            balance_after_advance + self.op.amount,
-        )
+        self.assert_balance(self.project, self.project_funding, msg="project")
 
     def test_worker_fund_restored_after_reversal(self):
-        balance_after_advance = self.worker_entity.balance
-        self.op.reverse(officer=self.officer)
+        self._reversal()
 
-        self.assertEqual(
-            self.worker_entity.balance,
-            balance_after_advance - self.op.amount,
-        )
+        self.assert_balance(self.worker, Decimal("0.00"), msg="worker")
+
+    # ------------------------------------------------------------------
+    # SE4 — payables / receivables restored (regression: reversal mirrors
+    # must not leak into the obligation buckets)
+    # ------------------------------------------------------------------
+
+    def test_reverse_project_receivables_restored(self):
+        """Before reversal the project held a 1000 receivable; after it is gone."""
+        self.assert_receivables(self.project, AMOUNT, msg="project before")
+        self._reversal()
+
+        self.assert_receivables(self.project, Decimal("0.00"), msg="project after")
+
+    def test_reverse_worker_payables_restored(self):
+        """Before reversal the worker owed 1000; after it owes nothing."""
+        self.assert_payables(self.worker, AMOUNT, msg="worker before")
+        self._reversal()
+
+        self.assert_payables(self.worker, Decimal("0.00"), msg="worker after")
+
+    def test_reverse_project_payables_unchanged(self):
+        self._reversal()
+
+        self.assert_payables(self.project, Decimal("0.00"), msg="project")
+
+    def test_reverse_worker_receivables_unchanged(self):
+        self._reversal()
+
+        self.assert_receivables(self.worker, Decimal("0.00"), msg="worker")
+
+    # ------------------------------------------------------------------
+    # Differential invariant — create + reverse leaves the world unchanged
+    # ------------------------------------------------------------------
+
+    def test_create_then_reverse_leaves_world_unchanged(self):
+        """Balances, payables, receivables and ledger must all return to the
+        pre-advance state after a full create + reverse cycle."""
+        before = self.snapshot_state()
+
+        op = make_worker_advance(self.project, self.worker, self.officer, AMOUNT)
+        op.reverse(officer=self.officer)
+
+        self.assert_state_unchanged(before, msg="create+reverse of worker advance")
 
     # ------------------------------------------------------------------
     # Reversal blocked by outstanding repayments

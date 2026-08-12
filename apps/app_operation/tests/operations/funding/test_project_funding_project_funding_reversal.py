@@ -11,6 +11,10 @@ from apps.app_operation.models.proxies import (
     CashInjectionOperation,
     ProjectFundingOperation,
 )
+from apps.app_operation.tests.base import (
+    assert_derived_state_unchanged,
+    snapshot_derived_state,
+)
 from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
@@ -156,3 +160,35 @@ class ProjectFundingReversalTest(TestCase):
             self.funder_entity.balance,
             balance_after_funding + self.op.amount,
         )
+
+    # ------------------------------------------------------------------
+    # Differential invariant — create + reverse leaves the world unchanged
+    # ------------------------------------------------------------------
+
+    def test_create_then_reverse_leaves_world_unchanged(self):
+        """Re-fund the funder, then assert a full create + reverse cycle leaves
+        balances/payables/receivables/ledger unchanged."""
+        CashInjectionOperation(
+            source=self.world_entity,
+            destination=self.funder_entity,
+            amount=Decimal("1000.00"),
+            operation_type=OperationType.CASH_INJECTION,
+            date=date.today(),
+            description="Re-fund for differential",
+            officer=self.officer,
+        ).save()
+        before = snapshot_derived_state()
+
+        op = ProjectFundingOperation(
+            source=self.funder_entity,
+            destination=self.project_entity,
+            amount=Decimal("1000.00"),
+            operation_type=OperationType.PROJECT_FUNDING,
+            date=date.today(),
+            description="Test project funding",
+            officer=self.officer,
+        )
+        op.save()
+        op.reverse(officer=self.officer)
+
+        assert_derived_state_unchanged(self, before, msg="project funding create+reverse")

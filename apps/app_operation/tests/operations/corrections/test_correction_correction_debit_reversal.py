@@ -12,6 +12,10 @@ from apps.app_operation.models.proxies import (
     CorrectionCreditOperation,
     CorrectionDebitOperation,
 )
+from apps.app_operation.tests.base import (
+    assert_derived_state_unchanged,
+    snapshot_derived_state,
+)
 from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
@@ -135,6 +139,31 @@ class CorrectionDebitReversalTest(TestCase):
         self.assertEqual(
             self.project_entity.balance,
             balance_after_debit + self.op.amount,
+        )
+
+    # ------------------------------------------------------------------
+    # Differential invariant — create + reverse leaves the world unchanged
+    # ------------------------------------------------------------------
+
+    def test_create_then_reverse_leaves_world_unchanged(self):
+        """Balances, payables, receivables and ledger must all return to the
+        pre-operation state after a full create + reverse cycle."""
+        before = snapshot_derived_state()
+
+        op = CorrectionDebitOperation(
+            source=self.project_entity,
+            destination=self.system_entity,
+            amount=Decimal("1000.00"),
+            operation_type=OperationType.CORRECTION_DEBIT,
+            date=date.today(),
+            description="Test correction debit",
+            officer=self.officer_user,
+        )
+        op.save()
+        op.reverse(officer=self.officer_user)
+
+        assert_derived_state_unchanged(
+            self, before, msg="correction debit create+reverse"
         )
 
     def test_cannot_reverse_already_reversed_operation(self):

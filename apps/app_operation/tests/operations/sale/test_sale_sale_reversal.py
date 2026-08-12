@@ -6,11 +6,16 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
+from apps.app_inventory.models import InvoiceItem, Product, ProductTemplate
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import (
     CapitalGainOperation,
     SaleOperation,
     CashInjectionOperation,
+)
+from apps.app_operation.tests.base import (
+    assert_derived_state_unchanged,
+    snapshot_derived_state,
 )
 from apps.app_transaction.transaction_type import TransactionType
 
@@ -183,6 +188,58 @@ class SaleReversalTest(TestCase):
         self.assertEqual(self.client_entity.balance, client_balance_before)
 
     # ------------------------------------------------------------------
+    # SE4 — payables / receivables restored on reversal (regression class:
+    # reversal mirrors must not leak into the obligation buckets)
+    # ------------------------------------------------------------------
+
+    def test_reverse_restores_project_receivables(self):
+        """SALE_ISSUANCE makes the project owed by the client; reversal clears it."""
+        self.assertEqual(self.project_entity.receivables, Decimal("1000.00"))
+        self.op.reverse(officer=self.officer)
+
+        self.assertEqual(self.project_entity.receivables, Decimal("0.00"))
+
+    def test_reverse_restores_client_payables(self):
+        """SALE_ISSUANCE makes the client owe the project; reversal clears it."""
+        self.assertEqual(self.client_entity.payables, Decimal("1000.00"))
+        self.op.reverse(officer=self.officer)
+
+        self.assertEqual(self.client_entity.payables, Decimal("0.00"))
+
+    def test_reverse_project_payables_unchanged(self):
+        self.op.reverse(officer=self.officer)
+
+        self.assertEqual(self.project_entity.payables, Decimal("0.00"))
+
+    def test_reverse_client_receivables_unchanged(self):
+        self.op.reverse(officer=self.officer)
+
+        self.assertEqual(self.client_entity.receivables, Decimal("0.00"))
+
+    # ------------------------------------------------------------------
+    # Differential invariant — create + reverse leaves the world unchanged
+    # ------------------------------------------------------------------
+
+    def test_create_then_reverse_leaves_world_unchanged(self):
+        """Balances, payables, receivables and ledger must all return to the
+        pre-operation state after a full create + reverse cycle."""
+        before = snapshot_derived_state()
+
+        op = SaleOperation(
+            source=self.client_entity,
+            destination=self.project_entity,
+            amount=Decimal("1000.00"),
+            operation_type=OperationType.SALE,
+            date=date.today(),
+            description="Test sale",
+            officer=self.officer,
+        )
+        op.save()
+        op.reverse(officer=self.officer)
+
+        assert_derived_state_unchanged(self, before, msg="sale create+reverse")
+
+    # ------------------------------------------------------------------
     # Reversal blocked by existing collection
     # ------------------------------------------------------------------
 
@@ -212,6 +269,82 @@ class SaleReversalTest(TestCase):
 
         with self.assertRaises(ValidationError):
             reversal.reverse(officer=self.officer)
+
+
+# ---------------------------------------------------------------------------
+# SE7 — product status restoration on reversal
+# ---------------------------------------------------------------------------
+
+
+class SaleReversalProductStatusRestorationTest(TestCase):
+    """Reversing a sale restores a sold product to ACTIVE (SE7)."""
+
+    def setUp(self):
+        self.system_entity = Entity.create(EntityType.SYSTEM)
+        self.world_entity = Entity.create(EntityType.WORLD)
+        self.officer = _make_officer()
+        self.project_entity = _make_project_entity("Farm Project")
+        self.client_entity = _make_client_entity("Big Buyer Corp")
+        _seed_client_fund(
+            self.world_entity,
+            self.client_entity,
+            Decimal("5000.00"),
+            self.officer,
+        )
+        _make_client_stakeholder(self.project_entity, self.client_entity)
+        self.template = ProductTemplate.objects.create(
+            name="Calves",
+            nature=ProductTemplate.Nature.ANIMAL,
+            sub_category="Cattle",
+            default_unit="Head",
+        )
+        self.template.entities.add(self.project_entity)
+
+    def _make_sold_product(self, qty=Decimal("5.00"), price=Decimal("100.00")):
+        """Create a sale whose invoice item links a project-owned product, so
+        the product carries SOLD status via the (non-reversed) sale operation."""
+        sale = SaleOperation(
+            source=self.client_entity,
+            destination=self.project_entity,
+            amount=(qty * price).quantize(Decimal("0.01")),
+            operation_type=OperationType.SALE,
+            date=date.today(),
+            description="Test sale",
+            officer=self.officer,
+        )
+        sale.save()
+        item = InvoiceItem.objects.create(
+            operation=sale,
+            product_template=self.template,
+            quantity=qty,
+            unit_price=price,
+        )
+        product = Product.objects.create(
+            product_template=self.template,
+            entity=self.project_entity,
+            unit_price=price,
+            quantity=int(qty),
+        )
+        product.invoice_items.add(item)
+        return sale, product
+
+    def test_sale_links_product_as_sold(self):
+        """A product linked to a non-reversed SALE item carries SOLD status."""
+        _, product = self._make_sold_product()
+        product.refresh_from_db()
+        self.assertEqual(product.status, Product.Status.SOLD)
+
+    def test_reverse_restores_sold_product_to_active(self):
+        """Reversing the sale excludes it from the status derivation, so the
+        product returns to ACTIVE (SE7)."""
+        sale, product = self._make_sold_product()
+        product.refresh_from_db()
+        self.assertEqual(product.status, Product.Status.SOLD)
+
+        sale.reverse(officer=self.officer)
+
+        product.refresh_from_db()
+        self.assertEqual(product.status, Product.Status.ACTIVE)
 
 
 # ---------------------------------------------------------------------------

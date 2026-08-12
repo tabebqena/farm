@@ -30,6 +30,7 @@ from apps.app_inventory.tests.general import (
 from apps.app_operation.models.operation import Operation
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import PurchaseOperation
+from apps.app_operation.tests.base import assert_tx_types
 from apps.app_transaction.transaction_type import TransactionType
 
 
@@ -127,13 +128,13 @@ class QuickConsumeFromStockTest(TestCase):
         self.assertEqual(ml.quantity, Decimal("5.00"))
 
         # Issuance + payment transactions
-        transactions = op.get_all_transactions()
-        self.assertEqual(transactions.count(), 2)
-        self.assertTrue(
-            transactions.filter(type=TransactionType.CONSUMPTION_ISSUANCE).exists()
-        )
-        self.assertTrue(
-            transactions.filter(type=TransactionType.CONSUMPTION_PAYMENT).exists()
+        assert_tx_types(
+            self,
+            op,
+            {
+                TransactionType.CONSUMPTION_ISSUANCE: 1,
+                TransactionType.CONSUMPTION_PAYMENT: 1,
+            },
         )
 
         # CONSUMPTION_MOVEMENT ledger entry with correct deltas

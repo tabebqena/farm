@@ -11,6 +11,10 @@ from apps.app_operation.models.proxies import (
     CashInjectionOperation,
     InternalTransferOperation,
 )
+from apps.app_operation.tests.base import (
+    assert_derived_state_unchanged,
+    snapshot_derived_state,
+)
 from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
@@ -151,3 +155,28 @@ class InternalTransferReversalTest(TestCase):
 
         with self.assertRaises(ValidationError):
             reversal.reverse(officer=self.officer)
+
+    # ------------------------------------------------------------------
+    # Differential invariant — create + reverse leaves the world unchanged
+    # ------------------------------------------------------------------
+
+    def test_create_then_reverse_leaves_world_unchanged(self):
+        """Balances, payables, receivables and ledger must all return to the
+        pre-operation state after a full create + reverse cycle."""
+        before = snapshot_derived_state()
+
+        op = InternalTransferOperation(
+            source=self.source_entity,
+            destination=self.dest_entity,
+            amount=Decimal("500.00"),
+            operation_type=OperationType.INTERNAL_TRANSFER,
+            date=date.today(),
+            description="Test internal transfer",
+            officer=self.officer,
+        )
+        op.save()
+        op.reverse(officer=self.officer)
+
+        assert_derived_state_unchanged(
+            self, before, msg="internal transfer create+reverse"
+        )

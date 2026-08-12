@@ -13,6 +13,10 @@ from apps.app_operation.models.proxies import (
     CashInjectionOperation,
     LossCoverageOperation,
 )
+from apps.app_operation.tests.base import (
+    assert_derived_state_unchanged,
+    snapshot_derived_state,
+)
 from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
@@ -227,6 +231,34 @@ class LossCoverageReversalTest(TestCase):
         self.assertEqual(self.period.remaining_coverable, Decimal("500.00"))
         self.op.reverse(officer=self.officer)
         self.assertEqual(self.period.remaining_coverable, Decimal("1000.00"))
+
+    # ------------------------------------------------------------------
+    # Differential invariant — create + reverse leaves the world unchanged
+    # ------------------------------------------------------------------
+
+    def test_create_then_reverse_leaves_world_unchanged(self):
+        """Balances, payables, receivables and ledger must all return to the
+        pre-operation state after a full create + reverse cycle.
+
+        The reversal guard requires remaining_coverable >= amount, so the
+        differential op must be small enough to reverse after self.op (500)."""
+        before = snapshot_derived_state()
+
+        op = LossCoverageOperation(
+            source=self.shareholder,
+            destination=self.project_entity,
+            amount=Decimal("200.00"),
+            operation_type=OperationType.LOSS_COVERAGE,
+            date=TODAY,
+            plan=self.period,
+            officer=self.officer,
+        )
+        op.save()
+        op.reverse(officer=self.officer)
+
+        assert_derived_state_unchanged(
+            self, before, msg="loss coverage create+reverse"
+        )
 
     # ------------------------------------------------------------------
     # Constraints

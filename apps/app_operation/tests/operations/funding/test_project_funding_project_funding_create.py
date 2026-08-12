@@ -11,6 +11,7 @@ from apps.app_operation.models.proxies import (
     CashInjectionOperation,
     ProjectFundingOperation,
 )
+from apps.app_operation.tests.base import assert_tx_types
 from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
@@ -81,16 +82,13 @@ class ProjectFundingCreateTest(TestCase):
         self.assertIsNotNone(op.source)
         self.assertIsNotNone(op.destination)
 
-        transactions = op.get_all_transactions()
-        self.assertEqual(transactions.count(), 2)
-
-        self.assertTrue(
-            transactions.filter(type=TransactionType.PROJECT_FUNDING_ISSUANCE).exists(),
-            "Issuance transaction should be created",
-        )
-        self.assertTrue(
-            transactions.filter(type=TransactionType.PROJECT_FUNDING_PAYMENT).exists(),
-            "Payment transaction should be created",
+        assert_tx_types(
+            self,
+            op,
+            {
+                TransactionType.PROJECT_FUNDING_ISSUANCE: 1,
+                TransactionType.PROJECT_FUNDING_PAYMENT: 1,
+            },
         )
 
     def test_transaction_amounts_match_operation(self):

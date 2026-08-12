@@ -9,6 +9,7 @@ from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderR
 from apps.app_inventory.models import Product, ProductLedgerEntry, ProductTemplate
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import CapitalGainOperation, PurchaseOperation
+from apps.app_operation.tests.base import assert_tx_types
 from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
@@ -113,23 +114,13 @@ class PurchaseCreateTest(TestCase):
         op = self._make_op()
         op.save()
 
-        transactions = op.get_all_transactions()
-        self.assertEqual(transactions.count(), 1)
-        self.assertTrue(
-            transactions.filter(type=TransactionType.PURCHASE_ISSUANCE).exists(),
-            "Issuance transaction must be created on save",
-        )
+        assert_tx_types(self, op, {TransactionType.PURCHASE_ISSUANCE: 1})
 
     def test_no_payment_transaction_created_on_save(self):
         op = self._make_op()
         op.save()
 
-        self.assertFalse(
-            op.get_all_transactions()
-            .filter(type=TransactionType.PURCHASE_PAYMENT)
-            .exists(),
-            "Payment transaction must NOT be created on save — purchase is not one-shot",
-        )
+        assert_tx_types(self, op, {TransactionType.PURCHASE_ISSUANCE: 1})
 
     def test_issuance_transaction_direction_is_project_to_vendor(self):
         op = self._make_op()
@@ -167,6 +158,36 @@ class PurchaseCreateTest(TestCase):
         op.save()
 
         self.assertFalse(op.is_fully_settled)
+
+    # ------------------------------------------------------------------
+    # SE4 — payables / receivables at creation
+    # ------------------------------------------------------------------
+
+    def test_create_project_payables_increase(self):
+        """PURCHASE_ISSUANCE makes the project owe the vendor."""
+        op = self._make_op(amount=Decimal("1000.00"))
+        op.save()
+
+        self.assertEqual(self.project_entity.payables, Decimal("1000.00"))
+
+    def test_create_vendor_receivables_increase(self):
+        """PURCHASE_ISSUANCE makes the vendor owed by the project."""
+        op = self._make_op(amount=Decimal("1000.00"))
+        op.save()
+
+        self.assertEqual(self.vendor_entity.receivables, Decimal("1000.00"))
+
+    def test_create_project_receivables_unchanged(self):
+        op = self._make_op()
+        op.save()
+
+        self.assertEqual(self.project_entity.receivables, Decimal("0.00"))
+
+    def test_create_vendor_payables_unchanged(self):
+        op = self._make_op()
+        op.save()
+
+        self.assertEqual(self.vendor_entity.payables, Decimal("0.00"))
 
     # ------------------------------------------------------------------
     # Source validation
@@ -414,11 +435,7 @@ class PurchaseCreateFromSessionTest(TestCase):
         self.assertEqual(op.operation_type, OperationType.PURCHASE)
 
         # Exactly one issuance transaction (no payment)
-        transactions = op.get_all_transactions()
-        self.assertEqual(transactions.count(), 1)
-        self.assertTrue(
-            transactions.filter(type=TransactionType.PURCHASE_ISSUANCE).exists()
-        )
+        assert_tx_types(self, op, {TransactionType.PURCHASE_ISSUANCE: 1})
 
         # Invoice items created
         self.assertEqual(op.items.count(), 1)
@@ -430,10 +447,12 @@ class PurchaseCreateFromSessionTest(TestCase):
         # No inventory movement lines (received_qty = 0)
         self.assertEqual(op.movement_lines.count(), 0)
 
-        # Product ledger entries recorded
-        self.assertTrue(
-            ProductLedgerEntry.objects.filter(invoice_item__operation=op).exists()
-        )
+        # Product ledger entries recorded (one PURCHASE_ISSUANCE per item)
+        entries = ProductLedgerEntry.objects.filter(invoice_item__operation=op)
+        self.assertEqual(entries.count(), 1)
+        self.assertEqual(entries.first().entry_type, ProductLedgerEntry.EntryType.PURCHASE_ISSUANCE)
+        self.assertEqual(entries.first().quantity_delta, Decimal("10.00"))
+        self.assertEqual(entries.first().value_delta, Decimal("1000.00"))
 
     def test_create_from_session_multiple_items(self):
         """Multiple invoice items are created and totals validated."""
@@ -577,11 +596,14 @@ class PurchaseCreateFromSessionTest(TestCase):
             officer=self.officer_user,
         )
 
-        transactions = op.get_all_transactions()
         # 1 issuance + 1 payment = 2
-        self.assertEqual(transactions.count(), 2)
-        self.assertTrue(
-            transactions.filter(type=TransactionType.PURCHASE_PAYMENT).exists()
+        assert_tx_types(
+            self,
+            op,
+            {
+                TransactionType.PURCHASE_ISSUANCE: 1,
+                TransactionType.PURCHASE_PAYMENT: 1,
+            },
         )
 
         # Fund balances reflect the payment
@@ -617,11 +639,7 @@ class PurchaseCreateFromSessionTest(TestCase):
             officer=self.officer_user,
         )
 
-        transactions = op.get_all_transactions()
-        self.assertEqual(transactions.count(), 1)
-        self.assertFalse(
-            transactions.filter(type=TransactionType.PURCHASE_PAYMENT).exists()
-        )
+        assert_tx_types(self, op, {TransactionType.PURCHASE_ISSUANCE: 1})
 
     def test_create_from_session_full_payment(self):
         """Full amount_paid marks operation as fully settled."""
@@ -683,12 +701,33 @@ class PurchaseCreateFromSessionTest(TestCase):
         )
 
         # Transactions: 1 issuance + 1 payment = 2
-        self.assertEqual(op.get_all_transactions().count(), 2)
-
-        # Ledger entries
-        self.assertTrue(
-            ProductLedgerEntry.objects.filter(invoice_item__operation=op).exists()
+        assert_tx_types(
+            self,
+            op,
+            {
+                TransactionType.PURCHASE_ISSUANCE: 1,
+                TransactionType.PURCHASE_PAYMENT: 1,
+            },
         )
+
+        # Ledger entries — one PURCHASE_ISSUANCE per item (full contract qty) plus
+        # one PURCHASE_MOVEMENT per received head
+        issuance = ProductLedgerEntry.objects.filter(
+            invoice_item__operation=op,
+            entry_type=ProductLedgerEntry.EntryType.PURCHASE_ISSUANCE,
+        )
+        self.assertEqual(issuance.count(), 1)
+        self.assertEqual(issuance.first().quantity_delta, Decimal("20.00"))
+        self.assertEqual(issuance.first().value_delta, Decimal("1000.00"))
+
+        movement = ProductLedgerEntry.objects.filter(
+            invoice_item__operation=op,
+            entry_type=ProductLedgerEntry.EntryType.PURCHASE_MOVEMENT,
+        )
+        self.assertEqual(movement.count(), 15)
+        for entry in movement:
+            self.assertEqual(entry.quantity_delta, Decimal("1.00"))
+            self.assertEqual(entry.value_delta, Decimal("50.00"))
 
         # Fund balances
         self.project_entity.refresh_from_db()
@@ -857,11 +896,15 @@ class PurchaseCreateFromSessionTest(TestCase):
         )
 
         entries = ProductLedgerEntry.objects.filter(invoice_item__operation=op)
-        self.assertTrue(entries.exists())
+        self.assertEqual(entries.count(), 1)
+        entry = entries.get()
 
         # Verify entry references the invoice item
         invoice_item = op.items.first()
-        self.assertTrue(entries.filter(invoice_item=invoice_item).exists())
+        self.assertEqual(entry.invoice_item, invoice_item)
+        self.assertEqual(entry.entry_type, ProductLedgerEntry.EntryType.PURCHASE_ISSUANCE)
+        self.assertEqual(entry.quantity_delta, Decimal("10.00"))
+        self.assertEqual(entry.value_delta, Decimal("1000.00"))
 
     # ------------------------------------------------------------------
     # Edge cases — description handling

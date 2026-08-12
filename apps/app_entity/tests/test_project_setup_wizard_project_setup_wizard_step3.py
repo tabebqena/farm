@@ -65,11 +65,9 @@ class ProjectSetupWizardStep3Test(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertEqual(self.project.product_templates.count(), 2)
-        self.assertTrue(
-            self.project.product_templates.filter(pk=self.template1.pk).exists()
-        )
-        self.assertTrue(
-            self.project.product_templates.filter(pk=self.template2.pk).exists()
+        self.assertEqual(
+            set(self.project.product_templates.values_list("pk", flat=True)),
+            {self.template1.pk, self.template2.pk},
         )
 
     def test_wizard_step_3_no_templates_allowed(self):

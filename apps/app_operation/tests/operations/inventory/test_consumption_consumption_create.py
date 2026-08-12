@@ -20,6 +20,7 @@ from apps.app_inventory.tests.general import (
 )
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import ConsumptionOperation, PurchaseOperation
+from apps.app_operation.tests.base import assert_tx_types
 from apps.app_transaction.transaction_type import TransactionType
 
 
@@ -171,8 +172,8 @@ class ConsumptionCreateTest(TestCase):
             product=product,
             entry_type=ProductLedgerEntry.EntryType.CONSUMPTION_ISSUANCE,
         )
-        self.assertTrue(movement.exists(), "CONSUMPTION_MOVEMENT ledger entry missing")
-        self.assertTrue(issuance.exists(), "CONSUMPTION_ISSUANCE ledger entry missing")
+        self.assertEqual(movement.count(), 1, "CONSUMPTION_MOVEMENT ledger entry missing")
+        self.assertEqual(issuance.count(), 1, "CONSUMPTION_ISSUANCE ledger entry missing")
 
         self.assertEqual(movement.first().quantity_delta, Decimal("-5.00"))
         self.assertEqual(movement.first().value_delta, Decimal("-500.00"))
@@ -217,13 +218,13 @@ class ConsumptionCreateTest(TestCase):
         product = self._make_moved_product()
         op = self._consume(product)
 
-        transactions = op.get_all_transactions()
-        self.assertEqual(transactions.count(), 2)
-        self.assertTrue(
-            transactions.filter(type=TransactionType.CONSUMPTION_ISSUANCE).exists()
-        )
-        self.assertTrue(
-            transactions.filter(type=TransactionType.CONSUMPTION_PAYMENT).exists()
+        assert_tx_types(
+            self,
+            op,
+            {
+                TransactionType.CONSUMPTION_ISSUANCE: 1,
+                TransactionType.CONSUMPTION_PAYMENT: 1,
+            },
         )
 
     def test_create_is_fully_settled(self):

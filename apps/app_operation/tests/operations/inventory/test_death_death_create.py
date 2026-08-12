@@ -8,6 +8,7 @@ from django.test import TestCase
 from apps.app_entity.models import Entity, EntityType
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import DeathOperation
+from apps.app_operation.tests.base import assert_tx_types
 from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
@@ -99,31 +100,26 @@ class DeathCreateTest(TestCase):
 
         self.assertIsNotNone(op.pk)
 
-        transactions = op.get_all_transactions()
-        self.assertEqual(transactions.count(), 2)
-
-        self.assertTrue(
-            transactions.filter(type=TransactionType.DEATH_ISSUANCE).exists(),
-            "Issuance transaction should be created on save",
-        )
-        self.assertTrue(
-            transactions.filter(type=TransactionType.DEATH_PAYMENT).exists(),
-            "Payment transaction should be created on save — one-shot operation",
+        assert_tx_types(
+            self,
+            op,
+            {
+                TransactionType.DEATH_ISSUANCE: 1,
+                TransactionType.DEATH_PAYMENT: 1,
+            },
         )
 
     def test_save_creates_exactly_one_issuance_and_one_payment(self):
         op = self._make_op()
         op.save()
 
-        self.assertEqual(
-            op.get_all_transactions()
-            .filter(type=TransactionType.DEATH_ISSUANCE)
-            .count(),
-            1,
-        )
-        self.assertEqual(
-            op.get_all_transactions().filter(type=TransactionType.DEATH_PAYMENT).count(),
-            1,
+        assert_tx_types(
+            self,
+            op,
+            {
+                TransactionType.DEATH_ISSUANCE: 1,
+                TransactionType.DEATH_PAYMENT: 1,
+            },
         )
 
     def test_transaction_direction_is_project_to_system(self):

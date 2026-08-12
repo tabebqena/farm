@@ -19,6 +19,8 @@ from apps.app_operation.models.proxies import (
     CashInjectionOperation,
     PurchaseOperation,
 )
+from apps.app_operation.tests.base import assert_tx_types
+from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
 
@@ -187,9 +189,8 @@ class PurchaseCreateViaFactoryTest(TestCase):
         )
         self.assertIsNotNone(op.pk)
         self.assertEqual(op.amount, Decimal("1000.00"))
-        # Issuance transaction should exist
-        transactions = op.get_all_transactions()
-        self.assertGreaterEqual(transactions.count(), 1)
+        # Exactly one issuance transaction (no payment)
+        assert_tx_types(self, op, {TransactionType.PURCHASE_ISSUANCE: 1})
 
     def test_create_with_payment(self):
         """When amount_paid > 0 and proxy.can_pay, a payment transaction is created."""

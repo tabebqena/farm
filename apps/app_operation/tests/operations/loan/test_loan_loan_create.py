@@ -8,6 +8,7 @@ from django.test import TestCase
 from apps.app_entity.models import Entity, EntityType
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import CashInjectionOperation, LoanOperation
+from apps.app_operation.tests.base import assert_tx_types
 from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
@@ -86,11 +87,7 @@ class LoanCreateTest(TestCase):
         op.save()
 
         self.assertIsNotNone(op.pk)
-        transactions = op.get_all_transactions()
-        self.assertEqual(transactions.count(), 1)
-        self.assertTrue(
-            transactions.filter(type=TransactionType.LOAN_ISSUANCE).exists()
-        )
+        assert_tx_types(self, op, {TransactionType.LOAN_ISSUANCE: 1})
 
     def test_issuance_transaction_direction_is_creditor_to_debtor(self):
         op = self._make_op()

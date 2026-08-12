@@ -11,6 +11,10 @@ from apps.app_operation.models.proxies import (
     CashInjectionOperation,
     CashWithdrawalOperation,
 )
+from apps.app_operation.tests.base import (
+    assert_derived_state_unchanged,
+    snapshot_derived_state,
+)
 from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
@@ -137,4 +141,38 @@ class CashWithdrawalReversalTest(TestCase):
         self.assertEqual(
             self.withdrawer_entity.balance,
             balance_after_withdrawal + self.op.amount,
+        )
+
+    # ------------------------------------------------------------------
+    # Differential invariant — create + reverse leaves the world unchanged
+    # ------------------------------------------------------------------
+
+    def test_create_then_reverse_leaves_world_unchanged(self):
+        """Re-fund the withdrawer, then assert a full create + reverse cycle
+        leaves balances/payables/receivables/ledger unchanged."""
+        CashInjectionOperation(
+            source=self.world_entity,
+            destination=self.withdrawer_entity,
+            amount=Decimal("1000.00"),
+            operation_type=OperationType.CASH_INJECTION,
+            date=date.today(),
+            description="Re-fund for differential",
+            officer=self.officer_user,
+        ).save()
+        before = snapshot_derived_state()
+
+        op = CashWithdrawalOperation(
+            source=self.withdrawer_entity,
+            destination=self.world_entity,
+            amount=Decimal("1000.00"),
+            operation_type=OperationType.CASH_WITHDRAWAL,
+            date=date.today(),
+            description="Test cash withdrawal",
+            officer=self.officer_user,
+        )
+        op.save()
+        op.reverse(officer=self.officer_user)
+
+        assert_derived_state_unchanged(
+            self, before, msg="cash withdrawal create+reverse"
         )

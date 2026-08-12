@@ -9,6 +9,7 @@ from apps.app_entity.models import Entity, EntityType
 from apps.app_entity.models.category import FinancialCategory
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import CapitalGainOperation, ExpenseOperation
+from apps.app_operation.tests.base import assert_tx_types
 from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
@@ -120,23 +121,13 @@ class ExpenseCreateTest(TestCase):
         op = self._make_op()
         op.save()
 
-        transactions = op.get_all_transactions()
-        self.assertEqual(transactions.count(), 1)
-        self.assertTrue(
-            transactions.filter(type=TransactionType.EXPENSE_ISSUANCE).exists(),
-            "Issuance transaction must be created on save",
-        )
+        assert_tx_types(self, op, {TransactionType.EXPENSE_ISSUANCE: 1})
 
     def test_no_payment_transaction_created_on_save(self):
         op = self._make_op()
         op.save()
 
-        self.assertFalse(
-            op.get_all_transactions()
-            .filter(type=TransactionType.EXPENSE_PAYMENT)
-            .exists(),
-            "Payment transaction must NOT be created on save — expense is not one-shot",
-        )
+        assert_tx_types(self, op, {TransactionType.EXPENSE_ISSUANCE: 1})
 
     def test_issuance_transaction_direction_is_project_to_world(self):
         op = self._make_op()
@@ -176,6 +167,23 @@ class ExpenseCreateTest(TestCase):
         self.assertFalse(op.is_fully_settled)
 
     # ------------------------------------------------------------------
+    # SE4 — payables / receivables at creation
+    # ------------------------------------------------------------------
+
+    def test_create_project_payables_increase(self):
+        """EXPENSE_ISSUANCE makes the project owe the payee."""
+        op = self._make_op(amount=Decimal("1000.00"))
+        op.save()
+
+        self.assertEqual(self.project_entity.payables, Decimal("1000.00"))
+
+    def test_create_project_receivables_unchanged(self):
+        op = self._make_op()
+        op.save()
+
+        self.assertEqual(self.project_entity.receivables, Decimal("0.00"))
+
+    # ------------------------------------------------------------------
     # Category config
     # ------------------------------------------------------------------
 
@@ -192,10 +200,11 @@ class ExpenseCreateTest(TestCase):
         # Verify the relation exists
         from apps.app_entity.models.category import FinancialCategoriesEntitiesRelations
 
-        self.assertTrue(
+        self.assertEqual(
             FinancialCategoriesEntitiesRelations.objects.filter(
                 entity=self.project_entity, category=cat
-            ).exists()
+            ).count(),
+            1,
         )
 
     def test_non_expense_category_type_is_distinct_from_expense(self):

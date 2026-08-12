@@ -3,190 +3,142 @@ from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
-from django.test import TestCase
 
-from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
-from apps.app_operation.models.operation_type import OperationType
-from apps.app_operation.models.proxies import (
-    CapitalGainOperation,
-    CashInjectionOperation,
-    WorkerAdvanceOperation,
-)
+from apps.app_entity.models import StakeholderRole
+from apps.app_operation.models.proxies import WorkerAdvanceOperation
 from apps.app_transaction.transaction_type import TransactionType
+
+from apps.app_operation.tests.base import (
+    BaseOperationTestCase,
+    build_worker_advance,
+    make_person,
+    make_project,
+    make_stakeholder,
+    make_worker,
+)
 
 User = get_user_model()
 
 
-# ---------------------------------------------------------------------------
-# Shared helpers
-# ---------------------------------------------------------------------------
-
-
-def _make_officer(username="officer"):
-    return User.objects.create_user(
-        username=username, password="testpass", is_staff=True
-    )
-
-
-def _make_person_entity(name, is_worker=False):
-    return Entity.create(EntityType.PERSON, name=name, is_worker=is_worker)
-
-
-def _make_client_entity(name, is_client=False):
-    return Entity.create(EntityType.CLIENT, name=name, is_client=is_client)
-
-
-def _make_vendor_entity(name):
-    return Entity.create(EntityType.VENDOR, name)
-
-
-def _make_project_entity(name):
-    return Entity.create(EntityType.PROJECT, name)
-
-
-def _inject_person(world_entity, dest_entity, amount, officer):
-    """Seed a Person entity's fund via CashInjection."""
-    CashInjectionOperation(
-        source=world_entity,
-        destination=dest_entity,
-        amount=amount,
-        operation_type=OperationType.CASH_INJECTION,
-        date=date.today(),
-        description="Seed balance",
-        officer=officer,
-    ).save()
-
-
-def _inject_project(system_entity, dest_entity, amount, officer):
-    """Seed a Project entity's fund via CapitalGain."""
-    CapitalGainOperation(
-        source=system_entity,
-        destination=dest_entity,
-        amount=amount,
-        operation_type=OperationType.CAPITAL_GAIN,
-        date=date.today(),
-        description="Seed project balance",
-        officer=officer,
-    ).save()
-
-
-def _make_worker_stakeholder(
-    project_entity, worker_entity, role=StakeholderRole.WORKER, active=True
-):
-    sh = Stakeholder(
-        parent=project_entity, target=worker_entity, role=role, active=active
-    )
-    sh.save()
-    return sh
-
-
-# ---------------------------------------------------------------------------
-# WorkerAdvanceCreateTest
-# ---------------------------------------------------------------------------
-
-
-class WorkerAdvanceCreateTest(TestCase):
+class WorkerAdvanceCreateTest(BaseOperationTestCase):
     """
-    Tests for operation creation: validation, one-shot transactions, and fund balances.
+    Operation creation: validation, one-shot transactions, and fund balances.
 
     At creation the operation issues both WORKER_ADVANCE_ISSUANCE and
     WORKER_ADVANCE_PAYMENT in one atomic step (one-shot pattern).
     """
 
+    amount = Decimal("1000.00")
+
     def setUp(self):
-        self.system_entity = Entity.create(EntityType.SYSTEM)
-        self.officer = _make_officer()
-
-        self.project_entity = _make_project_entity("Test Farm Project")
-        _inject_project(
-            self.system_entity, self.project_entity, Decimal("5000.00"), self.officer
-        )
-
-        self.worker_entity = _make_person_entity("Ali Worker", is_worker=True)
-        _make_worker_stakeholder(self.project_entity, self.worker_entity)
+        super().setUp()
+        self.worker = make_worker(self.project, "Ali Worker")
 
     def _make_op(self, **kwargs):
-        defaults = dict(
-            source=self.project_entity,
-            destination=self.worker_entity,
-            amount=Decimal("1000.00"),
-            operation_type=OperationType.WORKER_ADVANCE,
-            date=date.today(),
-            description="Test worker advance",
-            officer=self.officer,
-        )
-        defaults.update(kwargs)
-        return WorkerAdvanceOperation(**defaults)
+        # Pull amount/officer overrides out so they are not passed twice
+        # (positionally and via **kwargs).
+        amount = kwargs.pop("amount", self.amount)
+        officer = kwargs.pop("officer", self.officer)
+        return build_worker_advance(self.project, self.worker, officer, amount, **kwargs)
 
     # ------------------------------------------------------------------
-    # Happy path — one-shot transaction creation
+    # SE2 — one-shot transaction creation
     # ------------------------------------------------------------------
 
-    def test_creates_both_issuance_and_payment_transactions_at_creation(self):
+    def test_create_creates_issuance_tx_exact(self):
+        """Exactly one WORKER_ADVANCE_ISSUANCE, project -> worker, amount exact."""
         op = self._make_op()
         op.save()
 
-        transactions = op.get_all_transactions()
-        self.assertEqual(transactions.count(), 2)
-        self.assertTrue(
-            transactions.filter(type=TransactionType.WORKER_ADVANCE_ISSUANCE).exists(),
-            "Issuance transaction must be created",
-        )
-        self.assertTrue(
-            transactions.filter(type=TransactionType.WORKER_ADVANCE_PAYMENT).exists(),
-            "Payment transaction must be created",
+        self.assert_tx(
+            op,
+            TransactionType.WORKER_ADVANCE_ISSUANCE,
+            self.project,
+            self.worker,
+            self.amount,
         )
 
-    def test_issuance_transaction_direction_is_project_to_worker(self):
+    def test_create_creates_payment_tx_exact(self):
+        """Exactly one WORKER_ADVANCE_PAYMENT, project -> worker, amount exact."""
         op = self._make_op()
         op.save()
 
-        tx = op.get_all_transactions().get(type=TransactionType.WORKER_ADVANCE_ISSUANCE)
-        self.assertEqual(tx.source, self.project_entity)
-        self.assertEqual(tx.target, self.worker_entity)
+        self.assert_tx(
+            op,
+            TransactionType.WORKER_ADVANCE_PAYMENT,
+            self.project,
+            self.worker,
+            self.amount,
+        )
 
-    def test_payment_transaction_direction_is_project_to_worker(self):
+    def test_create_creates_exactly_two_transactions(self):
+        """The one-shot pattern writes issuance + payment, nothing else."""
         op = self._make_op()
         op.save()
 
-        tx = op.get_all_transactions().get(type=TransactionType.WORKER_ADVANCE_PAYMENT)
-        self.assertEqual(tx.source, self.project_entity)
-        self.assertEqual(tx.target, self.worker_entity)
-
-    def test_both_transactions_amount_match_operation(self):
-        op = self._make_op(amount=Decimal("800.00"))
-        op.save()
-
-        for tx in op.get_all_transactions():
-            self.assertEqual(tx.amount, Decimal("800.00"))
-
-    def test_project_fund_decreases_by_advance_amount(self):
-        balance_before = self.project_entity.balance
-
-        op = self._make_op(amount=Decimal("600.00"))
-        op.save()
-
-        self.assertEqual(
-            self.project_entity.balance,
-            balance_before - Decimal("600.00"),
+        self.assert_tx_types(
+            op,
+            {
+                TransactionType.WORKER_ADVANCE_ISSUANCE: 1,
+                TransactionType.WORKER_ADVANCE_PAYMENT: 1,
+            },
         )
 
-    def test_worker_fund_increases_by_advance_amount(self):
-        balance_before = self.worker_entity.balance
+    # ------------------------------------------------------------------
+    # SE3 — fund balances
+    # ------------------------------------------------------------------
 
-        op = self._make_op(amount=Decimal("600.00"))
-        op.save()
+    def test_create_project_balance_decreases(self):
+        """The project fund loses the advance amount (payment is outgoing)."""
+        self._make_op().save()
 
-        self.assertEqual(
-            self.worker_entity.balance,
-            balance_before + Decimal("600.00"),
+        self.assert_balance(
+            self.project, self.project_funding - self.amount, msg="project"
         )
 
-    def test_amount_remaining_to_repay_equals_full_amount_after_creation(self):
-        op = self._make_op(amount=Decimal("1000.00"))
+    def test_create_worker_balance_increases(self):
+        """The worker fund gains the advance amount (payment is incoming)."""
+        self._make_op().save()
+
+        self.assert_balance(self.worker, self.amount, msg="worker")
+
+    # ------------------------------------------------------------------
+    # SE4 — payables / receivables
+    # ------------------------------------------------------------------
+
+    def test_create_project_receivables_increase(self):
+        """The advance is a receivable the project is owed by the worker."""
+        self._make_op().save()
+
+        self.assert_receivables(self.project, self.amount, msg="project")
+
+    def test_create_worker_payables_increase(self):
+        """The worker now owes the advance back to the project."""
+        self._make_op().save()
+
+        self.assert_payables(self.worker, self.amount, msg="worker")
+
+    def test_create_project_payables_unchanged(self):
+        """The advance does not create a payable for the project."""
+        self._make_op().save()
+
+        self.assert_payables(self.project, Decimal("0.00"), msg="project")
+
+    def test_create_worker_receivables_unchanged(self):
+        """The advance does not create a receivable for the worker."""
+        self._make_op().save()
+
+        self.assert_receivables(self.worker, Decimal("0.00"), msg="worker")
+
+    # ------------------------------------------------------------------
+    # SE8 — derived repayment amount
+    # ------------------------------------------------------------------
+
+    def test_create_remaining_to_repay_equals_amount(self):
+        op = self._make_op()
         op.save()
 
-        self.assertEqual(op.amount_remaining_to_repay, Decimal("1000.00"))
+        self.assertEqual(op.amount_remaining_to_repay, self.amount)
 
     # ------------------------------------------------------------------
     # One-shot constraint
@@ -208,22 +160,14 @@ class WorkerAdvanceCreateTest(TestCase):
     # ------------------------------------------------------------------
 
     def test_source_must_be_a_project_entity(self):
-        non_project = _make_person_entity("Not A Project")
+        non_project = make_person("Not A Project")
         op = self._make_op(source=non_project)
         with self.assertRaises(ValidationError):
             op.save()
 
     def test_source_must_be_active(self):
-        self.project_entity.active = False
-        self.project_entity.save()
-
-        op = self._make_op()
-        with self.assertRaises(ValidationError):
-            op.save()
-
-    def test_source_fund_must_be_active(self):
-        self.project_entity.active = False
-        self.project_entity.save()
+        self.project.active = False
+        self.project.save()
 
         op = self._make_op()
         with self.assertRaises(ValidationError):
@@ -240,28 +184,28 @@ class WorkerAdvanceCreateTest(TestCase):
 
     def test_destination_must_be_a_person_entity(self):
         # clean_destination checks destination.person first, before any stakeholder check
-        other_project = _make_project_entity("Other Project")
+        other_project = make_project("Other Project")
         op = self._make_op(destination=other_project)
         with self.assertRaises(ValidationError):
             op.save()
 
     def test_destination_must_be_active(self):
-        self.worker_entity.active = False
-        self.worker_entity.save()
+        self.worker.active = False
+        self.worker.save()
 
         op = self._make_op()
         with self.assertRaises(ValidationError):
             op.save()
 
     def test_destination_without_stakeholder_relationship_raises_validation_error(self):
-        unrelated_person = _make_person_entity("Unrelated Person")
+        unrelated_person = make_person("Unrelated Person")
         op = self._make_op(destination=unrelated_person)
         with self.assertRaises(ValidationError):
             op.save()
 
     def test_destination_with_inactive_stakeholder_raises_validation_error(self):
-        another_worker = _make_person_entity("Inactive Worker")
-        _make_worker_stakeholder(self.project_entity, another_worker, active=False)
+        another_worker = make_person("Inactive Worker")
+        make_stakeholder(self.project, another_worker, active=False)
 
         op = self._make_op(destination=another_worker)
         with self.assertRaises(ValidationError):
@@ -269,10 +213,8 @@ class WorkerAdvanceCreateTest(TestCase):
 
     def test_destination_must_be_worker_role_stakeholder(self):
         """A person with a non-WORKER stakeholder role should not be a valid destination."""
-        non_worker = _make_person_entity("Client Person")
-        _make_worker_stakeholder(
-            self.project_entity, non_worker, role=StakeholderRole.CLIENT
-        )
+        non_worker = make_person("Client Person")
+        make_stakeholder(self.project, non_worker, role=StakeholderRole.CLIENT)
 
         op = self._make_op(destination=non_worker)
         with self.assertRaises(ValidationError):
@@ -320,7 +262,7 @@ class WorkerAdvanceCreateTest(TestCase):
         op = self._make_op()
         op.save()
 
-        other_project = _make_project_entity("Other Project")
+        other_project = make_project("Other Project")
         op.source = other_project
         with self.assertRaises(ValidationError):
             op.save()
@@ -329,8 +271,8 @@ class WorkerAdvanceCreateTest(TestCase):
         op = self._make_op()
         op.save()
 
-        other_worker = _make_person_entity("Other Worker")
-        _make_worker_stakeholder(self.project_entity, other_worker)
+        other_worker = make_person("Other Worker")
+        make_stakeholder(self.project, other_worker)
         op.destination = other_worker
         with self.assertRaises(ValidationError):
             op.save()
@@ -350,8 +292,3 @@ class WorkerAdvanceCreateTest(TestCase):
     def test_check_balance_on_payment_is_disabled(self):
         """Balance is enforced by clean() at creation; no per-payment gate needed."""
         self.assertFalse(WorkerAdvanceOperation.check_balance_on_payment)
-
-
-# ---------------------------------------------------------------------------
-# WorkerAdvanceRepaymentTest
-# ---------------------------------------------------------------------------

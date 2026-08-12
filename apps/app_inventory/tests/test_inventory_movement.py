@@ -6,7 +6,12 @@ from django.test import Client, TestCase
 from django.urls import reverse
 
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
-from apps.app_inventory.models import InventoryMovementLine, ProductTemplate
+from apps.app_inventory.models import (
+    InventoryMovementLine,
+    Product,
+    ProductLedgerEntry,
+    ProductTemplate,
+)
 from apps.app_inventory.tests.general import (
     make_entity,
     make_invoice_item,
@@ -92,6 +97,19 @@ class InventoryMovementCreationTest(TestCase):
         self.assertEqual(line.invoice_item, item)
         self.assertEqual(line.quantity, Decimal("3.00"))
 
+        # SE5 — the movement writes an exact PURCHASE_MOVEMENT ledger entry
+        line.refresh_from_db()
+        ledger = ProductLedgerEntry.objects.filter(
+            product=line.product,
+            entry_type=ProductLedgerEntry.EntryType.PURCHASE_MOVEMENT,
+        )
+        self.assertEqual(ledger.count(), 1)
+        self.assertEqual(ledger.first().quantity_delta, Decimal("3.00"))
+
+        # SE7 — an inbound purchase movement materialises the product as ACTIVE
+        line.product.refresh_from_db()
+        self.assertEqual(line.product.status, Product.Status.ACTIVE)
+
     def test_non_staff_cannot_create_movement(self):
         """Test that non-staff users cannot create movements."""
         purchase = make_operation(
@@ -146,6 +164,16 @@ class InventoryMovementCreationTest(TestCase):
         lines = InventoryMovementLine.objects.filter(operation=sale)
         self.assertEqual(lines.count(), 1)
         self.assertEqual(lines.first().quantity, Decimal("8.00"))
+
+        # SE5 — the outbound movement writes an exact (negative) SALE_MOVEMENT row
+        line = lines.first()
+        line.refresh_from_db()
+        ledger = ProductLedgerEntry.objects.filter(
+            product=line.product,
+            entry_type=ProductLedgerEntry.EntryType.SALE_MOVEMENT,
+        )
+        self.assertEqual(ledger.count(), 1)
+        self.assertEqual(ledger.first().quantity_delta, Decimal("-8.00"))
 
     def test_quantity_exceeds_invoice_item(self):
         """Test that validation fails when movement qty exceeds invoice qty."""
@@ -259,6 +287,71 @@ class InventoryMovementCreationTest(TestCase):
             officer=self.officer,
         )
         line.full_clean()  # should not raise
+
+    def test_purchase_lazy_product_belongs_to_project(self):
+        """A PURCHASE lazily-created product is owned by the project (source)."""
+        purchase = make_operation(
+            source=self.project,
+            destination=self.vendor,
+            officer=self.officer,
+            proxy_class=PurchaseOperation,
+            operation_type=OperationType.PURCHASE,
+        )
+        item = make_invoice_item(purchase, self.template, quantity=Decimal("1.00"))
+        line = InventoryMovementLine.objects.create(
+            operation=purchase,
+            invoice_item=item,
+            product=None,  # lazy-created by save()
+            quantity=Decimal("1.00"),
+            date=date.today(),
+            officer=self.officer,
+        )
+        line.refresh_from_db()
+        self.assertIsNotNone(line.product)
+        self.assertEqual(line.product.entity_id, self.project.pk)
+
+    def test_outbound_owner_entity_delegates_to_operation(self):
+        """Movement-line ownership delegates to the operation's canonical helper."""
+        feed = ProductTemplate.objects.create(
+            name="Feed Mix", nature=ProductTemplate.Nature.FEED, default_unit="Kg"
+        )
+        cases = [
+            # (proxy, op_type, source, destination, expected owner, template)
+            (
+                SaleOperation,
+                OperationType.SALE,
+                self.client_entity,
+                self.project,
+                self.project,
+                self.template,
+            ),
+            (
+                DeathOperation,
+                OperationType.DEATH,
+                self.project,
+                self.system,
+                self.project,
+                self.template,
+            ),
+            (
+                ConsumptionOperation,
+                OperationType.CONSUMPTION,
+                self.project,
+                self.system,
+                self.project,
+                feed,
+            ),
+        ]
+        for proxy, op_type, source, destination, expected, template in cases:
+            op = make_operation(source, destination, self.officer, proxy, op_type)
+            line = InventoryMovementLine(
+                operation=op,
+                invoice_item=make_invoice_item(op, template),
+                product=None,
+                quantity=Decimal("1.00"),
+            )
+            self.assertEqual(line._outbound_owner_entity(), op.inventory_owner_entity)
+            self.assertEqual(line._outbound_owner_entity(), expected)
 
     # ------------------------------------------------------------------
     # Inventory availability guard (Fix 2)

@@ -244,3 +244,27 @@ class AdjustmentReversalTest(TestCase):
 
         with self.assertRaises(ValidationError):
             reversal.reverse(officer=self.officer)
+
+    # ------------------------------------------------------------------
+    # SE4 — payables / receivables side effects of the adjustment + reversal
+    # ------------------------------------------------------------------
+
+    def test_purchase_return_reduces_project_payables(self):
+        """PURCHASE_RETURN writes a PURCHASE_ADJUSTMENT_DECREASE that reduces the
+        project's payable to the vendor (1000 issuance - 100 return = 900)."""
+        self.assertEqual(self.project_entity.payables, Decimal("900.00"))
+
+    def test_purchase_return_reduces_vendor_receivables(self):
+        """PURCHASE_ADJUSTMENT_DECREASE reduces the vendor's receivable."""
+        self.assertEqual(self.vendor_entity.receivables, Decimal("900.00"))
+
+    def test_reverse_adjustment_restores_project_payables(self):
+        """Reversing the return restores the full 1000 payable."""
+        self.adj.reverse(officer=self.officer)
+
+        self.assertEqual(self.project_entity.payables, Decimal("1000.00"))
+
+    def test_reverse_adjustment_restores_vendor_receivables(self):
+        self.adj.reverse(officer=self.officer)
+
+        self.assertEqual(self.vendor_entity.receivables, Decimal("1000.00"))

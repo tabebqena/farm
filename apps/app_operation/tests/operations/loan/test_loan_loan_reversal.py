@@ -8,6 +8,10 @@ from django.test import TestCase
 from apps.app_entity.models import Entity, EntityType
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import CashInjectionOperation, LoanOperation
+from apps.app_operation.tests.base import (
+    assert_derived_state_unchanged,
+    snapshot_derived_state,
+)
 from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
@@ -114,6 +118,42 @@ class LoanReversalTest(TestCase):
         self.assertEqual(counter.source, original_tx.target)
         self.assertEqual(counter.target, original_tx.source)
         self.assertEqual(counter.amount, original_tx.amount)
+
+    # ------------------------------------------------------------------
+    # SE4 — reversal of issuance leaves obligations zero (LOAN_ISSUANCE
+    # never creates payables/receivables; reversal must not either)
+    # ------------------------------------------------------------------
+
+    def test_reverse_issuance_leaves_obligations_zero(self):
+        self.op.reverse(officer=self.officer_user)
+
+        self.assertEqual(self.creditor_entity.payables, Decimal("0.00"))
+        self.assertEqual(self.creditor_entity.receivables, Decimal("0.00"))
+        self.assertEqual(self.debtor_entity.payables, Decimal("0.00"))
+        self.assertEqual(self.debtor_entity.receivables, Decimal("0.00"))
+
+    # ------------------------------------------------------------------
+    # Differential invariant — create + reverse leaves the world unchanged
+    # ------------------------------------------------------------------
+
+    def test_create_then_reverse_leaves_world_unchanged(self):
+        """Balances, payables, receivables and ledger must all return to the
+        pre-operation state after a full create + reverse cycle."""
+        before = snapshot_derived_state()
+
+        op = LoanOperation(
+            source=self.creditor_entity,
+            destination=self.debtor_entity,
+            amount=Decimal("1000.00"),
+            operation_type=OperationType.LOAN,
+            date=date.today(),
+            description="Test loan",
+            officer=self.officer_user,
+        )
+        op.save()
+        op.reverse(officer=self.officer_user)
+
+        assert_derived_state_unchanged(self, before, msg="loan create+reverse")
 
     # ------------------------------------------------------------------
     # Reversal blocked by outstanding LOAN_PAYMENT disbursements

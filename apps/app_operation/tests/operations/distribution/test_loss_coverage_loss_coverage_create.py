@@ -13,6 +13,7 @@ from apps.app_operation.models.proxies import (
     CashInjectionOperation,
     LossCoverageOperation,
 )
+from apps.app_operation.tests.base import assert_tx_types
 from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
@@ -158,13 +159,13 @@ class LossCoverageCreateTest(TestCase):
         op = self._make_op()
         op.save()
 
-        transactions = op.get_all_transactions()
-        self.assertEqual(transactions.count(), 2)
-        self.assertTrue(
-            transactions.filter(type=TransactionType.LOSS_COVERAGE_ISSUANCE).exists()
-        )
-        self.assertTrue(
-            transactions.filter(type=TransactionType.LOSS_COVERAGE_PAYMENT).exists()
+        assert_tx_types(
+            self,
+            op,
+            {
+                TransactionType.LOSS_COVERAGE_ISSUANCE: 1,
+                TransactionType.LOSS_COVERAGE_PAYMENT: 1,
+            },
         )
 
     def test_transaction_amounts_match_operation(self):

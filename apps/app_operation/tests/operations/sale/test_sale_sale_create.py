@@ -12,6 +12,7 @@ from apps.app_operation.models.proxies import (
     SaleOperation,
     CashInjectionOperation,
 )
+from apps.app_operation.tests.base import assert_tx_types
 from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
@@ -131,23 +132,13 @@ class SaleCreateTest(TestCase):
         op = self._make_op()
         op.save()
 
-        transactions = op.get_all_transactions()
-        self.assertEqual(transactions.count(), 1)
-        self.assertTrue(
-            transactions.filter(type=TransactionType.SALE_ISSUANCE).exists(),
-            "Issuance transaction must be created on save",
-        )
+        assert_tx_types(self, op, {TransactionType.SALE_ISSUANCE: 1})
 
     def test_no_collection_transaction_created_on_save(self):
         op = self._make_op()
         op.save()
 
-        self.assertFalse(
-            op.get_all_transactions()
-            .filter(type=TransactionType.SALE_COLLECTION)
-            .exists(),
-            "Collection transaction must NOT be created on save — sale is not one-shot",
-        )
+        assert_tx_types(self, op, {TransactionType.SALE_ISSUANCE: 1})
 
     def test_issuance_transaction_direction_is_client_to_project(self):
         op = self._make_op()
@@ -195,6 +186,36 @@ class SaleCreateTest(TestCase):
         op.save()
 
         self.assertFalse(op.is_fully_settled)
+
+    # ------------------------------------------------------------------
+    # SE4 — payables / receivables at creation
+    # ------------------------------------------------------------------
+
+    def test_create_project_receivables_increase(self):
+        """SALE_ISSUANCE makes the project owed by the client."""
+        op = self._make_op(amount=Decimal("1000.00"))
+        op.save()
+
+        self.assertEqual(self.project_entity.receivables, Decimal("1000.00"))
+
+    def test_create_client_payables_increase(self):
+        """SALE_ISSUANCE makes the client owe the project."""
+        op = self._make_op(amount=Decimal("1000.00"))
+        op.save()
+
+        self.assertEqual(self.client_entity.payables, Decimal("1000.00"))
+
+    def test_create_project_payables_unchanged(self):
+        op = self._make_op()
+        op.save()
+
+        self.assertEqual(self.project_entity.payables, Decimal("0.00"))
+
+    def test_create_client_receivables_unchanged(self):
+        op = self._make_op()
+        op.save()
+
+        self.assertEqual(self.client_entity.receivables, Decimal("0.00"))
 
     # ------------------------------------------------------------------
     # Source validation — must be a client entity

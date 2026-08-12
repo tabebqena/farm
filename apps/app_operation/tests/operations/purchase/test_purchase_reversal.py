@@ -8,6 +8,10 @@ from django.test import TestCase
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import CapitalGainOperation, PurchaseOperation
+from apps.app_operation.tests.base import (
+    assert_derived_state_unchanged,
+    snapshot_derived_state,
+)
 from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
@@ -161,6 +165,58 @@ class PurchaseReversalTest(TestCase):
 
         self.project_entity.refresh_from_db()
         self.assertEqual(self.project_entity.balance, balance_before_reversal)
+
+    # ------------------------------------------------------------------
+    # SE4 — payables / receivables restored on reversal (regression class:
+    # reversal mirrors must not leak into the obligation buckets)
+    # ------------------------------------------------------------------
+
+    def test_reverse_restores_project_payables(self):
+        """PURCHASE_ISSUANCE makes the project owe the vendor; reversal clears it."""
+        self.assertEqual(self.project_entity.payables, Decimal("1000.00"))
+        self.op.reverse(officer=self.officer_user)
+
+        self.assertEqual(self.project_entity.payables, Decimal("0.00"))
+
+    def test_reverse_restores_vendor_receivables(self):
+        """PURCHASE_ISSUANCE makes the vendor owed by the project; reversal clears it."""
+        self.assertEqual(self.vendor_entity.receivables, Decimal("1000.00"))
+        self.op.reverse(officer=self.officer_user)
+
+        self.assertEqual(self.vendor_entity.receivables, Decimal("0.00"))
+
+    def test_reverse_project_receivables_unchanged(self):
+        self.op.reverse(officer=self.officer_user)
+
+        self.assertEqual(self.project_entity.receivables, Decimal("0.00"))
+
+    def test_reverse_vendor_payables_unchanged(self):
+        self.op.reverse(officer=self.officer_user)
+
+        self.assertEqual(self.vendor_entity.payables, Decimal("0.00"))
+
+    # ------------------------------------------------------------------
+    # Differential invariant — create + reverse leaves the world unchanged
+    # ------------------------------------------------------------------
+
+    def test_create_then_reverse_leaves_world_unchanged(self):
+        """Balances, payables, receivables and ledger must all return to the
+        pre-operation state after a full create + reverse cycle."""
+        before = snapshot_derived_state()
+
+        op = PurchaseOperation(
+            source=self.project_entity,
+            destination=self.vendor_entity,
+            amount=Decimal("1000.00"),
+            operation_type=OperationType.PURCHASE,
+            date=date.today(),
+            description="Test purchase",
+            officer=self.officer_user,
+        )
+        op.save()
+        op.reverse(officer=self.officer_user)
+
+        assert_derived_state_unchanged(self, before, msg="purchase create+reverse")
 
     # ------------------------------------------------------------------
     # Reversal blocked by existing payment

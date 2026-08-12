@@ -8,6 +8,10 @@ from django.test import TestCase
 from apps.app_entity.models import Entity, EntityType
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import CashInjectionOperation, LoanOperation
+from apps.app_operation.tests.base import (
+    assert_derived_state_unchanged,
+    snapshot_derived_state,
+)
 from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
@@ -163,6 +167,72 @@ class LoanRepaymentTest(TestCase):
         self.assertEqual(
             self.creditor_entity.balance, balance_before + Decimal("400.00")
         )
+
+    # ------------------------------------------------------------------
+    # SE4 — payables / receivables from a repayment (LOAN_REPAYMENT)
+    # ------------------------------------------------------------------
+
+    def test_repayment_decreases_debtor_payables(self):
+        """Repayment reduces the debtor's outstanding payable to the creditor."""
+        self.op.create_payment_transaction(
+            amount=Decimal("500.00"),
+            officer=self.officer_user,
+            date=date.today(),
+        )
+        self.op.create_repayment_transaction(
+            amount=Decimal("200.00"),
+            officer=self.officer_user,
+            date=date.today(),
+        )
+
+        self.assertEqual(self.debtor_entity.payables, Decimal("300.00"))
+
+    def test_repayment_decreases_creditor_receivables(self):
+        """Repayment reduces the creditor's outstanding receivable from the debtor."""
+        self.op.create_payment_transaction(
+            amount=Decimal("500.00"),
+            officer=self.officer_user,
+            date=date.today(),
+        )
+        self.op.create_repayment_transaction(
+            amount=Decimal("200.00"),
+            officer=self.officer_user,
+            date=date.today(),
+        )
+
+        self.assertEqual(self.creditor_entity.receivables, Decimal("300.00"))
+
+    def test_repayment_without_disbursement_drives_obligations_negative(self):
+        """Payables/receivables are net sums without clamping: a repayment with no
+        prior LOAN_PAYMENT drives the debtor payable / creditor receivable to the
+        negative of the repaid amount."""
+        self.op.create_repayment_transaction(
+            amount=Decimal("200.00"),
+            officer=self.officer_user,
+            date=date.today(),
+        )
+
+        self.assertEqual(self.debtor_entity.payables, Decimal("-200.00"))
+        self.assertEqual(self.creditor_entity.receivables, Decimal("-200.00"))
+
+    # ------------------------------------------------------------------
+    # Differential invariant — repay then reverse the repayment returns to
+    # the advance-only state
+    # ------------------------------------------------------------------
+
+    def test_repay_then_reverse_repayment_returns_to_advance_state(self):
+        """Balances, payables, receivables and ledger after
+        (advance + repay + reverse repayment) equal the advance-only state."""
+        before = snapshot_derived_state()
+
+        repayment = self.op.create_repayment_transaction(
+            amount=Decimal("400.00"),
+            officer=self.officer_user,
+            date=date.today(),
+        )
+        repayment.reverse(officer=self.officer_user)
+
+        assert_derived_state_unchanged(self, before, msg="loan repay+reverse")
 
     # ------------------------------------------------------------------
     # Over-repayment blocked

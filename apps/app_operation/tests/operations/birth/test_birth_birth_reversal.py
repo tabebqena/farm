@@ -1,3 +1,4 @@
+from collections import Counter
 from datetime import date
 from decimal import Decimal
 
@@ -13,6 +14,7 @@ from apps.app_inventory.models import (
 )
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import BirthOperation
+from apps.app_operation.tests.base import assert_tx_types
 from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
@@ -88,16 +90,17 @@ class BirthReversalTest(TestCase):
         op, _ = self._make_born()
         op.reverse(officer=self.officer_user, reason="test reversal")
 
+        # 2 originals + 2 counter-transactions, one per type
         counter = op.get_all_transactions().filter(reversal_of__isnull=False)
         self.assertEqual(counter.count(), 2)
-
-        self.assertTrue(
-            counter.filter(type=TransactionType.BIRTH_ISSUANCE).exists(),
-            "Counter BIRTH_ISSUANCE missing",
-        )
-        self.assertTrue(
-            counter.filter(type=TransactionType.BIRTH_PAYMENT).exists(),
-            "Counter BIRTH_PAYMENT missing",
+        self.assertEqual(
+            dict(
+                Counter(counter.values_list("type", flat=True))
+            ),
+            {
+                TransactionType.BIRTH_ISSUANCE: 1,
+                TransactionType.BIRTH_PAYMENT: 1,
+            },
         )
 
     def test_reverse_reverses_auto_movement_lines(self):
@@ -130,7 +133,7 @@ class BirthReversalTest(TestCase):
             product=product,
             entry_type=ProductLedgerEntry.EntryType.REVERSAL,
         )
-        self.assertTrue(movement_reversal.exists())
+        self.assertEqual(movement_reversal.count(), 1)
         self.assertEqual(movement_reversal.first().quantity_delta, Decimal("-1.00"))
 
         # Issuance negation is written with product=None for the invoice item
@@ -140,11 +143,64 @@ class BirthReversalTest(TestCase):
             product__isnull=True,
             entry_type=ProductLedgerEntry.EntryType.REVERSAL,
         )
-        self.assertTrue(
-            issuance_reversal.exists(),
-            "Negated issuance ledger entry missing",
+        self.assertEqual(
+            issuance_reversal.count(), 1, "Negated issuance ledger entry missing"
         )
         self.assertEqual(issuance_reversal.first().quantity_delta, Decimal("-5.00"))
+
+    # ------------------------------------------------------------------
+    # SE5 — exact negation set: every BIRTH_MOVEMENT row has a REVERSAL mirror
+    # ------------------------------------------------------------------
+
+    def test_reverse_movement_ledger_negation_exact_set(self):
+        """Every movement ledger row must have an exact -1.00 REVERSAL counterpart
+        (not just the first row)."""
+        op, _ = self._make_born()
+        product_ids = list(
+            op.movement_lines.filter(reversal_of__isnull=True).values_list(
+                "product_id", flat=True
+            )
+        )
+        op.reverse(officer=self.officer_user, reason="test reversal")
+
+        originals = ProductLedgerEntry.objects.filter(
+            product_id__in=product_ids,
+            entry_type=ProductLedgerEntry.EntryType.BIRTH_MOVEMENT,
+        )
+        reversals = ProductLedgerEntry.objects.filter(
+            product_id__in=product_ids,
+            entry_type=ProductLedgerEntry.EntryType.REVERSAL,
+        )
+        self.assertEqual(originals.count(), 5)
+        self.assertEqual(reversals.count(), 5)
+        for entry in reversals:
+            self.assertEqual(entry.quantity_delta, Decimal("-1.00"))
+            self.assertEqual(entry.value_delta, Decimal("-100.00"))
+
+    # ------------------------------------------------------------------
+    # SE7 — born products persist by design but are REMOVED after reversal
+    # ------------------------------------------------------------------
+
+    def test_reverse_born_products_removed_from_stock(self):
+        """BIRTH lazily creates one product per head; reversing the birth does
+        NOT delete them (audit trail) but marks each as REMOVED — no longer in
+        stock and barred from new operations."""
+        op, _ = self._make_born()
+        product_ids = list(
+            op.movement_lines.filter(reversal_of__isnull=True).values_list(
+                "product_id", flat=True
+            )
+        )
+        self.assertEqual(len(product_ids), 5)
+
+        op.reverse(officer=self.officer_user, reason="test reversal")
+
+        for pid in product_ids:
+            product = Product.objects.get(pk=pid)
+            self.assertEqual(product.status, Product.Status.REMOVED)
+            # A REMOVED animal cannot be used in new operations.
+            with self.assertRaises(ValidationError):
+                product.validate_active()
 
     # ------------------------------------------------------------------
     # Constraints

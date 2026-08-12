@@ -17,6 +17,7 @@ from apps.app_inventory.tests.general import (
 )
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import (
+    BirthOperation,
     CapitalGainOperation,
     CapitalLossOperation,
     DeathOperation,
@@ -170,6 +171,38 @@ class ProductTest(TestCase):
         )
         self.assertEqual(product.status, Product.Status.ACTIVE)
 
+    def test_status_removed_after_reversed_birth(self):
+        """A product whose only entry into stock was a BIRTH that has since been
+        reversed is REMOVED (no longer in stock)."""
+        op = make_operation(
+            self.system, self.project, self.officer, BirthOperation, OperationType.BIRTH
+        )
+        product = make_product(self.template)
+        product.invoice_items.add(make_invoice_item(op, self.template))
+        self.assertEqual(product.status, Product.Status.ACTIVE)
+
+        op.reverse(officer=self.officer)
+
+        self.assertEqual(product.status, Product.Status.REMOVED)
+
+    def test_status_sold_takes_priority_over_reversed_birth(self):
+        """A born-then-sold animal stays SOLD even if the birth is later
+        reversed (no resurrection of stock)."""
+        birth_op = make_operation(
+            self.system, self.project, self.officer, BirthOperation, OperationType.BIRTH
+        )
+        sale_op = make_operation(
+            self.client, self.project, self.officer, SaleOperation, OperationType.SALE
+        )
+        product = make_product(self.template)
+        product.invoice_items.add(make_invoice_item(birth_op, self.template))
+        product.invoice_items.add(make_invoice_item(sale_op, self.template))
+        self.assertEqual(product.status, Product.Status.SOLD)
+
+        birth_op.reverse(officer=self.officer)
+
+        self.assertEqual(product.status, Product.Status.SOLD)
+
     # --- validation ---
 
     def test_clean_negative_unit_price_raises(self):
@@ -217,6 +250,20 @@ class ProductTest(TestCase):
         self.assertEqual(product.status, Product.Status.DEAD)
         with self.assertRaises(ValidationError):
             product.validate_active()
+
+    def test_validate_active_raises_for_removed_product(self):
+        op = make_operation(
+            self.system, self.project, self.officer, BirthOperation, OperationType.BIRTH
+        )
+        product = make_product(self.template)
+        product.invoice_items.add(make_invoice_item(op, self.template))
+        op.reverse(officer=self.officer)
+        self.assertEqual(product.status, Product.Status.REMOVED)
+
+        with self.assertRaises(ValidationError):
+            product.validate_active()
+        # Allowed for reversals (restoring the removed animal's movement).
+        product.validate_active(allow_reversal=True)  # must not raise
 
 
 class ProductTagUniquenessTest(TestCase):

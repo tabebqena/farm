@@ -2,6 +2,7 @@ from collections import Counter
 from datetime import date
 from decimal import Decimal
 
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
@@ -19,13 +20,13 @@ from apps.app_inventory.tests.general import (
     make_user,
 )
 from apps.app_operation.models.operation_type import OperationType
-from apps.app_operation.models.proxies import ConsumptionOperation, PurchaseOperation
+from apps.app_operation.models.proxies import DeathOperation, PurchaseOperation
 from apps.app_transaction.transaction_type import TransactionType
 
 
-class ConsumptionReversalTest(TestCase):
-    """Reversing a consumption reverses its auto-created movement lines,
-    negates the ledger, and restores the product to ACTIVE."""
+class DeathReversalTest(TestCase):
+    """Reversing a death reverses its auto-created movement lines, negates the
+    ledger, and restores the dead product to ACTIVE (SE5/SE6/SE7)."""
 
     def setUp(self):
         self.system_entity = Entity.create(EntityType.SYSTEM)
@@ -38,15 +39,16 @@ class ConsumptionReversalTest(TestCase):
             active=True,
             role=StakeholderRole.VENDOR,
         )
+        # DEATH applies to livestock — ANIMAL templates can die.
         self.template = ProductTemplate.objects.create(
-            name="Feed Mix",
-            nature=ProductTemplate.Nature.FEED,
-            sub_category="Feed",
-            default_unit="Kg",
+            name="Calves",
+            nature=ProductTemplate.Nature.ANIMAL,
+            sub_category="Cattle",
+            default_unit="Head",
         )
 
-    def _make_consumed(self, qty=Decimal("5.00"), price=Decimal("100.00")):
-        """Create a physically-moved ACTIVE product and consume it."""
+    def _make_dead(self, qty=Decimal("5.00"), price=Decimal("100.00")):
+        """Create a physically-moved ACTIVE animal and record its death."""
         purchase = make_operation(
             self.project_entity,
             self.vendor,
@@ -84,13 +86,13 @@ class ConsumptionReversalTest(TestCase):
             "items-0-selected_product": str(product.pk),
             "items-0-DELETE": "",
         }
-        op = ConsumptionOperation.create(
-            operation_type=OperationType.CONSUMPTION,
+        op = DeathOperation.create(
+            operation_type=OperationType.DEATH,
             source=self.project_entity,
             destination=self.system_entity,
             amount=(qty * price).quantize(Decimal("0.01")),
             date=date.today(),
-            description="Test consumption",
+            description="Test death",
             officer=self.officer_user,
             amount_paid=Decimal("0.00"),
             raw_post=raw_post,
@@ -98,16 +100,50 @@ class ConsumptionReversalTest(TestCase):
         )
         return op, product
 
+    # ------------------------------------------------------------------
+    # SE1 — reversal record
+    # ------------------------------------------------------------------
+
     def test_reverse_creates_reversal_record(self):
-        op, _ = self._make_consumed()
+        op, _ = self._make_dead()
         reversal = op.reverse(officer=self.officer_user, reason="test reversal")
 
         self.assertIsNotNone(reversal.pk)
         self.assertEqual(reversal.reversal_of, op)
         self.assertTrue(reversal.is_reversal)
 
+    def test_reverse_marks_original_as_reversed(self):
+        op, _ = self._make_dead()
+        reversal = op.reverse(officer=self.officer_user, reason="test reversal")
+
+        op.refresh_from_db()
+        self.assertTrue(op.is_reversed)
+        self.assertEqual(op.reversed_by, reversal)
+
+    # ------------------------------------------------------------------
+    # SE2 — counter transactions
+    # ------------------------------------------------------------------
+
+    def test_reverse_creates_counter_transactions(self):
+        op, _ = self._make_dead()
+        op.reverse(officer=self.officer_user, reason="test reversal")
+
+        counter = op.get_all_transactions().filter(reversal_of__isnull=False)
+        self.assertEqual(counter.count(), 2)
+        self.assertEqual(
+            dict(Counter(counter.values_list("type", flat=True))),
+            {
+                TransactionType.DEATH_ISSUANCE: 1,
+                TransactionType.DEATH_PAYMENT: 1,
+            },
+        )
+
+    # ------------------------------------------------------------------
+    # SE6 — movement lines reversed
+    # ------------------------------------------------------------------
+
     def test_reverse_reverses_auto_movement_lines(self):
-        op, product = self._make_consumed()
+        op, product = self._make_dead()
 
         original_ml = op.movement_lines.get(reversal_of__isnull=True)
         op.reverse(officer=self.officer_user, reason="test reversal")
@@ -123,8 +159,12 @@ class ConsumptionReversalTest(TestCase):
             1,
         )
 
+    # ------------------------------------------------------------------
+    # SE5 — ledger negation
+    # ------------------------------------------------------------------
+
     def test_reverse_negates_ledger_entries(self):
-        op, product = self._make_consumed()
+        op, product = self._make_dead()
         item = op.items.get()
         op.reverse(officer=self.officer_user, reason="test reversal")
 
@@ -137,42 +177,27 @@ class ConsumptionReversalTest(TestCase):
         self.assertEqual(movement_reversal.first().quantity_delta, Decimal("5.00"))
 
         # Issuance negation is written with product=None for the invoice item
-        # (movement reversals carry the product, so disambiguate)
         issuance_reversal = ProductLedgerEntry.objects.filter(
             invoice_item=item,
             product__isnull=True,
             entry_type=ProductLedgerEntry.EntryType.REVERSAL,
         )
         self.assertEqual(
-            issuance_reversal.count(), 1, "Negated issuance ledger entry missing"
+            issuance_reversal.count(),
+            1,
+            "Negated issuance ledger entry missing",
         )
         self.assertEqual(issuance_reversal.first().quantity_delta, Decimal("5.00"))
 
-    def test_reverse_creates_counter_transactions(self):
-        op, _ = self._make_consumed()
-        op.reverse(officer=self.officer_user, reason="test reversal")
-
-        counter = op.get_all_transactions().filter(reversal_of__isnull=False)
-        self.assertEqual(counter.count(), 2)
-        self.assertEqual(
-            dict(
-                Counter(counter.values_list("type", flat=True))
-            ),
-            {
-                TransactionType.CONSUMPTION_ISSUANCE: 1,
-                TransactionType.CONSUMPTION_PAYMENT: 1,
-            },
-        )
-
     def test_reverse_movement_ledger_negation_exact_set(self):
-        """Every CONSUMPTION_MOVEMENT ledger row must have an exact +5.00
-        REVERSAL counterpart (not just the first row)."""
-        op, product = self._make_consumed()
+        """Every DEATH_MOVEMENT ledger row must have an exact +5.00 REVERSAL
+        counterpart (not just the first row)."""
+        op, product = self._make_dead()
         op.reverse(officer=self.officer_user, reason="test reversal")
 
         originals = ProductLedgerEntry.objects.filter(
             product=product,
-            entry_type=ProductLedgerEntry.EntryType.CONSUMPTION_MOVEMENT,
+            entry_type=ProductLedgerEntry.EntryType.DEATH_MOVEMENT,
         )
         reversals = ProductLedgerEntry.objects.filter(
             product=product,
@@ -182,40 +207,42 @@ class ConsumptionReversalTest(TestCase):
         self.assertEqual(reversals.count(), 1)
         for entry in reversals:
             self.assertEqual(entry.quantity_delta, Decimal("5.00"))
+            self.assertEqual(entry.value_delta, Decimal("500.00"))
+
+    # ------------------------------------------------------------------
+    # SE7 — product status restored on reversal
+    # ------------------------------------------------------------------
+
+    def test_death_moves_product_to_dead_status(self):
+        _, product = self._make_dead()
+        product.refresh_from_db()
+        self.assertEqual(product.status, Product.Status.DEAD)
 
     def test_reversed_product_returns_to_active_status(self):
-        op, product = self._make_consumed()
+        op, product = self._make_dead()
+        product.refresh_from_db()
+        self.assertEqual(product.status, Product.Status.DEAD)
+
         op.reverse(officer=self.officer_user, reason="test reversal")
 
         product.refresh_from_db()
         self.assertEqual(product.status, Product.Status.ACTIVE)
 
     # ------------------------------------------------------------------
-    # COGS / P&L behaviour (Option B)
+    # SE10 — constraints
     # ------------------------------------------------------------------
 
-    def test_reverse_restores_profit_loss(self):
-        """Reversing a consumption must negate its COGS effect and restore profit."""
-        op, _ = self._make_consumed()
-        profit_with_consumption = self.project_entity.profit_loss()
-
+    def test_cannot_reverse_already_reversed_operation(self):
+        op, _ = self._make_dead()
         op.reverse(officer=self.officer_user, reason="test reversal")
+        op.refresh_from_db()
 
-        self.assertEqual(
-            self.project_entity.profit_loss(),
-            profit_with_consumption + Decimal("500.00"),
-            "A reversed consumption must no longer reduce profit.",
-        )
+        with self.assertRaises(ValidationError):
+            op.reverse(officer=self.officer_user)
 
-    def test_reverse_keeps_fund_balance_unchanged(self):
-        """Option B: consumption and its reversal are both non-cash for balance_at()."""
-        op, _ = self._make_consumed()
-        balance = self.project_entity.balance_at(date.today())
+    def test_cannot_reverse_a_reversal(self):
+        op, _ = self._make_dead()
+        reversal = op.reverse(officer=self.officer_user, reason="test reversal")
 
-        op.reverse(officer=self.officer_user, reason="test reversal")
-
-        self.assertEqual(
-            self.project_entity.balance_at(date.today()),
-            balance,
-            "Neither consumption nor its reversal may change the fund balance.",
-        )
+        with self.assertRaises(ValidationError):
+            reversal.reverse(officer=self.officer_user)

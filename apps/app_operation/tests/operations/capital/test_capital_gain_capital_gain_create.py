@@ -8,6 +8,7 @@ from django.test import TestCase
 from apps.app_entity.models import Entity, EntityType
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import CapitalGainOperation
+from apps.app_operation.tests.base import assert_tx_types
 from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
@@ -47,16 +48,13 @@ class CapitalGainCreateTest(TestCase):
 
         self.assertIsNotNone(op.pk)
 
-        transactions = op.get_all_transactions()
-        self.assertEqual(transactions.count(), 2)
-
-        self.assertTrue(
-            transactions.filter(type=TransactionType.CAPITAL_GAIN_ISSUANCE).exists(),
-            "Issuance transaction should be created",
-        )
-        self.assertTrue(
-            transactions.filter(type=TransactionType.CAPITAL_GAIN_PAYMENT).exists(),
-            "Payment transaction should be created",
+        assert_tx_types(
+            self,
+            op,
+            {
+                TransactionType.CAPITAL_GAIN_ISSUANCE: 1,
+                TransactionType.CAPITAL_GAIN_PAYMENT: 1,
+            },
         )
 
     def test_transaction_amounts_match_operation(self):

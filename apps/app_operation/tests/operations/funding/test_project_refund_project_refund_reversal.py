@@ -12,6 +12,10 @@ from apps.app_operation.models.proxies import (
     ProjectFundingOperation,
     ProjectRefundOperation,
 )
+from apps.app_operation.tests.base import (
+    assert_derived_state_unchanged,
+    snapshot_derived_state,
+)
 from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
@@ -174,3 +178,47 @@ class ProjectRefundReversalTest(TestCase):
             self.shareholder_entity.balance,
             balance_after_refund - self.op.amount,
         )
+
+    # ------------------------------------------------------------------
+    # SE4 — payables / receivables stay zero through reversal
+    # ------------------------------------------------------------------
+
+    def test_reverse_leaves_payables_receivables_zero(self):
+        """Both the one-shot refund and its reversal are net-zero for obligations
+        (reversal mirrors must not leak into the buckets)."""
+        self.op.reverse(officer=self.officer)
+
+        self.assertEqual(self.project_entity.payables, Decimal("0.00"))
+        self.assertEqual(self.shareholder_entity.receivables, Decimal("0.00"))
+
+    # ------------------------------------------------------------------
+    # Differential invariant — create + reverse leaves the world unchanged
+    # ------------------------------------------------------------------
+
+    def test_create_then_reverse_leaves_world_unchanged(self):
+        """Re-fund the project so the differential op has balance to refund, then
+        assert a full create + reverse cycle leaves the world unchanged."""
+        ProjectFundingOperation(
+            source=self.shareholder_entity,
+            destination=self.project_entity,
+            amount=Decimal("500.00"),
+            operation_type=OperationType.PROJECT_FUNDING,
+            date=date.today(),
+            description="Re-fund for differential",
+            officer=self.officer,
+        ).save()
+        before = snapshot_derived_state()
+
+        op = ProjectRefundOperation(
+            source=self.project_entity,
+            destination=self.shareholder_entity,
+            amount=Decimal("500.00"),
+            operation_type=OperationType.PROJECT_REFUND,
+            date=date.today(),
+            description="Test project refund",
+            officer=self.officer,
+        )
+        op.save()
+        op.reverse(officer=self.officer)
+
+        assert_derived_state_unchanged(self, before, msg="project refund create+reverse")

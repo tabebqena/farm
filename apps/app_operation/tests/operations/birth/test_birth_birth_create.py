@@ -14,6 +14,7 @@ from apps.app_inventory.models import (
 )
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import BirthOperation
+from apps.app_operation.tests.base import assert_tx_types
 from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
@@ -109,16 +110,13 @@ class BirthCreateTest(TestCase):
 
         self.assertIsNotNone(op.pk)
 
-        transactions = op.get_all_transactions()
-        self.assertEqual(transactions.count(), 2)
-
-        self.assertTrue(
-            transactions.filter(type=TransactionType.BIRTH_ISSUANCE).exists(),
-            "Issuance transaction should be created on save",
-        )
-        self.assertTrue(
-            transactions.filter(type=TransactionType.BIRTH_PAYMENT).exists(),
-            "Payment transaction should be created on save — one-shot operation",
+        assert_tx_types(
+            self,
+            op,
+            {
+                TransactionType.BIRTH_ISSUANCE: 1,
+                TransactionType.BIRTH_PAYMENT: 1,
+            },
         )
 
     def test_transaction_direction_is_system_to_project(self):
@@ -261,9 +259,11 @@ class BirthCreateTest(TestCase):
     def test_created_product_is_active(self):
         op = self._birth()
 
-        product = op.movement_lines.first().product
-        product.refresh_from_db()
-        self.assertEqual(product.status, Product.Status.ACTIVE)
+        for ml in op.movement_lines.all():
+            ml.product.refresh_from_db()
+            self.assertEqual(
+                ml.product.status, Product.Status.ACTIVE, ml.product.unique_id
+            )
 
     # ------------------------------------------------------------------
     # Ledger entries
@@ -272,23 +272,25 @@ class BirthCreateTest(TestCase):
     def test_create_writes_movement_and_issuance_ledger_entries(self):
         op = self._birth()
         item = op.items.get()
-        product = op.movement_lines.first().product
+        products = list(op.movement_lines.select_related("product").all())
 
-        movement = ProductLedgerEntry.objects.filter(
-            product=product,
-            entry_type=ProductLedgerEntry.EntryType.BIRTH_MOVEMENT,
-        )
+        # Each individually tracked animal carries its own movement (qty=1).
+        self.assertEqual(len(products), 5)
+        for ml in products:
+            movement = ProductLedgerEntry.objects.filter(
+                product=ml.product,
+                entry_type=ProductLedgerEntry.EntryType.BIRTH_MOVEMENT,
+            )
+            self.assertEqual(movement.count(), 1, ml.product.unique_id)
+            self.assertEqual(movement.first().quantity_delta, Decimal("1.00"))
+            self.assertEqual(movement.first().value_delta, Decimal("100.00"))
+
+        # The contract-level issuance covers the full quantity (one row per item).
         issuance = ProductLedgerEntry.objects.filter(
             invoice_item=item,
             entry_type=ProductLedgerEntry.EntryType.BIRTH_ISSUANCE,
         )
-        self.assertTrue(movement.exists(), "BIRTH_MOVEMENT ledger entry missing")
-        self.assertTrue(issuance.exists(), "BIRTH_ISSUANCE ledger entry missing")
-
-        # Each individually tracked animal carries its own movement (qty=1);
-        # the contract-level issuance covers the full quantity.
-        self.assertEqual(movement.first().quantity_delta, Decimal("1.00"))
-        self.assertEqual(movement.first().value_delta, Decimal("100.00"))
+        self.assertEqual(issuance.count(), 1)
         self.assertEqual(issuance.first().quantity_delta, Decimal("5.00"))
         self.assertEqual(issuance.first().value_delta, Decimal("500.00"))
 

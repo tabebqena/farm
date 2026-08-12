@@ -11,6 +11,7 @@ from apps.app_operation.models.proxies import (
     CashInjectionOperation,
     InternalTransferOperation,
 )
+from apps.app_operation.tests.base import assert_tx_types
 from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
@@ -71,15 +72,13 @@ class InternalTransferCreateTest(TestCase):
         op.save()
 
         self.assertIsNotNone(op.pk)
-        transactions = op.get_all_transactions()
-        self.assertEqual(transactions.count(), 2)
-        self.assertTrue(
-            transactions.filter(
-                type=TransactionType.INTERNAL_TRANSFER_ISSUANCE
-            ).exists()
-        )
-        self.assertTrue(
-            transactions.filter(type=TransactionType.INTERNAL_TRANSFER_PAYMENT).exists()
+        assert_tx_types(
+            self,
+            op,
+            {
+                TransactionType.INTERNAL_TRANSFER_ISSUANCE: 1,
+                TransactionType.INTERNAL_TRANSFER_PAYMENT: 1,
+            },
         )
 
     def test_transaction_funds_are_correct(self):

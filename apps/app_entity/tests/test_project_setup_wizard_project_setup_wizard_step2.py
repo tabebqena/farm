@@ -60,8 +60,10 @@ class ProjectSetupWizardStep2Test(TestCase):
             entity=self.project
         )
         self.assertEqual(relations.count(), 2)
-        self.assertTrue(relations.filter(category=self.category1).exists())
-        self.assertTrue(relations.filter(category=self.category2).exists())
+        self.assertEqual(
+            set(relations.values_list("category_id", flat=True)),
+            {self.category1.pk, self.category2.pk},
+        )
 
     def test_wizard_step_2_activates_deactivates(self):
         """Test step 2 can activate/deactivate categories."""

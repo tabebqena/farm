@@ -45,8 +45,8 @@ class PersonCreateViewTest(TestCase):
 
         # Should redirect to entity detail
         self.assertEqual(response.status_code, 302)
-        # Verify entity was created
-        self.assertTrue(Entity.objects.filter(name="John Doe").exists())
+        # Verify entity was created exactly once
+        self.assertEqual(Entity.objects.filter(name="John Doe").count(), 1)
         entity = Entity.objects.get(name="John Doe")
         self.assertEqual(entity.entity_type, EntityType.PERSON)
         self.assertTrue(entity.is_vendor)

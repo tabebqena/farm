@@ -1,91 +1,20 @@
 from datetime import date
 from decimal import Decimal
 
-from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
-from django.test import TestCase
 
-from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
-from apps.app_operation.models.operation_type import OperationType
-from apps.app_operation.models.proxies import (
-    CapitalGainOperation,
-    CashInjectionOperation,
-    WorkerAdvanceOperation,
-)
 from apps.app_transaction.transaction_type import TransactionType
 
-User = get_user_model()
+from apps.app_operation.tests.base import (
+    BaseOperationTestCase,
+    make_worker,
+    make_worker_advance,
+)
+
+AMOUNT = Decimal("1000.00")
 
 
-# ---------------------------------------------------------------------------
-# Shared helpers
-# ---------------------------------------------------------------------------
-
-
-def _make_officer(username="officer"):
-    return User.objects.create_user(
-        username=username, password="testpass", is_staff=True
-    )
-
-
-def _make_person_entity(name, is_worker=False):
-    return Entity.create(EntityType.PERSON, name=name, is_worker=is_worker)
-
-
-def _make_client_entity(name, is_client=False):
-    return Entity.create(EntityType.CLIENT, name=name, is_client=is_client)
-
-
-def _make_vendor_entity(name):
-    return Entity.create(EntityType.VENDOR, name)
-
-
-def _make_project_entity(name):
-    return Entity.create(EntityType.PROJECT, name)
-
-
-def _inject_person(world_entity, dest_entity, amount, officer):
-    """Seed a Person entity's fund via CashInjection."""
-    CashInjectionOperation(
-        source=world_entity,
-        destination=dest_entity,
-        amount=amount,
-        operation_type=OperationType.CASH_INJECTION,
-        date=date.today(),
-        description="Seed balance",
-        officer=officer,
-    ).save()
-
-
-def _inject_project(system_entity, dest_entity, amount, officer):
-    """Seed a Project entity's fund via CapitalGain."""
-    CapitalGainOperation(
-        source=system_entity,
-        destination=dest_entity,
-        amount=amount,
-        operation_type=OperationType.CAPITAL_GAIN,
-        date=date.today(),
-        description="Seed project balance",
-        officer=officer,
-    ).save()
-
-
-def _make_worker_stakeholder(
-    project_entity, worker_entity, role=StakeholderRole.WORKER, active=True
-):
-    sh = Stakeholder(
-        parent=project_entity, target=worker_entity, role=role, active=active
-    )
-    sh.save()
-    return sh
-
-
-# ---------------------------------------------------------------------------
-# WorkerAdvanceCreateTest
-# ---------------------------------------------------------------------------
-
-
-class WorkerAdvanceRepaymentTest(TestCase):
+class WorkerAdvanceRepaymentTest(BaseOperationTestCase):
     """
     Tests for WORKER_ADVANCE_REPAYMENT transactions — worker returning the
     advance to the project fund.
@@ -95,27 +24,11 @@ class WorkerAdvanceRepaymentTest(TestCase):
     """
 
     def setUp(self):
-        self.system_entity = Entity.create(EntityType.SYSTEM)
-        self.officer = _make_officer()
-
-        self.project_entity = _make_project_entity("Farm Project")
-        _inject_project(
-            self.system_entity, self.project_entity, Decimal("5000.00"), self.officer
+        super().setUp()
+        self.worker = make_worker(self.project, "Ali Worker")
+        self.op = make_worker_advance(
+            self.project, self.worker, self.officer, AMOUNT
         )
-
-        self.worker_entity = _make_person_entity("Ali Worker", is_worker=True)
-        _make_worker_stakeholder(self.project_entity, self.worker_entity)
-
-        self.op = WorkerAdvanceOperation(
-            source=self.project_entity,
-            destination=self.worker_entity,
-            amount=Decimal("1000.00"),
-            operation_type=OperationType.WORKER_ADVANCE,
-            date=date.today(),
-            description="Test worker advance",
-            officer=self.officer,
-        )
-        self.op.save()
 
     def _repay(self, amount):
         self.op.create_repayment_transaction(
@@ -124,26 +37,91 @@ class WorkerAdvanceRepaymentTest(TestCase):
             date=date.today(),
         )
 
+    def _repayment(self, amount=None):
+        qs = self.op.get_all_transactions().filter(
+            type=TransactionType.WORKER_ADVANCE_REPAYMENT,
+            reversal_of__isnull=True,
+        )
+        if amount is not None:
+            qs = qs.filter(amount=amount)
+        return qs.get()
+
     # ------------------------------------------------------------------
-    # Happy path
+    # SE2 — repayment transaction
     # ------------------------------------------------------------------
 
-    def test_repayment_creates_repayment_transaction(self):
+    def test_repayment_creates_repayment_tx_exact(self):
         self._repay(Decimal("400.00"))
 
-        repayment_txs = self.op.get_all_transactions().filter(
-            type=TransactionType.WORKER_ADVANCE_REPAYMENT
+        self.assert_tx(
+            self.op,
+            TransactionType.WORKER_ADVANCE_REPAYMENT,
+            self.worker,
+            self.project,
+            Decimal("400.00"),
         )
-        self.assertEqual(repayment_txs.count(), 1)
 
-    def test_repayment_transaction_direction_is_worker_to_project(self):
+    def test_repayment_creates_exactly_one_repayment(self):
         self._repay(Decimal("400.00"))
 
-        tx = self.op.get_all_transactions().get(
-            type=TransactionType.WORKER_ADVANCE_REPAYMENT
+        self.assert_tx_types(
+            self.op,
+            {
+                TransactionType.WORKER_ADVANCE_ISSUANCE: 1,
+                TransactionType.WORKER_ADVANCE_PAYMENT: 1,
+                TransactionType.WORKER_ADVANCE_REPAYMENT: 1,
+            },
         )
-        self.assertEqual(tx.source, self.worker_entity)
-        self.assertEqual(tx.target, self.project_entity)
+
+    # ------------------------------------------------------------------
+    # SE3 — fund balances
+    # ------------------------------------------------------------------
+
+    def test_worker_fund_decreases_after_repayment(self):
+        self._repay(Decimal("400.00"))
+
+        self.assert_balance(self.worker, Decimal("600.00"), msg="worker")
+
+    def test_project_fund_increases_after_repayment(self):
+        self._repay(Decimal("400.00"))
+
+        self.assert_balance(
+            self.project,
+            self.project_funding - AMOUNT + Decimal("400.00"),
+            msg="project",
+        )
+
+    # ------------------------------------------------------------------
+    # SE4 — payables / receivables
+    # ------------------------------------------------------------------
+
+    def test_repayment_decreases_project_receivables(self):
+        """Before: project is owed the full advance; after a 400 repayment it is
+        owed 600."""
+        self.assert_receivables(self.project, AMOUNT, msg="project before")
+        self._repay(Decimal("400.00"))
+
+        self.assert_receivables(self.project, Decimal("600.00"), msg="project after")
+
+    def test_repayment_decreases_worker_payables(self):
+        self.assert_payables(self.worker, AMOUNT, msg="worker before")
+        self._repay(Decimal("400.00"))
+
+        self.assert_payables(self.worker, Decimal("600.00"), msg="worker after")
+
+    def test_full_repayment_zeroes_project_receivables(self):
+        self._repay(AMOUNT)
+
+        self.assert_receivables(self.project, Decimal("0.00"), msg="project")
+
+    def test_full_repayment_zeroes_worker_payables(self):
+        self._repay(AMOUNT)
+
+        self.assert_payables(self.worker, Decimal("0.00"), msg="worker")
+
+    # ------------------------------------------------------------------
+    # SE8 — derived repayment amount
+    # ------------------------------------------------------------------
 
     def test_amount_remaining_to_repay_decreases_after_repayment(self):
         self._repay(Decimal("400.00"))
@@ -157,26 +135,10 @@ class WorkerAdvanceRepaymentTest(TestCase):
         self.assertEqual(self.op.amount_remaining_to_repay, Decimal("400.00"))
 
     def test_full_repayment_marks_as_fully_repayed(self):
-        self._repay(Decimal("1000.00"))
+        self._repay(AMOUNT)
 
         self.assertTrue(self.op.is_fully_repayed)
         self.assertEqual(self.op.amount_remaining_to_repay, Decimal("0.00"))
-
-    def test_worker_fund_decreases_after_repayment(self):
-        balance_before = self.worker_entity.balance
-
-        self._repay(Decimal("400.00"))
-
-        self.assertEqual(self.worker_entity.balance, balance_before - Decimal("400.00"))
-
-    def test_project_fund_increases_after_repayment(self):
-        balance_before = self.project_entity.balance
-
-        self._repay(Decimal("400.00"))
-
-        self.assertEqual(
-            self.project_entity.balance, balance_before + Decimal("400.00")
-        )
 
     # ------------------------------------------------------------------
     # Over-repayment blocked
@@ -197,40 +159,32 @@ class WorkerAdvanceRepaymentTest(TestCase):
             self._repay(Decimal("0.00"))
 
     # ------------------------------------------------------------------
-    # Reversal of repayment restores the repaid state
+    # Reversal of repayment — derived amounts
     # ------------------------------------------------------------------
 
     def test_full_repayment_reversed_restores_remaining_balance(self):
         """Reversing the only (full) repayment must un-mark the operation as repaid."""
-        self._repay(Decimal("1000.00"))
+        self._repay(AMOUNT)
         self.assertTrue(self.op.is_fully_repayed)
 
-        repayment = self.op.get_all_transactions().get(
-            type=TransactionType.WORKER_ADVANCE_REPAYMENT,
-            reversal_of__isnull=True,
-        )
-        repayment.reverse(officer=self.officer)
+        self._repayment().reverse(officer=self.officer)
 
         self.op.refresh_from_db()
         self.assertEqual(self.op.amount_repayed, Decimal("0.00"))
         self.assertFalse(self.op.is_fully_repayed)
-        self.assertEqual(self.op.amount_remaining_to_repay, Decimal("1000.00"))
+        self.assertEqual(self.op.amount_remaining_to_repay, AMOUNT)
 
     def test_partial_repayment_reversed_restores_remaining_balance(self):
         """Reversing a partial repayment increases the remaining balance again."""
         self._repay(Decimal("400.00"))
         self.assertEqual(self.op.amount_remaining_to_repay, Decimal("600.00"))
 
-        repayment = self.op.get_all_transactions().get(
-            type=TransactionType.WORKER_ADVANCE_REPAYMENT,
-            reversal_of__isnull=True,
-        )
-        repayment.reverse(officer=self.officer)
+        self._repayment().reverse(officer=self.officer)
 
         self.op.refresh_from_db()
         self.assertEqual(self.op.amount_repayed, Decimal("0.00"))
         self.assertFalse(self.op.is_fully_repayed)
-        self.assertEqual(self.op.amount_remaining_to_repay, Decimal("1000.00"))
+        self.assertEqual(self.op.amount_remaining_to_repay, AMOUNT)
 
     def test_only_reversed_repayment_is_net_out(self):
         """Reversing one of several repayments nets out only that amount."""
@@ -238,19 +192,55 @@ class WorkerAdvanceRepaymentTest(TestCase):
         self._repay(Decimal("400.00"))
         self.assertTrue(self.op.is_fully_repayed)
 
-        repayment = self.op.get_all_transactions().get(
-            type=TransactionType.WORKER_ADVANCE_REPAYMENT,
-            reversal_of__isnull=True,
-            amount=Decimal("400.00"),
-        )
-        repayment.reverse(officer=self.officer)
+        self._repayment(amount=Decimal("400.00")).reverse(officer=self.officer)
 
         self.op.refresh_from_db()
         self.assertEqual(self.op.amount_repayed, Decimal("600.00"))
         self.assertFalse(self.op.is_fully_repayed)
         self.assertEqual(self.op.amount_remaining_to_repay, Decimal("400.00"))
 
+    # ------------------------------------------------------------------
+    # Reversal of repayment — SE4 payables / receivables (regression: the
+    # reversal mirror must not leak into the obligation buckets)
+    # ------------------------------------------------------------------
 
-# ---------------------------------------------------------------------------
-# WorkerAdvanceReversalTest
-# ---------------------------------------------------------------------------
+    def test_reversed_repayment_restores_project_receivables(self):
+        """After reversing a full repayment the project is owed the advance again."""
+        self._repay(AMOUNT)
+        self.assert_receivables(self.project, Decimal("0.00"), msg="project before")
+
+        self._repayment().reverse(officer=self.officer)
+
+        self.assert_receivables(self.project, AMOUNT, msg="project after")
+
+    def test_reversed_repayment_restores_worker_payables(self):
+        self._repay(AMOUNT)
+        self.assert_payables(self.worker, Decimal("0.00"), msg="worker before")
+
+        self._repayment().reverse(officer=self.officer)
+
+        self.assert_payables(self.worker, AMOUNT, msg="worker after")
+
+    def test_reversed_repayment_keeps_project_payables_zero(self):
+        """The reversal mirror must not leak onto the project's payables as a
+        negative 'Settle' row (regression)."""
+        self._repay(AMOUNT)
+        self.assert_payables(self.project, Decimal("0.00"), msg="project before")
+
+        self._repayment().reverse(officer=self.officer)
+
+        self.assert_payables(self.project, Decimal("0.00"), msg="project after")
+
+    # ------------------------------------------------------------------
+    # Differential invariant — repay + reverse repayment returns to advance state
+    # ------------------------------------------------------------------
+
+    def test_repay_then_reverse_repayment_returns_to_advance_state(self):
+        """The world after (advance + full repay + reverse repayment) must equal
+        the world after just the advance."""
+        before = self.snapshot_state()  # advance-only state
+
+        self._repay(AMOUNT)
+        self._repayment().reverse(officer=self.officer)
+
+        self.assert_state_unchanged(before, msg="repay + reverse repayment")
