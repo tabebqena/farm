@@ -12,7 +12,14 @@ Plan created.
 
 
 [ ] The world entity can work as a vendor & a client , but with conditions, the operation should be fully payed & the user will never be able to reverse the paymenttransaction alone. if he need he should reverse the whole operation.
+Why we need?
+The user may need to create pur/sale with entity that is not in the database, and this entity is not a regular one that makes a lot of operations, instead of forcing him to create an entity for each rarley appearing persons, we want to allow him to register the opertaion against world but we should avoid mixing the clients / vendors funds / payables / recivable , so if the user want to register a n opertation against a world, it should be one-shot like.
 
 Status: Plan created , implementation popstponed.
 
 [x] The current state allow repayment of a loan that have no payment transaction, this should be fixed. the non reversed/reversable repayment transactions sum shouldn't exceed the payment transaction sum.
+
+[ ] We have a logical issues that bypass tests (some of them are verified by tests), this is beacuse the projects starts week in the features , for example, the reverse of the birth operation was leave the created project.
+the sale operation was acreating a new project that is sold & leave the original project active
+Some fixes aare introduced over the errors instead of analysing the deep issue
+I want to search for  this issues

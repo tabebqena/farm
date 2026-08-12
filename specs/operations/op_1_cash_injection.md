@@ -14,7 +14,6 @@
 - Source must be the World entity (`is_world=True`)
 - Destination must be a Person entity
 - Both entities must be `active=True`
-- Source entity's fund must be `active=True`
 - Amount must be positive
 - Officer must be a Person with `auth_user`, `auth_user.is_staff=True`, and `active=True`
 - Balance @ create: **exempt** (world payer) — `E@create` pay (one-shot)
@@ -34,8 +33,15 @@
 **Success effects:**
 - Reversal record created, linked via `reversal_of`
 - Counter-transactions for issuance + payment (`person.fund → world.fund`)
+- The destination fund balance decreases by amount, the world fund increase by amount. 
 
 **Immutability:** `source`, `destination`, `amount` cannot be changed after save
+
+Used Mixins:
+complete.
+
+Related views:
+complete.
 
 Tasks:
 - [x] Verify both `CASH_INJECTION_ISSUANCE` and `CASH_INJECTION_PAYMENT` transactions are created on save
@@ -49,5 +55,7 @@ Tasks:
 - [x] Verify counter-transactions preserve transaction type
 - [x] Verify cannot reverse an already-reversed operation
 - [x] Verify cannot reverse a reversal operation
-- [ ] UI: create form — source locked to World entity, destination filtered to Person entities
-- [ ] UI: operation detail shows both transactions and reversal button
+- [ ] Verify The person balance affected by the create operaion correctly.
+- [ ] Verify The person balance affected by the reverse operaion correctly.
+- [x] UI: create form — source locked to World entity, destination filtered to Person entities
+- [x] UI: operation detail shows both transactions and reversal button
