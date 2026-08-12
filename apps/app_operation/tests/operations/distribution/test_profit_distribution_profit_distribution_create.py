@@ -33,7 +33,8 @@ def _make_officer(username):
 
 
 def _make_project_entity(name):
-    return Entity.create(EntityType.PROJECT, name=name)
+    # Farm projects are internal entities, so their funds are balance-checked.
+    return Entity.create(EntityType.PROJECT, name=name, is_internal=True)
 
 
 def _make_shareholder_entity(name):
@@ -241,10 +242,10 @@ class ProfitDistributionCreateTest(TestCase):
     # ------------------------------------------------------------------
 
     def test_source_must_be_project_entity(self):
-        non_project = Entity.create(EntityType.PROJECT, name="PD Non-project")
+        non_project = Entity.create(EntityType.PERSON, name="PD Non-project")
         op = self._make_op(source=non_project)
         with self.assertRaises(ValidationError):
-            op.save()
+            op.clean_source()
 
     # ------------------------------------------------------------------
     # Destination validation

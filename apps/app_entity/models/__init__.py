@@ -704,7 +704,10 @@ class Entity(ImmutableMixin, BaseModel):
     def can_pay(self, amount: Decimal) -> bool:
         if not self.active:
             return False
-        if self.is_virtual:
+        # Only real (non-virtual) internal funds are balance-checked. External
+        # funds (clients/vendors) and virtual funds (system/world) have no
+        # enforceable balance, so they are always allowed to pay.
+        if self.is_virtual or not self.is_internal:
             return True
         return self.balance >= amount
 

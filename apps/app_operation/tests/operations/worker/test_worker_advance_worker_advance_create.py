@@ -32,6 +32,9 @@ class WorkerAdvanceCreateTest(BaseOperationTestCase):
 
     def setUp(self):
         super().setUp()
+        # The farm project is an internal entity, so its fund is balance-checked.
+        self.project.is_internal = True
+        self.project.save()
         self.worker = make_worker(self.project, "Ali Worker")
 
     def _make_op(self, **kwargs):

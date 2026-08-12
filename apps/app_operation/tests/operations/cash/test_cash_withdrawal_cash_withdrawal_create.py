@@ -25,9 +25,10 @@ class CashWithdrawalCreateTest(TestCase):
             username="officer", password="testpass", is_staff=True
         )
 
-        # Withdrawer: person entity (source of withdrawal)
+        # Withdrawer: internal person entity (source of withdrawal) whose fund is
+        # balance-checked because it is a tracked internal fund.
         self.withdrawer_entity = Entity.create(
-            EntityType.PERSON, name="Withdrawer Person"
+            EntityType.PERSON, name="Withdrawer Person", is_internal=True
         )
 
         # Fund the withdrawer's account so withdrawal can succeed
@@ -273,8 +274,11 @@ class CashWithdrawalCreateTest(TestCase):
         self.assertTrue(CashWithdrawalOperation.check_balance_on_payment)
 
     def test_insufficient_funds_blocked(self):
-        """check_balance_on_payment=True: clean() enforces balance at creation time."""
-        broke_person = Entity.create(EntityType.PERSON, name="Broke Person")
+        """check_balance_on_payment=True: clean() enforces balance at creation time
+        for internal funds."""
+        broke_person = Entity.create(
+            EntityType.PERSON, name="Broke Person", is_internal=True
+        )
         broke_entity = broke_person
         op = self._make_op(source=broke_entity, amount=Decimal("1.00"))
         with self.assertRaises(ValidationError):
@@ -285,8 +289,10 @@ class CashWithdrawalCreateTest(TestCase):
     # ------------------------------------------------------------------
 
     def test_withdrawal_without_sufficient_funds_raises_error(self):
-        # Fresh person with zero balance
-        broke_person = Entity.create(EntityType.PERSON, name="Broke Person")
+        # Fresh internal person with zero balance — internal funds are checked
+        broke_person = Entity.create(
+            EntityType.PERSON, name="Broke Person", is_internal=True
+        )
         broke_entity = broke_person
 
         op = self._make_op(source=broke_entity, amount=Decimal("100.00"))

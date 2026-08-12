@@ -25,9 +25,13 @@ class ProjectFundingCreateTest(TestCase):
             username="officer", password="testpass", is_staff=True
         )
 
-        # Funder: person entity
+        # Funder: internal person entity whose fund is balance-checked because it
+        # is a tracked internal fund.
         funder_person = Entity.create(
-            EntityType.PERSON, name="Funder Person", is_shareholder=True
+            EntityType.PERSON,
+            name="Funder Person",
+            is_shareholder=True,
+            is_internal=True,
         )
         self.funder_entity = funder_person
 

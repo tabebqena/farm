@@ -316,6 +316,9 @@ class LossCoverageCreateTest(TestCase):
     def test_insufficient_shareholder_fund_balance_raises(self):
         poor_project = _make_project_entity("LC Poor Project")
         poor_shareholder = _make_shareholder_entity("LC Poor Shareholder")
+        # Internal shareholders' funds are balance-checked.
+        poor_shareholder.is_internal = True
+        poor_shareholder.save()
         _register_shareholder(poor_project, poor_shareholder)
         # Only 100 available
         _seed_cash_injection(

@@ -14,9 +14,6 @@ if typing.TYPE_CHECKING:
 
 from .managers import SafeQuerySet
 
-# TODO use database level constrains for dataintegrity.
-# TODO add finiancial period closing
-
 # -----------------------------
 # Mixins
 # -----------------------------
@@ -381,6 +378,8 @@ class LinkedPaymentTransactionMixin(
                 fund_model = self.payment_source_fund.__class__
                 fund_pk = self.payment_source_fund.pk
                 fund = fund_model.objects.select_for_update().get(pk=fund_pk)
+                # can_pay() only balance-checks real (non-virtual) internal
+                # funds; external and virtual funds are always allowed to pay.
                 if not fund.can_pay(amount):
                     raise ValidationError(
                         _(
