@@ -16,7 +16,7 @@ from django.db.models import Sum
 from django.test import TestCase
 
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
-from apps.app_inventory.models import Product, ProductLedgerEntry
+from apps.app_inventory.models import Product
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import CapitalGainOperation, CashInjectionOperation
 
@@ -190,26 +190,6 @@ class BaseOperationTestCase(TestCase):
         )
 
     # ------------------------------------------------------------------
-    # SE5 — inventory ledger entries
-    # ------------------------------------------------------------------
-
-    def assert_ledger(self, entry_key, entry_type, qty_delta, value_delta, *, count=1):
-        """Every matching ledger row has exact deltas (SE5)."""
-        qs = ProductLedgerEntry.objects.filter(entry_type=entry_type)
-        if isinstance(entry_key, Product):
-            qs = qs.filter(product=entry_key)
-        elif hasattr(entry_key, "operation_id") and hasattr(entry_key, "product_template"):
-            qs = qs.filter(invoice_item=entry_key)
-        else:
-            raise TypeError("entry_key must be a Product or InvoiceItem")
-        self.assertEqual(
-            qs.count(), count, f"Expected {count} ledger rows of {entry_type}"
-        )
-        for entry in qs:
-            self.assertEqual(entry.quantity_delta, qty_delta, "ledger quantity_delta")
-            self.assertEqual(entry.value_delta, value_delta, "ledger value_delta")
-
-    # ------------------------------------------------------------------
     # SE6 / SE7 — movement lines and product status
     # ------------------------------------------------------------------
 
@@ -259,19 +239,16 @@ def assert_tx_types(test_case, op, expected):
 
 
 def _ledger_totals():
-    """Net quantity/value per product across the whole ledger (REVERSAL rows
-    are included because append-only; net deltas cancel them out)."""
+    """Net quantity/value per product computed from the active movement lines
+    plus capital operations (replaces the removed ledger table). Products with
+    a zero net state are omitted so reversal mirrors do not break the check."""
+    from apps.app_inventory.stock import movement_state
+
     totals = {}
-    rows = (
-        ProductLedgerEntry.objects.exclude(product__isnull=True)
-        .values("product_id")
-        .annotate(qty=Sum("quantity_delta"), value=Sum("value_delta"))
-    )
-    for row in rows:
-        totals[row["product_id"]] = (
-            row["qty"] or Decimal("0.00"),
-            row["value"] or Decimal("0.00"),
-        )
+    for product in Product.objects.all().iterator():
+        state = movement_state(product)
+        if state["quantity"] != 0 or state["value"] != 0:
+            totals[product.pk] = (state["quantity"], state["value"])
     return totals
 
 

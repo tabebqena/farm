@@ -2,7 +2,7 @@
 Tests for InvoiceItemAdjustment and InvoiceItemAdjustmentLine.
 
 Concern breakdown:
-  - InvoiceItemAdjustment  → item-level changes + ProductLedgerEntry sync
+  - InvoiceItemAdjustment  → item-level changes
   - Adjustment             → financial transactions (created by finalize())
 """
 
@@ -23,7 +23,6 @@ from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderR
 from apps.app_inventory.models import (
     InvoiceItem,
     Product,
-    ProductLedgerEntry,
     ProductTemplate,
 )
 from apps.app_operation.models.operation_type import OperationType

@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
@@ -5,7 +6,11 @@ from django.test import TestCase
 
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
 from apps.app_inventory.forms import InvoiceItemCreateForm
-from apps.app_inventory.models import Product, ProductTemplate
+from apps.app_inventory.models import (
+    InventoryMovementLine,
+    Product,
+    ProductTemplate,
+)
 from apps.app_inventory.tests.general import (
     make_entity,
     make_invoice_item,
@@ -81,6 +86,20 @@ class ProductTest(TestCase):
         )
         self.assertEqual(product.status, Product.Status.SOLD)
 
+    def test_status_direction_aware_buyer_active_seller_sold(self):
+        """A SALE is direction-aware: the buyer-owned copy is ACTIVE (received),
+        the seller-owned copy is SOLD (dispatched)."""
+        op = make_operation(
+            self.client, self.project, self.officer, SaleOperation, OperationType.SALE
+        )
+        item = make_invoice_item(op, self.template, Decimal("1"), Decimal("100.00"))
+        seller_product = make_product(self.template, Decimal("100.00"), 1, self.project)
+        buyer_product = make_product(self.template, Decimal("100.00"), 1, self.client)
+        seller_product.invoice_items.add(item)
+        buyer_product.invoice_items.add(item)
+        self.assertEqual(seller_product.status, Product.Status.SOLD)
+        self.assertEqual(buyer_product.status, Product.Status.ACTIVE)
+
     def test_status_dead_after_death(self):
         product = self._linked_product(
             DeathOperation, OperationType.DEATH, self.project, self.system
@@ -102,58 +121,84 @@ class ProductTest(TestCase):
         product.invoice_items.add(sale_item, death_item)
         self.assertEqual(product.status, Product.Status.DEAD)
 
-    # --- current_value ---
+    # --- current_value (movement/ledger-based, reconciled with the ledger) ---
+
+    def _make_valued_product(
+        self,
+        price=Decimal("100.00"),
+        qty=1,
+        capital_gain=Decimal("0"),
+        capital_loss=Decimal("0"),
+    ):
+        """Create a product with a purchase movement (base value) and optional
+        capital gain/loss operations — the basis used by ``Product.current_value``
+        and the stock valuation."""
+        purchase = make_operation(
+            self.project,
+            self.vendor,
+            self.officer,
+            PurchaseOperation,
+            OperationType.PURCHASE,
+            amount=(Decimal(qty) * price).quantize(Decimal("0.01")),
+        )
+        item = make_invoice_item(purchase, self.template, Decimal(qty), price)
+        product = make_product(self.template, price, qty, self.project)
+        product.invoice_items.add(item)
+        InventoryMovementLine.objects.create(
+            operation=purchase,
+            invoice_item=item,
+            product=product,
+            quantity=Decimal(qty),
+            date=date.today(),
+            officer=self.officer,
+            notes="",
+            group_key="val",
+        )
+        if capital_gain:
+            op = make_operation(
+                self.system,
+                self.project,
+                self.officer,
+                CapitalGainOperation,
+                OperationType.CAPITAL_GAIN,
+                amount=capital_gain,
+            )
+            item = make_invoice_item(op, self.template, Decimal(1), capital_gain)
+            product.invoice_items.add(item)
+        if capital_loss:
+            op = make_operation(
+                self.project,
+                self.system,
+                self.officer,
+                CapitalLossOperation,
+                OperationType.CAPITAL_LOSS,
+                amount=capital_loss,
+            )
+            item = make_invoice_item(op, self.template, Decimal(1), capital_loss)
+            product.invoice_items.add(item)
+        return product
 
     def test_current_value_base_only(self):
-        product = make_product(self.template, Decimal("100.00"), 3)
+        product = self._make_valued_product(Decimal("100.00"), 3)
         self.assertEqual(product.current_value, Decimal("300.00"))
 
     def test_current_value_adds_capital_gain(self):
-        cg_op = make_operation(
-            self.system,
-            self.project,
-            self.officer,
-            CapitalGainOperation,
-            OperationType.CAPITAL_GAIN,
+        product = self._make_valued_product(
+            Decimal("100.00"), 1, capital_gain=Decimal("20.00")
         )
-        item = make_invoice_item(cg_op, self.template, Decimal("1"), Decimal("20.00"))
-        product = make_product(self.template, Decimal("100.00"), 1)
-        product.invoice_items.add(item)
         self.assertEqual(product.current_value, Decimal("120.00"))
 
     def test_current_value_subtracts_capital_loss(self):
-        cl_op = make_operation(
-            self.project,
-            self.system,
-            self.officer,
-            CapitalLossOperation,
-            OperationType.CAPITAL_LOSS,
+        product = self._make_valued_product(
+            Decimal("100.00"), 1, capital_loss=Decimal("15.00")
         )
-        item = make_invoice_item(cl_op, self.template, Decimal("1"), Decimal("15.00"))
-        product = make_product(self.template, Decimal("100.00"), 1)
-        product.invoice_items.add(item)
         self.assertEqual(product.current_value, Decimal("85.00"))
 
     def test_current_value_gain_and_loss_combined(self):
         """base + gain - loss are applied together."""
-        cg_op = make_operation(
-            self.system,
-            self.project,
-            self.officer,
-            CapitalGainOperation,
-            OperationType.CAPITAL_GAIN,
+        product = self._make_valued_product(
+            Decimal("100.00"), 1, capital_gain=Decimal("30.00"), capital_loss=Decimal("10.00")
         )
-        cl_op = make_operation(
-            self.project,
-            self.system,
-            self.officer,
-            CapitalLossOperation,
-            OperationType.CAPITAL_LOSS,
-        )
-        gain_item = make_invoice_item(cg_op, self.template, Decimal("1"), Decimal("30.00"))
-        loss_item = make_invoice_item(cl_op, self.template, Decimal("1"), Decimal("10.00"))
-        product = make_product(self.template, Decimal("100.00"), 1)
-        product.invoice_items.add(gain_item, loss_item)
         # 100 + 30 - 10 = 120
         self.assertEqual(product.current_value, Decimal("120.00"))
 

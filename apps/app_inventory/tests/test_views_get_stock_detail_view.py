@@ -13,7 +13,6 @@ from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderR
 from apps.app_inventory.models import (
     InventoryMovementLine,
     Product,
-    ProductLedgerEntry,
     ProductTemplate,
 )
 from apps.app_inventory.tests.general import (
@@ -96,6 +95,66 @@ class StockDetailViewTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("entity", response.context)
+
+    def test_internal_client_receipt_appears_in_buyer_stock(self):
+        """An internal-client sale puts the received product into the buyer's
+        live stock (direction-aware stock_detail)."""
+        self.client.login(username="officer_stock", password="testpass")
+        template = ProductTemplate.objects.create(
+            name="Feed",
+            nature=ProductTemplate.Nature.FEED,
+            sub_category="Feed",
+            tracking_mode=ProductTemplate.TrackingMode.COMMODITY,
+            default_unit="Kg",
+            minimum_quantity=Decimal("0.01"),
+        )
+        template.entities.add(self.entity)
+        seller_product = self._make_present_product(template, qty=Decimal("4.00"))
+
+        internal_client = Entity.create(
+            EntityType.PERSON,
+            name="Internal Buyer",
+            is_client=True,
+            is_internal=True,
+            active=True,
+        )
+        Stakeholder.objects.create(
+            parent=self.entity,
+            target=internal_client,
+            role=StakeholderRole.CLIENT,
+            active=True,
+        )
+        SaleOperation.create_from_session(
+            project=self.entity,
+            session_data={
+                "date": date.today().isoformat(),
+                "client_id": internal_client.pk,
+                "description": "Transfer",
+                "total_amount": "400.00",
+                "amount_paid": "0",
+                "items": [
+                    {
+                        "product_id": seller_product.pk,
+                        "description": "",
+                        "quantity": "4.00",
+                        "unit_price": "100.00",
+                    }
+                ],
+            },
+            officer=self.officer,
+        )
+
+        url = reverse("stock_detail", kwargs={"entity_pk": internal_client.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        present_ids = [
+            row["product"].pk
+            for row in response.context["physically_present_products"]
+        ]
+        buyer_clone = Product.objects.get(
+            entity=internal_client, product_template=template
+        )
+        self.assertIn(buyer_clone.pk, present_ids)
 
     def test_reversed_birth_product_not_in_live_stock(self):
         """After a BIRTH is reversed, the born product leaves the live stock.
@@ -278,7 +337,7 @@ class StockDetailViewTest(TestCase):
             amount=Decimal("100.00"),
         )
         make_invoice_item(op, template, Decimal("5.00"), Decimal("20.00"))
-        ProductLedgerEntry.record(op)  # PURCHASE_ISSUANCE — obligation only
+        # The unpaid purchase is an obligation without movement.
 
         self.client.login(username="officer_stock", password="testpass")
         response = self.client.get(
@@ -314,7 +373,7 @@ class StockDetailViewTest(TestCase):
             amount=Decimal("100.00"),
         )
         make_invoice_item(op, template, Decimal("5.00"), Decimal("20.00"))
-        ProductLedgerEntry.record(op)  # SALE_ISSUANCE — obligation without movement
+        # The sale is an outbound obligation without movement.
 
         self.client.login(username="officer_stock", password="testpass")
         response = self.client.get(

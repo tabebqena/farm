@@ -9,9 +9,9 @@ from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderR
 from apps.app_inventory.models import (
     InventoryMovementLine,
     Product,
-    ProductLedgerEntry,
     ProductTemplate,
 )
+from apps.app_inventory.stock import movement_state
 from apps.app_inventory.tests.general import (
     make_entity,
     make_invoice_item,
@@ -165,49 +165,34 @@ class DeathReversalTest(TestCase):
 
     def test_reverse_negates_ledger_entries(self):
         op, product = self._make_dead()
-        item = op.items.get()
         op.reverse(officer=self.officer_user, reason="test reversal")
 
-        # Movement negation is linked to the product (qty +5.00 to undo -5.00)
-        movement_reversal = ProductLedgerEntry.objects.filter(
-            product=product,
-            entry_type=ProductLedgerEntry.EntryType.REVERSAL,
-        )
-        self.assertEqual(movement_reversal.count(), 1)
-        self.assertEqual(movement_reversal.first().quantity_delta, Decimal("5.00"))
-
-        # Issuance negation is written with product=None for the invoice item
-        issuance_reversal = ProductLedgerEntry.objects.filter(
-            invoice_item=item,
-            product__isnull=True,
-            entry_type=ProductLedgerEntry.EntryType.REVERSAL,
-        )
-        self.assertEqual(
-            issuance_reversal.count(),
-            1,
-            "Negated issuance ledger entry missing",
-        )
-        self.assertEqual(issuance_reversal.first().quantity_delta, Decimal("5.00"))
+        # Reversing the death negates the outbound movement — the product's
+        # net presence is restored to the pre-death +5.
+        state = movement_state(product, as_of=date.today())
+        self.assertEqual(state["quantity"], Decimal("5.00"))
+        self.assertEqual(state["value"], Decimal("500.00"))
 
     def test_reverse_movement_ledger_negation_exact_set(self):
-        """Every DEATH_MOVEMENT ledger row must have an exact +5.00 REVERSAL
-        counterpart (not just the first row)."""
+        """Every DEATH movement line must have an exact reversal counterpart
+        (not just the first row), restoring the product's presence."""
         op, product = self._make_dead()
         op.reverse(officer=self.officer_user, reason="test reversal")
 
-        originals = ProductLedgerEntry.objects.filter(
-            product=product,
-            entry_type=ProductLedgerEntry.EntryType.DEATH_MOVEMENT,
+        originals = InventoryMovementLine.objects.filter(
+            product=product, reversal_of__isnull=True
         )
-        reversals = ProductLedgerEntry.objects.filter(
-            product=product,
-            entry_type=ProductLedgerEntry.EntryType.REVERSAL,
+        reversals = InventoryMovementLine.objects.filter(
+            product=product, reversal_of__isnull=False
         )
-        self.assertEqual(originals.count(), 1)
+        self.assertEqual(originals.count(), 2)  # purchase + death
         self.assertEqual(reversals.count(), 1)
-        for entry in reversals:
-            self.assertEqual(entry.quantity_delta, Decimal("5.00"))
-            self.assertEqual(entry.value_delta, Decimal("500.00"))
+        for rl in reversals:
+            self.assertEqual(rl.quantity, Decimal("5.00"))
+            self.assertIsNotNone(rl.reversal_of)
+        state = movement_state(product, as_of=date.today())
+        self.assertEqual(state["quantity"], Decimal("5.00"))
+        self.assertEqual(state["value"], Decimal("500.00"))
 
     # ------------------------------------------------------------------
     # SE7 — product status restored on reversal

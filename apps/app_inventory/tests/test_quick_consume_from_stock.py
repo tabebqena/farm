@@ -4,7 +4,7 @@ A single POST from the stock detail page must create the full consumption
 pipeline by reusing ``ConsumptionOperation.create(...)``:
 ConsumptionOperation + invoice item + auto movement line +
 ``CONSUMPTION_ISSUANCE`` + ``CONSUMPTION_PAYMENT`` transactions +
-``CONSUMPTION_MOVEMENT`` ledger entry, and mark the product ``CONSUMED``.
+``CONSUMPTION_MOVEMENT`` movement line, and mark the product ``CONSUMED``.
 """
 
 from datetime import date
@@ -17,9 +17,9 @@ from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderR
 from apps.app_inventory.models import (
     InventoryMovementLine,
     Product,
-    ProductLedgerEntry,
     ProductTemplate,
 )
+from apps.app_inventory.stock import movement_state
 from apps.app_inventory.tests.general import (
     make_entity,
     make_invoice_item,
@@ -140,13 +140,10 @@ class QuickConsumeFromStockTest(TestCase):
             },
         )
 
-        # CONSUMPTION_MOVEMENT ledger entry with correct deltas
-        movement = ProductLedgerEntry.objects.get(
-            product=product,
-            entry_type=ProductLedgerEntry.EntryType.CONSUMPTION_MOVEMENT,
-        )
-        self.assertEqual(movement.quantity_delta, Decimal("-5.00"))
-        self.assertEqual(movement.value_delta, Decimal("-500.00"))
+        # The movement line is the physical event: stock state is fully written off.
+        state = movement_state(product, as_of=date.today())
+        self.assertEqual(state["quantity"], Decimal("0.00"))
+        self.assertEqual(state["value"], Decimal("0.00"))
 
         # Product is consumed
         product.refresh_from_db()
@@ -178,7 +175,7 @@ class QuickConsumeFromStockTest(TestCase):
         response = self._post_consume(product, qty=Decimal("2.00"))
 
         self.assertEqual(response.status_code, 302)
-        remaining = ProductLedgerEntry.state_as_of(product, date.today())["quantity"]
+        remaining = movement_state(product, as_of=date.today())["quantity"]
         self.assertEqual(remaining, Decimal("3.00"))
         self.assertEqual(self._consumption_count(), 1)
 

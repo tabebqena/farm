@@ -274,7 +274,9 @@
                       <a href="{% url 'operation_detail_view' item.operation__id %}" class="btn btn-sm btn-outline-primary">{% trans 'View' %}</a>
                     </td>
                     <td>
-                      <a href="{% url 'create_inventory_movement' operation_pk=item.operation__id %}" class="btn btn-sm btn-outline-success">{% trans 'Create Movement' %}</a>
+                      {% if item.operation__operation_type == 'PURCHASE' %}
+                        <a href="{% url 'create_purchase_movement' operation_pk=item.operation__id %}" class="btn btn-sm btn-outline-success">{% trans 'Create Movement' %}</a>
+                      {% endif %}
                     </td>
                   </tr>
                 {% endfor %}
@@ -327,7 +329,9 @@
                     <td class="text-end fw-bold text-danger">{{ item.pending_qty|floatformat:2 }}</td>
                     <td>{{ item.operation__date }}</td>
                     <td>
-                      <a href="{% url 'create_inventory_movement' operation_pk=item.operation__id %}" class="btn btn-sm btn-outline-success">{% trans 'Create Movement' %}</a>
+                      {% if item.operation__operation_type == 'SALE' %}
+                        <a href="{% url 'create_sale_movement' operation_pk=item.operation__id %}" class="btn btn-sm btn-outline-success">{% trans 'Create Movement' %}</a>
+                      {% endif %}
                     </td>
                   </tr>
                 {% endfor %}

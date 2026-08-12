@@ -14,10 +14,21 @@ from apps.app_entity.models.category import (
     FinancialCategoriesEntitiesRelations,
     FinancialCategory,
 )
-from apps.app_inventory.models import ProductLedgerEntry
-from apps.app_inventory.tests.general import make_product, make_product_template, make_user
+from apps.app_inventory.models import InventoryMovementLine
+from apps.app_inventory.stock import inventory_value
+from apps.app_inventory.tests.general import (
+    make_invoice_item,
+    make_operation,
+    make_product,
+    make_product_template,
+    make_user,
+)
 from apps.app_operation.models.operation_type import OperationType
-from apps.app_operation.models.proxies import CapitalGainOperation, ExpenseOperation
+from apps.app_operation.models.proxies import (
+    CapitalGainOperation,
+    ExpenseOperation,
+    PurchaseOperation,
+)
 
 
 class EntityDetailViewTest(TestCase):
@@ -98,7 +109,7 @@ class EntityDetailViewTest(TestCase):
         self.assertEqual(response.context["receivables"], self.entity.receivables)
         self.assertEqual(
             response.context["stock_value"],
-            ProductLedgerEntry.inventory_value_at(self.entity, date.today()),
+            inventory_value(self.entity, date.today()),
         )
 
     def test_entity_detail_reflects_payables(self):
@@ -142,17 +153,36 @@ class EntityDetailViewTest(TestCase):
         self.assertEqual(response.context["payables"], self.entity.payables)
 
     def test_entity_detail_reflects_stock_value(self):
-        """Stock value from product ledger entries appears in the entity detail context."""
+        """Stock value from the movement-based valuation appears in the entity
+        detail context."""
         template = make_product_template("Calves")
         template.entities.add(self.entity)
-        product = make_product(template, unit_price=Decimal("100.00"), quantity=1, entity=self.entity)
-        ProductLedgerEntry.objects.create(
+        product = make_product(
+            template, unit_price=Decimal("100.00"), quantity=1, entity=self.entity
+        )
+        vendor = Entity.create(EntityType.PERSON, name="Vendor", is_vendor=True)
+        Stakeholder.objects.create(
+            parent=self.entity,
+            target=vendor,
+            active=True,
+            role=StakeholderRole.VENDOR,
+        )
+        op = make_operation(
+            self.entity,
+            vendor,
+            self.officer,
+            PurchaseOperation,
+            OperationType.PURCHASE,
+            amount=Decimal("100.00"),
+        )
+        item = make_invoice_item(op, template, Decimal("1.00"), Decimal("100.00"))
+        InventoryMovementLine.objects.create(
+            operation=op,
+            invoice_item=item,
             product=product,
-            entry_type=ProductLedgerEntry.EntryType.PURCHASE_MOVEMENT,
+            quantity=Decimal("1.00"),
             date=date.today(),
-            quantity_delta=Decimal("1.00"),
-            value_delta=Decimal("100.00"),
-            idempotency_key="entity_detail_stock_value_test",
+            officer=self.officer,
         )
 
         self.client.login(username="officer_detail", password="testpass")
@@ -163,7 +193,7 @@ class EntityDetailViewTest(TestCase):
         self.assertEqual(response.context["stock_value"], Decimal("100.00"))
         self.assertEqual(
             response.context["stock_value"],
-            ProductLedgerEntry.inventory_value_at(self.entity, date.today()),
+            inventory_value(self.entity, date.today()),
         )
 
     def test_entity_detail_financial_summary_links_and_balance(self):

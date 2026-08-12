@@ -51,7 +51,20 @@ urlpatterns = [
     # As templates are shared betwenn projects.
     # Never allow the user to edit the templates based on one
     # of his current project.
-    # Movement line
+    # Movement line — PURCHASE (receive) and SALE (dispatch) are separate
+    # flows so each only ever applies to its own operation type.
+    path(
+        "operations/<int:operation_pk>/movement/create/purchase/",
+        views.create_purchase_movement,
+        name="create_purchase_movement",
+    ),
+    path(
+        "operations/<int:operation_pk>/movement/create/sale/",
+        views.create_sale_movement,
+        name="create_sale_movement",
+    ),
+    # Backwards-compatible route for the pre-split URL (redirects to the
+    # type-specific view).
     path(
         "operations/<int:operation_pk>/movement/create/",
         views.create_inventory_movement,

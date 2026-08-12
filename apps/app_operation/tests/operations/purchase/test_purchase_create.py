@@ -6,7 +6,8 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
-from apps.app_inventory.models import Product, ProductLedgerEntry, ProductTemplate
+from apps.app_inventory.models import InventoryMovementLine, Product, ProductTemplate
+from apps.app_inventory.stock import pending_items
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import CapitalGainOperation, PurchaseOperation
 from apps.app_operation.tests.base import assert_tx_types
@@ -369,8 +370,7 @@ class PurchaseCreateFromSessionTest(TestCase):
       2. PurchaseOperation record + issuance transaction
       3. InvoiceItem records
       4. InventoryMovementLine for any received quantities
-      5. ProductLedgerEntry for issuance
-      6. Payment transaction (if amount_paid > 0)
+      5. Payment transaction (if amount_paid > 0)
     """
 
     def setUp(self):
@@ -447,12 +447,58 @@ class PurchaseCreateFromSessionTest(TestCase):
         # No inventory movement lines (received_qty = 0)
         self.assertEqual(op.movement_lines.count(), 0)
 
-        # Product ledger entries recorded (one PURCHASE_ISSUANCE per item)
-        entries = ProductLedgerEntry.objects.filter(invoice_item__operation=op)
-        self.assertEqual(entries.count(), 1)
-        self.assertEqual(entries.first().entry_type, ProductLedgerEntry.EntryType.PURCHASE_ISSUANCE)
-        self.assertEqual(entries.first().quantity_delta, Decimal("10.00"))
-        self.assertEqual(entries.first().value_delta, Decimal("1000.00"))
+        # The purchase is an obligation without movement — pending inbound 10.
+        pending = [
+            p
+            for p in pending_items(entity=self.project_entity)
+            if p["id"] == invoice_item.pk
+        ]
+        self.assertEqual(len(pending), 1)
+        self.assertEqual(pending[0]["pending_qty"], Decimal("10.00"))
+
+    def test_purchase_rejects_internal_vendor(self):
+        """An internal entity cannot be a vendor — the purchase is blocked."""
+        internal_vendor = Entity.create(
+            EntityType.PERSON,
+            name="Internal Vendor",
+            is_vendor=True,
+            is_internal=True,
+        )
+        Stakeholder.objects.create(
+            parent=self.project_entity,
+            target=internal_vendor,
+            role=StakeholderRole.VENDOR,
+            active=True,
+        )
+        op = PurchaseOperation(
+            source=self.project_entity,
+            destination=internal_vendor,
+            amount=Decimal("100.00"),
+            operation_type=OperationType.PURCHASE,
+            date=date.today(),
+            description="Internal vendor purchase",
+            officer=self.officer_user,
+        )
+        with self.assertRaises(ValidationError):
+            op.save()
+
+    def test_get_related_entities_excludes_internal_vendors(self):
+        """Internal vendors are not offered in the purchase wizard."""
+        internal_vendor = Entity.create(
+            EntityType.PERSON,
+            name="Internal Vendor 2",
+            is_vendor=True,
+            is_internal=True,
+        )
+        Stakeholder.objects.create(
+            parent=self.project_entity,
+            target=internal_vendor,
+            role=StakeholderRole.VENDOR,
+            active=True,
+        )
+        related = PurchaseOperation.get_related_entities(self.project_entity, {})
+        self.assertNotIn(internal_vendor, related)
+        self.assertIn(self.vendor_entity, related)
 
     def test_create_from_session_multiple_items(self):
         """Multiple invoice items are created and totals validated."""
@@ -710,24 +756,11 @@ class PurchaseCreateFromSessionTest(TestCase):
             },
         )
 
-        # Ledger entries — one PURCHASE_ISSUANCE per item (full contract qty) plus
-        # one PURCHASE_MOVEMENT per received head
-        issuance = ProductLedgerEntry.objects.filter(
-            invoice_item__operation=op,
-            entry_type=ProductLedgerEntry.EntryType.PURCHASE_ISSUANCE,
-        )
-        self.assertEqual(issuance.count(), 1)
-        self.assertEqual(issuance.first().quantity_delta, Decimal("20.00"))
-        self.assertEqual(issuance.first().value_delta, Decimal("1000.00"))
-
-        movement = ProductLedgerEntry.objects.filter(
-            invoice_item__operation=op,
-            entry_type=ProductLedgerEntry.EntryType.PURCHASE_MOVEMENT,
-        )
-        self.assertEqual(movement.count(), 15)
-        for entry in movement:
-            self.assertEqual(entry.quantity_delta, Decimal("1.00"))
-            self.assertEqual(entry.value_delta, Decimal("50.00"))
+        # Movement lines — one per received head (15 received of 20 contracted).
+        movement_lines = InventoryMovementLine.objects.filter(invoice_item__operation=op)
+        self.assertEqual(movement_lines.count(), 15)
+        for line in movement_lines:
+            self.assertEqual(line.quantity, Decimal("1.00"))
 
         # Fund balances
         self.project_entity.refresh_from_db()
@@ -877,11 +910,11 @@ class PurchaseCreateFromSessionTest(TestCase):
             )
 
     # ------------------------------------------------------------------
-    # ProductLedgerEntry verification
+    # Stock verification (movement-based, no ledger table)
     # ------------------------------------------------------------------
 
     def test_create_from_session_ledger_entries_created(self):
-        """ProductLedgerEntry records are created for issuance."""
+        """A purchased-but-unreceived item is an obligation without movement."""
         items = [_item_data(self.template.pk)]
         session = _session_data(
             vendor_id=self.vendor_entity.pk,
@@ -895,16 +928,17 @@ class PurchaseCreateFromSessionTest(TestCase):
             officer=self.officer_user,
         )
 
-        entries = ProductLedgerEntry.objects.filter(invoice_item__operation=op)
-        self.assertEqual(entries.count(), 1)
-        entry = entries.get()
-
-        # Verify entry references the invoice item
-        invoice_item = op.items.first()
-        self.assertEqual(entry.invoice_item, invoice_item)
-        self.assertEqual(entry.entry_type, ProductLedgerEntry.EntryType.PURCHASE_ISSUANCE)
-        self.assertEqual(entry.quantity_delta, Decimal("10.00"))
-        self.assertEqual(entry.value_delta, Decimal("1000.00"))
+        # Default received_qty=0 → no movement lines, pending inbound 10.
+        self.assertEqual(
+            InventoryMovementLine.objects.filter(invoice_item__operation=op).count(), 0
+        )
+        pending = [
+            p
+            for p in pending_items(entity=self.project_entity)
+            if p["operation__id"] == op.pk
+        ]
+        self.assertEqual(len(pending), 1)
+        self.assertEqual(pending[0]["pending_qty"], Decimal("10.00"))
 
     # ------------------------------------------------------------------
     # Edge cases — description handling

@@ -2,7 +2,7 @@
 Tests for InvoiceItemAdjustment and InvoiceItemAdjustmentLine.
 
 Concern breakdown:
-  - InvoiceItemAdjustment  → item-level changes + ProductLedgerEntry sync
+  - InvoiceItemAdjustment  → item-level changes
   - Adjustment             → financial transactions (created by finalize())
 """
 
@@ -21,7 +21,6 @@ from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderR
 from apps.app_inventory.models import (
     InvoiceItem,
     Product,
-    ProductLedgerEntry,
     ProductTemplate,
 )
 from apps.app_operation.models.operation_type import OperationType
@@ -152,8 +151,8 @@ def _make_line(item_adj, invoice_item, **kwargs):
 
 
 class ReversalTest(TestCase):
-    """Reversing an InvoiceItemAdjustment creates counter-transactions
-    and counter-ledger entries."""
+    """Reversing an InvoiceItemAdjustment creates counter-transactions and
+    restores the operation's effective amount."""
 
     def setUp(self):
         self.officer = _make_officer()
@@ -197,20 +196,14 @@ class ReversalTest(TestCase):
         )
         _make_line(ia, item, new_unit_price=Decimal("80.00"))
         ia.finalize()
+        self.assertEqual(op.effective_amount, Decimal("400.00"))
 
         ia.reverse(officer=self.officer, date=date.today(), reason="cancel")
 
-        # Should have: forward entry (value_delta=-100) + reversal entry (value_delta=+100)
-        adj_entries = ProductLedgerEntry.objects.filter(
-            invoice_item=item,
-            entry_type__in=[
-                ProductLedgerEntry.EntryType.PURCHASE_ADJUSTMENT_INCREASE,
-                ProductLedgerEntry.EntryType.PURCHASE_ADJUSTMENT_DECREASE,
-            ],
-        ).order_by("id")
-        self.assertEqual(adj_entries.count(), 2)
-        self.assertEqual(adj_entries[0].value_delta, Decimal("-100.00"))
-        self.assertEqual(adj_entries[1].value_delta, Decimal("100.00"))
+        # The reversal negates the adjustment's effect and restores the amount.
+        self.assertTrue(ia.adjustment.is_reversed)
+        op.refresh_from_db()
+        self.assertEqual(op.effective_amount, Decimal("500.00"))
 
     def test_reversal_restores_effective_amount(self):
         op = _make_purchase_op(
@@ -284,7 +277,7 @@ class DirectAdjustmentReversalDelegationTest(TestCase):
         )
 
     def test_direct_reversal_creates_negating_ledger_entries(self):
-        """Direct reversal of Adjustment must also negate ProductLedgerEntry rows."""
+        """Direct reversal of Adjustment negates the adjustment's effect."""
         op = _make_purchase_op(
             self.project, self.vendor, self.officer, Decimal("500.00")
         )
@@ -298,21 +291,12 @@ class DirectAdjustmentReversalDelegationTest(TestCase):
         )
         _make_line(ia, item, new_unit_price=Decimal("80.00"))
         ia.finalize()
+        self.assertEqual(op.effective_amount, Decimal("400.00"))
 
         # Direct reversal
         ia.adjustment.reverse(officer=self.officer, date=date.today(), reason="direct")
-
-        # Should have: forward entry (value_delta=-100) + reversal entry (value_delta=+100)
-        adj_entries = ProductLedgerEntry.objects.filter(
-            invoice_item=item,
-            entry_type__in=[
-                ProductLedgerEntry.EntryType.PURCHASE_ADJUSTMENT_INCREASE,
-                ProductLedgerEntry.EntryType.PURCHASE_ADJUSTMENT_DECREASE,
-            ],
-        ).order_by("id")
-        self.assertEqual(adj_entries.count(), 2)
-        self.assertEqual(adj_entries[0].value_delta, Decimal("-100.00"))
-        self.assertEqual(adj_entries[1].value_delta, Decimal("100.00"))
+        op.refresh_from_db()
+        self.assertEqual(op.effective_amount, Decimal("500.00"))
 
     def test_direct_reversal_restores_effective_amount(self):
         """Direct reversal of Adjustment must restore the operation's effective amount."""

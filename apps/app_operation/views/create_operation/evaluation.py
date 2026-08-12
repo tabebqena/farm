@@ -13,7 +13,7 @@ from django.utils.translation import gettext as _
 
 from apps.app_base.debug import DebugContext, debug_view
 from apps.app_entity.models import Entity
-from apps.app_inventory.models import InvoiceItem, Product, ProductLedgerEntry
+from apps.app_inventory.models import InvoiceItem, Product
 from apps.app_operation.models.proxies.op_capital_gain import CapitalGainOperation
 from apps.app_operation.models.proxies.op_capital_loss import CapitalLossOperation
 from farm.shortcuts import get_object_or_404
@@ -212,7 +212,6 @@ class EvaluationCreateView(OperationCreateView):
                         )
                         product.validate_active()
                         product.invoice_items.add(item)
-                        ProductLedgerEntry.record(op)
                         DebugContext.success(
                             "Evaluation operation created",
                             {

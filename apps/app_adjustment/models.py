@@ -381,7 +381,6 @@ class InvoiceItemAdjustment(
 
     Responsibilities:
     - Owns the line-level change records (InvoiceItemAdjustmentLine).
-    - Syncs ProductLedgerEntry for each line via the line's save().
     - Delegates financial bookkeeping by creating an Adjustment in finalize().
     """
 
@@ -578,11 +577,8 @@ class InvoiceItemAdjustment(
         """
         Reverse the item adjustment:
         1. Reverse the linked Adjustment (counter-transaction).
-        2. Append negating ProductLedgerEntry rows for each line.
-        3. Mark this record as reversed via ReversableModel.
+        2. Mark this record as reversed via ReversableModel.
         """
-        from apps.app_inventory.models import ProductLedgerEntry
-
         DebugContext.log(
             f"InvoiceItemAdjustment.reverse() called",
             {
@@ -619,11 +615,6 @@ class InvoiceItemAdjustment(
                 )
                 DebugContext.success("Linked Adjustment reversed")
 
-                DebugContext.log("Recording negating ProductLedgerEntry rows")
-                for line in self.lines.all():
-                    ProductLedgerEntry.record_adjustment_line(line, negate=True)
-                DebugContext.success(f"Negated ledger entries recorded")
-
                 result = super().reverse(officer=officer, date=date, reason=reason)
                 DebugContext.success("InvoiceItemAdjustment reversed successfully")
                 return result
@@ -641,7 +632,7 @@ class InvoiceItemAdjustmentLine(
     One line of an InvoiceItemAdjustment.
 
     Records how a single InvoiceItem was changed: price, quantity, or removal.
-    On save, appends a ProductLedgerEntry row for the inventory delta.
+    The effective quantity/value deltas are computed on the fly.
     """
 
     _immutable_fields = {
@@ -763,13 +754,6 @@ class InvoiceItemAdjustmentLine(
             },
         )
         super().save(*args, **kwargs)
-        from apps.app_inventory.models import ProductLedgerEntry
-
-        DebugContext.log("Recording ProductLedgerEntry for adjustment line")
-        ProductLedgerEntry.record_adjustment_line(self)
-        DebugContext.success(
-            "ProductLedgerEntry recorded", {"adjustment_line_pk": self.pk}
-        )
 
     class Meta:
         verbose_name = _("invoice item adjustment line")

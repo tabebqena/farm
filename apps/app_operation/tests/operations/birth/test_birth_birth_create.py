@@ -9,9 +9,9 @@ from apps.app_entity.models import Entity, EntityType
 from apps.app_inventory.models import (
     InventoryMovementLine,
     Product,
-    ProductLedgerEntry,
     ProductTemplate,
 )
+from apps.app_inventory.stock import movement_state
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import BirthOperation
 from apps.app_operation.tests.base import assert_tx_types
@@ -266,33 +266,20 @@ class BirthCreateTest(TestCase):
             )
 
     # ------------------------------------------------------------------
-    # Ledger entries
+    # Movement lines / stock state
     # ------------------------------------------------------------------
 
     def test_create_writes_movement_and_issuance_ledger_entries(self):
         op = self._birth()
-        item = op.items.get()
         products = list(op.movement_lines.select_related("product").all())
 
-        # Each individually tracked animal carries its own movement (qty=1).
+        # Each individually tracked animal carries its own movement (qty=1)
+        # and is physically present at its carried value.
         self.assertEqual(len(products), 5)
         for ml in products:
-            movement = ProductLedgerEntry.objects.filter(
-                product=ml.product,
-                entry_type=ProductLedgerEntry.EntryType.BIRTH_MOVEMENT,
-            )
-            self.assertEqual(movement.count(), 1, ml.product.unique_id)
-            self.assertEqual(movement.first().quantity_delta, Decimal("1.00"))
-            self.assertEqual(movement.first().value_delta, Decimal("100.00"))
-
-        # The contract-level issuance covers the full quantity (one row per item).
-        issuance = ProductLedgerEntry.objects.filter(
-            invoice_item=item,
-            entry_type=ProductLedgerEntry.EntryType.BIRTH_ISSUANCE,
-        )
-        self.assertEqual(issuance.count(), 1)
-        self.assertEqual(issuance.first().quantity_delta, Decimal("5.00"))
-        self.assertEqual(issuance.first().value_delta, Decimal("500.00"))
+            state = movement_state(ml.product, as_of=date.today())
+            self.assertEqual(state["quantity"], Decimal("1.00"), ml.product.unique_id)
+            self.assertEqual(state["value"], Decimal("100.00"))
 
     # ------------------------------------------------------------------
     # One-shot constraint

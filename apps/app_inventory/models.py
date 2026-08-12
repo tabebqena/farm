@@ -13,498 +13,6 @@ from apps.app_base.mixins import AmountCleanMixin, ImmutableMixin
 from apps.app_base.models import BaseModel
 
 
-# ---------------------------------------------------------------------------
-# Inventory valuation
-# ---------------------------------------------------------------------------
-
-
-def valuation_unit_cost(product) -> Decimal:
-    """
-    Unit cost used to value outbound inventory movements (SALE/DEATH/
-    CONSUMPTION).
-
-    Current method: the cost carried on the product (``Product.unit_price``) —
-    i.e. the purchase price for products that entered stock via PURCHASE/BIRTH.
-
-    NOTE: other valuation methods (moving average, FIFO) may be added here
-    later — see ai-plans/inventory-integrity-fixes-plan.md (Fix 9).
-    """
-    if product is None:
-        return Decimal("0.00")
-    return product.unit_price
-
-
-class ProductLedgerEntry(BaseModel):
-    """
-    Append-only ledger of inventory events per product.
-
-    Every operation that changes a product's quantity or value appends a row
-    here.  Point-in-time state is always:
-
-        SUM(quantity_delta WHERE product=p AND date <= as_of)
-        SUM(value_delta   WHERE product=p AND date <= as_of)
-
-    Never update or delete rows — only append.
-    Duplicate prevention is enforced by the DB-level unique constraint on
-    ``idempotency_key``.  ``get_or_create`` makes every write idempotent.
-    """
-
-    class EntryType(models.TextChoices):
-        # --- Issuance (contract) ---
-        PURCHASE_ISSUANCE = "PURCHASE_ISSUANCE", _("Purchase Issuance")
-        SALE_ISSUANCE = "SALE_ISSUANCE", _("Sale Issuance")
-        BIRTH_ISSUANCE = "BIRTH_ISSUANCE", _("Birth Issuance")
-        DEATH_ISSUANCE = "DEATH_ISSUANCE", _("Death Issuance")
-        CONSUMPTION_ISSUANCE = "CONSUMPTION_ISSUANCE", _("Consumption Issuance")
-
-        # --- Movement (physical) ---
-        PURCHASE_MOVEMENT = "PURCHASE_MOVEMENT", _("Purchase Movement")
-        SALE_MOVEMENT = "SALE_MOVEMENT", _("Sale Movement")
-        BIRTH_MOVEMENT = "BIRTH_MOVEMENT", _("Birth Movement")
-        DEATH_MOVEMENT = "DEATH_MOVEMENT", _("Death Movement")
-        CONSUMPTION_MOVEMENT = "CONSUMPTION_MOVEMENT", _("Consumption Movement")
-
-        # --- Adjustment (contract change) — direction is in the type name ---
-        PURCHASE_ADJUSTMENT_INCREASE = "PURCHASE_ADJ_INC", _(
-            "Purchase Adjustment Increase"
-        )
-        PURCHASE_ADJUSTMENT_DECREASE = "PURCHASE_ADJ_DEC", _(
-            "Purchase Adjustment Decrease"
-        )
-        SALE_ADJUSTMENT_INCREASE = "SALE_ADJ_INC", _("Sale Adjustment Increase")
-        SALE_ADJUSTMENT_DECREASE = "SALE_ADJ_DEC", _("Sale Adjustment Decrease")
-
-        # --- Value-only (no quantity) ---
-        CAPITAL_GAIN = "CAPITAL_GAIN", _("Capital Gain")
-        CAPITAL_LOSS = "CAPITAL_LOSS", _("Capital Loss")
-
-        REVERSAL = "REVERSAL", _("Reversal")
-
-    # -- Class constants for query filtering --
-
-    MOVEMENT_TYPES = frozenset(
-        [
-            "PURCHASE_MOVEMENT",
-            "SALE_MOVEMENT",
-            "BIRTH_MOVEMENT",
-            "DEATH_MOVEMENT",
-            "CONSUMPTION_MOVEMENT",
-            "CAPITAL_GAIN",
-            "CAPITAL_LOSS",
-        ]
-    )
-
-    _ISSUANCE_TYPES_FOR_PURCHASE = frozenset(
-        [
-            "PURCHASE_ISSUANCE",
-            "PURCHASE_ADJ_INC",
-            "PURCHASE_ADJ_DEC",
-        ]
-    )
-
-    _ISSUANCE_TYPES_FOR_SALE = frozenset(
-        [
-            "SALE_ISSUANCE",
-            "SALE_ADJ_INC",
-            "SALE_ADJ_DEC",
-        ]
-    )
-
-    _MOVEMENT_TYPES_FOR_PURCHASE = frozenset(["PURCHASE_MOVEMENT"])
-    _MOVEMENT_TYPES_FOR_SALE = frozenset(["SALE_MOVEMENT"])
-
-    # -- Fields --
-
-    product = models.ForeignKey(
-        "Product",
-        on_delete=models.PROTECT,
-        related_name="ledger_entries",
-        verbose_name=_("product"),
-        null=True,
-        blank=True,
-    )
-    invoice_item = models.ForeignKey(
-        "InvoiceItem",
-        on_delete=models.PROTECT,
-        related_name="ledger_entries",
-        verbose_name=_("invoice item"),
-        null=True,
-        blank=True,
-    )
-    entry_type = models.CharField(
-        _("entry type"), max_length=30, choices=EntryType.choices
-    )
-    date = models.DateField(_("date"), db_index=True)
-    quantity_delta = models.DecimalField(
-        _("quantity delta"), max_digits=10, decimal_places=2
-    )
-    value_delta = models.DecimalField(_("value delta"), max_digits=15, decimal_places=2)
-    # Computed by the caller as  "item_{item.pk}_product_{product.pk}"
-    # or "rev_item_{item.pk}_product_{product.pk}" for reversals.
-    # DB-level unique constraint prevents duplicate entries.
-    idempotency_key = models.CharField(
-        _("idempotency key"), max_length=100, unique=True
-    )
-
-    # ------------------------------------------------------------------
-    # Writing
-    # ------------------------------------------------------------------
-
-    @classmethod
-    def record(
-        cls, operation, negate: bool = False, product_map: dict | None = None
-    ) -> tuple[int, int]:
-        """
-        Write **issuance** (contract) ledger entries for *operation*.
-
-        One entry per InvoiceItem (not per Product).  For operations where products
-        don't exist yet (PURCHASE, SALE, BIRTH), ``product`` is NULL.  Where products
-        are known at creation time (DEATH, CONSUMPTION), use *product_map* to link them.
-
-        *product_map* is ``{invoice_item_pk: product}`` — used by ``save_inventory()``
-        for DEATH/CONSUMPTION operations.
-
-        ``negate=True`` flips the signs and marks entries as REVERSAL.
-
-        Must be called inside a ``db_transaction.atomic()`` block.
-
-        Returns ``(created, skipped)`` counts.
-        """
-        from apps.app_operation.models.operation_type import OperationType
-
-        _MAP = {
-            OperationType.PURCHASE: (cls.EntryType.PURCHASE_ISSUANCE, 1, 1),
-            OperationType.SALE: (cls.EntryType.SALE_ISSUANCE, -1, -1),
-            OperationType.BIRTH: (cls.EntryType.BIRTH_ISSUANCE, 1, 1),
-            OperationType.DEATH: (cls.EntryType.DEATH_ISSUANCE, -1, -1),
-            OperationType.CONSUMPTION: (cls.EntryType.CONSUMPTION_ISSUANCE, -1, -1),
-            OperationType.CAPITAL_GAIN: (cls.EntryType.CAPITAL_GAIN, 0, 1),
-            OperationType.CAPITAL_LOSS: (cls.EntryType.CAPITAL_LOSS, 0, -1),
-        }
-
-        mapping = _MAP.get(operation.operation_type)
-        if mapping is None:
-            return 0, 0
-
-        entry_type, qty_sign, val_sign = mapping
-
-        if negate:
-            qty_sign = -qty_sign
-            val_sign = -val_sign
-            entry_type = cls.EntryType.REVERSAL
-
-        key_prefix = "rev_" if negate else ""
-        date = operation.date
-        created_count = skipped_count = 0
-        product_map = product_map or {}
-
-        for item in operation.items.all():
-            # Determine product: from product_map (DEATH/CONSUMPTION) or None (lazy)
-            product = product_map.get(item.pk)
-            key = f"{key_prefix}issuance_item_{item.pk}"
-            obj, created = cls.objects.get_or_create(
-                idempotency_key=key,
-                defaults={
-                    "product": product,
-                    "invoice_item": item,
-                    "entry_type": entry_type,
-                    "date": date,
-                    "quantity_delta": (item.quantity * qty_sign).quantize(
-                        Decimal("0.01")
-                    ),
-                    "value_delta": (item.total_price * val_sign).quantize(
-                        Decimal("0.01")
-                    ),
-                },
-            )
-            if created:
-                created_count += 1
-            else:
-                skipped_count += 1
-
-        return created_count, skipped_count
-
-    @classmethod
-    def record_adjustment_line(cls, line, negate: bool = False) -> tuple[int, int]:
-        """
-        Write a ledger correction for a single InvoiceItemAdjustmentLine.
-
-        Direction is hardcoded in the entry type:
-          PURCHASE_ADJ_INC  = always increases inventory (positive effect)
-          PURCHASE_ADJ_DEC  = always decreases inventory (negative effect)
-          SALE_ADJ_INC      = always increases inventory (positive effect)
-          SALE_ADJ_DEC      = always decreases inventory (negative effect)
-
-        ``negate=True`` flips the signs — used when reversing the parent
-        InvoiceItemAdjustment.
-
-        Idempotency keys:
-          forward:  "adj_{inc|dec}_line_{line.pk}"
-          reversal: "rev_adj_{inc|dec}_line_{line.pk}"
-
-        Returns ``(created, skipped)`` counts.  Skips if both deltas are zero.
-        """
-        from apps.app_operation.models.operation_type import OperationType
-
-        qty_delta = line.quantity_delta
-        val_delta = line.value_delta
-
-        if qty_delta == 0 and val_delta == 0:
-            return 0, 0
-
-        op_type = line.adjustment.operation.operation_type
-
-        # Determine whether this change is an increase or decrease
-        is_increase = val_delta > 0 or (val_delta == 0 and qty_delta > 0)
-
-        # Map to the correct adjustment type
-        _ADJUSTMENT_TYPE_MAP = {
-            (OperationType.PURCHASE, True): cls.EntryType.PURCHASE_ADJUSTMENT_INCREASE,
-            (OperationType.PURCHASE, False): cls.EntryType.PURCHASE_ADJUSTMENT_DECREASE,
-            (OperationType.SALE, True): cls.EntryType.SALE_ADJUSTMENT_INCREASE,
-            (OperationType.SALE, False): cls.EntryType.SALE_ADJUSTMENT_DECREASE,
-        }
-
-        entry_type = _ADJUSTMENT_TYPE_MAP.get((op_type, is_increase))
-        if entry_type is None:
-            return 0, 0
-
-        key_prefix = "rev_" if negate else ""
-        inc_dec = "inc" if is_increase else "dec"
-        date = line.adjustment.date
-        item = line.invoice_item
-
-        if negate:
-            qty_delta = Decimal(-qty_delta)
-            val_delta = Decimal(-val_delta)
-
-        key = f"{key_prefix}adj_{inc_dec}_line_{line.pk}"
-        obj, created = cls.objects.get_or_create(
-            idempotency_key=key,
-            defaults={
-                "product": None,
-                "invoice_item": item,
-                "entry_type": entry_type,
-                "date": date,
-                "quantity_delta": Decimal(qty_delta).quantize(Decimal("0.01")),
-                "value_delta": Decimal(val_delta).quantize(Decimal("0.01")),
-            },
-        )
-        return (1, 0) if created else (0, 1)
-
-    @classmethod
-    def record_movement_line(cls, line, negate: bool = False) -> tuple[int, int]:
-        """
-        Write a ledger entry for one InventoryMovementLine.
-
-        Direction is implicit from the parent operation type, using the
-        new movement-specific entry types:
-          PURCHASE → qty_sign=+1, val_sign=+1, entry_type=PURCHASE_MOVEMENT
-          SALE     → qty_sign=-1, val_sign=-1, entry_type=SALE_MOVEMENT
-          BIRTH    → qty_sign=+1, val_sign=+1, entry_type=BIRTH_MOVEMENT
-          DEATH    → qty_sign=-1, val_sign=-1, entry_type=DEATH_MOVEMENT
-          CONSUMPTION → qty_sign=-1, val_sign=-1, entry_type=CONSUMPTION_MOVEMENT
-          negate=True flips the signs and marks entry_type as REVERSAL.
-
-        Idempotency keys use the *original* line pk so a line can only be
-        reversed once:
-          forward : "movement_line_{line.pk}_product_{line.product_id}"
-          reversal: "rev_movement_line_{line.reversal_of_id}_product_{line.product_id}"
-
-        Value = line.quantity × invoice_item.unit_price (proportional slice).
-        """
-        from apps.app_operation.models.operation_type import OperationType
-
-        op_type = line.operation.operation_type
-        _MOVEMENT_TYPE_MAP = {
-            OperationType.PURCHASE: (cls.EntryType.PURCHASE_MOVEMENT, 1, 1),
-            OperationType.SALE: (cls.EntryType.SALE_MOVEMENT, -1, -1),
-            OperationType.BIRTH: (cls.EntryType.BIRTH_MOVEMENT, 1, 1),
-            OperationType.DEATH: (cls.EntryType.DEATH_MOVEMENT, -1, -1),
-            OperationType.CONSUMPTION: (cls.EntryType.CONSUMPTION_MOVEMENT, -1, -1),
-        }
-
-        mapping = _MOVEMENT_TYPE_MAP.get(op_type)
-        if mapping is None:
-            return 0, 0
-
-        entry_type, qty_sign, val_sign = mapping
-
-        if negate:
-            qty_sign = -qty_sign
-            val_sign = -val_sign
-            entry_type = cls.EntryType.REVERSAL
-
-        source_pk = line.reversal_of_id if negate else line.pk
-        key_prefix = "rev_" if negate else ""
-        date = line.date
-        item = line.invoice_item
-        product = line.product
-
-        key = f"{key_prefix}movement_line_{source_pk}_product_{product.pk}"
-        obj, created = cls.objects.get_or_create(
-            idempotency_key=key,
-            defaults={
-                "product": product,
-                "invoice_item": item,
-                "entry_type": entry_type,
-                "date": date,
-                "quantity_delta": (line.quantity * qty_sign).quantize(Decimal("0.01")),
-                # Value = quantity × the carried unit cost (see valuation_unit_cost).
-                "value_delta": (
-                    line.quantity * valuation_unit_cost(product) * val_sign
-                ).quantize(Decimal("0.01")),
-            },
-        )
-        return (1, 0) if created else (0, 1)
-
-    # ------------------------------------------------------------------
-    # Querying
-    # ------------------------------------------------------------------
-
-    @classmethod
-    def state_as_of(cls, product, as_of) -> dict:
-        """Return {"quantity": ..., "value": ...} for *product* up to *as_of*."""
-        result = cls.objects.filter(
-            product=product,
-            date__lte=as_of,
-            entry_type__in=cls.MOVEMENT_TYPES,
-        ).aggregate(
-            quantity=Sum("quantity_delta"),
-            value=Sum("value_delta"),
-        )
-        return {
-            "quantity": result["quantity"] or Decimal("0.00"),
-            "value": result["value"] or Decimal("0.00"),
-        }
-
-    @classmethod
-    def portfolio_as_of(cls, entity, as_of):
-        """
-        Return a queryset of dicts — one per product still in stock for *entity*
-        as of *as_of*.  Each dict has ``product_id``, ``quantity``, ``value``.
-
-        Only MOVEMENT_TYPES entries are counted — issuance entries track
-        contractual obligations, not physical stock.
-        """
-        return (
-            cls.objects.filter(
-                product__product_template__entities=entity,
-                date__lte=as_of,
-                entry_type__in=cls.MOVEMENT_TYPES,
-            )
-            .values("product_id")
-            .annotate(
-                quantity=Sum("quantity_delta"),
-                value=Sum("value_delta"),
-            )
-            .filter(quantity__gt=0)
-            .order_by("product_id")
-        )
-
-    @classmethod
-    def inventory_value_at(cls, entity, as_of) -> Decimal:
-        """Net book value of inventory for entity as of as_of."""
-        result = cls.objects.filter(
-            product__product_template__entities=entity,
-            date__lte=as_of,
-            entry_type__in=cls.MOVEMENT_TYPES,
-        ).aggregate(value=Sum("value_delta"))
-        return result["value"] or Decimal("0.00")
-
-    @classmethod
-    def pending_items(cls, entity=None, as_of=None):
-        """
-        Return InvoiceItems where the moved quantity differs from the issued
-        (contracted) quantity — i.e. not yet fully delivered/received.
-
-        Uses the append-only ledger::
-
-            pending_qty = SUM(issuance_types) - SUM(movement_types)
-
-        for each InvoiceItem.  Positive = inbound pending (purchase/birth),
-        negative = outbound pending (sale/death/consumption).
-
-        Optionally filter by entity and/or cutoff date.
-
-        Returns a QuerySet of dicts with:
-          ``id``, ``quantity``, ``issued_qty``, ``moved_qty``, ``pending_qty``,
-          ``product_template__name``, ``operation__id``, ``operation__date``.
-        """
-        from django.db.models.functions import Coalesce
-
-        from apps.app_operation.models.operation_type import OperationType
-
-        issuance_types = cls._ISSUANCE_TYPES_FOR_PURCHASE | cls._ISSUANCE_TYPES_FOR_SALE
-
-        issued_qty_filter = Q(ledger_entries__entry_type__in=issuance_types)
-        if as_of:
-            issued_qty_filter &= Q(ledger_entries__date__lte=as_of)
-
-        query = (
-            InvoiceItem.objects.annotate(
-                issued_qty=Coalesce(
-                    Sum(
-                        "ledger_entries__quantity_delta",
-                        filter=issued_qty_filter,
-                    ),
-                    Decimal("0.00"),
-                ),
-                moved_qty=Coalesce(
-                    Sum(
-                        "ledger_entries__quantity_delta",
-                        filter=Q(
-                            ledger_entries__entry_type__in=cls.MOVEMENT_TYPES,
-                        ),
-                    ),
-                    Decimal("0.00"),
-                ),
-            )
-            .annotate(
-                pending_qty=ExpressionWrapper(
-                    F("issued_qty") - F("moved_qty"),
-                    output_field=DecimalField(max_digits=10, decimal_places=2),
-                )
-            )
-            .filter(~Q(pending_qty=Decimal("0.00")))
-        )
-
-        if entity:
-            query = query.filter(
-                Q(operation__source=entity) | Q(operation__destination=entity)
-            )
-
-        if as_of:
-            query = query.filter(operation__date__lte=as_of)
-
-        return query.values(
-            "id",
-            "quantity",
-            "issued_qty",
-            "moved_qty",
-            "pending_qty",
-            "product_template__name",
-            "operation__id",
-            "operation__date",
-        ).order_by("operation__date")
-
-    @classmethod
-    def pending_deliveries(cls, entity=None, as_of=None):
-        """
-        Alias for ``pending_items()`` — returns items with pending inbound
-        (purchase/birth) obligations.
-        """
-        return cls.pending_items(entity=entity, as_of=as_of).filter(pending_qty__gt=0)
-
-    class Meta:
-        verbose_name = _("product ledger entry")
-        verbose_name_plural = _("product ledger entries")
-        indexes = [
-            models.Index(fields=["product", "date"]),
-            models.Index(fields=["invoice_item", "entry_type"]),
-        ]
-
-
 class ProductTemplate(BaseModel):
     class TrackingMode(models.TextChoices):
         INDIVIDUAL = "INDIVIDUAL", _("Individual (Tag ID)")
@@ -885,11 +393,11 @@ class InvoiceItem(AmountCleanMixin, BaseModel):
         return super().clean()
 
     # ------------------------------------------------------------------
-    # Pending-items lookup  (use ProductLedgerEntry.pending_items() instead)
+    # Pending-items lookup  (use stock.pending_items() instead)
     #
     # Previously had unreceived_purchases() and undelivered_sales() here,
     # but those used .exclude() on movement lines — broken for partial
-    # deliveries.  Replaced by ProductLedgerEntry.pending_items().
+    # deliveries.  Replaced by apps.app_inventory.stock.pending_items().
     # ------------------------------------------------------------------
 
     @classmethod
@@ -985,10 +493,23 @@ class InvoiceItem(AmountCleanMixin, BaseModel):
 
         from django.db.models import Q, Sum
 
+        # Direction-aware: for an outbound op (SALE) only the movements of the
+        # dispatching entity count as "already moved" — an internal-client
+        # sale also carries the buyer's receipt on the same invoice item.
+        owner = operation.inventory_owner_entity
+        already_filter = Q(movement_lines__reversal_of__isnull=True)
+        if owner is not None:
+            already_filter &= Q(movement_lines__product__entity=owner)
+        # Originals that have since been reversed no longer count as moved.
+        reversed_originals = InventoryMovementLine.objects.filter(
+            invoice_item__operation=operation, reversal_of__isnull=False
+        ).values_list("reversal_of_id", flat=True)
+        already_filter &= ~Q(movement_lines__id__in=list(reversed_originals))
+
         items = cls.objects.filter(operation=operation).annotate(
             already_moved=Sum(
                 "movement_lines__quantity",
-                filter=Q(movement_lines__reversal_of__isnull=True),
+                filter=already_filter,
             )
         )
         data = {}
@@ -1070,6 +591,7 @@ class Product(AmountCleanMixin, BaseModel):
         True if this product has been physically moved into or out of stock
         (i.e. has at least one non-reversal InventoryMovementLine).
         """
+        # Should we also check that the movement line's invoice item is not reversed? That would make sense, as a reversed invoice item would imply that the movement is no longer valid. The current implementation only checks for non-reversal movement lines, which may not account for the case where the associated invoice item has been reversed.   
         return self.movement_lines.filter(reversal_of__isnull=True).exists()
 
     @property
@@ -1090,6 +612,68 @@ class Product(AmountCleanMixin, BaseModel):
 
     @property
     def status(self) -> str:
+        """
+        Physical status derived from the product's own movement lines (the
+        physical truth) rather than from linked operations.
+
+        - net presence > 0  → ACTIVE
+        - net presence ≤ 0 with a terminal outbound movement
+          (SALE/DEATH/CONSUMPTION) → SOLD / DEAD / CONSUMED
+        - no active movements → falls back to the linked-operation status
+          (historical), so registered-but-unmoved products and restored
+          (reversed) disposals keep prior semantics.
+        """
+        from apps.app_operation.models.operation_type import OperationType
+
+        TERMINAL_STATUS = {
+            OperationType.DEATH: self.Status.DEAD,
+            OperationType.SALE: self.Status.SOLD,
+            OperationType.CONSUMPTION: self.Status.CONSUMED,
+        }
+
+        # Movements still active: not a reversal line, and not the original of a
+        # reversal line (i.e. not reversed).
+        reversed_originals = InventoryMovementLine.objects.filter(
+            product=self, reversal_of__isnull=False
+        ).values_list("reversal_of_id", flat=True)
+        active = list(
+            self.movement_lines.filter(reversal_of__isnull=True)
+            .exclude(id__in=list(reversed_originals))
+            .select_related("operation")
+            .order_by("date", "created_at")
+        )
+
+        if active:
+            net = Decimal("0.00")
+            last_terminal_type = None
+            for ml in active:
+                op_type = ml.operation.operation_type
+                if op_type in (OperationType.PURCHASE, OperationType.BIRTH):
+                    net += ml.quantity
+                elif op_type in (OperationType.DEATH, OperationType.CONSUMPTION):
+                    net -= ml.quantity
+                    last_terminal_type = op_type
+                elif op_type == OperationType.SALE:
+                    if self.entity_id == ml.operation.source_id:
+                        net += ml.quantity  # buyer receipt (internal transfer)
+                    else:
+                        net -= ml.quantity  # seller dispatch
+                        last_terminal_type = op_type
+            if net > Decimal("0.00"):
+                return self.Status.ACTIVE
+            if last_terminal_type is not None:
+                return TERMINAL_STATUS[last_terminal_type]
+            return self.Status.ACTIVE
+
+        return self._status_from_linked_operations()
+
+    def _status_from_linked_operations(self) -> str:
+        """
+        Historical status derived from the linked operations — used when a
+        product has no active movements (registered-but-unmoved items, or a
+        reversal that restored stock). Direction-aware: receiver side → ACTIVE,
+        disposer side → terminal.
+        """
         from apps.app_operation.models.operation_type import OperationType
 
         STATUS_CHANGING_TYPES = {
@@ -1099,6 +683,21 @@ class Product(AmountCleanMixin, BaseModel):
             OperationType.SALE,
             OperationType.CONSUMPTION,
         }
+        RECEIVER_SIDE = {
+            OperationType.PURCHASE: "source",     # the buying project receives
+            OperationType.BIRTH: "destination",   # the project receives
+            OperationType.SALE: "source",         # the internal client receives
+        }
+        DISPOSER_SIDE = {
+            OperationType.SALE: "destination",    # the seller dispatches
+            OperationType.DEATH: "source",        # the project writes off
+            OperationType.CONSUMPTION: "source",  # the project consumes
+        }
+        TERMINAL_STATUS = {
+            OperationType.DEATH: self.Status.DEAD,
+            OperationType.SALE: self.Status.SOLD,
+            OperationType.CONSUMPTION: self.Status.CONSUMED,
+        }
         TYPE_TO_STATUS = {
             OperationType.PURCHASE: self.Status.ACTIVE,
             OperationType.BIRTH: self.Status.ACTIVE,
@@ -1107,55 +706,56 @@ class Product(AmountCleanMixin, BaseModel):
             OperationType.CONSUMPTION: self.Status.CONSUMED,
         }
 
-        # Reversal-aware: exclude operations that have been reversed (reversed_by
-        # set) and reversal clones themselves, so reversing a Death/Sale/
-        # Consumption restores the product to its prior status (usually ACTIVE).
-        last_op = (
+        last_item = (
             self.invoice_items.filter(
                 operation__operation_type__in=STATUS_CHANGING_TYPES,
                 operation__reversed_by__isnull=True,
                 operation__reversal_of__isnull=True,
             )
+            .select_related("operation", "operation__source", "operation__destination")
             .order_by("-operation__date", "-operation__created_at")
-            .values_list("operation__operation_type", flat=True)
             .first()
         )
 
-        if last_op is None:
-            # A product whose only entry into stock was a BIRTH that has since
-            # been reversed no longer belongs in stock → REMOVED. Any other
-            # non-reversed status-changing operation keeps its precedence (e.g.
-            # a born-then-sold animal stays SOLD even if the birth is reversed).
+        if last_item is None:
+            # A product whose only entry into stock was a reversed BIRTH no
+            # longer belongs in stock → REMOVED.
             if self.invoice_items.filter(
                 operation__operation_type=OperationType.BIRTH,
                 operation__reversed_by__isnull=False,
             ).exists():
                 return self.Status.REMOVED
             return self.Status.ACTIVE
-        return TYPE_TO_STATUS[last_op]
+
+        op = last_item.operation
+        op_type = op.operation_type
+
+        receiver_side = RECEIVER_SIDE.get(op_type)
+        if receiver_side is not None:
+            receiver = getattr(op, receiver_side)
+            if receiver is not None and self.entity_id == receiver.id:
+                return self.Status.ACTIVE
+
+        disposer_side = DISPOSER_SIDE.get(op_type)
+        if disposer_side is not None:
+            disposer = getattr(op, disposer_side)
+            if disposer is not None and self.entity_id == disposer.id:
+                return TERMINAL_STATUS[op_type]
+
+        return TYPE_TO_STATUS[op_type]
 
     @property
     def current_value(self) -> Decimal:
-        from apps.app_operation.models.operation_type import OperationType
+        """
+        Current book value — the movement-based valuation (the same basis
+        financial-period inventory uses). For a product with no movements yet it
+        is the nominal carried value (unit_price × quantity).
+        """
+        from apps.app_inventory.stock import movement_state
 
-        base = self.unit_price * self.quantity
-
-        def _sum(op_type):
-            result = self.invoice_items.filter(
-                operation__operation_type=op_type
-            ).aggregate(
-                total=Sum(
-                    ExpressionWrapper(
-                        F("quantity") * F("unit_price"),
-                        output_field=DecimalField(max_digits=15, decimal_places=2),
-                    )
-                )
-            )
-            return result["total"] or Decimal("0.00")
-
-        return (
-            base + _sum(OperationType.CAPITAL_GAIN) - _sum(OperationType.CAPITAL_LOSS)
-        )
+        if self.is_physically_moved:
+            return movement_state(self, as_of=today_date.today())["value"]
+        return self.unit_price * self.quantity
 
     def validate_active(
         self,
@@ -1363,11 +963,11 @@ class InventoryMovementLine(ImmutableMixin, BaseModel):
     A flat record of a physical inventory movement (receipt or dispatch).
 
     Direction is implicit from the parent operation type (PURCHASE=inbound,
-    SALE=outbound).  Reversal lines are linked via ``reversal_of``; they
-    write negating ProductLedgerEntry rows on save.
+    SALE=outbound).  Reversal lines are linked via ``reversal_of`` and are
+    excluded (together with their reversed originals) from the stock queries.
 
-    No longer chained to an ``InventoryMovement`` header — every line carries
-    its own ``operation``, ``date``, ``officer`` and ``group_key`` directly.
+    Every line carries its own ``operation``, ``date``, ``officer`` and
+    ``group_key`` directly — there is no separate ledger table anymore.
     """
 
     _immutable_fields = {
@@ -1436,14 +1036,27 @@ class InventoryMovementLine(ImmutableMixin, BaseModel):
         Delegates to the operation's canonical ``inventory_owner_entity`` so the
         ownership mapping lives in one place. Returns None for inbound
         (PURCHASE/BIRTH) and non-inventory operations.
+
+        Direction-aware: on a SALE, a movement line whose product is owned by the
+        SALE **source** (an internal-client buyer receipt) is inbound — it has no
+        outbound owner, so the ownership/availability guards do not apply.
         """
+        from apps.app_operation.models.operation_type import OperationType
+
+        if (
+            self.operation_id is not None
+            and self.operation.operation_type == OperationType.SALE
+            and self.product_id is not None
+            and self.product.entity_id == self.operation.source_id
+        ):
+            return None
         return self.operation.inventory_owner_entity
 
     def _validate_availability(self):
         """
         Raise ValidationError if this outbound (non-reversal) movement would
-        move more than the product physically holds, per the append-only ledger
-        (``ProductLedgerEntry.state_as_of`` counts physical MOVEMENT_TYPES).
+        move more than the product physically holds (computed from the active
+        movement lines via ``stock.movement_state``).
 
         SALE products that are created at sale time (never received into
         stock) are exempt — the sale itself is what records them.  DEATH and
@@ -1461,9 +1074,9 @@ class InventoryMovementLine(ImmutableMixin, BaseModel):
             and not self.product.is_physically_moved
         ):
             return
-        available = ProductLedgerEntry.state_as_of(self.product, self.date)[
-            "quantity"
-        ]
+        from apps.app_inventory.stock import movement_state
+
+        available = movement_state(self.product, as_of=self.date)["quantity"]
         if self.quantity > available:
             raise ValidationError(
                 _(
@@ -1484,13 +1097,31 @@ class InventoryMovementLine(ImmutableMixin, BaseModel):
         ):
             raise ValidationError(_("Invoice item does not belong to this operation."))
 
-        # Prevent over-delivery (skip for reversal lines)
+        # Prevent over-delivery (skip for reversal lines).
+        # Direction-aware: only movements of the same owner count, so an
+        # internal-client sale's buyer receipt does not consume the seller's
+        # invoice-item budget.
         if self.reversal_of_id is None:
-            already_moved = InventoryMovementLine.objects.filter(
+            already_moved_qs = InventoryMovementLine.objects.filter(
                 invoice_item=self.invoice_item,
                 reversal_of__isnull=True,
-            ).exclude(pk=self.pk).aggregate(total=Sum("quantity"))["total"] or Decimal(
-                "0"
+            )
+            # Originals that have since been reversed no longer count as moved.
+            reversed_originals = InventoryMovementLine.objects.filter(
+                invoice_item=self.invoice_item, reversal_of__isnull=False
+            ).values_list("reversal_of_id", flat=True)
+            already_moved_qs = already_moved_qs.exclude(
+                id__in=list(reversed_originals)
+            )
+            if self.product_id is not None:
+                already_moved_qs = already_moved_qs.filter(
+                    product__entity=self.product.entity
+                )
+            already_moved = (
+                already_moved_qs.exclude(pk=self.pk).aggregate(total=Sum("quantity"))[
+                    "total"
+                ]
+                or Decimal("0")
             )
             if already_moved + self.quantity > self.invoice_item.quantity:
                 raise ValidationError(
@@ -1547,14 +1178,23 @@ class InventoryMovementLine(ImmutableMixin, BaseModel):
                 OperationType.DEATH: Product.Status.DEAD,
                 OperationType.CONSUMPTION: Product.Status.CONSUMED,
             }
-            allow_terminal = (
-                self.product.status
-                == terminal_status_by_op.get(self.operation.operation_type)
-            )
+            op_type = self.operation.operation_type
+            if op_type in (OperationType.PURCHASE, OperationType.BIRTH):
+                # Inbound receipt (PURCHASE/BIRTH) brings the purchased/born lot
+                # INTO stock, so the lot's own current status (e.g. SOLD after a
+                # partial dispatch) must never block receiving the remaining
+                # quantity. The purchase created the Product instance and the
+                # movement only materialises it further — receiving the rest of
+                # a lot that was partially sold re-activates it.
+                allow_status = True
+            else:
+                allow_status = (
+                    self.product.status == terminal_status_by_op.get(op_type)
+                )
             self.product.validate_active(
                 allow_reversal=self.reversal_of_id is not None,
                 allow_obligated=True,
-                allow_adjustment=allow_terminal,
+                allow_adjustment=allow_status,
             )
 
         super().clean()
@@ -1589,15 +1229,11 @@ class InventoryMovementLine(ImmutableMixin, BaseModel):
             )
             self.product = products[0]
         super().save(*args, **kwargs)
-        if is_new:
-            negate = self.reversal_of_id is not None
-            ProductLedgerEntry.record_movement_line(self, negate=negate)
 
     def reverse(self, officer, date=None, group_key=None):
         """
-        Create a reversal line that negates this one.
-
-        Writes negating ProductLedgerEntry rows automatically via save().
+        Create a reversal line that negates this one.  Stock queries exclude
+        reversal lines (and the originals they reverse).
         """
         if InventoryMovementLine.objects.filter(reversal_of=self).exists():
             raise ValidationError(

@@ -63,10 +63,12 @@ class PurchaseOperation(Operation):
     def get_related_entities(cls, url_entity, config):
         from apps.app_entity.models import Stakeholder, StakeholderRole
 
+        # Internal entities cannot be vendors — purchases are external-only.
         relationships = (
             Stakeholder.objects.filter(
                 parent=url_entity, role=StakeholderRole.VENDOR, active=True
             )
+            .exclude(target__is_internal=True)
             .select_related("target")
             .all()
         )
@@ -75,6 +77,13 @@ class PurchaseOperation(Operation):
     def clean_destination(self):
         if not self.destination.is_vendor:
             raise ValidationError("Purchase destination must be a Vendor entity.")
+        # Internal entities cannot be vendors — purchases are external-only and
+        # intra-farm stock transfers happen through a SALE.
+        if self.destination.is_internal:
+            raise ValidationError(
+                "Internal entities cannot be vendors. To transfer goods between "
+                "internal entities, record a sale from the other side."
+            )
         from apps.app_entity.models import Stakeholder, StakeholderRole
 
         if not Stakeholder.objects.filter(
@@ -119,7 +128,6 @@ class PurchaseOperation(Operation):
         from apps.app_entity.models import Entity
         from apps.app_inventory.models import (
             InventoryMovementLine,
-            ProductLedgerEntry,
         )
 
         date_val = datetime.fromisoformat(session_data["date"]).date()
@@ -195,10 +203,7 @@ class PurchaseOperation(Operation):
                     group_key=group_key,
                 )
 
-        # ── 5. Record issuance entries in the inventory ledger ──────────
-        ProductLedgerEntry.record(op)
-
-        # ── 6. Payment processing (shared base method) ─────────────────
+        # ── 5. Payment processing (shared base method) ─────────────────
         if paid > Decimal("0"):
             op.process_payment(
                 amount_paid=paid,

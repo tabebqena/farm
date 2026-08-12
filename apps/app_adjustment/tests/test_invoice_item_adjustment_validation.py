@@ -2,7 +2,7 @@
 Tests for InvoiceItemAdjustment and InvoiceItemAdjustmentLine.
 
 Concern breakdown:
-  - InvoiceItemAdjustment  → item-level changes + ProductLedgerEntry sync
+  - InvoiceItemAdjustment  → item-level changes
   - Adjustment             → financial transactions (created by finalize())
 """
 
@@ -316,22 +316,15 @@ class DecreaseWithMovementsTest(TestCase):
         line.save()  # must not raise
 
     def test_ledger_entry_still_recorded_after_movement(self):
-        """ProductLedgerEntry must still be recorded when products have movements."""
+        """The adjustment line's deltas are still computed when products have
+        movements (no ledger rows are written, but the line effect is exact)."""
         self._simulate_movement()
         ia = _make_item_adj(
             self.op, InvoiceItemAdjustmentType.PURCHASE_ITEM_DECREASE, self.officer
         )
         line = _make_line(ia, self.item, new_quantity=Decimal("8.00"))
-
-        from apps.app_inventory.models import ProductLedgerEntry
-
-        # record_adjustment_line() writes product=None — query by invoice item.
-        entry = ProductLedgerEntry.objects.filter(
-            invoice_item=self.item,
-            entry_type=ProductLedgerEntry.EntryType.PURCHASE_ADJUSTMENT_DECREASE,
-        ).latest("id")
-        self.assertEqual(entry.quantity_delta, Decimal("-2.00"))
-        self.assertEqual(entry.value_delta, Decimal("-200.00"))
+        self.assertEqual(line.quantity_delta, Decimal("-2.00"))
+        self.assertEqual(line.value_delta, Decimal("-200.00"))
 
 
 # ---------------------------------------------------------------------------

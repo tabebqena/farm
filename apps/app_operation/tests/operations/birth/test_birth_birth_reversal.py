@@ -8,10 +8,11 @@ from django.test import TestCase
 
 from apps.app_entity.models import Entity, EntityType
 from apps.app_inventory.models import (
+    InventoryMovementLine,
     Product,
-    ProductLedgerEntry,
     ProductTemplate,
 )
+from apps.app_inventory.stock import movement_state
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import BirthOperation
 from apps.app_operation.tests.base import assert_tx_types
@@ -125,36 +126,20 @@ class BirthReversalTest(TestCase):
 
     def test_reverse_negates_ledger_entries(self):
         op, product = self._make_born()
-        item = op.items.get()
         op.reverse(officer=self.officer_user, reason="test reversal")
 
-        # Each individually tracked product's movement is negated (-1.00)
-        movement_reversal = ProductLedgerEntry.objects.filter(
-            product=product,
-            entry_type=ProductLedgerEntry.EntryType.REVERSAL,
-        )
-        self.assertEqual(movement_reversal.count(), 1)
-        self.assertEqual(movement_reversal.first().quantity_delta, Decimal("-1.00"))
-
-        # Issuance negation is written with product=None for the invoice item
-        # (movement reversals carry their individual product, so disambiguate)
-        issuance_reversal = ProductLedgerEntry.objects.filter(
-            invoice_item=item,
-            product__isnull=True,
-            entry_type=ProductLedgerEntry.EntryType.REVERSAL,
-        )
-        self.assertEqual(
-            issuance_reversal.count(), 1, "Negated issuance ledger entry missing"
-        )
-        self.assertEqual(issuance_reversal.first().quantity_delta, Decimal("-5.00"))
+        # Reversing the birth negates the product's movement — net presence 0.
+        state = movement_state(product, as_of=date.today())
+        self.assertEqual(state["quantity"], Decimal("0.00"))
+        self.assertEqual(state["value"], Decimal("0.00"))
 
     # ------------------------------------------------------------------
-    # SE5 — exact negation set: every BIRTH_MOVEMENT row has a REVERSAL mirror
+    # SE5 — exact negation set: every BIRTH movement line has a REVERSAL mirror
     # ------------------------------------------------------------------
 
     def test_reverse_movement_ledger_negation_exact_set(self):
-        """Every movement ledger row must have an exact -1.00 REVERSAL counterpart
-        (not just the first row)."""
+        """Every movement line must have an exact reversal counterpart (not just
+        the first line) and each product's net presence returns to zero."""
         op, _ = self._make_born()
         product_ids = list(
             op.movement_lines.filter(reversal_of__isnull=True).values_list(
@@ -163,19 +148,21 @@ class BirthReversalTest(TestCase):
         )
         op.reverse(officer=self.officer_user, reason="test reversal")
 
-        originals = ProductLedgerEntry.objects.filter(
-            product_id__in=product_ids,
-            entry_type=ProductLedgerEntry.EntryType.BIRTH_MOVEMENT,
+        originals = InventoryMovementLine.objects.filter(
+            product_id__in=product_ids, reversal_of__isnull=True
         )
-        reversals = ProductLedgerEntry.objects.filter(
-            product_id__in=product_ids,
-            entry_type=ProductLedgerEntry.EntryType.REVERSAL,
+        reversals = InventoryMovementLine.objects.filter(
+            product_id__in=product_ids, reversal_of__isnull=False
         )
         self.assertEqual(originals.count(), 5)
         self.assertEqual(reversals.count(), 5)
-        for entry in reversals:
-            self.assertEqual(entry.quantity_delta, Decimal("-1.00"))
-            self.assertEqual(entry.value_delta, Decimal("-100.00"))
+        for rl in reversals:
+            self.assertEqual(rl.quantity, Decimal("1.00"))
+            self.assertIsNotNone(rl.reversal_of)
+        for pid in product_ids:
+            state = movement_state(Product.objects.get(pk=pid), as_of=date.today())
+            self.assertEqual(state["quantity"], Decimal("0.00"))
+            self.assertEqual(state["value"], Decimal("0.00"))
 
     # ------------------------------------------------------------------
     # SE7 — born products persist by design but are REMOVED after reversal

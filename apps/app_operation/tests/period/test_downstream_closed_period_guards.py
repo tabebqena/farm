@@ -141,7 +141,7 @@ class DownstreamClosedPeriodGuardTest(TestCase):
         item.products.add(product)
 
         self.client.login(username="officer_cp", password="testpass")
-        url = reverse("create_inventory_movement", kwargs={"operation_pk": op.pk})
+        url = reverse("create_purchase_movement", kwargs={"operation_pk": op.pk})
         self.client.post(
             url,
             {

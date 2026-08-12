@@ -7,7 +7,7 @@ from django.urls import reverse
 from apps.app_base.debug import DebugContext, debug_view
 from farm.shortcuts import get_object_or_404
 from apps.app_entity.models import Entity, EntityType
-from apps.app_inventory.models import ProductLedgerEntry
+from apps.app_inventory.stock import inventory_value
 
 
 @debug_view
@@ -40,7 +40,7 @@ def entity_detail_view(request, pk):
     }):
         payables = entity.payables
         receivables = entity.receivables
-        stock_value = ProductLedgerEntry.inventory_value_at(entity, date.today())
+        stock_value = inventory_value(entity, date.today())
         DebugContext.success("Financial summary computed", {
             "payables": str(payables),
             "receivables": str(receivables),

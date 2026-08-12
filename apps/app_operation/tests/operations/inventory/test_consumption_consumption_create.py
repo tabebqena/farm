@@ -8,9 +8,9 @@ from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderR
 from apps.app_inventory.models import (
     InventoryMovementLine,
     Product,
-    ProductLedgerEntry,
     ProductTemplate,
 )
+from apps.app_inventory.stock import movement_state
 from apps.app_inventory.tests.general import (
     make_entity,
     make_invoice_item,
@@ -157,28 +157,18 @@ class ConsumptionCreateTest(TestCase):
         self.assertEqual(op_b.movement_lines.first().product, product_b)
 
     # ------------------------------------------------------------------
-    # Ledger entries
+    # Movement lines / stock state
     # ------------------------------------------------------------------
 
     def test_create_writes_movement_and_issuance_ledger_entries(self):
         product = self._make_moved_product()
         op = self._consume(product)
 
-        movement = ProductLedgerEntry.objects.filter(
-            product=product,
-            entry_type=ProductLedgerEntry.EntryType.CONSUMPTION_MOVEMENT,
-        )
-        issuance = ProductLedgerEntry.objects.filter(
-            product=product,
-            entry_type=ProductLedgerEntry.EntryType.CONSUMPTION_ISSUANCE,
-        )
-        self.assertEqual(movement.count(), 1, "CONSUMPTION_MOVEMENT ledger entry missing")
-        self.assertEqual(issuance.count(), 1, "CONSUMPTION_ISSUANCE ledger entry missing")
-
-        self.assertEqual(movement.first().quantity_delta, Decimal("-5.00"))
-        self.assertEqual(movement.first().value_delta, Decimal("-500.00"))
-        self.assertEqual(issuance.first().quantity_delta, Decimal("-5.00"))
-        self.assertEqual(issuance.first().value_delta, Decimal("-500.00"))
+        # The consumption movement is the physical event: the 5-unit stock is
+        # fully written off (net presence zero).
+        state = movement_state(product, as_of=date.today())
+        self.assertEqual(state["quantity"], Decimal("0.00"))
+        self.assertEqual(state["value"], Decimal("0.00"))
 
     # ------------------------------------------------------------------
     # Product status

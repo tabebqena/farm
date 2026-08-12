@@ -32,8 +32,8 @@ def stock_detail(request, entity_pk):
     from apps.app_entity.models import Entity
     from apps.app_inventory.models import (
         Product,
-        ProductLedgerEntry,
     )
+    from apps.app_inventory.stock import pending_items, portfolio as stock_portfolio
     from apps.app_operation.models.operation_type import OperationType
 
     entity = get_object_or_404(
@@ -58,17 +58,36 @@ def stock_detail(request, entity_pk):
             | Q(unique_id__icontains=search_query)
         )
 
-    # Annotate with net movement quantity (incoming - outgoing)
+    # Direction-aware net movement quantity (incoming − outgoing). A SALE
+    # movement is INCOMING for the buyer (product owned by the SALE source, e.g.
+    # an internal-client receipt) and OUTGOING for the seller.
     incoming_ops = [OperationType.PURCHASE, OperationType.BIRTH]
-    outgoing_ops = [OperationType.SALE, OperationType.DEATH, OperationType.CONSUMPTION]
+    other_outgoing_ops = [OperationType.DEATH, OperationType.CONSUMPTION]
+    received_on_sale = Q(
+        movement_lines__operation__operation_type=OperationType.SALE,
+        movement_lines__operation__source_id=F("entity"),
+    )
+
+    active_lines = Q(movement_lines__reversal_of__isnull=True) & Q(
+        movement_lines__reversed_by__isnull=True
+    )
+    incoming_q = active_lines & (
+        Q(movement_lines__operation__operation_type__in=incoming_ops)
+        | received_on_sale
+    )
+    outgoing_q = active_lines & (
+        Q(movement_lines__operation__operation_type__in=other_outgoing_ops)
+        | (
+            Q(movement_lines__operation__operation_type=OperationType.SALE)
+            & ~received_on_sale
+        )
+    )
 
     products_with_qty = base_qs.annotate(
         incoming=Sum(
             Case(
                 When(
-                    movement_lines__operation__operation_type__in=incoming_ops,
-                    movement_lines__reversal_of__isnull=True,
-                    movement_lines__reversed_by__isnull=True,
+                    incoming_q,
                     then=F("movement_lines__quantity"),
                 ),
                 default=Value(Decimal("0.00")),
@@ -78,9 +97,7 @@ def stock_detail(request, entity_pk):
         outgoing=Sum(
             Case(
                 When(
-                    movement_lines__operation__operation_type__in=outgoing_ops,
-                    movement_lines__reversal_of__isnull=True,
-                    movement_lines__reversed_by__isnull=True,
+                    outgoing_q,
                     then=F("movement_lines__quantity"),
                 ),
                 default=Value(Decimal("0.00")),
@@ -93,9 +110,9 @@ def stock_detail(request, entity_pk):
     # ------------------------------------------------------------------
     # 2. Physically present products (ledger-based, per-product cards)
     # ------------------------------------------------------------------
-    # portfolio_as_of() returns one row per physically present product,
-    # counting only MOVEMENT_TYPES entries with a positive net quantity.
-    portfolio = ProductLedgerEntry.portfolio_as_of(entity, date.today())
+    # stock.portfolio() returns one row per physically present product with a
+    # positive net quantity (computed from the movement lines, no ledger).
+    portfolio = stock_portfolio(entity, date.today())
     portfolio_by_product = {row["product_id"]: row for row in portfolio}
     present_product_ids = list(portfolio_by_product.keys())
 
@@ -127,7 +144,7 @@ def stock_detail(request, entity_pk):
     # ------------------------------------------------------------------
     # 3. Obligated outbound — aggregate warning only (not per-card metric)
     # ------------------------------------------------------------------
-    pending = ProductLedgerEntry.pending_items(entity=entity, as_of=date.today())
+    pending = pending_items(entity=entity, as_of=date.today())
     obligated_outbound_qty = sum(
         abs(p["pending_qty"]) for p in pending if p["pending_qty"] < 0
     )
@@ -161,7 +178,8 @@ def stock_history(request, entity_pk):
     from django.utils.dateparse import parse_date
 
     from apps.app_entity.models import Entity
-    from apps.app_inventory.models import InventoryMovementLine, ProductLedgerEntry
+    from apps.app_inventory.models import InventoryMovementLine
+    from apps.app_inventory.stock import pending_items
     from apps.app_operation.models.operation_type import OperationType
 
     entity = get_object_or_404(
@@ -262,7 +280,7 @@ def stock_history(request, entity_pk):
     page_obj = paginator.get_page(request.GET.get("page"))
 
     # Pending inbound / outbound obligations (moved from stock detail)
-    pending = ProductLedgerEntry.pending_items(entity=entity, as_of=date.today())
+    pending = pending_items(entity=entity, as_of=date.today())
     pending_inbound = [p for p in pending if p["pending_qty"] > 0]
     pending_outbound = [p for p in pending if p["pending_qty"] < 0]
 
@@ -313,7 +331,8 @@ def quick_consume(request, entity_pk):
     from decimal import Decimal
 
     from apps.app_entity.models import Entity, EntityType
-    from apps.app_inventory.models import Product, ProductLedgerEntry
+    from apps.app_inventory.models import Product
+    from apps.app_inventory.stock import movement_state
     from apps.app_operation.models.operation_type import OperationType
     from apps.app_operation.models.proxies import ConsumptionOperation
 
@@ -369,7 +388,7 @@ def quick_consume(request, entity_pk):
         return redirect("stock_detail", entity_pk=entity_pk)
 
     # Availability guard: cannot consume more than physically on hand.
-    available = ProductLedgerEntry.state_as_of(product, date)["quantity"]
+    available = movement_state(product, as_of=date)["quantity"]
     if quantity > available:
         messages.error(
             request,
@@ -433,27 +452,21 @@ def quick_consume(request, entity_pk):
 
 
 def product_detail(request, pk):
-    from decimal import Decimal
-
-    from django.db.models import Sum
+    from apps.app_inventory.stock import movement_state
 
     product = get_object_or_404(
         Product.objects.select_related("product_template").prefetch_related(
             "invoice_items__operation",
-            "ledger_entries",
             "movement_lines",
         ),
         pk=pk,
         error_message="Product not found or has been deleted.",
     )
 
-    # Compute ledger balance = physically moved quantity/value
-    ledger_balance = product.ledger_entries.aggregate(
-        total_qty=Sum("quantity_delta"),
-        total_value=Sum("value_delta"),
-    )
-    physically_present_qty = ledger_balance["total_qty"] or Decimal("0.00")
-    physically_present_value = ledger_balance["total_value"] or Decimal("0.00")
+    # Physical presence = movement-based stock state (no ledger table).
+    state = movement_state(product, as_of=today_date.today())
+    physically_present_qty = state["quantity"]
+    physically_present_value = state["value"]
 
     context = {
         "product": product,
@@ -599,9 +612,59 @@ def create_product_template(request):
     )
 
 
+def create_purchase_movement(request, operation_pk):
+    """
+    Receive (inbound) inventory movements for a PURCHASE operation.
+
+    Split out of the former generic ``create_inventory_movement`` so the
+    receive flow is isolated from the SALE dispatch flow. Receiving the
+    remaining quantity of a purchased lot is never blocked by the lot's own
+    status (see ``InventoryMovementLine.clean()``) — a lot that was partially
+    dispatched can still receive the rest of its purchase.
+    """
+    from apps.app_operation.models.operation_type import OperationType
+
+    return _create_inventory_movement(request, operation_pk, OperationType.PURCHASE)
+
+
+def create_sale_movement(request, operation_pk):
+    """
+    Dispatch (outbound) inventory movements for a SALE operation.
+
+    Split out of the former generic ``create_inventory_movement`` so the
+    dispatch flow is isolated from the PURCHASE receive flow.
+    """
+    from apps.app_operation.models.operation_type import OperationType
+
+    return _create_inventory_movement(request, operation_pk, OperationType.SALE)
+
+
 def create_inventory_movement(request, operation_pk):
     """
-    Create InventoryMovementLine records for a PURCHASE or SALE operation.
+    Backwards-compatible dispatcher for the pre-split URL.
+
+    Routes to the type-specific purchase/sale movement view so old links and
+    bookmarks keep working.
+    """
+    from apps.app_operation.models.operation import Operation
+    from apps.app_operation.models.operation_type import OperationType
+
+    operation = get_object_or_404(
+        Operation,
+        pk=operation_pk,
+        error_message="Operation not found or has been deleted.",
+    )
+    operation = Operation.objects.cast(operation)
+    if operation.operation_type == OperationType.SALE:
+        return redirect("create_sale_movement", operation_pk=operation_pk)
+    return redirect("create_purchase_movement", operation_pk=operation_pk)
+
+
+def _create_inventory_movement(request, operation_pk, expected_type):
+    """
+    Shared implementation for creating ``InventoryMovementLine`` records for an
+    operation of the given ``expected_type`` (PURCHASE or SALE).
+
     Requires staff user (officer).
     """
     from apps.app_operation.models.operation import Operation
@@ -621,10 +684,11 @@ def create_inventory_movement(request, operation_pk):
     # guard) are resolved from the concrete operation type.
     operation = Operation.objects.cast(operation)
 
-    if not operation.can_create_movement:
+    if operation.operation_type != expected_type:
         messages.error(
             request,
-            _("Inventory movements are only allowed for PURCHASE or SALE operations."),
+            _("Inventory movements for this operation must use the %(type)s flow.")
+            % {"type": expected_type},
         )
         return redirect("operation_detail_view", pk=operation_pk)
 
@@ -666,12 +730,49 @@ def create_inventory_movement(request, operation_pk):
                     prefix="lines",
                 )
                 if formset.is_valid():
+                    from decimal import Decimal
+
+                    from apps.app_operation.models.operation_type import OperationType
+
                     lines = formset.save(commit=False)
+                    created_count = 0
                     for line in lines:
                         line.operation = operation
                         line.date = date
                         line.officer = request.user
                         line.notes = notes
+
+                        template = line.invoice_item.product_template
+                        is_individual_purchase = (
+                            operation.operation_type == OperationType.PURCHASE
+                            and template.tracking_mode
+                            == ProductTemplate.TrackingMode.INDIVIDUAL
+                        )
+                        if is_individual_purchase:
+                            # One movement line per animal (qty=1 each). Leaving
+                            # product=None lets InventoryMovementLine.save()
+                            # lazy-create a new tagged Product per line — the
+                            # "one line per purchased animal" contract (same as
+                            # create_from_session / register_deferred_movements).
+                            # Reusing the item's first linked product would keep
+                            # writing every new line against the same animal
+                            # instead of materialising a new one.
+                            for head_idx in range(max(int(line.quantity), 1)):
+                                sub = InventoryMovementLine(
+                                    operation=operation,
+                                    invoice_item=line.invoice_item,
+                                    product=None,  # lazy-created by save()
+                                    quantity=Decimal("1.00"),
+                                    date=date,
+                                    officer=request.user,
+                                    notes=notes,
+                                    group_key=line.group_key,
+                                )
+                                sub.full_clean()
+                                sub.save()
+                                created_count += 1
+                            continue
+
                         # Derive the product from the invoice_item's first linked Product
                         if not line.product_id:
                             first_product = line.invoice_item.products.first()
@@ -694,18 +795,11 @@ def create_inventory_movement(request, operation_pk):
                             line.product = first_product
                         line.full_clean()
                         line.save()
+                        created_count += 1
                     messages.success(
                         request,
                         _("Inventory movement created with %(count)s line(s).")
-                        % {
-                            "count": len(
-                                [
-                                    f
-                                    for f in formset.forms
-                                    if f.cleaned_data.get("invoice_item")
-                                ]
-                            )
-                        },
+                        % {"count": created_count},
                     )
                     return redirect("operation_detail_view", pk=operation_pk)
                 else:
@@ -884,13 +978,22 @@ def register_deferred_movements(request, operation_pk):
             qty_to_move = form.cleaned_data["quantity"]
             notes = form.cleaned_data.get("notes", "")
 
-            # Determine remaining qty that can be moved
+            # Determine remaining qty that can be moved (net of reversals —
+            # originals that have since been reversed no longer count).
             from django.db.models import Sum
 
-            already_moved = InventoryMovementLine.objects.filter(
-                invoice_item=invoice_item,
-                reversal_of__isnull=True,
-            ).aggregate(total=Sum("quantity"))["total"] or Decimal("0.00")
+            reversed_originals = InventoryMovementLine.objects.filter(
+                invoice_item=invoice_item, reversal_of__isnull=False
+            ).values_list("reversal_of_id", flat=True)
+            already_moved = (
+                InventoryMovementLine.objects.filter(
+                    invoice_item=invoice_item,
+                    reversal_of__isnull=True,
+                )
+                .exclude(id__in=list(reversed_originals))
+                .aggregate(total=Sum("quantity"))["total"]
+                or Decimal("0.00")
+            )
             remaining = invoice_item.quantity - already_moved
             if qty_to_move > remaining:
                 messages.error(
