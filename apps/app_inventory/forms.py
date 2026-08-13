@@ -389,6 +389,16 @@ class InvoiceItemSelectForm(LoggingFormMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.entity = entity
         if entity is not None:
+            # TODO(consumption): filter by consumability too — for the full
+            # consumption create form (CONSUMPTION) the spec
+            # (docs/specs/operations/op_19_consumption.md §8) says selectable
+            # products must be FEED/MEDICINE **and** can_be_consumed=True, and
+            # that ANIMAL templates are "never selectable". Today the queryset
+            # is only ownership-filtered, so ANIMAL / non-consumable FEED
+            # products appear in the dropdown and are rejected only on submit
+            # via InvoiceItem.clean()/accepts_operation(). Restrict the
+            # queryset with product_template__accepts_operation for CONSUMPTION
+            # (mirror the quick_consume guard in apps/app_inventory/views.py).
             self.fields["selected_product"].queryset = (
                 Product.objects.filter(entity=entity).select_related("product_template")
             )

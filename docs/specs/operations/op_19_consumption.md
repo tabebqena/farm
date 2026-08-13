@@ -313,13 +313,15 @@ There is **no standalone pay action** for Consumption:
 | Category | hidden (no category) |
 | Amount | computed from item totals (Σ quantity × unit_price) via `_compute_amount`; validated > 0 at model |
 | Invoice items | `InvoiceItemSelectFormSet` (`creates_assets=False` → `_build_formset`) — one row per affected product, picking an **existing** product (`selected_product`) owned by the project |
-| Consumable product | selectable products are those whose template is FEED/MEDICINE **and** `can_be_consumed=True` (`accepts_operation(CONSUMPTION)`); ANIMAL templates are never selectable |
+| Consumable product | selectable products are those whose template is FEED/MEDICINE **and** `can_be_consumed=True` (`accepts_operation(CONSUMPTION)`); ANIMAL templates are never selectable — **TODO**: the full create form's `InvoiceItemSelectFormSet` currently filters `selected_product` by ownership only, so ANIMAL / non-consumable FEED products still appear in the dropdown (rejected only on submit via `InvoiceItem.clean()`); restrict the queryset by consumability (mirror the `quick_consume` guard) |
 | POST parsing | `OperationDataValidator` — date format, description, category (n/a), `amount_paid` (n/a, forced 0) |
 | Quick-consume | stock detail `live` tab renders an inline form posting to `entity/<entity_pk>/stock/consume/` (name `quick_consume`) — see §5.1.3; redirects back to stock detail with a Django message |
 | List entry | "Consumption" link |
 | Detail | `operation_detail_view` — shows the operation total + settlement status + auto movement lines + reversal action; the individual issuance/payment transactions are hidden (one-shot — two identical amounts would confuse users) |
 | Stock history | the consumed product's OUT movement appears on the Stock History page (`stock_history`); the `live` tab excludes CONSUMED products (`stock_detail`) |
 | Reverse | `operation_reverse_view` — `POST` requires `reversal_reason`; guards already-reversed / is-reversal (VR1/VR2) |
+
+> **TODO (open gap):** the "Consumable product" row above is not fully implemented for the **full create form** path. `InvoiceItemSelectFormSet` restricts `selected_product` to the owning project only; the FEED/MEDICINE + `can_be_consumed` restriction is enforced at the model layer (`InvoiceItem.clean()` → `accepts_operation(CONSUMPTION)`), so invalid picks fail on submit rather than being unselectable. See the `TODO(consumption)` marker in [`apps/app_inventory/forms.py`](../../../apps/app_inventory/forms.py) `InvoiceItemSelectForm.__init__`. (The `quick_consume` shortcut — QC3 — already gates the selectable product correctly.)
 
 ---
 
