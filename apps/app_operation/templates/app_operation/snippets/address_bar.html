@@ -28,7 +28,13 @@
 </p>
 
 <div class="d-flex flex-wrap gap-2">
-  <button onclick="window.print()" class="btn btn-outline-dark btn-sm ms-auto">
+  {% if not operation.is_reversed and not operation.is_reversal %}
+    <a href="{% url 'operation_reverse_view' operation.pk %}" class="btn btn-sm btn-outline-danger ms-auto">
+      <i class="bi bi-arrow-counterclockwise me-1"></i>
+      <span class="d-none d-sm-inline">{% trans 'Reverse' %}</span>
+    </a>
+  {% endif %}
+  <button onclick="window.print()" class="btn btn-outline-dark btn-sm {% if operation.is_reversed or operation.is_reversal %}ms-auto{% endif %}">
     <i class="bi bi-printer"></i>
     <span class="d-none d-sm-inline">{% trans 'Print' %}</span>
   </button>
