@@ -124,6 +124,14 @@ class CorrectionCreditReversalTest(TestCase):
         for tx in original_txs:
             self.assertEqual(tx.reversed_by.type, tx.type)
 
+    def test_reversal_owns_no_transactions(self):
+        """The reversal record is a pure counter-document: its save() must skip
+        tx creation (one-shot issuance + payment are implicit), so the reversal
+        itself never owns any transactions (CC35)."""
+        reversal = self.op.reverse(officer=self.officer_user)
+
+        self.assertEqual(reversal.get_all_transactions().count(), 0)
+
     def test_project_fund_restored_after_reversal(self):
         balance_after_credit = self.project_entity.balance
         self.op.reverse(officer=self.officer_user)
