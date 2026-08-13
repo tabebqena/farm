@@ -6,8 +6,6 @@ class OperationType(models.TextChoices):
     CASH_WITHDRAWAL = "CASH_WITHDRAWAL", "Cash Withdrawal"
     PROJECT_FUNDING = "PROJECT_FUNDING", "Project Funding"
     PROJECT_REFUND = "PROJECT_REFUND", "Project Refund"
-    PROFIT_DISTRIBUTION = "PROFIT_DISTRIBUTION", "Profit Distribution"
-    LOSS_COVERAGE = "LOSS_COVERAGE", "Loss Coverage"
     INTERNAL_TRANSFER = "INTERNAL_TRANSFER", "Internal Transfer"
     LOAN = "LOAN", "Loan"
     PURCHASE = "PURCHASE", "Purchase"

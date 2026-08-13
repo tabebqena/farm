@@ -28,7 +28,6 @@ adjustments, inventory, and evaluations.
 | 5 | Entity & Stakeholder Management | [epic_5_entity_stakeholder.md](epic_5_entity_stakeholder.md) |
 | 6 | Financial Categories | [epic_6_financial_categories.md](epic_6_financial_categories.md) |
 | 7 | Reporting & Dashboards *(future)* | [epic_7_reporting.md](epic_7_reporting.md) |
-| 8 | Profit Distribution & Loss Coverage | [epic_8_profit_distribution.md](epic_8_profit_distribution.md) |
 
 ---
 
@@ -44,8 +43,6 @@ adjustments, inventory, and evaluations.
 | 6 | Capital Loss | [op_6_capital_loss.md](op_6_capital_loss.md) |
 | 7 | Internal Transfer | [op_7_internal_transfer.md](op_7_internal_transfer.md) |
 | 8 | Loan | [op_8_loan.md](op_8_loan.md) |
-| 9 | Profit Distribution | [op_9_profit_distribution.md](op_9_profit_distribution.md) |
-| 10 | Loss Coverage | [op_10_loss_coverage.md](op_10_loss_coverage.md) |
 | 11 | Worker Advance | [op_11_worker_advance.md](op_11_worker_advance.md) |
 | 12 | Expense | [op_12_expense.md](op_12_expense.md) |
 | 13 | Purchase | [op_13_purchase.md](op_13_purchase.md) |

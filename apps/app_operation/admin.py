@@ -14,7 +14,7 @@ class OpeartionAdmin(admin.ModelAdmin):
     fieldsets = (
         ("Entities", {"fields": ("source_link", "destination_link")}),
         ("Operation Details", {"fields": ("operation_type", "amount", "date", "description")}),
-        ("Period & Plan", {"fields": ("period", "plan")}),
+        ("Period", {"fields": ("period",)}),
         ("Officer", {"fields": ("officer",)}),
     )
 

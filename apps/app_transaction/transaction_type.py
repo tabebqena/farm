@@ -190,40 +190,6 @@ class TransactionType(models.TextChoices):
     # Source payables: None
     CAPITAL_LOSS_PAYMENT = ("CAPITAL_LOSS_PAYMENT", "CAPITAL_LOSS_PAYMENT")
 
-    # Source: Person | Destination: Project
-    # Flow: Obligation for stakeholder to cover a project loss.
-    # Source balance: No change.
-    # Source receivables: None
-    # Source payables: None
-    LOSS_COVERAGE_ISSUANCE = ("LOSS_COVERAGE_ISSUANCE", "LOSS_COVERAGE_ISSUANCE")
-
-    # Source: Person | Destination: Project
-    # Flow: Cash received from stakeholder to restore project balance.
-    # Source balance: Decreases.
-    # Source receivables: None
-    # Source payables: None
-    LOSS_COVERAGE_PAYMENT = ("LOSS_COVERAGE_PAYMENT", "LOSS_COVERAGE_PAYMENT")
-
-    # Source: Project | Destination: Person
-    # Flow: Declared profit flowing toward shareholders.
-    # Source balance: No change.
-    # Source receivables: None
-    # Source payables: Increase
-    PROFIT_DISTRIBUTION_ISSUANCE = (
-        "PROFIT_DISTRIBUTION_ISSUANCE",
-        "PROFIT_DISTRIBUTION_ISSUANCE",
-    )
-
-    # Source: Project | Destination: Person
-    # Flow: Actual cash payment of profit to shareholders.
-    # Source balance: Decreases.
-    # Source receivables: None
-    # Source payables: Decrease
-    PROFIT_DISTRIBUTION_PAYMENT = (
-        "PROFIT_DISTRIBUTION_PAYMENT",
-        "PROFIT_DISTRIBUTION_PAYMENT",
-    )
-
     # --- Projects ---
     # Source: Person | Destination: Project
     # Flow: Allocation of budget to a project.
@@ -433,8 +399,6 @@ class TransactionType(models.TextChoices):
                 cls.WORKER_ADVANCE_REPAYMENT,
                 cls.CASH_INJECTION_PAYMENT,
                 cls.CAPITAL_WITHDRAWAL_PAYMENT,
-                cls.LOSS_COVERAGE_PAYMENT,
-                cls.PROFIT_DISTRIBUTION_PAYMENT,
                 cls.PROJECT_FUNDING_PAYMENT,
                 cls.PROJECT_REFUND_PAYMENT,
                 cls.LOAN_PAYMENT,
@@ -464,8 +428,6 @@ class TransactionType(models.TextChoices):
                 cls.CAPITAL_WITHDRAWAL_ISSUANCE,
                 cls.CAPITAL_GAIN_ISSUANCE,
                 cls.CAPITAL_LOSS_ISSUANCE,
-                cls.LOSS_COVERAGE_ISSUANCE,
-                cls.PROFIT_DISTRIBUTION_ISSUANCE,
                 cls.PROJECT_FUNDING_ISSUANCE,
                 cls.PROJECT_REFUND_ISSUANCE,
                 cls.LOAN_ISSUANCE,
@@ -526,12 +488,6 @@ def _build_tx_entity_type_map():
         T.CAPITAL_GAIN_PAYMENT: (is_system, is_project),
         T.CAPITAL_LOSS_ISSUANCE: (is_project, is_system),
         T.CAPITAL_LOSS_PAYMENT: (is_project, is_system),
-        # Loss coverage: shareholder → project
-        T.LOSS_COVERAGE_ISSUANCE: (is_shareholder, is_project),
-        T.LOSS_COVERAGE_PAYMENT: (is_shareholder, is_project),
-        # Profit distribution: project → shareholder
-        T.PROFIT_DISTRIBUTION_ISSUANCE: (is_project, is_shareholder),
-        T.PROFIT_DISTRIBUTION_PAYMENT: (is_project, is_shareholder),
         # Project funding/refund: shareholder ↔ project
         T.PROJECT_FUNDING_ISSUANCE: (is_shareholder, is_project),
         T.PROJECT_FUNDING_PAYMENT: (is_shareholder, is_project),
@@ -580,8 +536,6 @@ def _build_tx_operation_map():
     CashWith = frozenset({OT.CASH_WITHDRAWAL})
     CapGain = frozenset({OT.CAPITAL_GAIN})
     CapLoss = frozenset({OT.CAPITAL_LOSS})
-    LossCov = frozenset({OT.LOSS_COVERAGE})
-    ProfDist = frozenset({OT.PROFIT_DISTRIBUTION})
     ProjFund = frozenset({OT.PROJECT_FUNDING})
     ProjRef = frozenset({OT.PROJECT_REFUND})
     Loan = frozenset({OT.LOAN})
@@ -615,10 +569,6 @@ def _build_tx_operation_map():
         T.CAPITAL_GAIN_PAYMENT: CapGain,
         T.CAPITAL_LOSS_ISSUANCE: CapLoss,
         T.CAPITAL_LOSS_PAYMENT: CapLoss,
-        T.LOSS_COVERAGE_ISSUANCE: LossCov,
-        T.LOSS_COVERAGE_PAYMENT: LossCov,
-        T.PROFIT_DISTRIBUTION_ISSUANCE: ProfDist,
-        T.PROFIT_DISTRIBUTION_PAYMENT: ProfDist,
         T.PROJECT_FUNDING_ISSUANCE: ProjFund,
         T.PROJECT_FUNDING_PAYMENT: ProjFund,
         T.PROJECT_REFUND_ISSUANCE: ProjRef,

@@ -78,13 +78,6 @@ class Operation(
         blank=True,
         related_name="operations",
     )
-    plan = models.ForeignKey(
-        "app_operation.FinancialPeriod",
-        on_delete=models.PROTECT,
-        null=True,
-        blank=True,
-        related_name="plan_operations",
-    )
     category = models.ForeignKey(
         "app_entity.FinancialCategory",
         on_delete=models.PROTECT,

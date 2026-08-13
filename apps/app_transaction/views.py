@@ -206,7 +206,6 @@ def _obligation_context(request, entity_pk, kind, template):
                 T.SALE_ADJUSTMENT_INCREASE,
                 T.EXPENSE_ISSUANCE,
                 T.EXPENSE_ADJUSTMENT_INCREASE,
-                T.PROFIT_DISTRIBUTION_ISSUANCE,
                 T.PROJECT_REFUND_ISSUANCE,
             ]
             decrease_source_types = [
@@ -215,7 +214,6 @@ def _obligation_context(request, entity_pk, kind, template):
                 T.EXPENSE_PAYMENT,
                 T.WORKER_ADVANCE_REPAYMENT,
                 T.LOAN_REPAYMENT,
-                T.PROFIT_DISTRIBUTION_PAYMENT,
                 T.PROJECT_REFUND_PAYMENT,
             ]
             increase_target_types = [T.WORKER_ADVANCE_PAYMENT, T.LOAN_PAYMENT]
@@ -238,7 +236,6 @@ def _obligation_context(request, entity_pk, kind, template):
                 T.SALE_ADJUSTMENT_INCREASE,
                 T.EXPENSE_ISSUANCE,
                 T.EXPENSE_ADJUSTMENT_INCREASE,
-                T.PROFIT_DISTRIBUTION_ISSUANCE,
                 T.PROJECT_REFUND_ISSUANCE,
             ]
             decrease_target_types = [
@@ -247,7 +244,6 @@ def _obligation_context(request, entity_pk, kind, template):
                 T.EXPENSE_PAYMENT,
                 T.WORKER_ADVANCE_REPAYMENT,
                 T.LOAN_REPAYMENT,
-                T.PROFIT_DISTRIBUTION_PAYMENT,
                 T.PROJECT_REFUND_PAYMENT,
             ]
 

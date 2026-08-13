@@ -17,8 +17,6 @@
 - [Op 8: Loan](op_8_loan.md)
 
 ## Distribution & Adjustments
-- [Op 9: Profit Distribution](op_9_profit_distribution.md)
-- [Op 10: Loss Coverage](op_10_loss_coverage.md)
 - [Op 11: Worker Advance](op_11_worker_advance.md)
 - [Op 12: Expense](op_12_expense.md)
 - [Op 13: Purchase](op_13_purchase.md)

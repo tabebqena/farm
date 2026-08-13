@@ -145,54 +145,6 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
     def is_loss(self) -> bool:
         return self.amount is not None and self.amount < Decimal("0.00")
 
-    @property
-    def distributed(self) -> Decimal:
-        """Sum of active (non-reversed) ProfitDistribution operations on this period."""
-        from apps.app_operation.models.operation import Operation
-        from apps.app_operation.models.operation_type import OperationType
-
-        return Operation.objects.filter(
-            plan=self,
-            operation_type=OperationType.PROFIT_DISTRIBUTION,
-            reversal_of__isnull=True,
-            reversed_by__isnull=True,
-        ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
-
-    @property
-    def covered(self) -> Decimal:
-        """Sum of active (non-reversed) LossCoverage operations on this period."""
-        from apps.app_operation.models.operation import Operation
-        from apps.app_operation.models.operation_type import OperationType
-
-        return Operation.objects.filter(
-            plan=self,
-            operation_type=OperationType.LOSS_COVERAGE,
-            reversal_of__isnull=True,
-            reversed_by__isnull=True,
-        ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
-
-    @property
-    def remaining_distributable(self) -> Decimal:
-        """How much profit is still available to distribute."""
-        if not self.is_profit or self.amount is None:
-            return Decimal("0.00")
-        return self.amount - self.distributed
-
-    @property
-    def remaining_coverable(self) -> Decimal:
-        """How much loss is still available to be covered (positive number)."""
-        if not self.is_loss or self.amount is None:
-            return Decimal("0.00")
-        return abs(self.amount) - self.covered
-
-    @property
-    def allocations_balanced(self) -> bool:
-        """True if shareholder allocations sum to ~100% (float tolerance)."""
-        total = self.allocations.aggregate(total=Sum("percent"))["total"] or Decimal(
-            "0.00"
-        )
-        return abs(total - Decimal("100.00")) <= Decimal("0.01")
-
     # ------------------------------------------------------------------
     # Balance-sheet snapshots (as of end_date)
     # ------------------------------------------------------------------

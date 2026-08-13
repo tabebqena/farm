@@ -206,34 +206,6 @@
           </dl>
         </div>
       </div>
-
-      {% if period.is_profit %}
-        <div class="card mb-4 border-success">
-          <div class="card-body">
-            <h5 class="card-title text-success">{% trans 'Profit Distribution' %}</h5>
-            <p class="card-text">
-              {% blocktrans with amount=period.amount|floatformat:2 distributed=period.distributed|floatformat:2 %}
-                Total profit: {{ amount }}<br>
-                Distributed: {{ distributed }}<br>
-                Remaining: {{ amount|add:"-distributed"|floatformat:2 }}
-              {% endblocktrans %}
-            </p>
-          </div>
-        </div>
-      {% elif period.is_loss %}
-        <div class="card mb-4 border-danger">
-          <div class="card-body">
-            <h5 class="card-title text-danger">{% trans 'Loss Coverage' %}</h5>
-            <p class="card-text">
-              {% blocktrans with amount=period.amount|floatformat:2 covered=period.covered|floatformat:2 %}
-                Total loss: {{ amount }}<br>
-                Covered: {{ covered }}<br>
-                Remaining: {{ amount|add:"-covered"|floatformat:2 }}
-              {% endblocktrans %}
-            </p>
-          </div>
-        </div>
-      {% endif %}
     {% else %}
       <div class="alert alert-info">
         {% trans 'This period is still open. Close it to finalize the period summary.' %}

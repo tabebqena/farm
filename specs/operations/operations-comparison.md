@@ -36,8 +36,6 @@ Rows = operations. Columns = actions. **E** = applicable/enforced, **E@create** 
 | CL | Capital Loss | E | E | — | — | — | E@create | — |
 | IT | Internal Transfer | E | E | — | — | — | E@create | — |
 | LN | Loan | E | B | — | — | — | E | E |
-| PD | Profit Distribution | E | E | — | — | — | E@create | — |
-| LC | Loss Coverage | E | E | — | — | — | E@create | — |
 | WA | Worker Advance | E | B | — | — | — | E@create | E |
 | EX | Expense | E | B | E | — | — | E | — |
 | PU | Purchase | E | B | E | E | E | E | — |
@@ -109,8 +107,6 @@ These guards are omitted from each per-operation action below for brevity; treat
 | 6 | CL | Capital Loss | `CapitalLossOperation` | [op_6](op_6_capital_loss.md) |
 | 7 | IT | Internal Transfer | `InternalTransferOperation` | [op_7](op_7_internal_transfer.md) |
 | 8 | LN | Loan | `LoanOperation` | [op_8](op_8_loan.md) |
-| 9 | PD | Profit Distribution | `ProfitDistributionOperation` | [op_9](op_9_profit_distribution.md) |
-| 10 | LC | Loss Coverage | `LossCoverageOperation` | [op_10](op_10_loss_coverage.md) |
 | 11 | WA | Worker Advance | `WorkerAdvanceOperation` | [op_11](op_11_worker_advance.md) |
 | 12 | EX | Expense | `ExpenseOperation` | [op_12](op_12_expense.md) |
 | 13 | PU | Purchase | `PurchaseOperation` | [op_13](op_13_purchase.md) |
@@ -180,18 +176,6 @@ Actions: create, reverse, pay, repay.
 - **pay** — *Valid:* balance E per disbursement; amount>0 & ≤ remaining; partial E (multiple disbursements); over-payment guard. *Effects:* `LOAN_PAYMENT`; ▼creditor → ▲debtor; amount_settled ↑.
 - **repay** — *Valid:* amount>0 & ≤ remaining; over-repayment guard. *Effects:* `LOAN_REPAYMENT`; ▼debtor → ▲creditor; amount_repayed ↑.
 - **reverse** — *Valid:* blocked if any disbursement; blocked if outstanding repayments. *Effects:* reversal record; counter-tx for issuance only.
-
-### 9. Profit Distribution (PD) — [`ProfitDistributionOperation`](../../apps/app_operation/models/proxies/op_profit_distribution.py) — [op_9](op_9_profit_distribution.md)
-
-Actions: create, reverse.
-- **create** — *Valid:* source=project; dest=shareholder; balance E (check_balance_on_payment at creation); plan required (profit; loss/break-even reject); one-shot auto-settled; **extra:** amount ≤ `plan.remaining_distributable`. *Effects:* `PROFIT_DISTRIBUTION_ISSUANCE` + `PROFIT_DISTRIBUTION_PAYMENT`; immediately settled; ▼project → ▲shareholder; plan tracking `distributed` / `remaining_distributable`.
-- **reverse** — *Valid:* (constants). *Effects:* reversal record; counter-tx for issuance + payment; restores `remaining_distributable`.
-
-### 10. Loss Coverage (LC) — [`LossCoverageOperation`](../../apps/app_operation/models/proxies/op_loss_coverage.py) — [op_10](op_10_loss_coverage.md)
-
-Actions: create, reverse.
-- **create** — *Valid:* source=shareholder; dest=project (E, `clean_source`/`clean_destination`); balance E (check_balance_on_payment at creation); plan required (loss; profit/break-even reject); one-shot auto-settled; **extra:** amount ≤ `plan.remaining_coverable`. *Effects:* `LOSS_COVERAGE_ISSUANCE` + `LOSS_COVERAGE_PAYMENT`; immediately settled; ▼shareholder → ▲project; plan tracking `covered` / `remaining_coverable`.
-- **reverse** — *Valid:* (constants). *Effects:* reversal record; counter-tx for issuance + payment; restores `remaining_coverable`.
 
 ### 11. Worker Advance (WA) — [`WorkerAdvanceOperation`](../../apps/app_operation/models/proxies/op_worker_advance.py) — [op_11](op_11_worker_advance.md)
 

@@ -15,8 +15,6 @@ from .op_cash_withdrawal import CashWithdrawalOperation
 from .op_expense import ExpenseOperation
 from .op_internal_transfer import InternalTransferOperation
 from .op_loan import LoanOperation
-from .op_loss_coverage import LossCoverageOperation
-from .op_profit_distribution import ProfitDistributionOperation
 from .op_project_funding import ProjectFundingOperation
 from .op_project_refund import ProjectRefundOperation
 from .op_purchase import PurchaseOperation
@@ -28,8 +26,6 @@ PROXY_MAP: dict[str, type[Operation]] = {
     OperationType.CASH_WITHDRAWAL: CashWithdrawalOperation,
     OperationType.PROJECT_FUNDING: ProjectFundingOperation,
     OperationType.PROJECT_REFUND: ProjectRefundOperation,
-    OperationType.PROFIT_DISTRIBUTION: ProfitDistributionOperation,
-    OperationType.LOSS_COVERAGE: LossCoverageOperation,
     OperationType.INTERNAL_TRANSFER: InternalTransferOperation,
     OperationType.LOAN: LoanOperation,
     OperationType.PURCHASE: PurchaseOperation,
@@ -91,8 +87,6 @@ __all__ = [
     "CorrectionDebitOperation",
     "ProjectFundingOperation",
     "ProjectRefundOperation",
-    "ProfitDistributionOperation",
-    "LossCoverageOperation",
     "InternalTransferOperation",
     "LoanOperation",
     "WorkerAdvanceOperation",

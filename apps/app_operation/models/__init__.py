@@ -12,8 +12,6 @@ from .proxies import (
     ExpenseOperation,
     InternalTransferOperation,
     LoanOperation,
-    LossCoverageOperation,
-    ProfitDistributionOperation,
     ProjectFundingOperation,
     ProjectRefundOperation,
     PurchaseOperation,
@@ -21,13 +19,10 @@ from .proxies import (
     WorkerAdvanceOperation,
     get_operation_class,
 )
-from .share_allocation import ShareholderAllocation
-
 __all__ = [
     "OperationType",
     "Operation",
     "FinancialPeriod",
-    "ShareholderAllocation",
     "get_operation_class",
     "PROXY_MAP",
     "BirthOperation",
@@ -36,8 +31,6 @@ __all__ = [
     "CashWithdrawalOperation",
     "ProjectFundingOperation",
     "ProjectRefundOperation",
-    "ProfitDistributionOperation",
-    "LossCoverageOperation",
     "InternalTransferOperation",
     "LoanOperation",
     "PurchaseOperation",

@@ -241,7 +241,7 @@ every marked cell in the section-4 matrix has a test. Priority order:
 3. **Reverse → SE5 exact negation set** for inventory ops (assert every original
    ledger row has a matching `REVERSAL` row with exact negated deltas).
 4. **Create → SE4** for issuance-bearing ops (PURCHASE, SALE, EXPENSE,
-   PROFIT_DISTRIBUTION, PROJECT_REFUND, …).
+   PROJECT_REFUND, …).
 5. **Pay / repay → SE3 + SE4 + SE8** for LOAN and WORKER_ADVANCE.
 6. **Adjust → SE4 + SE5 + SE8** in `apps/app_adjustment/tests` (already partially
    covered by [`test_adjustment_adjustment_transaction.py`](apps/app_adjustment/tests/test_adjustment_adjustment_transaction.py:191)
@@ -450,9 +450,6 @@ pin that contract and cover the previously-missing reversal files.
 **Notes / findings (behavior pinned, not changed):**
 - LOAN/repayment obligations are **net sums without clamping** — a repayment with
   no prior disbursement makes payables/receivables go negative (−200 in the test).
-- PROFIT_DISTRIBUTION / LOSS_COVERAGE **reversal guards** require
-  `remaining_distributable`/`remaining_coverable >= amount` at reversal time, so the
-  differential ops use a small amount (200) to stay reversable.
 - The full-world differential invariant does **not** hold for BIRTH/CONSUMPTION
   reversals because the products legitimately persist (net-zero ledger) and the
   consumption test setup leaves the product absent from the ledger before the op;
@@ -679,22 +676,6 @@ uses the SE code for primary cells and a free-form qualifier (`+…`,
 | (PROJECT_REFUND, reverse, SE3) | `app_operation/tests/operations/funding/test_project_refund_project_refund_reversal.py:ProjectRefundReversalTest.test_project_fund_restored_after_reversal` |
 | (PROJECT_REFUND, reverse, SE4) | `app_operation/tests/operations/funding/test_project_refund_project_refund_reversal.py:ProjectRefundReversalTest.test_reverse_leaves_payables_receivables_zero` |
 | (PROJECT_REFUND, reverse, differential) | `app_operation/tests/operations/funding/test_project_refund_project_refund_reversal.py:ProjectRefundReversalTest.test_create_then_reverse_leaves_world_unchanged` |
-| (PROFIT_DISTRIBUTION, create, SE2) | `app_operation/tests/operations/distribution/test_profit_distribution_profit_distribution_create.py:ProfitDistributionCreateTest.test_creates_issuance_and_payment_transactions` |
-| (PROFIT_DISTRIBUTION, create, SE3) | `app_operation/tests/operations/distribution/test_profit_distribution_profit_distribution_create.py:ProfitDistributionCreateTest.test_project_fund_decreases_by_distribution_amount` |
-| (PROFIT_DISTRIBUTION, create, SE4) | `app_operation/tests/operations/distribution/test_profit_distribution_profit_distribution_create.py:ProfitDistributionCreateTest.test_create_leaves_payables_receivables_zero` |
-| (PROFIT_DISTRIBUTION, reverse, SE1) | `app_operation/tests/operations/distribution/test_profit_distribution_profit_distribution_reversal.py:ProfitDistributionReversalTest.test_reverse_creates_reversal_operation` |
-| (PROFIT_DISTRIBUTION, reverse, SE2) | `app_operation/tests/operations/distribution/test_profit_distribution_profit_distribution_reversal.py:ProfitDistributionReversalTest.test_reverse_creates_counter_transactions` |
-| (PROFIT_DISTRIBUTION, reverse, SE3) | `app_operation/tests/operations/distribution/test_profit_distribution_profit_distribution_reversal.py:ProfitDistributionReversalTest.test_project_fund_restored_after_reversal` |
-| (PROFIT_DISTRIBUTION, reverse, SE4) | `app_operation/tests/operations/distribution/test_profit_distribution_profit_distribution_reversal.py:ProfitDistributionReversalTest.test_reverse_leaves_payables_receivables_zero` |
-| (PROFIT_DISTRIBUTION, reverse, SE8) | `app_operation/tests/operations/distribution/test_profit_distribution_profit_distribution_reversal.py:ProfitDistributionReversalTest.test_reversal_restores_remaining_distributable` |
-| (PROFIT_DISTRIBUTION, reverse, differential) | `app_operation/tests/operations/distribution/test_profit_distribution_profit_distribution_reversal.py:ProfitDistributionReversalTest.test_create_then_reverse_leaves_world_unchanged` |
-| (LOSS_COVERAGE, create, SE2) | `app_operation/tests/operations/distribution/test_loss_coverage_loss_coverage_create.py:LossCoverageCreateTest.test_creates_issuance_and_payment_transactions` |
-| (LOSS_COVERAGE, create, SE3) | `app_operation/tests/operations/distribution/test_loss_coverage_loss_coverage_create.py:LossCoverageCreateTest.test_shareholder_fund_decreases_by_coverage_amount` |
-| (LOSS_COVERAGE, reverse, SE1) | `app_operation/tests/operations/distribution/test_loss_coverage_loss_coverage_reversal.py:LossCoverageReversalTest.test_reverse_creates_reversal_operation` |
-| (LOSS_COVERAGE, reverse, SE2) | `app_operation/tests/operations/distribution/test_loss_coverage_loss_coverage_reversal.py:LossCoverageReversalTest.test_reverse_creates_counter_transactions` |
-| (LOSS_COVERAGE, reverse, SE3) | `app_operation/tests/operations/distribution/test_loss_coverage_loss_coverage_reversal.py:LossCoverageReversalTest.test_shareholder_fund_restored_after_reversal` |
-| (LOSS_COVERAGE, reverse, SE8) | `app_operation/tests/operations/distribution/test_loss_coverage_loss_coverage_reversal.py:LossCoverageReversalTest.test_reversal_restores_remaining_coverable` |
-| (LOSS_COVERAGE, reverse, differential) | `app_operation/tests/operations/distribution/test_loss_coverage_loss_coverage_reversal.py:LossCoverageReversalTest.test_create_then_reverse_leaves_world_unchanged` |
 | (INTERNAL_TRANSFER, create, SE2) | `app_operation/tests/operations/transfer/test_internal_transfer_internal_transfer_create.py:InternalTransferCreateTest.test_creates_issuance_and_payment_transactions` |
 | (INTERNAL_TRANSFER, create, SE3) | `app_operation/tests/operations/transfer/test_internal_transfer_internal_transfer_create.py:InternalTransferCreateTest.test_source_balance_decreases_after_transfer` |
 | (INTERNAL_TRANSFER, reverse, SE1) | `app_operation/tests/operations/transfer/test_internal_transfer_internal_transfer_reversal.py:InternalTransferReversalTest.test_reverse_creates_reversal_operation` |

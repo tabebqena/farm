@@ -1800,10 +1800,6 @@ msgstr "تمويل مشروع"
 msgid "Project ReFunding"
 msgstr "إعادة تمويل مشروع"
 
-#: apps/app_operation/templates/app_operation/operation_list.html:34
-msgid "Loss Coverage"
-msgstr "تغطية خسارة"
-
 #: apps/app_operation/templates/app_operation/operation_list.html:39
 msgid "Purchase"
 msgstr "شراء"

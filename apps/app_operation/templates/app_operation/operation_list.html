@@ -36,14 +36,6 @@
             href="{% url 'operation_create_view' entity_person.pk 'project-refunding' %}">{% trans 'Project ReFunding' %}</a>
         </li>
 
-        <li>
-          <hr class="dropdown-divider" />
-        </li>
-
-        <li>
-          <a class="dropdown-item"
-            href="{% url 'operation_create_view' entity_person.pk 'loss-coverage' %}">{% trans 'Loss Coverage' %}</a>
-        </li>
         {% endif %}
         {% if entity_person.is_project %}
         <li>

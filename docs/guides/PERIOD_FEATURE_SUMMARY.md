@@ -86,7 +86,6 @@ Accessible via: `/entities/operations/periods/<entity_pk>/`
    - Full period overview
    - Metric cards: Balance, Receivables, Payables, Inventory Value
    - For closed periods: detailed summary (end_date, end_balance, end_assets, end_liabilities)
-   - Profit Distribution summary (if profitable) or Loss Coverage summary (if loss)
    - "Back to Periods" and "Close Period" buttons
 
 3. **`period_form.html`**

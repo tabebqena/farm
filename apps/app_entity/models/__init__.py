@@ -483,7 +483,6 @@ class Entity(ImmutableMixin, BaseModel):
             T.SALE_ADJUSTMENT_INCREASE,
             T.EXPENSE_ISSUANCE,
             T.EXPENSE_ADJUSTMENT_INCREASE,
-            T.PROFIT_DISTRIBUTION_ISSUANCE,
             T.PROJECT_REFUND_ISSUANCE,
         ]
         decrease_as_source = [
@@ -492,7 +491,6 @@ class Entity(ImmutableMixin, BaseModel):
             T.EXPENSE_PAYMENT,
             T.WORKER_ADVANCE_REPAYMENT,
             T.LOAN_REPAYMENT,
-            T.PROFIT_DISTRIBUTION_PAYMENT,
             T.PROJECT_REFUND_PAYMENT,
         ]
         increase_as_target = [T.WORKER_ADVANCE_PAYMENT, T.LOAN_PAYMENT]
@@ -524,7 +522,6 @@ class Entity(ImmutableMixin, BaseModel):
             T.SALE_ADJUSTMENT_INCREASE,
             T.EXPENSE_ISSUANCE,
             T.EXPENSE_ADJUSTMENT_INCREASE,
-            T.PROFIT_DISTRIBUTION_ISSUANCE,
             T.PROJECT_REFUND_ISSUANCE,
         ]
         decrease_as_target = [
@@ -533,7 +530,6 @@ class Entity(ImmutableMixin, BaseModel):
             T.EXPENSE_PAYMENT,
             T.WORKER_ADVANCE_REPAYMENT,
             T.LOAN_REPAYMENT,
-            T.PROFIT_DISTRIBUTION_PAYMENT,
             T.PROJECT_REFUND_PAYMENT,
         ]
         return (

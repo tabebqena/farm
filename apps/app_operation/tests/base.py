@@ -777,58 +777,6 @@ COVERAGE_MANIFEST: dict[tuple[str, str, str], str] = {
         f"{_OPS_TESTS}.funding.test_project_refund_project_refund_reversal",
         "ProjectRefundReversalTest", "test_create_then_reverse_leaves_world_unchanged"),
 
-    # -------------------------------------------------------- PROFIT_DISTRIBUTION
-    ("PROFIT_DISTRIBUTION", "create", "SE2"): _path(
-        f"{_OPS_TESTS}.distribution.test_profit_distribution_profit_distribution_create",
-        "ProfitDistributionCreateTest", "test_creates_issuance_and_payment_transactions"),
-    ("PROFIT_DISTRIBUTION", "create", "SE3"): _path(
-        f"{_OPS_TESTS}.distribution.test_profit_distribution_profit_distribution_create",
-        "ProfitDistributionCreateTest", "test_project_fund_decreases_by_distribution_amount"),
-    ("PROFIT_DISTRIBUTION", "create", "SE4"): _path(
-        f"{_OPS_TESTS}.distribution.test_profit_distribution_profit_distribution_create",
-        "ProfitDistributionCreateTest", "test_create_leaves_payables_receivables_zero"),
-    ("PROFIT_DISTRIBUTION", "reverse", "SE1"): _path(
-        f"{_OPS_TESTS}.distribution.test_profit_distribution_profit_distribution_reversal",
-        "ProfitDistributionReversalTest", "test_reverse_creates_reversal_operation"),
-    ("PROFIT_DISTRIBUTION", "reverse", "SE2"): _path(
-        f"{_OPS_TESTS}.distribution.test_profit_distribution_profit_distribution_reversal",
-        "ProfitDistributionReversalTest", "test_reverse_creates_counter_transactions"),
-    ("PROFIT_DISTRIBUTION", "reverse", "SE3"): _path(
-        f"{_OPS_TESTS}.distribution.test_profit_distribution_profit_distribution_reversal",
-        "ProfitDistributionReversalTest", "test_project_fund_restored_after_reversal"),
-    ("PROFIT_DISTRIBUTION", "reverse", "SE4"): _path(
-        f"{_OPS_TESTS}.distribution.test_profit_distribution_profit_distribution_reversal",
-        "ProfitDistributionReversalTest", "test_reverse_leaves_payables_receivables_zero"),
-    ("PROFIT_DISTRIBUTION", "reverse", "SE8"): _path(
-        f"{_OPS_TESTS}.distribution.test_profit_distribution_profit_distribution_reversal",
-        "ProfitDistributionReversalTest", "test_reversal_restores_remaining_distributable"),
-    ("PROFIT_DISTRIBUTION", "reverse", "differential"): _path(
-        f"{_OPS_TESTS}.distribution.test_profit_distribution_profit_distribution_reversal",
-        "ProfitDistributionReversalTest", "test_create_then_reverse_leaves_world_unchanged"),
-
-    # ------------------------------------------------------------- LOSS_COVERAGE
-    ("LOSS_COVERAGE", "create", "SE2"): _path(
-        f"{_OPS_TESTS}.distribution.test_loss_coverage_loss_coverage_create",
-        "LossCoverageCreateTest", "test_creates_issuance_and_payment_transactions"),
-    ("LOSS_COVERAGE", "create", "SE3"): _path(
-        f"{_OPS_TESTS}.distribution.test_loss_coverage_loss_coverage_create",
-        "LossCoverageCreateTest", "test_shareholder_fund_decreases_by_coverage_amount"),
-    ("LOSS_COVERAGE", "reverse", "SE1"): _path(
-        f"{_OPS_TESTS}.distribution.test_loss_coverage_loss_coverage_reversal",
-        "LossCoverageReversalTest", "test_reverse_creates_reversal_operation"),
-    ("LOSS_COVERAGE", "reverse", "SE2"): _path(
-        f"{_OPS_TESTS}.distribution.test_loss_coverage_loss_coverage_reversal",
-        "LossCoverageReversalTest", "test_reverse_creates_counter_transactions"),
-    ("LOSS_COVERAGE", "reverse", "SE3"): _path(
-        f"{_OPS_TESTS}.distribution.test_loss_coverage_loss_coverage_reversal",
-        "LossCoverageReversalTest", "test_shareholder_fund_restored_after_reversal"),
-    ("LOSS_COVERAGE", "reverse", "SE8"): _path(
-        f"{_OPS_TESTS}.distribution.test_loss_coverage_loss_coverage_reversal",
-        "LossCoverageReversalTest", "test_reversal_restores_remaining_coverable"),
-    ("LOSS_COVERAGE", "reverse", "differential"): _path(
-        f"{_OPS_TESTS}.distribution.test_loss_coverage_loss_coverage_reversal",
-        "LossCoverageReversalTest", "test_create_then_reverse_leaves_world_unchanged"),
-
     # ---------------------------------------------------------- INTERNAL_TRANSFER
     ("INTERNAL_TRANSFER", "create", "SE2"): _path(
         f"{_OPS_TESTS}.transfer.test_internal_transfer_internal_transfer_create",

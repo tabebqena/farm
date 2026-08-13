@@ -114,7 +114,6 @@ Legend for **Status**: `✅ Pass` · `❌ Fail` · `⚠️ Blocked` (reason in N
 | OPR-03 | Create a **Cash Withdrawal** (`<pk>/cash-withdrawal/create`) | Operation created; fund balance decreases; Transaction recorded | | | |
 | OPR-04 | Create a **Project Funding** (`<pk>/project-funding/create`) | Operation created; money moves shareholder → project | | | |
 | OPR-05 | Create a **Project Re-Funding / Refund** (`<pk>/project-refunding/create`) | Operation created; money moves project → shareholder | | | |
-| OPR-06 | Create a **Loss Coverage** (`<pk>/loss-coverage/create`) | Operation created; loss covered from shareholder | | | |
 | OPR-07 | Create a **Loan** (`<pk>/loan/create`) | Operation created; loan transaction/repayment tracking appears | | | |
 | OPR-08 | Create an **Internal Transfer** (`<pk>/internal-transfer/create`) | Operation created; amount moves between internal funds | | | |
 | OPR-09 | For a **project**, create an **Expense** (`<pk>/expense/create`) | Operation created; expense issuance/payment transactions recorded | | | |
