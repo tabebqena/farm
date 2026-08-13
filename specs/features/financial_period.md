@@ -20,6 +20,12 @@
 
 **Operation assignment:** Operations are auto-assigned to the destination entity's open period at creation. Reversals are exempt (can be recorded even in/after a closed period).
 
+**Computed valuation (`FinancialPeriod`):**
+- `end_assets` = cash balance (`payment_types()` incoming − outgoing) + **movement-based inventory value** ([`inventory_value()`](../../apps/app_inventory/stock.py)) + outstanding loan credits + outstanding worker advances paid.
+- Inventory value is movement-based: net quantity × carried unit cost + capital gain/loss ([`movement_state()`](../../apps/app_inventory/stock.py)).
+- Birth / Death / Capital Gain / Capital Loss are **non-cash**: their `*_PAYMENT` transactions are excluded from `payment_types()`, so their value is reflected **exactly once**, in inventory — never in the cash balance. A sale is valued at carried cost, so `end_assets` correctly reflects profit (sale − carried cost).
+- `remaining_inventory_value` (operation-based) is no longer used by `end_assets`.
+
 ---
 
 ## Validation

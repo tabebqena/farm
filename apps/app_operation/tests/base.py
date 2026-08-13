@@ -18,7 +18,7 @@ from django.test import TestCase
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
 from apps.app_inventory.models import Product
 from apps.app_operation.models.operation_type import OperationType
-from apps.app_operation.models.proxies import CapitalGainOperation, CashInjectionOperation
+from apps.app_operation.models.proxies import CashInjectionOperation, CorrectionCreditOperation
 
 User = get_user_model()
 
@@ -78,12 +78,14 @@ def inject_person_fund(world, dest, amount, officer):
 
 
 def inject_project_fund(system, dest, amount, officer):
-    """Seed a Project entity's fund via a CapitalGain (system -> project)."""
-    CapitalGainOperation(
+    """Seed a Project entity's fund with real cash via a CorrectionCredit
+    (system -> project). A CapitalGain is non-cash (its *_PAYMENT is excluded
+    from ``payment_types()``), so it cannot fund a project's spendable balance."""
+    CorrectionCreditOperation(
         source=system,
         destination=dest,
         amount=amount,
-        operation_type=OperationType.CAPITAL_GAIN,
+        operation_type=OperationType.CORRECTION_CREDIT,
         date=date.today(),
         description="Seed project balance",
         officer=officer,
@@ -627,7 +629,7 @@ COVERAGE_MANIFEST: dict[tuple[str, str, str], str] = {
         "CapitalGainCreateTest", "test_creates_issuance_and_payment_transactions"),
     ("CAPITAL_GAIN", "create", "SE3"): _path(
         f"{_OPS_TESTS}.capital.test_capital_gain_capital_gain_create",
-        "CapitalGainCreateTest", "test_project_fund_increases_by_gain_amount"),
+        "CapitalGainCreateTest", "test_project_fund_unchanged_by_gain_amount"),
     ("CAPITAL_GAIN", "reverse", "SE1"): _path(
         f"{_OPS_TESTS}.capital.test_capital_gain_capital_gain_reversal",
         "CapitalGainReversalTest", "test_reverse_creates_reversal_operation"),
@@ -636,7 +638,7 @@ COVERAGE_MANIFEST: dict[tuple[str, str, str], str] = {
         "CapitalGainReversalTest", "test_reverse_creates_counter_transactions"),
     ("CAPITAL_GAIN", "reverse", "SE3"): _path(
         f"{_OPS_TESTS}.capital.test_capital_gain_capital_gain_reversal",
-        "CapitalGainReversalTest", "test_project_fund_restored_after_reversal"),
+        "CapitalGainReversalTest", "test_project_fund_unchanged_after_reversal"),
     ("CAPITAL_GAIN", "reverse", "SE7"): _path(
         f"{_OPS_TESTS}.capital.test_capital_gain_capital_gain_reversal",
         "CapitalGainReversalProductStatusTest", "test_gain_and_reversal_keep_product_active"),
@@ -650,7 +652,7 @@ COVERAGE_MANIFEST: dict[tuple[str, str, str], str] = {
         "CapitalLossCreateTest", "test_creates_issuance_and_payment_transactions"),
     ("CAPITAL_LOSS", "create", "SE3"): _path(
         f"{_OPS_TESTS}.capital.test_capital_loss_capital_loss_create",
-        "CapitalLossCreateTest", "test_project_fund_decreases_by_loss_amount"),
+        "CapitalLossCreateTest", "test_project_fund_unchanged_by_loss_amount"),
     ("CAPITAL_LOSS", "reverse", "SE1"): _path(
         f"{_OPS_TESTS}.capital.test_capital_loss_capital_loss_reversal",
         "CapitalLossReversalTest", "test_reverse_creates_reversal_operation"),
@@ -659,7 +661,7 @@ COVERAGE_MANIFEST: dict[tuple[str, str, str], str] = {
         "CapitalLossReversalTest", "test_reverse_creates_counter_transactions"),
     ("CAPITAL_LOSS", "reverse", "SE3"): _path(
         f"{_OPS_TESTS}.capital.test_capital_loss_capital_loss_reversal",
-        "CapitalLossReversalTest", "test_project_fund_restored_after_reversal"),
+        "CapitalLossReversalTest", "test_project_fund_unchanged_after_reversal"),
     ("CAPITAL_LOSS", "reverse", "SE7"): _path(
         f"{_OPS_TESTS}.capital.test_capital_loss_capital_loss_reversal",
         "CapitalLossReversalProductStatusTest", "test_loss_and_reversal_keep_product_active"),

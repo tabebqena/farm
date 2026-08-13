@@ -416,7 +416,14 @@ class TransactionType(models.TextChoices):
 
     @classmethod
     def payment_types(cls):
-        """Transaction types that represent actual cash movement (affect balance)."""
+        """Transaction types that represent actual cash movement (affect balance).
+
+        Virtual value operations — BIRTH / DEATH / CAPITAL_GAIN / CAPITAL_LOSS —
+        are deliberately EXCLUDED: their *_PAYMENT transactions are non-cash
+        bookkeeping records (settlement/reversal symmetry) whose value is carried
+        in inventory (movement-based) instead of the fund balance. This mirrors
+        CONSUMPTION_PAYMENT, which is also not a payment type.
+        """
         return frozenset(
             [
                 cls.PURCHASE_PAYMENT,
@@ -426,8 +433,6 @@ class TransactionType(models.TextChoices):
                 cls.WORKER_ADVANCE_REPAYMENT,
                 cls.CASH_INJECTION_PAYMENT,
                 cls.CAPITAL_WITHDRAWAL_PAYMENT,
-                cls.CAPITAL_GAIN_PAYMENT,
-                cls.CAPITAL_LOSS_PAYMENT,
                 cls.LOSS_COVERAGE_PAYMENT,
                 cls.PROFIT_DISTRIBUTION_PAYMENT,
                 cls.PROJECT_FUNDING_PAYMENT,
@@ -437,8 +442,6 @@ class TransactionType(models.TextChoices):
                 cls.INTERNAL_TRANSFER_PAYMENT,
                 cls.CORRECTION_CREDIT_PAYMENT,
                 cls.CORRECTION_DEBIT_PAYMENT,
-                cls.BIRTH_PAYMENT,
-                cls.DEATH_PAYMENT,
             ]
         )
 

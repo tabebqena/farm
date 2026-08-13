@@ -3,7 +3,7 @@
 **Type:** One-shot
 **Transaction flow:**
 - Issuance: `system.fund → entity` — type: `CAPITAL_GAIN_ISSUANCE`
-- Payment: `system.fund → entity` — type: `CAPITAL_GAIN_PAYMENT`
+- Payment: `system.fund → entity` — type: `CAPITAL_GAIN_PAYMENT` — **non-cash bookkeeping** (excluded from `payment_types()`; the payment never affects the project's fund balance)
 
 **Actions:** create, reverse.
 
@@ -19,8 +19,12 @@
 **Success effects:**
 - `CAPITAL_GAIN_ISSUANCE` + `CAPITAL_GAIN_PAYMENT` created on save
 - Immediately settled (`is_fully_settled=True`)
-- Fund deltas: ▼ system (virtual) → ▲ project
+- Fund deltas: **no cash flow** — ▼ system (virtual, non-cash) → ▲ project (inventory value only)
 - ✓ product ledger entry, value-only (qty 0, value +); product status unchanged (ACTIVE)
+
+**Valuation / end_assets (no double count):**
+- The gain is reflected **once** in movement-based inventory value (`capital_delta`) and **once** in `profit_loss` (income) — the `end_assets` increase equals the recognized gain.
+- `CAPITAL_GAIN_PAYMENT` is non-cash — it never inflates the project's fund balance.
 
 ## reverse
 **Validation:**

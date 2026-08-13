@@ -158,13 +158,13 @@ Actions: create, reverse.
 ### 5. Capital Gain (CG) — [`CapitalGainOperation`](../../apps/app_operation/models/proxies/op_capital_gain.py) — [op_5](op_5_capital_gain.md)
 
 Actions: create, reverse.
-- **create** — *Valid:* source=system; dest=project (E, `clean_source`/`clean_destination`); balance ✗ (system exempt); one-shot auto-settled. *Effects:* `CAPITAL_GAIN_ISSUANCE` + `CAPITAL_GAIN_PAYMENT`; immediately settled; ▼system → ▲project; ✓ value-only ledger (qty 0, value +); status unchanged (ACTIVE).
+- **create** — *Valid:* source=system; dest=project (E, `clean_source`/`clean_destination`); balance ✗ (system exempt); one-shot auto-settled. *Effects:* `CAPITAL_GAIN_ISSUANCE` + `CAPITAL_GAIN_PAYMENT` (non-cash — excluded from `payment_types()`); immediately settled; **no cash flow** — ▼system → ▲project (inventory value only); ✓ value-only ledger (qty 0, value +); status unchanged (ACTIVE).
 - **reverse** — *Valid:* (constants). *Effects:* reversal record; counter-tx for issuance + payment; negated ledger.
 
 ### 6. Capital Loss (CL) — [`CapitalLossOperation`](../../apps/app_operation/models/proxies/op_capital_loss.py) — [op_6](op_6_capital_loss.md)
 
 Actions: create, reverse.
-- **create** — *Valid:* source=entity; dest=system; balance ✗ (no-balance write-down, may go into deficit); one-shot auto-settled; verified: source fund must NOT have sufficient balance (loss can deepen deficit). *Effects:* `CAPITAL_LOSS_ISSUANCE` + `CAPITAL_LOSS_PAYMENT`; immediately settled; ▼entity → ▲system; ✓ value-only ledger (qty 0, value −); status unchanged (ACTIVE).
+- **create** — *Valid:* source=entity; dest=system; balance ✗ (no-balance write-down, may go into deficit); one-shot auto-settled; verified: source fund must NOT have sufficient balance (loss can deepen deficit). *Effects:* `CAPITAL_LOSS_ISSUANCE` + `CAPITAL_LOSS_PAYMENT` (non-cash — excluded from `payment_types()`); immediately settled; **no cash flow** — ▼entity → ▲system (inventory value only); ✓ value-only ledger (qty 0, value −); status unchanged (ACTIVE).
 - **reverse** — *Valid:* (constants). *Effects:* reversal record; counter-tx for issuance + payment; negated ledger.
 
 ### 7. Internal Transfer (IT) — [`InternalTransferOperation`](../../apps/app_operation/models/proxies/op_internal_transfer.py) — [op_7](op_7_internal_transfer.md)
@@ -243,14 +243,14 @@ Actions: create, reverse.
 ### 17. Birth (BI) — [`BirthOperation`](../../apps/app_operation/models/proxies/op_birth.py) — [op_17](op_17_birth.md) — Inventory/Livestock
 
 Actions: create, move items (auto), reverse.
-- **create** — *Valid:* source=system; dest=project (E, `clean_source`/`clean_destination`); balance ✗ (system exempt); one-shot auto-settled; identity (INDIVIDUAL tracking requires a unique tag). *Effects:* `BIRTH_ISSUANCE` + `BIRTH_PAYMENT`; immediately settled; ▼system → ▲project assets; issuance + auto movement; status ACTIVE (new asset).
+- **create** — *Valid:* source=system; dest=project (E, `clean_source`/`clean_destination`); balance ✗ (system exempt); one-shot auto-settled; identity (INDIVIDUAL tracking requires a unique tag). *Effects:* `BIRTH_ISSUANCE` + `BIRTH_PAYMENT` (non-cash — excluded from `payment_types()`); immediately settled; **no cash flow** — ▼system → ▲project assets (inventory value only); issuance + auto movement; status ACTIVE (new asset).
 - **move items** (auto) — *Valid:* qty ≤ remaining; unit multiple. *Effects:* `BIRTH_MOVEMENT` ledger (auto inbound, new-asset cost); lazy product creation; status ACTIVE.
 - **reverse** — *Valid:* (constants). *Effects:* reversal record; counter-tx for issuance + payment; negated ledger; auto lines reversed.
 
 ### 18. Death (DE) — [`DeathOperation`](../../apps/app_operation/models/proxies/op_death.py) — [op_18](op_18_death.md) — Inventory/Livestock
 
 Actions: create, move items (auto), reverse.
-- **create** — *Valid:* source=project; dest=system; balance ✗ (no-balance write-off); one-shot auto-settled; availability (≤ on-hand); ownership (product belongs to source project). *Effects:* `DEATH_ISSUANCE` + `DEATH_PAYMENT`; immediately settled; ▼project assets → ▲system; issuance + auto movement; status DEAD.
+- **create** — *Valid:* source=project; dest=system; balance ✗ (no-balance write-off); one-shot auto-settled; availability (≤ on-hand); ownership (product belongs to source project). *Effects:* `DEATH_ISSUANCE` + `DEATH_PAYMENT` (non-cash — excluded from `payment_types()`); immediately settled; **no cash flow** — ▼project assets → ▲system (inventory value only); issuance + auto movement; status DEAD.
 - **move items** (auto) — *Valid:* qty ≤ remaining; availability (≤ on-hand); ownership; unit multiple. *Effects:* `DEATH_MOVEMENT` ledger (auto outbound, carried cost); status DEAD.
 - **reverse** — *Valid:* (constants); reversal dependency guard. *Effects:* reversal record; counter-tx for issuance + payment; negated ledger; auto lines reversed; product status restored to ACTIVE.
 

@@ -95,14 +95,16 @@ class CapitalLossReversalTest(TestCase):
         for tx in original_txs:
             self.assertEqual(tx.reversed_by.type, tx.type)
 
-    def test_project_fund_restored_after_reversal(self):
+    def test_project_fund_unchanged_after_reversal(self):
+        """A capital loss is non-cash, so reversing it must not change the fund."""
         balance_after_loss = self.project_entity.balance
         self.op.reverse(officer=self.officer_user)
 
         self.project_entity.refresh_from_db()
         self.assertEqual(
             self.project_entity.balance,
-            balance_after_loss + self.op.amount,
+            balance_after_loss,
+            "Reversing a non-cash loss leaves the fund balance unchanged.",
         )
 
     # ------------------------------------------------------------------

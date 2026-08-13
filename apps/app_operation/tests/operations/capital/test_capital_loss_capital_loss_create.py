@@ -81,21 +81,9 @@ class CapitalLossCreateTest(TestCase):
         self.assertTrue(op.is_fully_settled)
         self.assertEqual(op.amount_remaining_to_settle, Decimal("0.00"))
 
-    def test_project_fund_decreases_by_loss_amount(self):
-        # Seed some balance so the project can absorb the loss
-        from apps.app_operation.models.proxies import CapitalGainOperation
-
-        seed = CapitalGainOperation(
-            source=self.system_entity,
-            destination=self.project_entity,
-            amount=Decimal("1000.00"),
-            operation_type=OperationType.CAPITAL_GAIN,
-            date=date.today(),
-            description="Seed balance",
-            officer=self.officer_user,
-        )
-        seed.save()
-
+    def test_project_fund_unchanged_by_loss_amount(self):
+        """A capital loss is non-cash — the fund balance is not drained; the
+        loss is reflected in movement-based inventory and in profit_loss."""
         balance_before = self.project_entity.balance
 
         op = self._make_op(amount=Decimal("750.00"))
@@ -104,7 +92,8 @@ class CapitalLossCreateTest(TestCase):
         self.project_entity.refresh_from_db()
         self.assertEqual(
             self.project_entity.balance,
-            balance_before - Decimal("750.00"),
+            balance_before,
+            "Capital loss is non-cash — the fund balance must be unchanged.",
         )
 
     # ------------------------------------------------------------------
@@ -242,7 +231,8 @@ class CapitalLossCreateTest(TestCase):
     # ------------------------------------------------------------------
 
     def test_zero_balance_project_can_record_capital_loss(self):
-        """A project with no funds may still record a capital loss."""
+        """A project with no funds may still record a capital loss (no balance
+        gate), and the loss is non-cash — the fund balance stays at zero."""
         self.project_entity.refresh_from_db()
         self.assertEqual(self.project_entity.balance, Decimal("0.00"))
 
@@ -250,35 +240,28 @@ class CapitalLossCreateTest(TestCase):
         op.save()  # must NOT raise ValidationError for insufficient funds
 
         self.project_entity.refresh_from_db()
-        self.assertEqual(self.project_entity.balance, Decimal("-500.00"))
-
-    def test_insufficient_balance_project_goes_into_deficit(self):
-        """A loss larger than the fund balance drives the fund into deficit."""
-        # Seed a small balance, then record a loss that exceeds it.
-        from apps.app_operation.models.proxies import CapitalGainOperation
-
-        seed = CapitalGainOperation(
-            source=self.system_entity,
-            destination=self.project_entity,
-            amount=Decimal("100.00"),
-            operation_type=OperationType.CAPITAL_GAIN,
-            date=date.today(),
-            description="Seed balance",
-            officer=self.officer_user,
+        self.assertEqual(
+            self.project_entity.balance,
+            Decimal("0.00"),
+            "Capital loss is non-cash — the fund balance is unchanged.",
         )
-        seed.save()
 
-        self.project_entity.refresh_from_db()
-        self.assertEqual(self.project_entity.balance, Decimal("100.00"))
-
+    def test_loss_larger_than_balance_is_allowed_non_cash(self):
+        """A loss larger than any fund balance is allowed (no balance gate),
+        and is non-cash — no fund deficit is created."""
         op = self._make_op(amount=Decimal("500.00"))
         op.save()  # must NOT raise ValidationError for insufficient funds
 
         self.project_entity.refresh_from_db()
-        self.assertEqual(self.project_entity.balance, Decimal("-400.00"))
+        self.assertEqual(
+            self.project_entity.balance,
+            Decimal("0.00"),
+            "Capital loss is non-cash — the fund balance is unchanged.",
+        )
 
     def test_loss_making_project_can_record_further_losses(self):
-        """A project already in deficit can keep recording more losses."""
+        """A project can keep recording losses (no balance gate); each loss is
+        non-cash so the fund balance is unchanged."""
         op1 = self._make_op(amount=Decimal("300.00"))
         op1.save()
 
@@ -289,7 +272,11 @@ class CapitalLossCreateTest(TestCase):
         op3.save()
 
         self.project_entity.refresh_from_db()
-        self.assertEqual(self.project_entity.balance, Decimal("-650.00"))
+        self.assertEqual(
+            self.project_entity.balance,
+            Decimal("0.00"),
+            "Capital losses are non-cash — the fund balance is unchanged.",
+        )
 
     def test_capital_loss_is_value_only_no_movement_line(self):
         """A capital loss never creates an InventoryMovementLine and keeps the

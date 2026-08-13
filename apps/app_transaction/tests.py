@@ -19,6 +19,7 @@ from apps.app_operation.models.proxies import (
     CapitalGainOperation,
     PurchaseOperation,
     CashInjectionOperation,
+    CorrectionCreditOperation,
     WorkerAdvanceOperation,
 )
 from apps.app_operation.tests.base import assert_tx_types
@@ -66,13 +67,17 @@ def _get_or_create_system():
 
 
 def _inject_funds(entity, amount, officer):
-    """Add funds to entity via CapitalGainOperation"""
+    """Add real cash funds to a project entity via CorrectionCreditOperation.
+
+    A CapitalGain is non-cash (its *_PAYMENT is excluded from ``payment_types()``),
+    so it cannot fund an entity's spendable balance.
+    """
     system = _get_or_create_system()
-    CapitalGainOperation(
+    CorrectionCreditOperation(
         source=system,
         destination=entity,
         amount=amount,
-        operation_type=OperationType.CAPITAL_GAIN,
+        operation_type=OperationType.CORRECTION_CREDIT,
         date=timezone.now().date(),
         description="Fund injection",
         officer=officer,
@@ -567,15 +572,17 @@ class EntityTransactionsViewTests(TestCase):
     def test_only_payment_transactions_are_listed(self):
         """Issuance transactions (no cash flow) must be excluded."""
         self._login()
-        # _inject_funds creates both a CAPITAL_GAIN_ISSUANCE and a
-        # CAPITAL_GAIN_PAYMENT; only the payment type must be listed.
+        # _inject_funds creates both a CORRECTION_CREDIT_ISSUANCE and a
+        # CORRECTION_CREDIT_PAYMENT; only the payment type must be listed.
         self._inject(Decimal("1000.00"))
 
         response = self.client.get(self._url())
         transactions = response.context["transactions"]
 
         self.assertEqual(len(transactions), 1)
-        self.assertEqual(transactions[0].type, TransactionType.CAPITAL_GAIN_PAYMENT)
+        self.assertEqual(
+            transactions[0].type, TransactionType.CORRECTION_CREDIT_PAYMENT
+        )
 
     def test_incoming_and_outgoing_are_shown_with_directions(self):
         """Both incoming and outgoing payment transactions are listed."""
@@ -684,10 +691,10 @@ class TransactionDetailViewTests(TestCase):
         self.entity = _make_entity("Detail Project", EntityType.PROJECT)
 
     def _create_transaction(self):
-        """Create an incoming CAPITAL_GAIN_PAYMENT transaction."""
+        """Create an incoming CORRECTION_CREDIT_PAYMENT transaction."""
         _inject_funds(self.entity, Decimal("1000.00"), self.officer)
         return Transaction.objects.filter(
-            type=TransactionType.CAPITAL_GAIN_PAYMENT
+            type=TransactionType.CORRECTION_CREDIT_PAYMENT
         ).first()
 
     def _url(self, tx):
@@ -842,7 +849,7 @@ class EntityPayablesViewTests(TestCase):
         self.assertEqual(response.context["current_obligation"], Decimal("300.00"))
 
     def test_non_payable_transactions_are_excluded(self):
-        """CAPITAL_GAIN_PAYMENT (not a payable) must be excluded."""
+        """CORRECTION_CREDIT_PAYMENT (not a payable) must be excluded."""
         self._login()
         _inject_funds(self.entity, Decimal("1000.00"), self.officer)
 

@@ -7,13 +7,25 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
-from apps.app_inventory.tests.general import make_entity, make_operation
+from apps.app_inventory.models import InventoryMovementLine, ProductTemplate
+from apps.app_inventory.stock import inventory_value
+from apps.app_inventory.tests.general import (
+    make_entity,
+    make_invoice_item,
+    make_operation,
+    make_product,
+    make_product_template,
+)
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.period import FinancialPeriod
 from apps.app_operation.models.proxies import (
+    BirthOperation,
+    CapitalGainOperation,
+    CapitalLossOperation,
     ConsumptionOperation,
     DeathOperation,
     PurchaseOperation,
+    SaleOperation,
 )
 
 # Module-level helpers
@@ -248,12 +260,16 @@ class PeriodIsClosedTest(TestCase):
     """is_closed property boundary conditions."""
 
 
-class RemainingInventoryValueTest(TestCase):
+class EndAssetsMovementValueTest(TestCase):
     """
-    ``remaining_inventory_value`` must subtract CONSUMPTION and DEATH in
-    addition to SALE, so ``end_assets`` does not overstate stock that was used
-    up or written off (feed consumed, livestock died). Valuation stays at the
-    purchase (carried) cost — per the project decision.
+    ``end_assets`` = cash balance + movement-based inventory value + outstanding
+    loan credits + outstanding worker advances paid.
+
+    The inventory component is the movement-based valuation (`inventory_value()`
+    in ``apps/app_inventory/stock.py``). Virtual value operations — Birth, Death,
+    Capital Gain, Capital Loss — are non-cash: their ``*_PAYMENT`` transactions
+    are excluded from ``payment_types()``, so their value appears exactly once,
+    in movement-based inventory, never in the cash balance.
     """
 
     def setUp(self):
@@ -274,6 +290,10 @@ class RemainingInventoryValueTest(TestCase):
         self.end_date = date.today() + timedelta(days=1)
         self.period.close(self.end_date)
 
+    # ------------------------------------------------------------------
+    # Helpers — raw operations + real movement lines (movement-based valuation)
+    # ------------------------------------------------------------------
+
     def _op(self, proxy_class, operation_type, source, destination, amount):
         return make_operation(
             source,
@@ -281,83 +301,221 @@ class RemainingInventoryValueTest(TestCase):
             self.officer,
             proxy_class=proxy_class,
             operation_type=operation_type,
-            amount=amount,
+            amount=amount.quantize(Decimal("0.01")),
         )
 
-    def _purchase(self, amount):
-        return self._op(
-            PurchaseOperation, OperationType.PURCHASE, self.project, self.vendor, amount
+    def _line(self, operation, product, qty):
+        item = make_invoice_item(
+            operation,
+            product.product_template,
+            quantity=qty,
+            unit_price=product.unit_price,
+        )
+        return InventoryMovementLine.objects.create(
+            operation=operation,
+            invoice_item=item,
+            product=product,
+            quantity=qty,
+            date=date.today(),
+            officer=self.officer,
         )
 
-    def _consume(self, amount):
-        return self._op(
+    def _product(self, price, qty):
+        return make_product(
+            make_product_template(), unit_price=price, quantity=qty, entity=self.project
+        )
+
+    def _feed_template(self):
+        """A consumable FEED product template (animals cannot be consumed)."""
+        template = ProductTemplate.objects.create(
+            name="Feed Mix",
+            nature=ProductTemplate.Nature.FEED,
+            sub_category="Feed",
+            tracking_mode=ProductTemplate.TrackingMode.COMMODITY,
+            default_unit="kg",
+        )
+        template.entities.add(self.project)
+        return template
+
+    def _purchase(self, qty, price, template=None):
+        template = template or make_product_template()
+        op = self._op(
+            PurchaseOperation,
+            OperationType.PURCHASE,
+            self.project,
+            self.vendor,
+            qty * price,
+        )
+        product = make_product(
+            template, unit_price=price, quantity=qty, entity=self.project
+        )
+        self._line(op, product, qty)
+        return product
+
+    # ------------------------------------------------------------------
+    # Birth / Death / Capital — value counted exactly once, in inventory
+    # ------------------------------------------------------------------
+
+    def test_birth_counts_once_in_end_assets_via_inventory(self):
+        """A birth is non-cash: the fund balance is unchanged and the born value
+        appears exactly once in ``end_assets``, via movement-based inventory."""
+        self.period.refresh_from_db()
+        balance_before = self.project.balance
+        assets_before = self.period.end_assets
+
+        op = self._op(
+            BirthOperation, OperationType.BIRTH, self.system, self.project,
+            Decimal("500.00"),
+        )
+        self._line(op, self._product(Decimal("100.00"), 5), Decimal("5.00"))
+
+        self.period.refresh_from_db()
+        self.assertEqual(
+            self.project.balance,
+            balance_before,
+            "Birth is non-cash — the fund balance must be unchanged.",
+        )
+        self.assertEqual(
+            inventory_value(self.project, self.end_date), Decimal("500.00")
+        )
+        self.assertEqual(
+            self.period.end_assets,
+            assets_before + Decimal("500.00"),
+            "Born value must be counted exactly once, via inventory.",
+        )
+
+    def test_consumption_reduces_end_assets_once_via_inventory(self):
+        product = self._purchase(
+            Decimal("10.00"), Decimal("100.00"), template=self._feed_template()
+        )
+        self.period.refresh_from_db()
+        balance_before = self.project.balance
+        assets_before = self.period.end_assets
+
+        op = self._op(
             ConsumptionOperation,
             OperationType.CONSUMPTION,
             self.project,
             self.system,
-            amount,
+            Decimal("300.00"),
         )
+        self._line(op, product, Decimal("3.00"))
 
-    def test_consumption_reduces_remaining_inventory_value(self):
-        self._purchase(Decimal("10000.00"))
-        self._consume(Decimal("3000.00"))
         self.period.refresh_from_db()
-        self.assertEqual(self.period.remaining_inventory_value, Decimal("7000.00"))
-
-    def test_death_reduces_remaining_inventory_value(self):
-        self._purchase(Decimal("10000.00"))
-        self._op(
-            DeathOperation, OperationType.DEATH, self.project, self.system,
-            Decimal("2000.00"),
-        )
-        self.period.refresh_from_db()
-        self.assertEqual(self.period.remaining_inventory_value, Decimal("8000.00"))
-
-    def test_consumption_and_death_both_reduce(self):
-        self._purchase(Decimal("10000.00"))
-        self._consume(Decimal("3000.00"))
-        self._op(
-            DeathOperation, OperationType.DEATH, self.project, self.system,
-            Decimal("2000.00"),
-        )
-        self.period.refresh_from_db()
-        self.assertEqual(self.period.remaining_inventory_value, Decimal("5000.00"))
-
-    def test_reversed_consumption_does_not_reduce(self):
-        self._purchase(Decimal("10000.00"))
-        original = self._consume(Decimal("3000.00"))
-        # A reversal clone must be excluded (reversal_of is set) — otherwise
-        # the write-off would be counted twice.
-        ConsumptionOperation.objects.create(
-            source=self.project,
-            destination=self.system,
-            officer=self.officer,
-            operation_type=OperationType.CONSUMPTION,
-            amount=Decimal("3000.00"),
-            date=date.today(),
-            reversal_of=original,
-        )
-        self.period.refresh_from_db()
-        self.assertEqual(self.period.remaining_inventory_value, Decimal("10000.00"))
-
-    def test_consumption_reflected_exactly_once_in_end_assets(self):
-        """Option B: consumption must not drain the fund balance, and
-        ``end_assets`` reflects it exactly once via remaining inventory."""
-        self._purchase(Decimal("10000.00"))
-        self.period.refresh_from_db()
-        balance_before = self.project.balance_at(self.end_date)
-        assets_before = self.period.end_assets
-
-        self._consume(Decimal("3000.00"))
-        self.period.refresh_from_db()
-
+        self.assertEqual(self.project.balance, balance_before)
         self.assertEqual(
-            self.project.balance_at(self.end_date),
-            balance_before,
-            "Consumption must not change the fund balance (non-cash, Option B).",
+            inventory_value(self.project, self.end_date), Decimal("700.00")
         )
         self.assertEqual(
             self.period.end_assets,
-            assets_before - Decimal("3000.00"),
+            assets_before - Decimal("300.00"),
             "Consumption must reduce end_assets exactly once, via inventory.",
+        )
+
+    def test_death_reduces_end_assets_once_via_inventory(self):
+        product = self._purchase(Decimal("10.00"), Decimal("100.00"))
+        self.period.refresh_from_db()
+        balance_before = self.project.balance
+        assets_before = self.period.end_assets
+
+        op = self._op(
+            DeathOperation, OperationType.DEATH, self.project, self.system,
+            Decimal("200.00"),
+        )
+        self._line(op, product, Decimal("2.00"))
+
+        self.period.refresh_from_db()
+        self.assertEqual(self.project.balance, balance_before)
+        self.assertEqual(
+            inventory_value(self.project, self.end_date), Decimal("800.00")
+        )
+        self.assertEqual(
+            self.period.end_assets,
+            assets_before - Decimal("200.00"),
+            "Death must reduce end_assets exactly once, via inventory.",
+        )
+
+    def test_capital_gain_reflected_once_in_inventory_not_cash(self):
+        product = self._purchase(Decimal("10.00"), Decimal("100.00"))
+        self.period.refresh_from_db()
+        balance_before = self.project.balance
+        assets_before = self.period.end_assets
+
+        op = self._op(
+            CapitalGainOperation, OperationType.CAPITAL_GAIN, self.system, self.project,
+            Decimal("500.00"),
+        )
+        item = make_invoice_item(
+            op,
+            product.product_template,
+            quantity=Decimal("1.00"),
+            unit_price=Decimal("500.00"),
+        )
+        product.invoice_items.add(item)
+
+        self.period.refresh_from_db()
+        self.assertEqual(self.project.balance, balance_before)
+        self.assertEqual(
+            inventory_value(self.project, self.end_date),
+            Decimal("1500.00"),
+            "Gain reflected once in inventory (carried 1000 + gain 500).",
+        )
+        self.assertEqual(self.period.end_assets, assets_before + Decimal("500.00"))
+
+    def test_capital_loss_reflected_once_in_inventory_not_cash(self):
+        product = self._purchase(Decimal("10.00"), Decimal("100.00"))
+        self.period.refresh_from_db()
+        balance_before = self.project.balance
+        assets_before = self.period.end_assets
+
+        op = self._op(
+            CapitalLossOperation, OperationType.CAPITAL_LOSS, self.project, self.system,
+            Decimal("200.00"),
+        )
+        item = make_invoice_item(
+            op,
+            product.product_template,
+            quantity=Decimal("1.00"),
+            unit_price=Decimal("200.00"),
+        )
+        product.invoice_items.add(item)
+
+        self.period.refresh_from_db()
+        self.assertEqual(self.project.balance, balance_before)
+        self.assertEqual(
+            inventory_value(self.project, self.end_date),
+            Decimal("800.00"),
+            "Loss reflected once in inventory (carried 1000 - loss 200).",
+        )
+        self.assertEqual(self.period.end_assets, assets_before - Decimal("200.00"))
+
+    def test_sale_reduces_inventory_at_carried_cost(self):
+        """Outbound sale movement is valued at carried cost, so inventory (and
+        therefore ``end_assets``) reflects profit rather than the sale price."""
+        product = self._purchase(Decimal("10.00"), Decimal("100.00"))
+        self.period.refresh_from_db()
+        assets_before = self.period.end_assets
+
+        client = make_entity(EntityType.PERSON, "Client", is_client=True)
+        Stakeholder.objects.create(
+            parent=self.project,
+            target=client,
+            active=True,
+            role=StakeholderRole.CLIENT,
+        )
+        op = self._op(
+            SaleOperation, OperationType.SALE, client, self.project, Decimal("750.00")
+        )
+        self._line(op, product, Decimal("5.00"))
+
+        self.period.refresh_from_db()
+        self.assertEqual(
+            inventory_value(self.project, self.end_date),
+            Decimal("500.00"),
+            "Sold stock is valued at its carried cost (5 × 100).",
+        )
+        self.assertEqual(
+            self.period.end_assets,
+            assets_before - Decimal("500.00"),
+            "end_assets drops by carried cost, not the sale price.",
         )

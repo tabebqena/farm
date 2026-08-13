@@ -3,7 +3,7 @@
 **Type:** One-shot
 **Transaction flow:**
 - Issuance: `entity → system.fund` — type: `CAPITAL_LOSS_ISSUANCE`
-- Payment: `entity → system.fund` — type: `CAPITAL_LOSS_PAYMENT`
+- Payment: `entity → system.fund` — type: `CAPITAL_LOSS_PAYMENT` — **non-cash bookkeeping** (excluded from `payment_types()`; the payment never affects the entity's fund balance)
 
 **Settlement:** Fully settled immediately — `is_fully_settled=True`, `amount_settled == amount`, `amount_remaining_to_settle == 0`
 
@@ -22,8 +22,12 @@
 **Success effects:**
 - `CAPITAL_LOSS_ISSUANCE` + `CAPITAL_LOSS_PAYMENT` created on save
 - Immediately settled (`is_fully_settled=True`)
-- Fund deltas: ▼ entity → ▲ system (virtual)
+- Fund deltas: **no cash flow** — ▼ entity (inventory value only) → ▲ system (virtual, non-cash)
 - ✓ product ledger entry, value-only (qty 0, value −); product status unchanged (ACTIVE)
+
+**Valuation / end_assets (no double count):**
+- The loss is reflected **once** in movement-based inventory value (`capital_delta`) and **once** in `profit_loss` (cost) — the `end_assets` decrease equals the recognized loss.
+- `CAPITAL_LOSS_PAYMENT` is non-cash — it never drains the entity's fund balance.
 
 ## reverse
 **Validation:**

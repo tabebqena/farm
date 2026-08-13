@@ -10,7 +10,7 @@ from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderR
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.period import FinancialPeriod
 from apps.app_operation.models.proxies import (
-    CapitalGainOperation,
+    CorrectionCreditOperation,
     ProfitDistributionOperation,
 )
 from apps.app_operation.tests.base import (
@@ -105,11 +105,13 @@ def _set_period_amount(period, amount):
 
 
 def _seed_capital_gain(system, destination, amount, officer):
-    CapitalGainOperation(
+    # Seed real cash via a CorrectionCredit — a CapitalGain is non-cash (its
+    # *_PAYMENT is excluded from payment_types()) and cannot fund the project.
+    CorrectionCreditOperation(
         source=system,
         destination=destination,
         amount=amount,
-        operation_type=OperationType.CAPITAL_GAIN,
+        operation_type=OperationType.CORRECTION_CREDIT,
         date=TODAY,
         officer=officer,
     ).save()

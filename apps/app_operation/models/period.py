@@ -360,50 +360,6 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
         return inventory_value(self.entity, self.as_of)
 
     @property
-    def remaining_inventory_value(self) -> Decimal:
-        """
-        Net inventory value as of end_date, valued at purchase (carried) cost:
-            total purchase amounts (entity as buyer)
-          - total sale amounts (entity as seller, at sale price)
-          - total consumption amounts (feed/medicine written off)
-          - total death amounts (livestock written off)
-        Uses operation base amounts; adjustments are not included.
-
-        Consumption and death must reduce inventory: those stock assets leave
-        the entity's balance sheet (they were used up / written off) and are
-        valued at the carried purchase cost of the consumed/written-off stock.
-        """
-        from apps.app_operation.models.operation import Operation
-        from apps.app_operation.models.operation_type import OperationType
-
-        date_filter: dict = (
-            {} if self.end_date is None else {"date__lte": self.end_date}
-        )
-        base = dict(reversal_of__isnull=True, reversed_by__isnull=True, **date_filter)
-
-        purchases = Operation.objects.filter(
-            source=self.entity,
-            operation_type=OperationType.PURCHASE,
-            **base,
-        ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
-        sales = Operation.objects.filter(
-            destination=self.entity,
-            operation_type=OperationType.SALE,
-            **base,
-        ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
-        consumption = Operation.objects.filter(
-            source=self.entity,
-            operation_type=OperationType.CONSUMPTION,
-            **base,
-        ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
-        deaths = Operation.objects.filter(
-            source=self.entity,
-            operation_type=OperationType.DEATH,
-            **base,
-        ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
-        return purchases - sales - consumption - deaths
-
-    @property
     def outstanding_loan_credited(self) -> Decimal:
         """
         Amount the entity is owed as creditor (lent out but not yet repaid):
@@ -435,19 +391,26 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
     def end_assets(self) -> Optional[Decimal]:
         """
         Total assets at end_date:
-            cash balance + remaining inventory + outstanding loan credits + outstanding worker advances paid.
+            cash balance + movement-based inventory value + outstanding loan credits + outstanding worker advances paid.
         Returns None when the period is still open.
+
+        Inventory is the movement-based valuation ([`inventory_value()`] —
+        net quantity × carried unit cost + capital gain/loss), the same basis
+        the period's Inventory Value card and stock views use. This counts a
+        birth once (as inventory), and values a sale at carried cost so the
+        assets correctly reflect profit.
         """
         if self.end_date is None:
             return None
         from apps.app_transaction.transaction_type import TransactionType
+        from apps.app_inventory.stock import inventory_value
 
         balance: Decimal = self._incoming_tx_sum(
             TransactionType.payment_types(), self.end_date
         ) - self._outgoing_tx_sum(TransactionType.payment_types(), self.end_date)
         return (
             balance
-            + self.remaining_inventory_value
+            + inventory_value(self.entity, self.end_date)
             + self.outstanding_loan_credited
             + self.outstanding_worker_advance_paid
         )

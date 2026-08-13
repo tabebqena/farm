@@ -9,7 +9,7 @@ from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderR
 from apps.app_inventory.models import InventoryMovementLine, Product, ProductTemplate
 from apps.app_inventory.stock import pending_items
 from apps.app_operation.models.operation_type import OperationType
-from apps.app_operation.models.proxies import CapitalGainOperation, PurchaseOperation
+from apps.app_operation.models.proxies import CorrectionCreditOperation, PurchaseOperation
 from apps.app_operation.tests.base import assert_tx_types
 from apps.app_transaction.transaction_type import TransactionType
 
@@ -41,12 +41,16 @@ def _make_vendor_entity(name):
 
 
 def _inject_project(system_entity, dest_entity, amount, officer_user):
-    """Seed a Project entity's fund via CapitalGain."""
-    CapitalGainOperation(
+    """Seed a Project entity's fund with real cash via a CorrectionCredit.
+
+    A CapitalGain is non-cash (its *_PAYMENT is excluded from payment_types()),
+    so it cannot fund the project's spendable balance.
+    """
+    CorrectionCreditOperation(
         source=system_entity,
         destination=dest_entity,
         amount=amount,
-        operation_type=OperationType.CAPITAL_GAIN,
+        operation_type=OperationType.CORRECTION_CREDIT,
         date=date.today(),
         description="Seed project balance",
         officer=officer_user,

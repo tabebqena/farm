@@ -80,15 +80,19 @@ class CapitalGainCreateTest(TestCase):
         self.assertTrue(op.is_fully_settled)
         self.assertEqual(op.amount_remaining_to_settle, Decimal("0.00"))
 
-    def test_project_fund_increases_by_gain_amount(self):
+    def test_project_fund_unchanged_by_gain_amount(self):
+        """A capital gain is non-cash — the fund balance is not inflated; the
+        gain is reflected in movement-based inventory and in profit_loss."""
         balance_before = self.project_entity.balance
 
         op = self._make_op(amount=Decimal("750.00"))
         op.save()
 
+        self.project_entity.refresh_from_db()
         self.assertEqual(
             self.project_entity.balance,
-            balance_before + Decimal("750.00"),
+            balance_before,
+            "Capital gain is non-cash — the fund balance must be unchanged.",
         )
 
     # ------------------------------------------------------------------
