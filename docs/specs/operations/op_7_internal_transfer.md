@@ -6,7 +6,7 @@
 **Contract status:** v2 (widened) — all branches recorded, business logic registered, test coverage mapped.
 
 > **Primary source of contract.** This document is the authoritative contract for the **Internal Transfer** operation.
-> Every clause below is registered to its implementing code (model → mixin → transaction → view) and to its pinning test.
+> Every clause below names its implementing code (model → mixin → transaction → view) and its pinning test — as plain names, never links, so renames do not break the spec.
 > Where code and spec disagree, the spec states the *intended* behavior — fix the code, not the spec.
 > Other operations follow the same structure — see [`_OPERATION_SPEC_TEMPLATE.md`](_OPERATION_SPEC_TEMPLATE.md).
 
@@ -45,7 +45,7 @@
 
 ## 2. Registered business logic (contract map)
 
-The tables below **register every file that implements this operation**. The spec is the primary source of contract; each row links the clause to the code that must honor it.
+The tables below **register every file that implements this operation**. The spec is the primary source of contract; each row names the code that must honor it (plain names, no links).
 
 ### 2.1 Model / config layer
 
@@ -250,7 +250,7 @@ There is **no standalone pay action** for Internal Transfer:
 
 ## 7. Entity roles & balance contract
 
-- **Requirement — no virtual funds.** A virtual entity (**System** or **World**) can never be the source or the destination of an Internal Transfer, because a virtual fund cannot own a transferable balance. Enforced at model `clean()` (VC3/VC4 — `"Internal Transfer source/destination cannot be a system or world entity."`) and again at the transaction layer (VC15 — requires `not_virtual` on both sides, ).
+- **Requirement — no virtual funds.** A virtual entity (**System** or **World**) can never be the source or the destination of an Internal Transfer, because a virtual fund cannot own a transferable balance. Enforced at model `clean()` (VC3/VC4 — `"Internal Transfer source/destination cannot be a system or world entity."`) and again at the transaction layer (VC15 — requires `not_virtual` on both sides).
 - Both sides must additionally be **internal** (VC1/VC2) — enforced at model `clean()`.
 - `source.balance` / `destination.balance` are derived exclusively from **payment-type** transactions (`balance_at`); the issuance tx never moves a balance.
 - The source fund is a **real internal fund** and is balance-checked at create (`clean()`, VC14). `check_balance_on_payment` stays `False` — the balance is guaranteed once at creation, and the one-shot payment then matches it exactly.

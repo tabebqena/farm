@@ -6,7 +6,7 @@
 **Contract status:** v2 (widened) — all branches recorded, business logic registered, test coverage mapped.
 
 > **Primary source of contract.** This document is the authoritative contract for the **Correction** operations — **Correction Credit** (CC) and **Correction Debit** (CD).
-> Every clause below is registered to its implementing code (model → mixin → transaction → view) and to its pinning test.
+> Every clause below names its implementing code (model → mixin → transaction → view) and its pinning test — as plain names, never links, so renames do not break the spec.
 > Where code and spec disagree, the spec states the *intended* behavior — fix the code, not the spec.
 > Both variants are **admin-only tools** for fixing wrong calculations: neither has a category, neither is balance-gated, and both settle immediately on save.
 > Other operations follow the same structure — see [`_OPERATION_SPEC_TEMPLATE.md`](_OPERATION_SPEC_TEMPLATE.md).
@@ -46,7 +46,7 @@
 
 ## 2. Registered business logic (contract map)
 
-The tables below **register every file that implements this operation**. The spec is the primary source of contract; each row links the clause to the code that must honor it.
+The tables below **register every file that implements this operation**. The spec is the primary source of contract; each row names the code that must honor it (plain names, no links).
 
 ### 2.1 Model / config layer
 
@@ -333,7 +333,7 @@ There is **no standalone pay action** for either Correction variant:
 - **Credit:** system is the only allowed source; project the only allowed destination — enforced at model (CC1/CC2) and transaction (CC13) layers.
 - **Debit:** project is the only allowed source; system the only allowed destination — enforced at model (CD1/CD2) and transaction (CD13) layers.
 - `project.balance` is derived exclusively from **payment-type** transactions (`balance_at`); the issuance tx never moves a balance.
-- System is **virtual**: `can_pay` always returns `True`, so neither variant is ever blocked by fund balance (CC12/CD12). In particular, a **Correction Debit may drive the project fund into deficit** — this is intentional (admin tool for fixing ledger errors) and pinned by.
+- System is **virtual**: `can_pay` always returns `True`, so neither variant is ever blocked by fund balance (CC12/CD12). In particular, a **Correction Debit may drive the project fund into deficit** — this is intentional (admin tool for fixing ledger errors).
 - Corrections carry **no category** and **no invoice/movements** — they touch only balances (CC15/CD15).
 
 ---

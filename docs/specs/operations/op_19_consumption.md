@@ -6,7 +6,7 @@
 **Contract status:** v2 (widened) — all branches recorded, business logic registered, test coverage mapped.
 
 > **Primary source of contract.** This document is the authoritative contract for the **Consumption** operation.
-> Every clause below is registered to its implementing code (model → mixin → transaction → view) and to its pinning test.
+> Every clause below names its implementing code (model → mixin → transaction → view) and its pinning test — as plain names, never links, so renames do not break the spec.
 > Where code and spec disagree, the spec states the *intended* behavior — fix the code, not the spec.
 > See [`_OPERATION_SPEC_TEMPLATE.md`](_OPERATION_SPEC_TEMPLATE.md) for the shared structure and
 > [`op_1_cash_injection.md`](op_1_cash_injection.md) for a fully worked example.
@@ -48,7 +48,7 @@
 
 ## 2. Registered business logic (contract map)
 
-The tables below **register every file that implements this operation**. The spec is the primary source of contract; each row links the clause to the code that must honor it.
+The tables below **register every file that implements this operation**. The spec is the primary source of contract; each row names the code that must honor it (plain names, no links).
 
 ### 2.1 Model / config layer
 
@@ -232,7 +232,7 @@ A lightweight entry point on the stock detail page that removes the friction of 
 | QC7 | Date parseable | optional `date` field is a valid date | `"Invalid date format."` | `quick_consume` | structural |
 | QC8 | System entity available | a System entity exists (or is created) | — | `quick_consume` | structural |
 
-- Redirects back to the stock detail page on success or error (Django message). Success path verified by; partial consumption by.
+- Redirects back to the stock detail page on success or error (Django message). The success path and the partial-consumption path are covered by the quick-consume tests (see §10).
 
 ### 5.2 `reverse`
 
@@ -321,7 +321,7 @@ There is **no standalone pay action** for Consumption:
 | Stock history | the consumed product's OUT movement appears on the Stock History page (`stock_history`); the `live` tab excludes CONSUMED products (`stock_detail`) |
 | Reverse | `operation_reverse_view` — `POST` requires `reversal_reason`; guards already-reversed / is-reversal (VR1/VR2) |
 
-> **TODO (open gap):** the "Consumable product" row above is not fully implemented for the **full create form** path. `InvoiceItemSelectFormSet` restricts `selected_product` to the owning project only; the FEED/MEDICINE + `can_be_consumed` restriction is enforced at the model layer (`InvoiceItem.clean()` → `accepts_operation(CONSUMPTION)`), so invalid picks fail on submit rather than being unselectable. See the `TODO(consumption)` marker in [`apps/app_inventory/forms.py`](../../../apps/app_inventory/forms.py) `InvoiceItemSelectForm.__init__`. (The `quick_consume` shortcut — QC3 — already gates the selectable product correctly.)
+> **TODO (open gap):** the "Consumable product" row above is not fully implemented for the **full create form** path. `InvoiceItemSelectFormSet` restricts `selected_product` to the owning project only; the FEED/MEDICINE + `can_be_consumed` restriction is enforced at the model layer (`InvoiceItem.clean()` → `accepts_operation(CONSUMPTION)`), so invalid picks fail on submit rather than being unselectable. See the `TODO(consumption)` marker in `InvoiceItemSelectForm.__init__`. (The `quick_consume` shortcut — QC3 — already gates the selectable product correctly.)
 
 ---
 

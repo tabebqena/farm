@@ -6,7 +6,7 @@
 **Contract status:** v2 (widened) — all branches recorded, business logic registered, test coverage mapped.
 
 > **Primary source of contract.** This document is the authoritative contract for the **Loan** operation.
-> Every clause below is registered to its implementing code (model → mixin → transaction → view) and to its pinning test.
+> Every clause below names its implementing code (model → mixin → transaction → view) and its pinning test — as plain names, never links, so renames do not break the spec.
 > Where code and spec disagree, the spec states the *intended* behavior — fix the code, not the spec.
 > Other operations follow the same structure — see [`_OPERATION_SPEC_TEMPLATE.md`](_OPERATION_SPEC_TEMPLATE.md).
 
@@ -48,7 +48,7 @@
 
 ## 2. Registered business logic (contract map)
 
-The tables below **register every file that implements this operation**. The spec is the primary source of contract; each row links the clause to the code that must honor it.
+The tables below **register every file that implements this operation**. The spec is the primary source of contract; each row names the code that must honor it (plain names, no links).
 
 ### 2.1 Model / config layer
 
