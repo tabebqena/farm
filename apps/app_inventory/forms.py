@@ -204,14 +204,25 @@ class InvoiceItemCreateForm(LoggingFormMixin, forms.ModelForm):
         if is_birth:
             # Restrict mother selection to ACTIVE female/mixed animals owned by
             # this project, and default the birth date to today.
+            #
+            # ``status`` is a derived (movement-based) property, not a DB field,
+            # so the ACTIVE filter is applied in Python — the same pattern the
+            # sale wizard uses to pick sellable products (a project's herd is
+            # small, so materialising the candidates is cheap).
             if project is not None:
-                self.fields["mother"].queryset = Product.objects.filter(
+                candidates = Product.objects.filter(
                     entity=project,
                     product_template__nature=ProductTemplate.Nature.ANIMAL,
                     product_template__gender__in=(
                         ProductTemplate.Gender.FEMALE,
                         ProductTemplate.Gender.MIXED,
                     ),
+                ).select_related("product_template")
+                active_pks = [
+                    p.pk for p in candidates if p.status == Product.Status.ACTIVE
+                ]
+                self.fields["mother"].queryset = Product.objects.filter(
+                    pk__in=active_pks
                 ).select_related("product_template")
             if not self.fields["birth_date"].initial:
                 self.fields["birth_date"].initial = date.today()
@@ -234,6 +245,17 @@ class InvoiceItemCreateForm(LoggingFormMixin, forms.ModelForm):
                     self.add_error(
                         "mother",
                         "Mother must belong to the same project.",
+                    )
+                    return cleaned
+                # The picker only lists ACTIVE animals, but a crafted POST can
+                # still reference a sold/dead/consumed/removed mother — enforce
+                # the ACTIVE guard at model level (VC17).
+                try:
+                    mother.validate_active(allow_obligated=True)
+                except ValidationError:
+                    self.add_error(
+                        "mother",
+                        "Only ACTIVE animals can be selected as a mother.",
                     )
                     return cleaned
                 # Default the newborn template to the mother's gives_birth_to
