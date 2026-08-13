@@ -6,18 +6,16 @@ Template for widening an operation spec into a primary-source contract.
 Worked example: specs/operations/op_1_cash_injection.md (Cash Injection).
 
 Steps to widen a new operation:
-  1. Read the proxy class in apps/app_operation/models/proxies/<op>.py — copy every
-     config flag into §1 (identity).
-  2. Read apps/app_operation/models/operation.py + apps/app_base/mixins.py +
-     apps/app_base/models.py + apps/app_transaction/transaction_type.py to confirm
-     which shared engine clauses apply (immutability, one-shot, balance check,
-     reversal guards, period rules).
-  3. Read apps/app_operation/views/create_operation/base.py, views/reverse.py,
-     views/record_transaction.py, validators.py, urls.py to register the view contract.
-  4. Read the operation's tests under apps/app_operation/tests/operations/... and map
-     every branch to a pinning test. Add missing focused tests (one behavior per test,
-     few assertions) until the coverage matrix in §10 is complete.
-  5. Register every implementing file in §2 (contract map). The spec is the primary
+  1. Read the operation's proxy class — copy every config flag into §1 (identity).
+  2. Read the shared `Operation` engine, the base mixins/models, and the transaction
+     types to confirm which shared engine clauses apply (immutability, one-shot,
+     balance check, reversal guards, period rules).
+  3. Read the create/reverse/pay view handlers, the validators, and the URL wiring
+     to register the view contract.
+  4. Read the operation's tests and map every branch to a pinning test. Add missing
+     focused tests (one behavior per test, few assertions) until the coverage matrix
+     in §10 is complete.
+  5. Record every implementing concern in §2 (contract map). The spec is the primary
      source of contract: where code and spec disagree, fix the code, not the spec.
   6. Update the branch catalog (§9) and the test coverage matrix (§10).
 -->
@@ -39,14 +37,14 @@ Steps to widen a new operation:
 
 | Field | Value | Defined in |
 |-------|-------|-----------|
-| Operation type | `OperationType.<X>` | [`operation_type.py`](../../apps/app_operation/models/operation_type.py) |
-| Proxy class | `<X>Operation` | [`op_<x>.py`](../../apps/app_operation/models/proxies/op_<x>.py) |
-| URL slug | `"<x>"` | [`op_<x>.py`](../../apps/app_operation/models/proxies/op_<x>.py) |
-| Label | `"<X>"` | [`op_<x>.py`](../../apps/app_operation/models/proxies/op_<x>.py) |
-| Theme | `<color>` / `<icon>` | [`op_<x>.py`](../../apps/app_operation/models/proxies/op_<x>.py) |
-| Source role | `<world/system/url/post>` | [`op_<x>.py`](../../apps/app_operation/models/proxies/op_<x>.py) |
-| Destination role | `<world/system/url/post>` | [`op_<x>.py`](../../apps/app_operation/models/proxies/op_<x>.py) |
-| Registered in | `PROXY_MAP` | [`proxies/__init__.py`](../../apps/app_operation/models/proxies/__init__.py) |
+| Operation type | `OperationType.<X>` | |
+| Proxy class | `<X>Operation` | |
+| URL slug | `"<x>"` | |
+| Label | `"<X>"` | |
+| Theme | `<color>` / `<icon>` | |
+| Source role | `<world/system/url/post>` | |
+| Destination role | `<world/system/url/post>` | |
+| Registered in | `PROXY_MAP` | |
 | Cross-op reference | row `<code>` | [`operations-comparison.md`](operations-comparison.md) |
 
 **Configuration flags:**
@@ -75,57 +73,57 @@ Steps to widen a new operation:
 
 | Concern | Implementing code |
 |---------|-------------------|
-| Proxy class + type-specific config + `clean_source`/`clean_destination` | [`op_<x>.py`](../../apps/app_operation/models/proxies/op_<x>.py) |
-| Proxy registry / URL→class resolution | [`proxies/__init__.py`](../../apps/app_operation/models/proxies/__init__.py) |
-| Shared `Operation` engine | [`operation.py`](../../apps/app_operation/models/operation.py) |
-| Operation type enum | [`operation_type.py`](../../apps/app_operation/models/operation_type.py) |
+| Proxy class + type-specific config + `clean_source`/`clean_destination` | |
+| Proxy registry / URL→class resolution | |
+| Shared `Operation` engine | |
+| Operation type enum | |
 
 ### 2.2 Core engine (mixins / base)
 
 | Concern | Implementing code |
 |---------|-------------------|
-| Immutability | [`ImmutableMixin`](../../apps/app_base/mixins.py:30) |
-| Amount > 0 | [`AmountCleanMixin`](../../apps/app_base/mixins.py:64) |
-| Officer staff + active | [`OfficerMixin`](../../apps/app_base/mixins.py:80) |
-| Source/target fund active | [`SourceFundMixin`](../../apps/app_base/mixins.py:127) / [`TargetFundMixin`](../../apps/app_base/mixins.py:147) |
-| Issuance tx on save | [`LinkedIssuanceTransactionMixin`](../../apps/app_base/mixins.py:184) |
-| Payment / settlement | [`LinkedPaymentTransactionMixin`](../../apps/app_base/mixins.py:242) |
-| Repayment | [`LinkedRePaymentTransactionMixin`](../../apps/app_base/mixins.py:463) (if `has_repayment`) |
-| Reversal mechanics | [`ReversableModel`](../../apps/app_base/models.py:133) + [`Operation.reverse()`](../../apps/app_operation/models/operation.py:997) |
+| Immutability | `ImmutableMixin` |
+| Amount > 0 | `AmountCleanMixin` |
+| Officer staff + active | `OfficerMixin` |
+| Source/target fund active | `SourceFundMixin` / `TargetFundMixin` |
+| Issuance tx on save | `LinkedIssuanceTransactionMixin` |
+| Payment / settlement | `LinkedPaymentTransactionMixin` |
+| Repayment | `LinkedRePaymentTransactionMixin` (if `has_repayment`) |
+| Reversal mechanics | `ReversableModel` + `Operation.reverse()` |
 
 ### 2.3 Transaction layer
 
 | Concern | Implementing code |
 |---------|-------------------|
-| `Transaction` model + `create()` + `reverse()` | [`models.py`](../../apps/app_transaction/models.py:33) |
-| `<TX_ISSUANCE>` / `<TX_PAYMENT>` / … | [`transaction_type.py`](../../apps/app_transaction/transaction_type.py) (entity + operation maps) |
+| `Transaction` model + `create()` + `reverse()` | |
+| `<TX_ISSUANCE>` / `<TX_PAYMENT>` / … | |
 
 ### 2.4 Entity / balance layer
 
 | Concern | Implementing code |
 |---------|-------------------|
-| Balance derivation | [`Entity.balance_at`](../../apps/app_entity/models/__init__.py:414) |
-| Virtual-entity payment exemption | [`Entity.can_pay`](../../apps/app_entity/models/__init__.py:704) |
-| Open period auto-creation | [`Entity.save()`](../../apps/app_entity/models/__init__.py:714) |
+| Balance derivation | `Entity.balance_at` |
+| Virtual-entity payment exemption | `Entity.can_pay` |
+| Open period auto-creation | `Entity.save()` |
 
 ### 2.5 View / UI layer
 
 | Concern | Implementing code |
 |---------|-------------------|
-| Create view | [`OperationCreateView`](../../apps/app_operation/views/create_operation/base.py:75) (or dedicated wizard) |
-| POST parsing/validation | [`OperationDataValidator`](../../apps/app_operation/validators.py:45) |
-| Reverse view | [`operation_reverse_view`](../../apps/app_operation/views/reverse.py:13) |
-| Pay / repay views | [`record_transaction.py`](../../apps/app_operation/views/record_transaction.py) (if applicable) |
-| Detail view | [`operation_detail_view`](../../apps/app_operation/views/detail.py:14) |
-| URLs | [`urls.py`](../../apps/app_operation/urls.py) |
-| Templates | [`templates/app_operation/`](../../apps/app_operation/templates/app_operation/) |
+| Create view | `OperationCreateView` (or dedicated wizard) |
+| POST parsing/validation | `OperationDataValidator` |
+| Reverse view | `operation_reverse_view` |
+| Pay / repay views | `record_transaction_*` (if applicable) |
+| Detail view | `operation_detail_view` |
+| URLs | |
+| Templates | |
 
 ### 2.6 Tests
 
 | Concern | Test file |
 |---------|-----------|
-| `<action>` branches | [`tests/operations/.../test_<x>_<x>_<action>.py`](../../apps/app_operation/tests/operations/) |
-| Coverage manifest | [`tests/base.py`](../../apps/app_operation/tests/base.py) |
+| `<action>` branches | |
+| Coverage manifest | |
 
 ---
 
