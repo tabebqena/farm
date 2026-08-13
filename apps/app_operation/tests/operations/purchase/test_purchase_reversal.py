@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
+from apps.app_inventory.models import InventoryMovementLine, InvoiceItem, ProductTemplate
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import CapitalGainOperation, PurchaseOperation
 from apps.app_operation.tests.base import (
@@ -233,6 +234,81 @@ class PurchaseReversalTest(TestCase):
             self.op.reverse(officer=self.officer_user)
 
     # ------------------------------------------------------------------
+    # Reversal allowed once all payments are reversed
+    # ------------------------------------------------------------------
+
+    def test_reversible_after_payment_reversed(self):
+        """A purchase becomes reversible once its payment is reversed."""
+        self.op.create_payment_transaction(
+            amount=Decimal("500.00"),
+            officer=self.officer_user,
+            date=date.today(),
+        )
+        payment_tx = self.op.get_all_transactions().get(
+            type=TransactionType.PURCHASE_PAYMENT
+        )
+        payment_tx.reverse(officer=self.officer_user)
+
+        reversal = self.op.reverse(officer=self.officer_user)
+
+        self.assertIsNotNone(reversal.pk)
+        self.assertEqual(reversal.reversal_of, self.op)
+
+    def test_reversible_after_payment_reversed_counter_for_issuance_only(self):
+        """SR5: only the issuance gets an implicit counter-transaction even when
+        a (now-reversed) payment exists — the payment counter already exists."""
+        self.op.create_payment_transaction(
+            amount=Decimal("500.00"),
+            officer=self.officer_user,
+            date=date.today(),
+        )
+        payment_tx = self.op.get_all_transactions().get(
+            type=TransactionType.PURCHASE_PAYMENT
+        )
+        payment_tx.reverse(officer=self.officer_user)
+        self.op.reverse(officer=self.officer_user)
+
+        all_txs = self.op.get_all_transactions()
+        # original issuance + payment, plus the payment counter + issuance counter
+        self.assertEqual(all_txs.count(), 4)
+        counters = all_txs.filter(reversal_of__isnull=False)
+        self.assertEqual(counters.count(), 2)
+        self.assertEqual(
+            {c.type for c in counters},
+            {TransactionType.PURCHASE_ISSUANCE, TransactionType.PURCHASE_PAYMENT},
+        )
+
+    def test_pay_reverse_payment_then_reverse_op_leaves_world_unchanged(self):
+        """Differential invariant: pay → reverse payment → reverse op returns the
+        world to the pre-operation state."""
+        before = snapshot_derived_state()
+
+        op = PurchaseOperation(
+            source=self.project_entity,
+            destination=self.vendor_entity,
+            amount=Decimal("1000.00"),
+            operation_type=OperationType.PURCHASE,
+            date=date.today(),
+            description="Test purchase",
+            officer=self.officer_user,
+        )
+        op.save()
+        op.create_payment_transaction(
+            amount=Decimal("500.00"),
+            officer=self.officer_user,
+            date=date.today(),
+        )
+        payment_tx = op.get_all_transactions().get(
+            type=TransactionType.PURCHASE_PAYMENT
+        )
+        payment_tx.reverse(officer=self.officer_user)
+        op.reverse(officer=self.officer_user)
+
+        assert_derived_state_unchanged(
+            self, before, msg="purchase pay+reverse-payment+reverse"
+        )
+
+    # ------------------------------------------------------------------
     # Constraints
     # ------------------------------------------------------------------
 
@@ -248,3 +324,96 @@ class PurchaseReversalTest(TestCase):
 
         with self.assertRaises(ValidationError):
             reversal.reverse(officer=self.officer_user)
+
+
+# ---------------------------------------------------------------------------
+# PurchaseReversalAfterMovementsTest — reversal unlocked once all movements are
+# reversed (regression: the guard must count only active movement lines, not
+# reversed originals).
+# ---------------------------------------------------------------------------
+
+
+class PurchaseReversalAfterMovementsTest(TestCase):
+    """A purchase that received goods becomes reversible once every received
+    movement line has been reversed by the user."""
+
+    def setUp(self):
+        self.system_entity = Entity.create(EntityType.SYSTEM)
+        self.officer_user = _make_officer()
+
+        self.project_entity = _make_project_entity("Farm Project")
+        _inject_project(
+            self.system_entity,
+            self.project_entity,
+            Decimal("5000.00"),
+            self.officer_user,
+        )
+
+        self.vendor_entity = _make_vendor_entity("Agri Supplies Ltd")
+        _make_vendor_stakeholder(self.project_entity, self.vendor_entity)
+
+        self.template = ProductTemplate.objects.create(
+            name="Feed Corn",
+            nature=ProductTemplate.Nature.FEED,
+            sub_category="Grain",
+            tracking_mode=ProductTemplate.TrackingMode.COMMODITY,
+            default_unit="kg",
+        )
+        self.template.entities.add(self.project_entity)
+
+    def _make_received_purchase(self):
+        """A saved purchase with one invoice item and one received movement line."""
+        op = PurchaseOperation(
+            source=self.project_entity,
+            destination=self.vendor_entity,
+            amount=Decimal("1000.00"),
+            operation_type=OperationType.PURCHASE,
+            date=date.today(),
+            description="Test purchase with receipt",
+            officer=self.officer_user,
+        )
+        op.save()
+        item = InvoiceItem.objects.create(
+            operation=op,
+            product_template=self.template,
+            quantity=Decimal("10.00"),
+            unit_price=Decimal("100.00"),
+        )
+        line = InventoryMovementLine.objects.create(
+            operation=op,
+            invoice_item=item,
+            product=None,  # lazily created by save()
+            quantity=Decimal("10.00"),
+            date=date.today(),
+            officer=self.officer_user,
+        )
+        return op, item, line
+
+    def test_reversal_blocked_while_movement_active(self):
+        op, item, line = self._make_received_purchase()
+
+        with self.assertRaises(ValidationError):
+            op.reverse(officer=self.officer_user)
+
+    def test_reversible_after_all_movements_reversed(self):
+        """Reversing every received movement unlocks the operation reversal."""
+        op, item, line = self._make_received_purchase()
+
+        line.reverse(officer=self.officer_user)
+
+        reversal = op.reverse(officer=self.officer_user)
+        self.assertIsNotNone(reversal.pk)
+        self.assertEqual(reversal.reversal_of, op)
+
+    def test_reverse_after_movements_reversed_leaves_world_unchanged(self):
+        """Differential invariant: receive → reverse movements → reverse op
+        returns balances, payables, receivables and ledger to the pre-op state."""
+        before = snapshot_derived_state()
+
+        op, item, line = self._make_received_purchase()
+        line.reverse(officer=self.officer_user)
+        op.reverse(officer=self.officer_user)
+
+        assert_derived_state_unchanged(
+            self, before, msg="purchase receive+reverse-movements+reverse"
+        )

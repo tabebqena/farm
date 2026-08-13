@@ -203,10 +203,16 @@ class ReversableModel(HasRelatedTransactions, BaseModel):
     def _requires_transaction_reversal(self, all_txs: models.QuerySet) -> bool:
         # All transactions that are reversable and
         # should be explicity reversed
-        # by the user before reversing thier document
-        explicit_reversing_transactions = all_txs.filter(
-            type__in=self._reversable_transaction_types
-        ).exclude(type__in=self._implicit_reversable_transaction_types)
+        # by the user before reversing thier document.
+        # Only *active* explicit transactions block reversal: a transaction that
+        # has already been reversed (its counter-transaction exists) or a
+        # reversal (mirror) transaction itself no longer needs reversing, so
+        # they must not block the document reversal.
+        explicit_reversing_transactions = (
+            all_txs.filter(type__in=self._reversable_transaction_types)
+            .exclude(type__in=self._implicit_reversable_transaction_types)
+            .filter(reversal_of__isnull=True, reversed_by__isnull=True)
+        )
 
         if explicit_reversing_transactions.count() > 0:
             return True

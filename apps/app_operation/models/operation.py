@@ -1048,9 +1048,14 @@ class Operation(
 
             if type(self).has_invoice:
                 if self.operation_type in (OperationType.PURCHASE, OperationType.SALE):
-                    # User-driven movements must be reversed by the user first
+                    # User-driven movements must be reversed by the user first.
+                    # Only *active* movement lines block reversal: an original
+                    # that has already been reversed (its mirror exists) and a
+                    # reversal (mirror) line itself are excluded, so reversing
+                    # all movements unlocks the operation reversal.
                     moved = self.movement_lines.filter(
-                        reversal_of__isnull=True
+                        reversal_of__isnull=True,
+                        reversed_by__isnull=True,
                     ).exists()
                     if moved:
                         raise ValidationError(
