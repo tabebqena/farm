@@ -55,9 +55,10 @@ adjustments, inventory, and evaluations.
 
 | Feature | File |
 |---------|------|
-| Adjustment | [adjustment.md](adjustment.md) |
-| Financial Period | [financial_period.md](financial_period.md) |
-| Inventory Ledger | [inventory_ledger.md](inventory_ledger.md) |
+| Adjustment | [adjustment.md](features/adjustment.md) |
+| Financial Period | [financial_period.md](features/financial_period.md) |
+| Stock (movement-based inventory) | [stock.md](features/stock.md) |
+| Inventory Ledger | [inventory_ledger.md](features/inventory_ledger.md) |
 
 ---
 
