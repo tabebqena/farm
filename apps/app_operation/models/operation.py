@@ -1009,6 +1009,11 @@ class Operation(
             # (DEATH/CONSUMPTION/SALE) whose products were moved again in a
             # later non-reversed operation — the reversal would resurrect
             # stock that has since been consumed/sold/written off.
+            #
+            # TODO(test): no test currently pins this guard — neither the
+            # SALE/CONSUMPTION suites nor a DEATH-specific test exercises
+            # "moved again in a later operation" (see docs/specs/operations/
+            # op_18_death.md §5.2.1 VR4).
             if type(self).has_invoice and self.operation_type in (
                 OperationType.DEATH,
                 OperationType.CONSUMPTION,

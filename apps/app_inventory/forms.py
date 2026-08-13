@@ -399,6 +399,14 @@ class InvoiceItemSelectForm(LoggingFormMixin, forms.ModelForm):
             # via InvoiceItem.clean()/accepts_operation(). Restrict the
             # queryset with product_template__accepts_operation for CONSUMPTION
             # (mirror the quick_consume guard in apps/app_inventory/views.py).
+            #
+            # TODO(death): same gap for DEATH — the spec
+            # (docs/specs/operations/op_18_death.md §8) says selectable products
+            # must be ANIMAL **and** can_die=True (accepts_operation(DEATH)) and
+            # the picker should offer only the project's active on-hand stock.
+            # Today the queryset is ownership-filtered only, so FEED / inactive /
+            # obligated-only / zero-on-hand products are offered and rejected
+            # only on submit via InvoiceItem.clean()/InventoryMovementLine.clean().
             self.fields["selected_product"].queryset = (
                 Product.objects.filter(entity=entity).select_related("product_template")
             )
