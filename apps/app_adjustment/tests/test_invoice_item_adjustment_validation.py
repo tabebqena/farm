@@ -240,7 +240,15 @@ class ValidationTest(TestCase):
 
 
 class DecreaseWithMovementsTest(TestCase):
-    """Decreasing quantity when products have inventory movements."""
+    """Decreasing quantity when products have inventory movements.
+
+    ⚠️ REGISTERED DIVERGENCE from spec VA3 ("new qty ≥ already moved"): these
+    tests pin the CURRENT behaviour — decreasing qty/price on an item whose
+    products have movements must NOT raise. The spec's VA3 guard is therefore
+    NOT implemented (item adjustments are financial-only since
+    ``_sync_products()`` was removed). See
+    ``docs/specs/operations/op_14_sale.md`` §5.5.1 (VA3) + §9.
+    """
 
     def setUp(self):
         self.officer = _make_officer()

@@ -303,7 +303,18 @@ Invoice-item correction (qty / unit price) via `record_item_adjustment`. This is
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
 | VA1 | Adjustable + not reversed / not a reversal | `is_items_adjustable=True`; no active reversal | `ValidationError` | — | `InvoiceItemAdjustment` | covered by adjustment suite |
 | VA2 | ≥ 1 item changed; qty/price parse | at least one delta, valid decimal | `ValidationError` | — | item-adjustment finalize | covered by adjustment suite |
-| VA3 | New qty ≥ already moved | `new_qty ≥ moved_qty` | `ValidationError` | — | item-adjustment finalize | covered by adjustment suite |
+| VA3 | New qty ≥ already moved | `new_qty ≥ moved_qty` | `ValidationError` | — | ⚠️ **NOT IMPLEMENTED** (see note below) | **divergent** — `DecreaseWithMovementsTest` asserts decrease-on-moved items **succeeds** |
+
+> **⚠️ Registered divergence (VA3):** The `new_qty ≥ moved_qty` guard is **not enforced**.
+> `InvoiceItemAdjustmentLine.clean()` only requires ≥ 1 field set + item belongs to the
+> operation ([`apps/app_adjustment/models.py`](../../../apps/app_adjustment/models.py) →
+> `InvoiceItemAdjustmentLine.clean`); the former `_sync_products()` guard was removed during the
+> "Flatten products / Deferred movement" refactor. Item adjustments are now treated as
+> **purely financial** (no product/movement re-sync). Consequence: an officer can shrink an item
+> below its already-moved quantity, producing a negative `remaining_qty`
+> (`adjusted_quantity − moved_qty < 0` in `Operation.get_items_data`) and a ledger that moved more
+> than the item's adjusted quantity. This is a spec-vs-code conflict: the spec intends the guard
+> (fix the code) while the code deliberately allows the decrease (fix the spec). Unresolved.
 
 #### 5.5.2 Success effects
 
@@ -404,7 +415,7 @@ Accounting adjustment on the operation amount via `record_accounting_adjustment`
 
 **move items — effects:** SM1 SALE_MOVEMENT ledger, no mint · SM2 full disposal → SOLD/0 · SM3 partial → ACTIVE · SM4 individual animal moved · SM5 internal client buyer copy · SM6 movements reversible
 
-**adjust items — validation:** VA1 adjustable + not reversed · VA2 ≥1 changed · VA3 qty ≥ moved · **effects:** SA1 item adjustment + lines · SA2 accounting adj + tx · SA3 ledger entries
+**adjust items — validation:** VA1 adjustable + not reversed · VA2 ≥1 changed · VA3 qty ≥ moved ⚠️ **NOT IMPLEMENTED** (registered divergence — see §5.5.1) · **effects:** SA1 item adjustment + lines · SA2 accounting adj + tx · SA3 ledger entries
 
 **adjust — validation:** VA4 adjustable + not reversed · VA5 type allowed · VA6 amount>0/staff · VA7 reduction ≥ 0 · **effects:** SA4 `SALE_ADJUSTMENT_*` (non-cash) + `effective_amount` delta
 

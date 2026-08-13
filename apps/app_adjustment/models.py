@@ -725,6 +725,17 @@ class InvoiceItemAdjustmentLine(
         return last_price if last_price is not None else self.invoice_item.unit_price
 
     def clean(self):
+        # ⚠️ REGISTERED DIVERGENCE from Sale/Purchase spec VA3
+        # ("new qty ≥ already moved"): this guard is intentionally NOT enforced.
+        # Item adjustments are purely financial — they no longer re-sync products /
+        # movements (the former ``_sync_products()`` was removed in the
+        # "Flatten products / Deferred movement" refactor). Consequently an item can
+        # be shrunk below its already-moved quantity, producing a negative
+        # ``remaining_qty`` in ``Operation.get_items_data`` and a ledger that moved
+        # more than the item's adjusted quantity. See
+        # ``docs/specs/operations/op_14_sale.md`` §5.5.1 (VA3) + §9 for the registered
+        # conflict; ``apps/app_adjustment/tests/test_invoice_item_adjustment_validation.py``
+        # (DecreaseWithMovementsTest) pins the current (allow) behaviour.
         if self.new_quantity is None and self.new_unit_price is None:
             raise ValidationError(
                 _("At least one of new_quantity or new_unit_price must be set.")
