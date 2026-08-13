@@ -19,7 +19,3 @@ Status: Plan created , implementation popstponed.
 
 [x] The current state allow repayment of a loan that have no payment transaction, this should be fixed. the non reversed/reversable repayment transactions sum shouldn't exceed the payment transaction sum.
 
-[ ] We have a logical issues that bypass tests (some of them are verified by tests), this is beacuse the projects starts week in the features , for example, the reverse of the birth operation was leave the created project.
-the sale operation was acreating a new project that is sold & leave the original project active
-Some fixes aare introduced over the errors instead of analysing the deep issue
-I want to search for  this issues
