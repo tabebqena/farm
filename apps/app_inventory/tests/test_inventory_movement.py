@@ -817,3 +817,219 @@ class InventoryMovementCreationTest(TestCase):
         entry = response.context["items_data"][0]
         self.assertEqual(entry["moved_qty"], Decimal("6.00"))
         self.assertEqual(entry["remaining_qty"], Decimal("4.00"))
+
+
+class InventoryMovementModelContractTest(TestCase):
+    """Model-level contract tests registered in docs/specs/features/stock.md
+    that were previously unpinned: immutability (IM1–IM4), RC6 (invoice item
+    belongs to operation), MR1 (already reversed), MS4 (batch reverse by
+    group_key) and RS3 (COMMODITY receive → one line with the full qty)."""
+
+    def setUp(self):
+        self.client = Client()
+        self.officer = make_user(username="officer_contract", is_staff=True)
+        self.system = Entity.create(EntityType.SYSTEM)
+        self.vendor = make_entity(EntityType.PERSON, "Vendor", is_vendor=True)
+        self.project = make_project_entity("Farm")
+        Stakeholder.objects.create(
+            parent=self.project,
+            target=self.vendor,
+            active=True,
+            role=StakeholderRole.VENDOR,
+        )
+        self.template = make_product_template("Calves")
+
+    def _make_received_line(self, qty=Decimal("1.00")):
+        """One inbound PURCHASE line for *qty* heads (lazy product created)."""
+        purchase = make_operation(
+            source=self.project,
+            destination=self.vendor,
+            officer=self.officer,
+            proxy_class=PurchaseOperation,
+            operation_type=OperationType.PURCHASE,
+        )
+        item = make_invoice_item(purchase, self.template, quantity=qty)
+        return InventoryMovementLine.objects.create(
+            operation=purchase,
+            invoice_item=item,
+            quantity=qty,
+            date=date.today(),
+            officer=self.officer,
+        )
+
+    # --- immutability (IM1–IM4) -------------------------------------------
+
+    def test_movement_line_operation_is_immutable_after_save(self):
+        """IM1 — changing ``operation`` after save raises ValidationError."""
+        line = self._make_received_line()
+        other = make_operation(
+            source=self.project,
+            destination=self.vendor,
+            officer=self.officer,
+            proxy_class=PurchaseOperation,
+            operation_type=OperationType.PURCHASE,
+        )
+        line.operation = other
+        with self.assertRaises(ValidationError):
+            line.save()
+
+    def test_movement_line_invoice_item_is_immutable_after_save(self):
+        """IM2 — changing ``invoice_item`` after save raises ValidationError."""
+        line = self._make_received_line()
+        other = make_operation(
+            source=self.project,
+            destination=self.vendor,
+            officer=self.officer,
+            proxy_class=PurchaseOperation,
+            operation_type=OperationType.PURCHASE,
+        )
+        line.invoice_item = make_invoice_item(other, self.template)
+        with self.assertRaises(ValidationError):
+            line.save()
+
+    def test_movement_line_quantity_is_immutable_after_save(self):
+        """IM3 — changing ``quantity`` after save raises ValidationError."""
+        line = self._make_received_line()
+        line.quantity = Decimal("2.00")
+        with self.assertRaises(ValidationError):
+            line.save()
+
+    def test_movement_line_product_is_immutable_after_save(self):
+        """IM4 — changing ``product`` after save raises ValidationError."""
+        line = self._make_received_line()
+        other_product = make_product(self.template, entity=self.project)
+        line.product = other_product
+        with self.assertRaises(ValidationError):
+            line.save()
+
+    # --- RC6 / MR1 / MS4 / RS3 ---------------------------------------------
+
+    def test_movement_rejects_invoice_item_from_other_operation(self):
+        """RC6 — an invoice item that does not belong to the line's operation
+        is rejected by ``InventoryMovementLine.clean``."""
+        purchase = make_operation(
+            source=self.project,
+            destination=self.vendor,
+            officer=self.officer,
+            proxy_class=PurchaseOperation,
+            operation_type=OperationType.PURCHASE,
+        )
+        other = make_operation(
+            source=self.project,
+            destination=self.vendor,
+            officer=self.officer,
+            proxy_class=PurchaseOperation,
+            operation_type=OperationType.PURCHASE,
+        )
+        other_item = make_invoice_item(other, self.template, quantity=Decimal("1.00"))
+        line = InventoryMovementLine(
+            operation=purchase,
+            invoice_item=other_item,
+            quantity=Decimal("1.00"),
+            date=date.today(),
+            officer=self.officer,
+        )
+        with self.assertRaises(ValidationError):
+            line.full_clean()
+
+    def test_reverse_of_already_reversed_line_raises(self):
+        """MR1 — reversing a line that already has a reversal raises
+        ValidationError."""
+        line = self._make_received_line()
+        line.reverse(officer=self.officer)
+        with self.assertRaises(ValidationError):
+            line.reverse(officer=self.officer)
+
+    def test_batch_reverse_by_group_key(self):
+        """MS4 — ``batch_reverse`` reverses every non-reversed line sharing a
+        group key and is idempotent on a second pass."""
+        purchase = make_operation(
+            source=self.project,
+            destination=self.vendor,
+            officer=self.officer,
+            proxy_class=PurchaseOperation,
+            operation_type=OperationType.PURCHASE,
+        )
+        item = make_invoice_item(purchase, self.template, quantity=Decimal("3.00"))
+        group_key = "contractbatch"
+        lines = [
+            InventoryMovementLine.objects.create(
+                operation=purchase,
+                invoice_item=item,
+                quantity=Decimal("1.00"),
+                date=date.today(),
+                officer=self.officer,
+                group_key=group_key,
+            )
+            for _ in range(3)
+        ]
+
+        created = InventoryMovementLine.batch_reverse(
+            InventoryMovementLine.objects.filter(group_key=group_key),
+            officer=self.officer,
+        )
+        self.assertEqual(len(created), 3)
+        for line in lines:
+            self.assertTrue(
+                InventoryMovementLine.objects.filter(reversal_of=line).exists()
+            )
+
+        # A second pass must not create duplicate reversals.
+        created2 = InventoryMovementLine.batch_reverse(
+            InventoryMovementLine.objects.filter(group_key=group_key),
+            officer=self.officer,
+        )
+        self.assertEqual(created2, [])
+
+    def test_purchase_commodity_receives_single_line_full_qty(self):
+        """RS3 — a COMMODITY receive creates one movement line carrying the
+        full quantity (not one line per unit)."""
+        commodity = ProductTemplate.objects.create(
+            name="Corn",
+            nature=ProductTemplate.Nature.PRODUCT,
+            sub_category="Feed",
+            tracking_mode=ProductTemplate.TrackingMode.COMMODITY,
+            default_unit="Kg",
+            minimum_quantity=Decimal("0.01"),
+        )
+        commodity.entities.add(self.project)
+        purchase = make_operation(
+            source=self.project,
+            destination=self.vendor,
+            officer=self.officer,
+            proxy_class=PurchaseOperation,
+            operation_type=OperationType.PURCHASE,
+            amount=Decimal("1000.00"),
+        )
+        item = make_invoice_item(
+            purchase,
+            commodity,
+            quantity=Decimal("10.00"),
+            unit_price=Decimal("100.00"),
+        )
+        product = make_product(
+            commodity, unit_price=Decimal("100.00"), quantity=10, entity=self.project
+        )
+        item.products.add(product)
+
+        self.client.login(username="officer_contract", password="testpass")
+        url = reverse("create_purchase_movement", kwargs={"operation_pk": purchase.pk})
+        response = self.client.post(
+            url,
+            {
+                "date": date.today().isoformat(),
+                "notes": "Corn receipt",
+                "lines-TOTAL_FORMS": "1",
+                "lines-INITIAL_FORMS": "0",
+                "lines-MIN_NUM_FORMS": "0",
+                "lines-MAX_NUM_FORMS": "1000",
+                "lines-0-invoice_item": item.pk,
+                "lines-0-quantity": "10.00",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        lines = InventoryMovementLine.objects.filter(operation=purchase)
+        self.assertEqual(lines.count(), 1)
+        self.assertEqual(lines.first().quantity, Decimal("10.00"))
+        self.assertEqual(lines.first().product, product)

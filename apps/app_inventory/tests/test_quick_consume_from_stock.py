@@ -88,7 +88,7 @@ class QuickConsumeFromStockTest(TestCase):
         )
         return product
 
-    def _post_consume(self, product, qty=Decimal("5.00"), price=Decimal("100.00"), **extra):
+    def _post_consume(self, product, qty: "Decimal | str" = "5.00", price: "Decimal | str" = "100.00", **extra):
         data = {
             "product_id": str(product.pk),
             "quantity": str(qty),
@@ -297,4 +297,74 @@ class QuickConsumeFromStockTest(TestCase):
         response = self._post_consume(product)
 
         self.assertEqual(response.status_code, 302)
+        self.assertEqual(self._consumption_count(), 0)
+
+    # --- QC4 / QC6 / QC7 validation branches (spec §5.4.1) -----------------
+
+    def test_quick_consume_rejects_invalid_quantity(self):
+        """QC4 — a non-numeric quantity is rejected before any side-effect."""
+        self.client.login(username="officer_quick", password="testpass")
+        product = self._make_moved_product()
+
+        response = self._post_consume(product, qty="not-a-number")
+
+        self.assertRedirects(
+            response,
+            reverse("stock_detail", kwargs={"entity_pk": self.project_entity.pk}),
+        )
+        self.assertEqual(self._consumption_count(), 0)
+
+    def test_quick_consume_rejects_invalid_unit_price(self):
+        """QC4 — a non-numeric unit price is rejected."""
+        self.client.login(username="officer_quick", password="testpass")
+        product = self._make_moved_product()
+
+        response = self._post_consume(product, price="oops")
+
+        self.assertRedirects(
+            response,
+            reverse("stock_detail", kwargs={"entity_pk": self.project_entity.pk}),
+        )
+        self.assertEqual(self._consumption_count(), 0)
+
+    def test_quick_consume_rejects_zero_quantity(self):
+        """QC4 — a quantity of zero (or negative) is rejected."""
+        self.client.login(username="officer_quick", password="testpass")
+        product = self._make_moved_product()
+
+        response = self._post_consume(product, qty=Decimal("0.00"))
+
+        self.assertRedirects(
+            response,
+            reverse("stock_detail", kwargs={"entity_pk": self.project_entity.pk}),
+        )
+        self.assertEqual(self._consumption_count(), 0)
+
+    def test_quick_consume_rejects_quantity_not_multiple_of_minimum(self):
+        """QC6 — quantity that is not a multiple of the template's minimum
+        increment (1.00 Kg here) is rejected."""
+        self.client.login(username="officer_quick", password="testpass")
+        product = self._make_moved_product()
+
+        response = self._post_consume(product, qty=Decimal("1.50"))
+
+        self.assertRedirects(
+            response,
+            reverse("stock_detail", kwargs={"entity_pk": self.project_entity.pk}),
+        )
+        self.assertEqual(self._consumption_count(), 0)
+        product.refresh_from_db()
+        self.assertEqual(product.status, Product.Status.ACTIVE)
+
+    def test_quick_consume_rejects_invalid_date(self):
+        """QC7 — an unparsable date is rejected."""
+        self.client.login(username="officer_quick", password="testpass")
+        product = self._make_moved_product()
+
+        response = self._post_consume(product, qty=Decimal("1.00"), date="not-a-date")
+
+        self.assertRedirects(
+            response,
+            reverse("stock_detail", kwargs={"entity_pk": self.project_entity.pk}),
+        )
         self.assertEqual(self._consumption_count(), 0)

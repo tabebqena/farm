@@ -131,6 +131,7 @@ The tables below **register every file that implements the stock subsystem**. Th
 | Stock detail view | [`test_views_get_stock_detail_view.py`](../../../apps/app_inventory/tests/test_views_get_stock_detail_view.py) |
 | Stock history view | [`test_views_get_stock_history_view.py`](../../../apps/app_inventory/tests/test_views_get_stock_history_view.py) |
 | Product valuation / current_value | [`test_product.py`](../../../apps/app_inventory/tests/test_product.py) |
+| Reverse / batch-reverse / deferred / backward-compat view actions | [`test_views_movement_actions.py`](../../../apps/app_inventory/tests/test_views_movement_actions.py) |
 
 ---
 
@@ -196,7 +197,7 @@ Entry points: movement form [`create_purchase_movement`](../../../apps/app_inven
 | RC3 | Movement date not in a closed period | `not is_date_in_closed_period(operation.period_entity, date)` | `ValidationError` | `"Cannot record a movement dated within a closed financial period."` | [`_create_inventory_movement`](../../../apps/app_inventory/views.py:710) | covered by period suite |
 | RC4 | Over-delivery guard | `already_moved + qty ≤ invoice_item.quantity` | `ValidationError` | `"Total moved quantity … would exceed the invoice item quantity."` | [`InventoryMovementLine.clean`](../../../apps/app_inventory/models.py:1102) | [`test_quantity_exceeds_invoice_item`](../../../apps/app_inventory/tests/test_inventory_movement.py:245) |
 | RC5 | Unit consistency | `quantity % minimum_quantity == 0` | `ValidationError` | `"Quantity … must be a multiple of the minimum increment …"` | [`InventoryMovementLine.clean`](../../../apps/app_inventory/models.py:1161) | [`test_movement_rejects_quantity_not_multiple_of_minimum`](../../../apps/app_inventory/tests/test_inventory_movement.py:546) |
-| RC6 | Item belongs to the operation | `invoice_item.operation == operation` | `ValidationError` | `"Invoice item does not belong to this operation."` | [`InventoryMovementLine.clean`](../../../apps/app_inventory/models.py:1094) | structural |
+| RC6 | Item belongs to the operation | `invoice_item.operation == operation` | `ValidationError` | `"Invoice item does not belong to this operation."` | [`InventoryMovementLine.clean`](../../../apps/app_inventory/models.py:1094) | [`test_movement_rejects_invoice_item_from_other_operation`](../../../apps/app_inventory/tests/test_inventory_movement.py:907) |
 | RC7 | Availability on receive | inbound receipts are **not** availability-gated | never fails | — | `_outbound_owner_entity()` returns `None` for inbound | — |
 
 #### 5.1.2 Success effects
@@ -205,7 +206,7 @@ Entry points: movement form [`create_purchase_movement`](../../../apps/app_inven
 |---|--------|--------------------|----------------|-------------|
 | RS1 | Movement line(s) created | `PURCHASE_MOVEMENT` physical event; `date`, `officer`, `notes`, `group_key` recorded | [`InventoryMovementLine.save`](../../../apps/app_inventory/models.py:1202) | [`test_create_inventory_movement_purchase`](../../../apps/app_inventory/tests/test_inventory_movement.py:59) |
 | RS2 | INDIVIDUAL → one line per head | moving 10 animals → 10 lines of qty `1.00`, each lazily creating its own tagged `Product` (`ACTIVE`) | [`_create_inventory_movement`](../../../apps/app_inventory/views.py:751) + lazy save | [`test_purchase_movement_creates_new_product_per_animal`](../../../apps/app_inventory/tests/test_inventory_movement.py:120) |
-| RS3 | COMMODITY → one line with full qty | moving 10 kg of corn → one line qty 10 | [`InventoryMovementLine.save`](../../../apps/app_inventory/models.py:1216) | covered by inventory suite |
+| RS3 | COMMODITY → one line with full qty | moving 10 kg of corn → one line qty 10 | [`InventoryMovementLine.save`](../../../apps/app_inventory/models.py:1216) | [`test_purchase_commodity_receives_single_line_full_qty`](../../../apps/app_inventory/tests/test_inventory_movement.py:984) |
 | RS4 | Product materialised ACTIVE | `movement_state(product)["quantity"] == received qty` | `movement_state` | [`test_create_inventory_movement_purchase`](../../../apps/app_inventory/tests/test_inventory_movement.py:112) |
 | RS5 | Receive after partial sale allowed | inbound receipts are independent of the lot's status — receiving the rest re-activates a `SOLD` lot | [`InventoryMovementLine.clean`](../../../apps/app_inventory/models.py:1182) | [`test_purchase_receive_remaining_after_partial_sale`](../../../apps/app_inventory/tests/test_inventory_movement.py:595) |
 | RS6 | Remaining qty decreases | `pending_qty` of the item moves toward 0 | `pending_items` / `build_movement_json` | [`test_get_items_data_excludes_reversed_movement_lines`](../../../apps/app_inventory/tests/test_inventory_movement.py:756) |
@@ -268,10 +269,10 @@ Entry point: [`quick_consume`](../../../apps/app_inventory/views.py:318) — POS
 | QC1 | Officer staff | `request.user.is_staff` | redirect + message | `"You must be an officer to consume from stock."` | [`quick_consume`](../../../apps/app_inventory/views.py:339) | [`test_quick_consume_requires_officer`](../../../apps/app_inventory/tests/test_quick_consume_from_stock.py:194) |
 | QC2 | Product belongs to this stock | `product.entity == entity` | redirect + message | `"Product does not belong to this stock."` | [`quick_consume`](../../../apps/app_inventory/views.py:357) | [`test_quick_consume_rejects_product_not_in_entity`](../../../apps/app_inventory/tests/test_quick_consume_from_stock.py:286) |
 | QC3 | Template accepts consumption | `accepts_operation(CONSUMPTION)` | redirect + message | `"'…' cannot be consumed."` | [`quick_consume`](../../../apps/app_inventory/views.py:362) | [`test_quick_consume_rejects_non_consumable_nature`](../../../apps/app_inventory/tests/test_quick_consume_from_stock.py:207) / [`test_quick_consume_rejects_non_consumable_flag`](../../../apps/app_inventory/tests/test_quick_consume_from_stock.py:246) |
-| QC4 | Quantity / price parse + positive | valid decimals, `qty > 0` | redirect + message | `"Invalid quantity or unit price."` / `"Quantity must be greater than zero."` | [`quick_consume`](../../../apps/app_inventory/views.py:369) | — |
+| QC4 | Quantity / price parse + positive | valid decimals, `qty > 0` | redirect + message | `"Invalid quantity or unit price."` / `"Quantity must be greater than zero."` | [`quick_consume`](../../../apps/app_inventory/views.py:369) | [`test_quick_consume_rejects_invalid_quantity`](../../../apps/app_inventory/tests/test_quick_consume_from_stock.py:304) / [`test_quick_consume_rejects_invalid_unit_price`](../../../apps/app_inventory/tests/test_quick_consume_from_stock.py:317) / [`test_quick_consume_rejects_zero_quantity`](../../../apps/app_inventory/tests/test_quick_consume_from_stock.py:330) |
 | QC5 | Availability | `qty ≤ movement_state(product, as_of=date)["quantity"]` | redirect + message | `"Insufficient stock: …"` | [`quick_consume`](../../../apps/app_inventory/views.py:391) | [`test_quick_consume_over_consumption_is_rejected`](../../../apps/app_inventory/tests/test_quick_consume_from_stock.py:182) |
-| QC6 | Unit consistency | `qty % minimum_quantity == 0` | redirect + message | `"Quantity … must be a multiple of the minimum increment …"` | [`quick_consume`](../../../apps/app_inventory/views.py:401) | — |
-| QC7 | Valid date | `parse_date` non-`None` | redirect + message | `"Invalid date format."` | [`quick_consume`](../../../apps/app_inventory/views.py:377) | — |
+| QC6 | Unit consistency | `qty % minimum_quantity == 0` | redirect + message | `"Quantity … must be a multiple of the minimum increment …"` | [`quick_consume`](../../../apps/app_inventory/views.py:401) | [`test_quick_consume_rejects_quantity_not_multiple_of_minimum`](../../../apps/app_inventory/tests/test_quick_consume_from_stock.py:343) |
+| QC7 | Valid date | `parse_date` non-`None` | redirect + message | `"Invalid date format."` | [`quick_consume`](../../../apps/app_inventory/views.py:377) | [`test_quick_consume_rejects_invalid_date`](../../../apps/app_inventory/tests/test_quick_consume_from_stock.py:359) |
 
 #### 5.4.2 Success effects
 
@@ -290,8 +291,8 @@ Entry points: model [`InventoryMovementLine.reverse`](../../../apps/app_inventor
 
 | # | Branch | Pass condition | Failure outcome | Error (on failure) | Enforced by | Pinned by test |
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
-| MR1 | Line not already reversed | no `reversal_of=self` exists | `ValidationError` | `"Movement line … has already been reversed."` | [`InventoryMovementLine.reverse`](../../../apps/app_inventory/models.py:1238) | view guard (already-reversed warning) |
-| MR2 | Officer staff (view) | `request.user.is_staff` | redirect + message | `"You must be an officer to reverse movement lines."` | [`reverse_inventory_movement_line`](../../../apps/app_inventory/views.py:852) | — |
+| MR1 | Line not already reversed | no `reversal_of=self` exists | `ValidationError` | `"Movement line … has already been reversed."` | [`InventoryMovementLine.reverse`](../../../apps/app_inventory/models.py:1238) | [`test_reverse_of_already_reversed_line_raises`](../../../apps/app_inventory/tests/test_inventory_movement.py:935) / [`test_reverse_movement_line_already_reversed_warns`](../../../apps/app_inventory/tests/test_views_movement_actions.py:105) |
+| MR2 | Officer staff (view) | `request.user.is_staff` | redirect + message | `"You must be an officer to reverse movement lines."` | [`reverse_inventory_movement_line`](../../../apps/app_inventory/views.py:852) | [`test_reverse_movement_line_requires_officer`](../../../apps/app_inventory/tests/test_views_movement_actions.py:123) |
 
 #### 5.5.2 Success effects
 
@@ -300,7 +301,7 @@ Entry points: model [`InventoryMovementLine.reverse`](../../../apps/app_inventor
 | MS1 | Reversal line created | clone with `reversal_of = original`, same op/item/product/qty | [`InventoryMovementLine.reverse`](../../../apps/app_inventory/models.py:1242) | [`test_reversed_movement_is_excluded`](../../../apps/app_inventory/tests/test_stock.py:135) |
 | MS2 | Stock excludes both lines | reversal line **and** the reversed original are excluded from `active_movements` → net back to pre-move state | [`active_movements`](../../../apps/app_inventory/stock.py:31) | [`test_reversed_movement_is_excluded`](../../../apps/app_inventory/tests/test_stock.py:135) |
 | MS3 | Item moved/remaining updated | `moved_qty` drops, `remaining_qty` rises; re-receiving the reversed amount passes the over-delivery guard | [`_item_moved_qty`](../../../apps/app_inventory/stock.py:155) / `build_movement_json` | [`test_get_items_data_excludes_reversed_movement_lines`](../../../apps/app_inventory/tests/test_inventory_movement.py:756) |
-| MS4 | Batch reverse by `group_key` | all non-reversed lines sharing a key reversed atomically | [`batch_reverse`](../../../apps/app_inventory/models.py:1254) | inventory suite |
+| MS4 | Batch reverse by `group_key` | all non-reversed lines sharing a key reversed atomically | [`batch_reverse`](../../../apps/app_inventory/models.py:1254) | [`test_batch_reverse_by_group_key`](../../../apps/app_inventory/tests/test_inventory_movement.py:943) / [`test_batch_reverse_success`](../../../apps/app_inventory/tests/test_views_movement_actions.py:165) |
 
 ### 5.6 `query` (state / portfolio / value / pending)
 
@@ -326,10 +327,10 @@ Pure functions in [`stock.py`](../../../apps/app_inventory/stock.py) — no side
 
 | Branch | Enforced by | Pinned by test |
 |--------|-------------|----------------|
-| `operation` changed after save | [`InventoryMovementLine._immutable_fields`](../../../apps/app_inventory/models.py:973) | |
-| `invoice_item` changed after save | [`InventoryMovementLine._immutable_fields`](../../../apps/app_inventory/models.py:973) | |
-| `quantity` changed after save | [`InventoryMovementLine._immutable_fields`](../../../apps/app_inventory/models.py:973) | |
-| `product` changed after save | [`InventoryMovementLine._immutable_fields`](../../../apps/app_inventory/models.py:973) | |
+| `operation` changed after save | [`InventoryMovementLine._immutable_fields`](../../../apps/app_inventory/models.py:973) | [`test_movement_line_operation_is_immutable_after_save`](../../../apps/app_inventory/tests/test_inventory_movement.py:862) |
+| `invoice_item` changed after save | [`InventoryMovementLine._immutable_fields`](../../../apps/app_inventory/models.py:973) | [`test_movement_line_invoice_item_is_immutable_after_save`](../../../apps/app_inventory/tests/test_inventory_movement.py:876) |
+| `quantity` changed after save | [`InventoryMovementLine._immutable_fields`](../../../apps/app_inventory/models.py:973) | [`test_movement_line_quantity_is_immutable_after_save`](../../../apps/app_inventory/tests/test_inventory_movement.py:890) |
+| `product` changed after save | [`InventoryMovementLine._immutable_fields`](../../../apps/app_inventory/models.py:973) | [`test_movement_line_product_is_immutable_after_save`](../../../apps/app_inventory/tests/test_inventory_movement.py:897) |
 
 ---
 
@@ -441,3 +442,24 @@ Pure functions in [`stock.py`](../../../apps/app_inventory/stock.py) — no side
 | Stock detail view | [`test_views_get_stock_detail_view.py`](../../../apps/app_inventory/tests/test_views_get_stock_detail_view.py) | view contract (§8) |
 | Stock history view | [`test_views_get_stock_history_view.py`](../../../apps/app_inventory/tests/test_views_get_stock_history_view.py) | view contract (§8) |
 | Product valuation | [`test_product.py`](../../../apps/app_inventory/tests/test_product.py:133) | `current_value` basis |
+| Immutability | [`test_movement_line_operation_is_immutable_after_save`](../../../apps/app_inventory/tests/test_inventory_movement.py:862) | IM1 |
+| Immutability | [`test_movement_line_invoice_item_is_immutable_after_save`](../../../apps/app_inventory/tests/test_inventory_movement.py:876) | IM2 |
+| Immutability | [`test_movement_line_quantity_is_immutable_after_save`](../../../apps/app_inventory/tests/test_inventory_movement.py:890) | IM3 |
+| Immutability | [`test_movement_line_product_is_immutable_after_save`](../../../apps/app_inventory/tests/test_inventory_movement.py:897) | IM4 |
+| Receive (validation) | [`test_movement_rejects_invoice_item_from_other_operation`](../../../apps/app_inventory/tests/test_inventory_movement.py:907) | RC6 |
+| Receive (model) | [`test_purchase_commodity_receives_single_line_full_qty`](../../../apps/app_inventory/tests/test_inventory_movement.py:984) | RS3 |
+| Reversal (model) | [`test_reverse_of_already_reversed_line_raises`](../../../apps/app_inventory/tests/test_inventory_movement.py:935) | MR1 |
+| Reversal (view) | [`test_reverse_movement_line_success`](../../../apps/app_inventory/tests/test_views_movement_actions.py:86) | MS1, MS2 |
+| Reversal (view) | [`test_reverse_movement_line_already_reversed_warns`](../../../apps/app_inventory/tests/test_views_movement_actions.py:105) | MR1 |
+| Reversal (view) | [`test_reverse_movement_line_requires_officer`](../../../apps/app_inventory/tests/test_views_movement_actions.py:123) | MR2 |
+| Reversal (model) | [`test_batch_reverse_by_group_key`](../../../apps/app_inventory/tests/test_inventory_movement.py:943) | MS4 |
+| Reversal (view) | [`test_batch_reverse_success`](../../../apps/app_inventory/tests/test_views_movement_actions.py:165) | MS4 |
+| Quick consume (validation) | [`test_quick_consume_rejects_invalid_quantity`](../../../apps/app_inventory/tests/test_quick_consume_from_stock.py:304) | QC4 |
+| Quick consume (validation) | [`test_quick_consume_rejects_invalid_unit_price`](../../../apps/app_inventory/tests/test_quick_consume_from_stock.py:317) | QC4 |
+| Quick consume (validation) | [`test_quick_consume_rejects_zero_quantity`](../../../apps/app_inventory/tests/test_quick_consume_from_stock.py:330) | QC4 |
+| Quick consume (validation) | [`test_quick_consume_rejects_quantity_not_multiple_of_minimum`](../../../apps/app_inventory/tests/test_quick_consume_from_stock.py:343) | QC6 |
+| Quick consume (validation) | [`test_quick_consume_rejects_invalid_date`](../../../apps/app_inventory/tests/test_quick_consume_from_stock.py:359) | QC7 |
+| Deferred movements (view) | [`test_register_deferred_movements_commodity_single_line`](../../../apps/app_inventory/tests/test_views_movement_actions.py:205) | §8 deferred (COMMODITY) |
+| Deferred movements (view) | [`test_register_deferred_movements_individual_one_line_per_product`](../../../apps/app_inventory/tests/test_views_movement_actions.py:251) | §8 deferred (INDIVIDUAL) |
+| Deferred movements (view) | [`test_register_deferred_movements_requires_officer`](../../../apps/app_inventory/tests/test_views_movement_actions.py:285) | §8 deferred officer gate |
+| View contract | [`test_backward_compatible_movement_route_redirects`](../../../apps/app_inventory/tests/test_views_movement_actions.py:311) | §8 backward-compatible route |
