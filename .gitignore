@@ -9,3 +9,4 @@ test_screenshots/*
 test_results.txt
 **/.*.csv#
 *.sqlite3
+tmp/**
