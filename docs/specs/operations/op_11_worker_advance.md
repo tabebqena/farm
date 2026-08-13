@@ -417,7 +417,7 @@ There is **no standalone pay action** for Worker Advance — the payment is part
 - [x] Verify reversal marks the operation as reversed, sets `reversed_by`, and marks `is_reversal` (SR1–SR3)
 - [x] Verify reversal inherits amount, source, destination from original (SR4)
 - [x] Verify cannot reverse an already-reversed operation or a reversal (VR1, VR2)
-- [ ] UI: create form — source restricted to Projects, destination filtered to active workers of the selected project
-- [ ] UI: detail view shows advance amount, total repaid so far, outstanding balance, and "Record Repayment" button
-- [ ] UI: repayment form pre-fills max allowed amount and blocks submission if repayment exceeds outstanding balance
+- [x] UI: create form — source restricted to Projects, destination filtered to active workers of the selected project
+- [x] UI: detail view shows advance amount, total repaid so far, outstanding balance, and "Record Repayment" button
+- [x] UI: repayment form shows the remaining balance (`amount_remaining_to_repay`) for reference while leaving the amount field blank for user entry; over-repayment is blocked (VRp2) — the field is intentionally not pre-filled
 - [ ] Add a focused test for the operation **closed-period** create guard (VC12/VC13) specific to Worker Advance
