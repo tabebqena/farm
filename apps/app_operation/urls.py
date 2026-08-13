@@ -28,11 +28,20 @@ urlpatterns = [
         views.operation_list_view,
         name="operation_list_view",
     ),
+    # TODO(spec): register the no-product route `/<pk>/evaluate/` claimed by
+    # docs/specs/operations/op_5_capital_gain.md and op_6_capital_loss.md §8
+    # ("also /<pk>/evaluate/ without a product"). EvaluationCreateView already
+    # handles product_pk=None, but only `/<pk>/evaluate/<product_pk>/` is wired.
     path(
         "<int:pk>/evaluate/<int:product_pk>/",
         views.EvaluationCreateView.as_view(),
         name="evaluation_create_view",
     ),
+    # path(
+    #     "<int:pk>/evaluate/",
+    #     views.EvaluationCreateView.as_view(),
+    #     name="evaluation_create_view_no_product",
+    # ),
     path(
         "<int:pk>/birth/create",
         views.BirthCreateView.as_view(),
