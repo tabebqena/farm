@@ -325,4 +325,4 @@ There is **no standalone pay action** for Cash Injection:
 - [x] UI: create form — source locked to World, destination = person from URL
 - [x] UI: operation detail shows the aggregate amount + reversal action; per-transaction list hidden for one-shot
 - [x] Complete test suite covering all branches; each test has a small number of assertions (one behavior per test)
-- [ ] Register remaining operation specs under the same contract structure (see [`_OPERATION_SPEC_TEMPLATE.md`](_OPERATION_SPEC_TEMPLATE.md))
+
