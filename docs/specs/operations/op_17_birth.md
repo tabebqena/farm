@@ -41,7 +41,8 @@
 | `has_category` / `category_required` | `False` | no financial category |
 | `has_repayment` | `False` | no repayment action |
 | `has_invoice` | `True` | invoice items + auto inventory movements |
-| `creates_assets` / `can_create_movement` | `True` | new assets are created (lazy products), auto inbound movements |
+| `creates_assets` | `True` | new assets are created (lazy products) |
+| `can_create_movement` | `False` | no manual movement screen — the `can_create_movement` property is `True` only for PURCHASE/SALE; birth's inbound movements are auto-created via `save_inventory()` → `_auto_create_inventory_movements()` |
 
 ---
 
