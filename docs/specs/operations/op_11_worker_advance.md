@@ -99,7 +99,7 @@ The tables below **register every file that implements this operation**. The spe
 | POST parsing/validation | `OperationDataValidator` |
 | Repay view | `record_transaction_repayment` |
 | Reverse view (reason required) | `operation_reverse_view` |
-| Detail view (transactions + outstanding balance + repay/reverse buttons) | `operation_detail_view` |
+| Detail view (aggregate amount + outstanding balance + repay/reverse buttons; per-transaction list hidden — one-shot) | `operation_detail_view` |
 | URL: `/<pk>/worker-advance/create` | |
 | URL: `repayment/<pk>/create` | |
 | URL: `/<pk>/detail/` | |
@@ -328,7 +328,7 @@ There is **no standalone pay action** for Worker Advance — the payment is part
 | Amount | raw `amount` POST field (`_compute_amount`); validated > 0 at model; project balance checked at create (VC11) |
 | POST parsing | `OperationDataValidator` — date format, description, category (n/a), `amount_paid` (n/a, forced 0) |
 | List entry | "Worker Advance" link |
-| Detail | `operation_detail_view` — shows issuance + payment, advance amount, total repaid so far, outstanding balance to repay, Record Repayment / Reverse buttons |
+| Detail | `operation_detail_view` — shows the advance amount, total repaid so far, outstanding balance to repay, Record Repayment / Reverse buttons; the individual issuance/payment transactions are hidden (one-shot — two identical amounts would confuse users) |
 | Repay | `repayment/<pk>/create` → `record_transaction_repayment` — `PaymentForm`, `can_repay` guard, shows `amount_remaining_to_repay`, blocks over-repayment (VRp2) |
 | Reverse | `/<pk>/reverse/` → `operation_reverse_view` — `POST` requires `reversal_reason`; guards already-reversed / is-reversal (VR1/VR2) |
 

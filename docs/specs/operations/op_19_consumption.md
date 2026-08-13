@@ -111,7 +111,7 @@ The tables below **register every file that implements this operation**. The spe
 | POST parsing/validation | `OperationDataValidator` |
 | Quick-consume view (one-step from stock detail) | `quick_consume` |
 | Reverse view (reason required) | `operation_reverse_view` |
-| Detail view (transactions + reversal button) | `operation_detail_view` |
+| Detail view (aggregate amount + movement lines + reversal action; per-transaction list hidden — one-shot) | `operation_detail_view` |
 | URL: `/<pk>/<op_type>/create` (op_type = `consumption`) | |
 | URL: `entity/<int:entity_pk>/stock/consume/` (name `quick_consume`) | |
 | URL: `/<pk>/reverse/` | |
@@ -317,7 +317,7 @@ There is **no standalone pay action** for Consumption:
 | POST parsing | `OperationDataValidator` — date format, description, category (n/a), `amount_paid` (n/a, forced 0) |
 | Quick-consume | stock detail `live` tab renders an inline form posting to `entity/<entity_pk>/stock/consume/` (name `quick_consume`) — see §5.1.3; redirects back to stock detail with a Django message |
 | List entry | "Consumption" link |
-| Detail | `operation_detail_view` — shows both transactions + auto movement lines + settlement + reversal button |
+| Detail | `operation_detail_view` — shows the operation total + settlement status + auto movement lines + reversal action; the individual issuance/payment transactions are hidden (one-shot — two identical amounts would confuse users) |
 | Stock history | the consumed product's OUT movement appears on the Stock History page (`stock_history`); the `live` tab excludes CONSUMED products (`stock_detail`) |
 | Reverse | `operation_reverse_view` — `POST` requires `reversal_reason`; guards already-reversed / is-reversal (VR1/VR2) |
 

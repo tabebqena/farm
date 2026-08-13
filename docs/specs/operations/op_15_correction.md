@@ -97,7 +97,7 @@ The tables below **register every file that implements this operation**. The spe
 | Create view (generic, resolves system/url roles) | `OperationCreateView` |
 | POST parsing/validation | `OperationDataValidator` |
 | Reverse view (reason required) | `operation_reverse_view` |
-| Detail view (transactions + reversal button) | `operation_detail_view` |
+| Detail view (aggregate amount + reversal action; per-transaction list hidden — one-shot) | `operation_detail_view` |
 | URL: `/<pk>/<op_type>/create` | |
 | URL: `/<pk>/reverse/` | |
 | URL: `/<pk>/detail/` | |
@@ -349,7 +349,7 @@ There is **no standalone pay action** for either Correction variant:
 | Amount | raw `amount` POST field (`_compute_amount`); validated > 0 at model; never balance-gated | raw `amount` POST field (`_compute_amount`); validated > 0 at model; never balance-gated |
 | POST parsing | `OperationDataValidator` — date format, description, category (n/a), `amount_paid` (n/a, forced 0) | same |
 | List entry | **no standard dropdown entry** — admin-only routes | same |
-| Detail | `operation_detail_view` — shows both transactions + settlement + reversal button | same |
+| Detail | `operation_detail_view` — shows the operation total + settlement status + reversal action; the individual issuance/payment transactions are hidden (one-shot — two identical amounts would confuse users) | same |
 | Reverse | `operation_reverse_view` — `POST` requires `reversal_reason`; guards already-reversed / is-reversal (CC24/CC25) | `operation_reverse_view` — same guards (CD24/CD25) |
 
 ---
@@ -431,6 +431,6 @@ There is **no standalone pay action** for either Correction variant:
 - [x] Verify project fund restored after reversal (both variants)
 - [x] Verify cannot reverse an already-reversed operation or a reversal
 - [x] UI: create form — Credit source locked to System / destination = project from URL; Debit source = project from URL / destination locked to System
-- [x] UI: operation detail shows both transactions and reversal button
+- [x] UI: operation detail shows the aggregate amount + reversal action; per-transaction list hidden for one-shot
 - [ ] Add dedicated focused for both Correction variants (CC37/CD37 pinned only by the differential invariant)
 - [ ] Add dedicated focused for both Correction variants (CC38/CD38 pinned only by the shared engine)

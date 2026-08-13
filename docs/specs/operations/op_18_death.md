@@ -106,7 +106,7 @@ The tables below **register every file that implements this operation**. The spe
 | Create view (dedicated Death) | `DeathCreateView` |
 | POST parsing/validation | `OperationDataValidator` |
 | Reverse view (reason required) | `operation_reverse_view` |
-| Detail view (transactions + reversal button) | `operation_detail_view` |
+| Detail view (aggregate amount + movement lines + reversal action; per-transaction list hidden — one-shot) | `operation_detail_view` |
 | URL: `/<pk>/death/create` | |
 | URL: `/<pk>/reverse/` | |
 | URL: `/<pk>/detail/` | |
@@ -279,7 +279,7 @@ There is **no standalone pay action** for Death:
 | Die-able product | selectable products are those whose template is ANIMAL **and** `can_die=True` (`accepts_operation(DEATH)`); the picker filters to the project's active on-hand stock |
 | POST parsing | `OperationDataValidator` — date format, description, category (n/a), `amount_paid` (n/a, forced 0) |
 | List entry | "Death" link |
-| Detail | `operation_detail_view` — shows both transactions + auto movement lines + settlement + reversal button |
+| Detail | `operation_detail_view` — shows the operation total + settlement status + auto movement lines + reversal action; the individual issuance/payment transactions are hidden (one-shot — two identical amounts would confuse users) |
 | Reverse | `operation_reverse_view` — `POST` requires `reversal_reason`; guards already-reversed / is-reversal (VR1/VR2) |
 
 ---

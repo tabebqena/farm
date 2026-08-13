@@ -102,7 +102,7 @@ The tables below **register every file that implements this operation**. The spe
 | Generic create view (secondary path, list links commented out) | `OperationCreateView` |
 | POST parsing/validation | `OperationDataValidator` |
 | Reverse view (reason required) | `operation_reverse_view` |
-| Detail view (transactions + reversal button) | `operation_detail_view` |
+| Detail view (aggregate amount + reversal action; per-transaction list hidden — one-shot) | `operation_detail_view` |
 | URL: `/<pk>/evaluate/<product_pk>/` | |
 | URL: `/<pk>/<op_type>/create` (secondary) | |
 | URL: `/<pk>/reverse/` | |
@@ -284,7 +284,7 @@ There is **no standalone pay action** for Capital Gain:
 | Amount | derived from the invoice item (`quantity × | Δ unit price | `) created by the evaluation view |
 | Category | hidden (no category) |
 | Secondary create route | `/<pk>/<op_type>/create` with `op_type="capital-gain"` exists (`OperationCreateView`), but the operation-list links are **commented out** |
-| Detail | `operation_detail_view` — shows both transactions + settlement + reversal button |
+| Detail | `operation_detail_view` — shows the operation total + settlement status + reversal action; the individual issuance/payment transactions are hidden (one-shot — two identical amounts would confuse users) |
 | Reverse | `operation_reverse_view` — `POST` requires `reversal_reason`; guards already-reversed / is-reversal (VR1/VR2) |
 
 ---
@@ -349,5 +349,5 @@ There is **no standalone pay action** for Capital Gain:
 - [x] Verify the gain is value-only: no `InventoryMovementLine`, product stays `ACTIVE` through create + reverse
 - [x] Verify the gain is counted **once** in inventory value and **once** in P&L — never in the cash balance (no double count)
 - [x] Verify the evaluation UI computes the direction from the valuation delta and enforces product ownership
-- [ ] UI: operation detail shows issuance transaction and reversal button (pinned by view coverage)
+- [ ] UI: operation detail shows the aggregate amount + reversal action; per-transaction list hidden for one-shot
 - [ ] Complete test suite covering all branches; each test has a small number of assertions (one behavior per test)

@@ -91,7 +91,7 @@ The tables below **register every file that implements this operation**. The spe
 | Create view (generic, resolves world source + URL person destination) | `OperationCreateView` |
 | POST parsing/validation | `OperationDataValidator` |
 | Reverse view (reason required) | `operation_reverse_view` |
-| Detail view (transactions + reversal button) | `operation_detail_view` |
+| Detail view (aggregate amount + reversal action; per-transaction list hidden — one-shot) | `operation_detail_view` |
 | URL: `/<pk>/<op_type>/create` | |
 | URL: `/<pk>/reverse/` | |
 | URL: `/<pk>/detail/` | |
@@ -258,7 +258,7 @@ There is **no standalone pay action** for Cash Injection:
 | Amount | raw `amount` POST field (`_compute_amount`); validated > 0 at model |
 | POST parsing | `OperationDataValidator` — date format, description, category (n/a), `amount_paid` (n/a, forced 0) |
 | List entry | "Cash Injection" list entry |
-| Detail | `operation_detail_view` — shows both transactions + settlement + reversal button |
+| Detail | `operation_detail_view` — shows the operation total + settlement status + reversal action; the individual issuance/payment transactions are hidden (one-shot — two identical amounts would confuse users) |
 | Reverse | `operation_reverse_view` — `POST` requires `reversal_reason`; guards already-reversed / is-reversal (VR1/VR2) |
 
 ---
@@ -323,6 +323,6 @@ There is **no standalone pay action** for Cash Injection:
 - [x] Verify person balance affected correctly by create (▲ amount)
 - [x] Verify person balance affected correctly by reverse (restored)
 - [x] UI: create form — source locked to World, destination = person from URL
-- [x] UI: operation detail shows both transactions and reversal button
+- [x] UI: operation detail shows the aggregate amount + reversal action; per-transaction list hidden for one-shot
 - [x] Complete test suite covering all branches; each test has a small number of assertions (one behavior per test)
 - [ ] Register remaining operation specs under the same contract structure (see [`_OPERATION_SPEC_TEMPLATE.md`](_OPERATION_SPEC_TEMPLATE.md))

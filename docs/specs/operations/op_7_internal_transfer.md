@@ -97,7 +97,7 @@ The tables below **register every file that implements this operation**. The spe
 | Create view (generic, resolves URL person source + `post` person destination) | `OperationCreateView` |
 | POST parsing/validation | `OperationDataValidator` |
 | Reverse view (reason required) | `operation_reverse_view` |
-| Detail view (transactions + reversal button) | `operation_detail_view` |
+| Detail view (aggregate amount + reversal action; per-transaction list hidden — one-shot) | `operation_detail_view` |
 | URL: `/<pk>/<op_type>/create` | |
 | URL: `/<pk>/reverse/` | |
 | URL: `/<pk>/detail/` | |
@@ -269,7 +269,7 @@ There is **no standalone pay action** for Internal Transfer:
 | Amount | raw `amount` POST field (`_compute_amount`); validated > 0 at model; balance-checked at create (VC14) |
 | POST parsing | `OperationDataValidator` — date format, description, category (n/a), `amount_paid` (n/a, forced 0) |
 | List entry | "Internal Transfer" link |
-| Detail | `operation_detail_view` — shows both transactions + settlement + reversal button |
+| Detail | `operation_detail_view` — shows the operation total + settlement status + reversal action; the individual issuance/payment transactions are hidden (one-shot — two identical amounts would confuse users) |
 | Reverse | `operation_reverse_view` — `POST` requires `reversal_reason`; guards already-reversed / is-reversal (VR1/VR2) |
 
 ---
@@ -328,7 +328,7 @@ There is **no standalone pay action** for Internal Transfer:
 - [x] Verify source balance affected correctly by create (▼ amount) and destination (▲ amount)
 - [x] Verify source + destination balances restored by reverse
 - [x] UI: create form — source = person from URL, destination = person picker (internal-ness enforced at model)
-- [x] UI: operation detail shows both transactions and reversal button
+- [x] UI: operation detail shows the aggregate amount + reversal action; per-transaction list hidden for one-shot
 - [ ] Add a dedicated focused for Internal Transfer (SC3 currently pinned only by the shared engine)
 - [ ] Add a dedicated focused for Internal Transfer (SR9 currently pinned only by the differential invariant)
 - [ ] Add a dedicated focused for Internal Transfer (SR10 currently pinned only by the shared engine)
