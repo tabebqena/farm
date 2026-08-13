@@ -306,24 +306,3 @@ There is **no standalone pay action** for Cash Withdrawal:
 | Differential invariant | | SR11, SC7, SR9 |
 
 ---
-
-## 11. Tasks
-
-- [x] Verify both `CAPITAL_WITHDRAWAL_ISSUANCE` and `CAPITAL_WITHDRAWAL_PAYMENT` are created on save
-- [x] Verify transaction fund direction: `person.fund → world.fund` for both
-- [x] Verify operation is fully settled immediately
-- [x] Verify all validation branches VC1–VC15 (including the balance check — VC12)
-- [x] Verify immutability of `source`, `destination`, `amount` after save
-- [x] Verify `create_payment_transaction()` is blocked after creation (one-shot)
-- [x] Verify reversal creates counter-transactions: `world.fund → person.fund`
-- [x] Verify reversal marks original as reversed and sets `reversed_by`
-- [x] Verify counter-transactions preserve transaction type
-- [x] Verify cannot reverse an already-reversed operation
-- [x] Verify cannot reverse a reversal operation
-- [x] Verify person balance affected correctly by create (▼ amount)
-- [x] Verify person balance restored by reverse
-- [x] UI: create form — source = person from URL, destination locked to World
-- [x] UI: operation detail shows the aggregate amount + reversal action; per-transaction list hidden for one-shot
-- [x] Add focused `test_check_balance_on_payment_is_enabled` / `test_insufficient_funds_blocked` pinning VC12
-- [ ] Add a dedicated focused `test_reversal_clears_settlement_state` for Cash Withdrawal (SR9 currently pinned only by the differential invariant)
-- [ ] Add a dedicated focused `test_reason_flows_to_reversal_description` for Cash Withdrawal (SR10 currently pinned only by the shared engine)

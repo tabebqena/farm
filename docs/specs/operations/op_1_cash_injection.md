@@ -306,23 +306,3 @@ There is **no standalone pay action** for Cash Injection:
 | Reason in description | | SR10 |
 
 ---
-
-## 11. Tasks
-
-- [x] Verify both `CASH_INJECTION_ISSUANCE` and `CASH_INJECTION_PAYMENT` are created on save
-- [x] Verify transaction fund direction: `world.fund → person.fund` for both
-- [x] Verify operation is fully settled immediately
-- [x] Verify all validation branches VC1–VC15
-- [x] Verify immutability of `source`, `destination`, `amount` after save
-- [x] Verify `create_payment_transaction()` is blocked after creation (one-shot)
-- [x] Verify reversal creates counter-transactions: `person.fund → world.fund`
-- [x] Verify reversal marks original as reversed and sets `reversed_by`
-- [x] Verify counter-transactions preserve transaction type
-- [x] Verify cannot reverse an already-reversed operation
-- [x] Verify cannot reverse a reversal operation
-- [x] Verify person balance affected correctly by create (▲ amount)
-- [x] Verify person balance affected correctly by reverse (restored)
-- [x] UI: create form — source locked to World, destination = person from URL
-- [x] UI: operation detail shows the aggregate amount + reversal action; per-transaction list hidden for one-shot
-- [x] Complete test suite covering all branches; each test has a small number of assertions (one behavior per test)
-

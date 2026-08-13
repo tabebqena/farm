@@ -331,23 +331,3 @@ There is **no standalone pay action** for Capital Gain:
 | Evaluation ownership guard | | VC16, VC17 |
 
 ---
-
-## 11. Tasks
-
-- [x] Verify both `CAPITAL_GAIN_ISSUANCE` and `CAPITAL_GAIN_PAYMENT` are created on save
-- [x] Verify transaction fund direction: `system.fund → project.fund` for both
-- [x] Verify operation is fully settled immediately
-- [x] Verify all validation branches VC1–VC18
-- [x] Verify immutability of `source`, `destination`, `amount` after save
-- [x] Verify `create_payment_transaction()` is blocked after creation (one-shot)
-- [x] Verify reversal creates counter-transactions: `project.fund → system.fund`
-- [x] Verify reversal marks original as reversed and sets `reversed_by`
-- [x] Verify counter-transactions preserve transaction type
-- [x] Verify cannot reverse an already-reversed operation
-- [x] Verify cannot reverse a reversal operation
-- [x] Verify the gain is **non-cash**: project fund unchanged on create and after reversal
-- [x] Verify the gain is value-only: no `InventoryMovementLine`, product stays `ACTIVE` through create + reverse
-- [x] Verify the gain is counted **once** in inventory value and **once** in P&L — never in the cash balance (no double count)
-- [x] Verify the evaluation UI computes the direction from the valuation delta and enforces product ownership
-- [ ] UI: operation detail shows the aggregate amount + reversal action; per-transaction list hidden for one-shot
-- [ ] Complete test suite covering all branches; each test has a small number of assertions (one behavior per test)

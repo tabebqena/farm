@@ -326,24 +326,3 @@ There is **no standalone pay action** for Birth:
 | Born products removed | | SR9 |
 | Reverse constraints | | VR1, VR2 |
 | Reversed-birth stock removal | | SR9 |
-
----
-
-## 11. Tasks
-
-- [x] Verify `BIRTH_ISSUANCE` + `BIRTH_PAYMENT` created on save (non-cash payment)
-- [x] Verify transaction fund direction: `system.fund → project.fund` for both
-- [x] Verify operation is fully settled immediately
-- [x] Verify `BIRTH_PAYMENT` is excluded from `payment_types()` → no balance / payable / receivable effect
-- [x] Verify all validation branches VC1–VC20 (VC16–VC20 inventory/giving-birth rules)
-- [x] Verify immutability of `source`, `destination`, `amount` after save
-- [x] Verify `create_payment_transaction()` is blocked after creation (one-shot)
-- [x] Verify auto inbound movement lines (one per head for `INDIVIDUAL`) with lazy tagged products
-- [x] Verify newborn status ACTIVE and animal attributes (gender / birth_date / mother)
-- [x] Verify newborn template defaults to mother's `gives_birth_to` (Dairy Cow → Calf)
-- [x] Verify reversal creates counter-transactions `project.fund → system.fund` and reverses auto lines
-- [x] Verify born products become REMOVED on reversal (out of stock, barred from new operations)
-- [x] Verify inventory value increases once at create and returns to baseline on reverse
-- [x] UI: create form — mother picker (ACTIVE female/mixed project animals), newborn template selection, birth-only fields
-- [x] Complete test suite covering all branches; each test has a small number of assertions (one behavior per test)
-- [ ] Pin VC20 (unit multiple) and the shared-engine branches (VC3–VC6, VC10, VC11, VR5) with birth-specific focused tests where missing

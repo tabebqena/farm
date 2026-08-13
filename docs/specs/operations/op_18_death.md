@@ -320,22 +320,3 @@ There is **no standalone pay action** for Death:
 | Status restored ACTIVE | | SR9 |
 | Reverse constraints | | VR1, VR2 |
 
----
-
-## 11. Tasks
-
-- [x] Verify `DEATH_ISSUANCE` + `DEATH_PAYMENT` created on save (non-cash payment)
-- [x] Verify transaction fund direction: `project.fund → system.fund` for both
-- [x] Verify operation is fully settled immediately
-- [x] Verify `DEATH_PAYMENT` is excluded from `payment_types()` → no balance / payable / receivable effect
-- [x] Verify all validation branches VC1–VC20 (VC16–VC20 inventory/`can_die`/ownership/availability rules)
-- [x] Verify immutability of `source`, `destination`, `amount` after save
-- [x] Verify `create_payment_transaction()` is blocked after creation (one-shot)
-- [x] Verify auto outbound movement lines and product status DEAD
-- [x] Verify reversal creates counter-transactions `system.fund → project.fund` and reverses auto lines
-- [x] Verify product status restored to ACTIVE on reversal (reversal-aware `Product.status`)
-- [x] Verify inventory value decreases once at create and returns to baseline on reverse
-- [x] UI: create form — selectable products filtered to die-able (ANIMAL + `can_die`) project stock
-- [x] Complete test suite covering all branches; each test has a small number of assertions (one behavior per test)
-- [ ] Add a death-focused test pinning VR4 (reversal dependency guard: dead product moved again in a later non-reversed outbound op)
-- [ ] Pin the shared-engine branches (VC4–VC6, VC9–VC11, VC12, VC13, VC14, VR6) and VC18–VC20 with death-specific focused tests where missing

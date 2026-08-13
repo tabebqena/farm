@@ -385,39 +385,3 @@ There is **no standalone pay action** for Worker Advance — the payment is part
 | Reverse blocked by repayment | | VR3 |
 | Reverse constraints | | VR1, VR2 |
 
----
-
-## 11. Tasks
-
-- [x] Verify issuance transaction created correctly (project → worker, type `WORKER_ADVANCE_ISSUANCE`)
-- [x] Verify payment transaction created on save (project → worker, type `WORKER_ADVANCE_PAYMENT`) — one-shot pair
-- [x] Verify exactly two transactions are created at create
-- [x] Verify source must be a Project entity (VC1)
-- [x] Verify destination must be a Person entity (VC2)
-- [x] Verify destination must be an active `WORKER` stakeholder of the source project (VC3)
-- [x] Verify both entities must be `active=True` (VC4, VC5)
-- [x] Verify source fund must be `active=True` (VC6)
-- [x] Verify project fund balance is sufficient at create (VC11)
-- [x] Verify amount must be positive (VC8)
-- [x] Verify officer must be staff + active (VC9, VC10)
-- [x] Verify immutability of `source`, `destination`, `amount` after save (IM1–IM3)
-- [x] Verify project fund balance decreases and worker fund balance increases by the advance amount
-- [x] Verify project receivables increase and worker payables increase (obligation created)
-- [x] Verify project payables and worker receivables stay unchanged
-- [x] Verify `amount_remaining_to_repay` equals the full amount after creation
-- [x] Verify `create_payment_transaction()` is blocked after creation (one-shot)
-- [x] Verify repayment transaction direction: `worker.fund → project.fund`, type `WORKER_ADVANCE_REPAYMENT`
-- [x] Verify multiple partial repayments are allowed and accumulate
-- [x] Verify over-repayment is rejected (VRp1, VRp2)
-- [x] Verify full repayment marks the operation as fully repayed and zeroes receivables/payables
-- [x] Verify reversing a repayment restores derived amounts and buckets without leaking (TR1, TR2)
-- [x] Verify reversal is blocked if any repayment exists (VR3)
-- [x] Verify reversal creates counter-transactions for both issuance and payment (SR5, SR6)
-- [x] Verify project & worker funds and obligation buckets restored after reversal (SR7–SR12)
-- [x] Verify reversal marks the operation as reversed, sets `reversed_by`, and marks `is_reversal` (SR1–SR3)
-- [x] Verify reversal inherits amount, source, destination from original (SR4)
-- [x] Verify cannot reverse an already-reversed operation or a reversal (VR1, VR2)
-- [x] UI: create form — source restricted to Projects, destination filtered to active workers of the selected project
-- [x] UI: detail view shows advance amount, total repaid so far, outstanding balance, and "Record Repayment" button
-- [x] UI: repayment form shows the remaining balance (`amount_remaining_to_repay`) for reference while leaving the amount field blank for user entry; over-repayment is blocked (VRp2) — the field is intentionally not pre-filled
-- [ ] Add a focused test for the operation **closed-period** create guard (VC12/VC13) specific to Worker Advance

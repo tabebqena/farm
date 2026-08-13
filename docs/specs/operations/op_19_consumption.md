@@ -370,25 +370,3 @@ There is **no standalone pay action** for Consumption:
 | Quick-consume nature | | QC3, VC16 |
 | Quick-consume ownership | | QC2, VC18 |
 
----
-
-## 11. Tasks
-
-- [x] Verify `CONSUMPTION_ISSUANCE` + `CONSUMPTION_PAYMENT` created on save (non-cash payment)
-- [x] Verify transaction fund direction: `project.fund → system.fund` for both
-- [x] Verify operation is fully settled immediately
-- [x] Verify `CONSUMPTION_PAYMENT` is excluded from `payment_types()` → no balance / payable / receivable effect
-- [x] Verify `CONSUMPTION_ISSUANCE` is counted as **COGS** in `Entity.profit_loss()` (P&L reduced once; `end_assets` reduced once via inventory)
-- [x] Verify all validation branches VC1–VC21 (VC16–VC21 consumable/ownership/availability/unit/status rules)
-- [x] Verify immutability of `source`, `destination`, `amount` after save
-- [x] Verify `create_payment_transaction()` is blocked after creation (one-shot)
-- [x] Verify auto outbound movement lines; product status ACTIVE while partial on-hand remains and CONSUMED once fully written off (net presence 0)
-- [x] Verify reversal creates counter-transactions `system.fund → project.fund` and reverses auto lines
-- [x] Verify product status restored to ACTIVE on reversal (reversal-aware `Product.status`)
-- [x] Verify COGS is negated on reversal (P&L restored) and fund balance stays unchanged
-- [x] Verify the one-step `quick_consume` view reuses `ConsumptionOperation.create(...)` and enforces officer/ownership/nature/availability/unit guards
-- [x] UI: stock detail `live` tab renders the quick-consume form; Stock History shows the OUT movement; CONSUMED products leave `live`
-- [x] Complete test suite covering all branches; each test has a small number of assertions (one behavior per test)
-- [ ] Add a consumption-focused test pinning VR4 (reversal dependency guard: consumed product moved again in a later non-reversed outbound op)
-- [ ] Pin the shared-engine branches (VC1–VC15, VC18–VC20, VR1–VR3, VR5, VR6) with consumption-specific focused tests where missing
-- [ ] Register remaining operation specs under the same contract structure (see [`_OPERATION_SPEC_TEMPLATE.md`](_OPERATION_SPEC_TEMPLATE.md))

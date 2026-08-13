@@ -205,6 +205,3 @@ Steps to widen a new operation:
 |------|-------------|------------|
 | … | [`test…`](…) | … |
 
-## 11. Tasks
-
-- [ ] … (one per branch/effect; mark `[x]` once pinned by a focused test)

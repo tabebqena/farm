@@ -412,25 +412,3 @@ There is **no standalone pay action** for either Correction variant:
 | CD Differential invariant | | CD39, CD37, CD21 |
 | CD Reverse constraints | | CD24, CD25 |
 
----
-
-## 11. Tasks
-
-- [x] Verify both issuance + payment transactions are created on save (CC16/CC17 and CD16/CD17)
-- [x] Verify transaction fund direction — Credit `system.fund → project.fund`, Debit `project.fund → system.fund`
-- [x] Verify operation is fully settled immediately
-- [x] Verify all validation branches (CC1–CC15 and CD1–CD15)
-- [x] Verify `check_balance_on_payment=False` — Credit balance exempt (system), Debit may go into deficit
-- [x] Verify `has_category=False` and `category_required=False` class-level config
-- [x] Verify immutability of `source`, `destination`, `amount` after save
-- [x] Verify `can_pay=False` — `create_payment_transaction()` is blocked after creation
-- [x] Verify reversal creates counter-transactions — Credit `project.fund → system.fund`, Debit `system.fund → project.fund`
-- [x] Verify reversal marks original as reversed and sets `reversed_by`
-- [x] Verify reversal is marked as `is_reversal=True` and inherits amount/source/destination
-- [x] Verify counter-transactions preserve transaction type
-- [x] Verify project fund restored after reversal (both variants)
-- [x] Verify cannot reverse an already-reversed operation or a reversal
-- [x] UI: create form — Credit source locked to System / destination = project from URL; Debit source = project from URL / destination locked to System
-- [x] UI: operation detail shows the aggregate amount + reversal action; per-transaction list hidden for one-shot
-- [ ] Add dedicated focused for both Correction variants (CC37/CD37 pinned only by the differential invariant)
-- [ ] Add dedicated focused for both Correction variants (CC38/CD38 pinned only by the shared engine)

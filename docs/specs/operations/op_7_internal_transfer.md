@@ -313,25 +313,3 @@ There is **no standalone pay action** for Internal Transfer:
 | Reason in reversal description | `InternalTransferReversalTest.test_reversal_description_contains_reason` | SR10 |
 | Differential invariant | `InternalTransferReversalTest.test_create_then_reverse_leaves_world_unchanged` | SR11 |
 
----
-
-## 11. Tasks
-
-- [x] Verify both `INTERNAL_TRANSFER_ISSUANCE` and `INTERNAL_TRANSFER_PAYMENT` are created on save
-- [x] Verify transaction fund direction: `source.fund → destination.fund` for both
-- [x] Verify operation is fully settled immediately
-- [x] Verify all validation branches VC1–VC17 (internal, non-virtual, balance, active, amount, officer)
-- [x] Verify immutability of `source`, `destination`, `amount` after save
-- [x] Verify `create_payment_transaction()` is blocked after creation (one-shot)
-- [x] Verify reversal creates counter-transactions: `destination.fund → source.fund`
-- [x] Verify reversal marks original as reversed and sets `reversed_by`
-- [x] Verify counter-transactions preserve transaction type
-- [x] Verify cannot reverse an already-reversed operation
-- [x] Verify cannot reverse a reversal operation
-- [x] Verify source balance affected correctly by create (▼ amount) and destination (▲ amount)
-- [x] Verify source + destination balances restored by reverse
-- [x] UI: create form — source = person from URL, destination = person picker (internal-ness enforced at model)
-- [x] UI: operation detail shows the aggregate amount + reversal action; per-transaction list hidden for one-shot
-- [x] Add a dedicated focused test for Internal Transfer (SC3 pinned by `InternalTransferCreateTest.test_transaction_amounts_equal_operation_amount`)
-- [x] Add a dedicated focused test for Internal Transfer (SR9 pinned by `InternalTransferReversalTest.test_settlement_state_cleared_after_reversal`)
-- [x] Add a dedicated focused test for Internal Transfer (SR10 pinned by `InternalTransferReversalTest.test_reversal_description_contains_reason`)

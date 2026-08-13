@@ -317,24 +317,3 @@ There is **no standalone pay action** for Project Refund:
 | Differential invariant | | SR11, SR9 |
 
 ---
-
-## 11. Tasks
-
-- [x] Verify both `PROJECT_REFUND_ISSUANCE` and `PROJECT_REFUND_PAYMENT` are created on save
-- [x] Verify transaction fund direction: `project.fund → person.fund` for both
-- [x] Verify operation is fully settled immediately
-- [x] Verify all validation branches VC1–VC17 (including balance check, shareholder check, and net-funded cap)
-- [x] Verify immutability of `source`, `destination`, `amount` after save
-- [x] Verify `create_payment_transaction()` is blocked after creation (one-shot)
-- [x] Verify reversal creates counter-transactions: `person.fund → project.fund`
-- [x] Verify reversal marks original as reversed and sets `reversed_by`
-- [x] Verify counter-transactions preserve transaction type
-- [x] Verify cannot reverse an already-reversed operation
-- [x] Verify cannot reverse a reversal operation
-- [x] Verify project balance affected correctly by create (▼ amount) and shareholder (▲ amount)
-- [x] Verify project + shareholder balances restored by reverse
-- [x] Verify payables/receivables net to zero at create and stay zero through reversal (SE4/SR12)
-- [x] UI: create form — source = project picker (shareholder-filtered), destination = person from URL
-- [x] UI: operation detail shows the aggregate amount + reversal action; per-transaction list hidden for one-shot
-- [ ] Add a dedicated focused for Project Refund (SR9 currently pinned only by the differential invariant)
-- [ ] Add a dedicated focused for Project Refund (SR10 currently pinned only by the shared engine)
