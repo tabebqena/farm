@@ -679,24 +679,6 @@ class Entity(ImmutableMixin, BaseModel):
 
         return self.receivables_at(date.today())
 
-    @property
-    def non_cash_assets(self) -> Decimal:
-        from datetime import date
-
-        return self.non_cash_assets_at(date.today())
-
-    @property
-    def assets(self) -> Decimal:
-        from datetime import date
-
-        return self.balance_at(date.today()) + self.non_cash_assets_at(date.today())
-
-    @property
-    def liabilities(self) -> Decimal:
-        from datetime import date
-
-        return self.liabilities_at(date.today())
-
     def can_pay(self, amount: Decimal) -> bool:
         if not self.active:
             return False
