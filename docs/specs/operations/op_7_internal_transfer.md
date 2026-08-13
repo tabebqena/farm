@@ -179,7 +179,7 @@ Entry points: model `InternalTransferOperation.save()` (tests) or `Operation.cre
 |---|--------|--------------------|----------------|-------------|
 | SC1 | Issuance tx created | 1 × `INTERNAL_TRANSFER_ISSUANCE`, amount `== op.amount`, `source → destination` | `LinkedIssuanceTransactionMixin.save()` | |
 | SC2 | Payment tx created | 1 × `INTERNAL_TRANSFER_PAYMENT`, amount `== op.amount`, `source → destination` | `LinkedPaymentTransactionMixin.save()` | same as SC1 |
-| SC3 | Tx amounts equal op amount | both txs `amount == op.amount` | transaction creation | shared engine (see §11 — no dedicated focused test yet) |
+| SC3 | Tx amounts equal op amount | both txs `amount == op.amount` | transaction creation | `InternalTransferCreateTest.test_transaction_amounts_equal_operation_amount` |
 | SC4 | Tx fund direction | both txs `source=source`, `target=destination` | | |
 | SC5 | Fully settled immediately | `amount_settled == amount`, `remaining == 0`, `is_fully_settled` | `LinkedPaymentTransactionMixin` | |
 | SC6 | Source fund ▼ amount | `source.balance` decreases by `amount` | `Entity.balance_at` | |
@@ -213,8 +213,8 @@ Entry points: model `op.reverse(officer, date, reason)` or view `operation_rever
 | SR6 | Counter-txs preserve type + amount | `counter.type == original.type`, `counter.amount == original.amount` | same as SR4 | |
 | SR7 | Reversal op owns no txs | `reversal.get_all_transactions().count() == 0` (save skips tx creation for reversals) | `LinkedIssuanceTransactionMixin.save()` | |
 | SR8 | Source + destination restored | both balances back to pre-create baseline | `balance_at` | |
-| SR9 | Settlement state cleared | `amount_settled == 0`, `is_fully_settled == False` | `amount_settled` | differential invariant; no dedicated focused test yet (see §11) |
-| SR10 | Reason flows to reversal | `reversal.description` contains the reason | `ReversableModel.reverse()` | shared engine (see §11 — no dedicated focused test yet) |
+| SR9 | Settlement state cleared | `amount_settled == 0`, `is_fully_settled == False` | `amount_settled` | `InternalTransferReversalTest.test_settlement_state_cleared_after_reversal` |
+| SR10 | Reason flows to reversal | `reversal.description` contains the reason | `ReversableModel.reverse()` | `InternalTransferReversalTest.test_reversal_description_contains_reason` |
 | SR11 | Differential invariant | create + reverse leaves the whole world unchanged (balances, payables, receivables, ledger) | whole engine | |
 
 ### 5.3 `pay` (one-shot guard)
@@ -292,23 +292,26 @@ There is **no standalone pay action** for Internal Transfer:
 
 | Area | Test method | Branch(es) |
 |------|-------------|------------|
-| Tx creation + counts | | SC1, SC2 |
-| Tx direction | | SC4 |
-| Settlement | | SC5 |
-| Source internal | | VC1, VC3 |
-| Destination internal | | VC2, VC4 |
-| Active entities | | VC5–VC8 |
-| Balance check | | VC14 |
-| Amount | | VC9 |
-| Officer | | VC10, VC11 |
-| Immutability | | IM1–IM3 |
-| One-shot guard | | BP2 |
-| Source ▼ / destination ▲ | | SC6, SC7 |
-| Reverse happy path | | SR1–SR3 |
-| Counter txs | | SR4–SR7 |
-| Reverse constraints | | VR1, VR2 |
-| Balance restored | | SR8 |
-| Differential invariant | | SR11, SR9 |
+| Tx creation + counts | `InternalTransferCreateTest.test_creates_issuance_and_payment_transactions` | SC1, SC2 |
+| Tx direction | `InternalTransferCreateTest.test_transaction_funds_are_correct` | SC4 |
+| Tx amounts equal op amount | `InternalTransferCreateTest.test_transaction_amounts_equal_operation_amount` | SC3 |
+| Settlement (create) | `InternalTransferCreateTest.test_is_fully_settled_immediately` | SC5 |
+| Source internal / non-virtual | `InternalTransferCreateTest.test_non_internal_source_raises_validation_error`, `test_system_entity_as_source_raises_validation_error`, `test_world_entity_as_source_raises_validation_error` | VC1, VC3 |
+| Destination internal / non-virtual | `InternalTransferCreateTest.test_non_internal_destination_raises_validation_error`, `test_system_entity_as_destination_raises_validation_error`, `test_world_entity_as_destination_raises_validation_error` | VC2, VC4 |
+| Active entities (source + fund + dest) | `InternalTransferCreateTest.test_source_must_be_active`, `test_source_fund_must_be_active`, `test_destination_must_be_active` | VC5–VC8 |
+| Balance check | `InternalTransferCreateTest.test_source_insufficient_balance_raises_validation_error` | VC14 |
+| Amount | `InternalTransferCreateTest.test_amount_zero_raises_validation_error`, `test_amount_negative_raises_validation_error` | VC9 |
+| Officer | `InternalTransferCreateTest.test_officer_user_must_be_staff`, `test_officer_must_be_active` | VC10, VC11 |
+| Immutability | `InternalTransferCreateTest.test_source_is_immutable`, `test_destination_is_immutable`, `test_amount_is_immutable` | IM1–IM3 |
+| One-shot guard | `InternalTransferCreateTest.test_one_shot_prevents_second_payment` | BP2 |
+| Source ▼ / destination ▲ | `InternalTransferCreateTest.test_source_balance_decreases_after_transfer`, `test_destination_balance_increases_after_transfer` | SC6, SC7 |
+| Reverse happy path | `InternalTransferReversalTest.test_reverse_creates_reversal_operation`, `test_reverse_marks_original_as_reversed`, `test_reverse_inherits_amount_source_destination` | SR1–SR3 |
+| Counter txs | `InternalTransferReversalTest.test_reverse_creates_counter_transactions`, `test_reverse_counter_transactions_flip_funds`, `test_reverse_counter_transactions_preserve_type` | SR4–SR7 |
+| Reverse constraints | `InternalTransferReversalTest.test_cannot_reverse_already_reversed_operation`, `test_cannot_reverse_a_reversal` | VR1, VR2 |
+| Balance restored | `InternalTransferReversalTest.test_source_balance_restored_after_reversal`, `test_destination_balance_restored_after_reversal` | SR8 |
+| Settlement cleared after reverse | `InternalTransferReversalTest.test_settlement_state_cleared_after_reversal` | SR9 |
+| Reason in reversal description | `InternalTransferReversalTest.test_reversal_description_contains_reason` | SR10 |
+| Differential invariant | `InternalTransferReversalTest.test_create_then_reverse_leaves_world_unchanged` | SR11 |
 
 ---
 
@@ -329,6 +332,6 @@ There is **no standalone pay action** for Internal Transfer:
 - [x] Verify source + destination balances restored by reverse
 - [x] UI: create form — source = person from URL, destination = person picker (internal-ness enforced at model)
 - [x] UI: operation detail shows the aggregate amount + reversal action; per-transaction list hidden for one-shot
-- [ ] Add a dedicated focused for Internal Transfer (SC3 currently pinned only by the shared engine)
-- [ ] Add a dedicated focused for Internal Transfer (SR9 currently pinned only by the differential invariant)
-- [ ] Add a dedicated focused for Internal Transfer (SR10 currently pinned only by the shared engine)
+- [x] Add a dedicated focused test for Internal Transfer (SC3 pinned by `InternalTransferCreateTest.test_transaction_amounts_equal_operation_amount`)
+- [x] Add a dedicated focused test for Internal Transfer (SR9 pinned by `InternalTransferReversalTest.test_settlement_state_cleared_after_reversal`)
+- [x] Add a dedicated focused test for Internal Transfer (SR10 pinned by `InternalTransferReversalTest.test_reversal_description_contains_reason`)

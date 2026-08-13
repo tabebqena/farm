@@ -139,6 +139,24 @@ class InternalTransferReversalTest(TestCase):
             balance_after_transfer - self.op.amount,
         )
 
+    def test_settlement_state_cleared_after_reversal(self):
+        # SR9 — one-shot settlement is immediate at create and fully cleared
+        # by the reverse: the counter-payment offsets the original payment.
+        self.op.reverse(officer=self.officer)
+
+        self.op.refresh_from_db()
+        self.assertEqual(self.op.amount_settled, Decimal("0.00"))
+        self.assertFalse(self.op.is_fully_settled)
+        self.assertEqual(self.op.amount_remaining_to_settle, self.op.amount)
+
+    def test_reversal_description_contains_reason(self):
+        # SR10 — the user-supplied reversal reason flows into the cloned
+        # reversal record's description.
+        reason = "Transfer was recorded by mistake"
+        reversal = self.op.reverse(officer=self.officer, reason=reason)
+
+        self.assertIn(reason, reversal.description)
+
     # ------------------------------------------------------------------
     # Constraints
     # ------------------------------------------------------------------

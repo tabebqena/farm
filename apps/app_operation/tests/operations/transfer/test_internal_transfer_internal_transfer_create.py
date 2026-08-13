@@ -89,6 +89,15 @@ class InternalTransferCreateTest(TestCase):
             self.assertEqual(tx.source, self.source_entity)
             self.assertEqual(tx.target, self.dest_entity)
 
+    def test_transaction_amounts_equal_operation_amount(self):
+        # SC3 — both the issuance and the payment transaction carry the
+        # exact operation amount (no rounding drift, no divergence).
+        op = self._make_op(amount=Decimal("500.00"))
+        op.save()
+
+        for tx in op.get_all_transactions():
+            self.assertEqual(tx.amount, op.amount)
+
     def test_is_fully_settled_immediately(self):
         op = self._make_op(amount=Decimal("500.00"))
         op.save()
