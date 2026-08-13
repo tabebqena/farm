@@ -192,6 +192,27 @@ class ProjectRefundReversalTest(TestCase):
         self.assertEqual(self.shareholder_entity.receivables, Decimal("0.00"))
 
     # ------------------------------------------------------------------
+    # SR9 / SR10 — settlement state + reason flow to the reversal
+    # ------------------------------------------------------------------
+
+    def test_reversal_clears_settlement_state(self):
+        """SR9 — after reversal the one-shot settlement is cleared."""
+        self.op.reverse(officer=self.officer)
+        self.op.refresh_from_db()
+
+        self.assertEqual(self.op.amount_settled, Decimal("0.00"))
+        self.assertEqual(self.op.amount_remaining_to_settle, self.op.amount)
+        self.assertFalse(self.op.is_fully_settled)
+
+    def test_reason_flows_to_reversal_description(self):
+        """SR10 — the reversal reason is recorded on the reversal's description."""
+        reversal = self.op.reverse(
+            officer=self.officer, reason="user requested reversal"
+        )
+
+        self.assertIn("user requested reversal", reversal.description)
+
+    # ------------------------------------------------------------------
     # Differential invariant — create + reverse leaves the world unchanged
     # ------------------------------------------------------------------
 

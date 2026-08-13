@@ -1010,10 +1010,12 @@ class Operation(
             # later non-reversed operation — the reversal would resurrect
             # stock that has since been consumed/sold/written off.
             #
-            # TODO(test): no test currently pins this guard — neither the
-            # SALE/CONSUMPTION suites nor a DEATH-specific test exercises
-            # "moved again in a later operation" (see docs/specs/operations/
-            # op_18_death.md §5.2.1 VR4).
+            # Pinned by the reachable partial-outbound scenarios:
+            #   - Sale:  test_reversal_blocked_when_product_moved_again_in_later_sale
+            #   - Consumption: test_reversal_blocked_when_product_moved_again_in_later_consumption
+            # Death cannot reach this branch via normal flows (no partial death —
+            # a fully written-off product is terminal), so the DEATH case is
+            # defensive (see docs/specs/operations/op_18_death.md §5.2.1 VR4).
             if type(self).has_invoice and self.operation_type in (
                 OperationType.DEATH,
                 OperationType.CONSUMPTION,

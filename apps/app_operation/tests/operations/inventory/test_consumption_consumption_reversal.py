@@ -2,6 +2,7 @@ from collections import Counter
 from datetime import date
 from decimal import Decimal
 
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
@@ -45,8 +46,8 @@ class ConsumptionReversalTest(TestCase):
             default_unit="Kg",
         )
 
-    def _make_consumed(self, qty=Decimal("5.00"), price=Decimal("100.00")):
-        """Create a physically-moved ACTIVE product and consume it."""
+    def _purchase_product(self, qty=Decimal("5.00"), price=Decimal("100.00")):
+        """Return an ACTIVE, physically-moved product owned by the project."""
         purchase = make_operation(
             self.project_entity,
             self.vendor,
@@ -71,7 +72,10 @@ class ConsumptionReversalTest(TestCase):
             date=date.today(),
             officer=self.officer_user,
         )
+        return product
 
+    def _consume(self, product, qty=Decimal("5.00"), price=Decimal("100.00")):
+        """Drive the ConsumptionOperation.create() pipeline for *qty* of a product."""
         raw_post = {
             "items-TOTAL_FORMS": "1",
             "items-INITIAL_FORMS": "0",
@@ -84,7 +88,7 @@ class ConsumptionReversalTest(TestCase):
             "items-0-selected_product": str(product.pk),
             "items-0-DELETE": "",
         }
-        op = ConsumptionOperation.create(
+        return ConsumptionOperation.create(
             operation_type=OperationType.CONSUMPTION,
             source=self.project_entity,
             destination=self.system_entity,
@@ -96,6 +100,11 @@ class ConsumptionReversalTest(TestCase):
             raw_post=raw_post,
             project=self.project_entity,
         )
+
+    def _make_consumed(self, qty=Decimal("5.00"), price=Decimal("100.00")):
+        """Create a physically-moved ACTIVE product and consume it."""
+        product = self._purchase_product(qty, price)
+        op = self._consume(product, qty, price)
         return op, product
 
     def test_reverse_creates_reversal_record(self):
@@ -203,3 +212,29 @@ class ConsumptionReversalTest(TestCase):
             balance,
             "Neither consumption nor its reversal may change the fund balance.",
         )
+
+    # ------------------------------------------------------------------
+    # VR4 — reversal dependency guard (partial consumption)
+    # ------------------------------------------------------------------
+
+    def test_reversal_blocked_when_product_moved_again_in_later_consumption(self):
+        """VR4 — reversing a partial consumption is blocked once the same
+        product is fully written off by a later consumption.
+
+        Scenario: 5 kg on-hand → consume 2 (product still ACTIVE) → consume the
+        remaining 3 (product CONSUMED). Reversing the first consumption would
+        resurrect stock that was later consumed, so the dependency guard blocks it.
+        """
+        product = self._purchase_product(qty=Decimal("5.00"))
+        first = self._consume(product, qty=Decimal("2.00"))
+        # Product stays ACTIVE with 3 kg remaining after the partial consumption.
+        product.refresh_from_db()
+        self.assertEqual(product.status, Product.Status.ACTIVE)
+
+        # Second consumption writes off the remaining 3 kg → CONSUMED.
+        self._consume(product, qty=Decimal("3.00"))
+        product.refresh_from_db()
+        self.assertEqual(product.status, Product.Status.CONSUMED)
+
+        with self.assertRaises(ValidationError):
+            first.reverse(officer=self.officer_user)

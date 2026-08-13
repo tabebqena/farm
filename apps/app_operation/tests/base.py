@@ -450,6 +450,9 @@ COVERAGE_MANIFEST: dict[tuple[str, str, str], str] = {
     ("SALE", "reverse", "SE10"): _path(
         f"{_OPS_TESTS}.sale.test_sale_sale_reversal",
         "SaleReversalTest", "test_reversal_blocked_when_collection_exists"),
+    ("SALE", "reverse", "VR4b"): _path(
+        f"{_OPS_TESTS}.sale.test_sale_sale_create_from_session",
+        "SaleCreateFromSessionStockTest", "test_reversal_blocked_when_product_moved_again_in_later_sale"),
     ("SALE", "move", "SE5"): _path(
         f"{_INV_TESTS}.test_inventory_movement",
         "InventoryMovementCreationTest", "test_sale_operation_movement"),
@@ -622,6 +625,9 @@ COVERAGE_MANIFEST: dict[tuple[str, str, str], str] = {
     ("CONSUMPTION", "reverse", "SE7"): _path(
         f"{_OPS_TESTS}.inventory.test_consumption_consumption_reversal",
         "ConsumptionReversalTest", "test_reversed_product_returns_to_active_status"),
+    ("CONSUMPTION", "reverse", "VR4"): _path(
+        f"{_OPS_TESTS}.inventory.test_consumption_consumption_reversal",
+        "ConsumptionReversalTest", "test_reversal_blocked_when_product_moved_again_in_later_consumption"),
 
     # ------------------------------------------------------------ CAPITAL_GAIN
     ("CAPITAL_GAIN", "create", "SE2"): _path(
@@ -712,6 +718,12 @@ COVERAGE_MANIFEST: dict[tuple[str, str, str], str] = {
     ("CASH_WITHDRAWAL", "create", "SE2"): _path(
         f"{_OPS_TESTS}.cash.test_cash_withdrawal_cash_withdrawal_create",
         "CashWithdrawalCreateTest", "test_creates_issuance_and_payment_transactions"),
+    ("CASH_WITHDRAWAL", "reverse", "SR9"): _path(
+        f"{_OPS_TESTS}.cash.test_cash_withdrawal_cash_withdrawal_reversal",
+        "CashWithdrawalReversalTest", "test_reversal_clears_settlement_state"),
+    ("CASH_WITHDRAWAL", "reverse", "SR10"): _path(
+        f"{_OPS_TESTS}.cash.test_cash_withdrawal_cash_withdrawal_reversal",
+        "CashWithdrawalReversalTest", "test_reason_flows_to_reversal_description"),
     ("CASH_WITHDRAWAL", "create", "SE3"): _path(
         f"{_OPS_TESTS}.cash.test_cash_withdrawal_cash_withdrawal_create",
         "CashWithdrawalCreateTest", "test_withdrawer_balance_decreases_after_withdrawal"),
@@ -735,6 +747,12 @@ COVERAGE_MANIFEST: dict[tuple[str, str, str], str] = {
     ("PROJECT_FUNDING", "create", "SE2"): _path(
         f"{_OPS_TESTS}.funding.test_project_funding_project_funding_create",
         "ProjectFundingCreateTest", "test_creates_issuance_and_payment_transactions"),
+    ("PROJECT_FUNDING", "reverse", "SR9"): _path(
+        f"{_OPS_TESTS}.funding.test_project_funding_project_funding_reversal",
+        "ProjectFundingReversalTest", "test_reversal_clears_settlement_state"),
+    ("PROJECT_FUNDING", "reverse", "SR10"): _path(
+        f"{_OPS_TESTS}.funding.test_project_funding_project_funding_reversal",
+        "ProjectFundingReversalTest", "test_reason_flows_to_reversal_description"),
     ("PROJECT_FUNDING", "create", "SE3"): _path(
         f"{_OPS_TESTS}.funding.test_project_funding_project_funding_create",
         "ProjectFundingCreateTest", "test_project_fund_increases_after_funding"),
@@ -755,6 +773,12 @@ COVERAGE_MANIFEST: dict[tuple[str, str, str], str] = {
     ("PROJECT_REFUND", "create", "SE2"): _path(
         f"{_OPS_TESTS}.funding.test_project_refund_project_refund_create",
         "ProjectRefundCreateTest", "test_creates_issuance_and_payment_transactions"),
+    ("PROJECT_REFUND", "reverse", "SR9"): _path(
+        f"{_OPS_TESTS}.funding.test_project_refund_project_refund_reversal",
+        "ProjectRefundReversalTest", "test_reversal_clears_settlement_state"),
+    ("PROJECT_REFUND", "reverse", "SR10"): _path(
+        f"{_OPS_TESTS}.funding.test_project_refund_project_refund_reversal",
+        "ProjectRefundReversalTest", "test_reason_flows_to_reversal_description"),
     ("PROJECT_REFUND", "create", "SE3"): _path(
         f"{_OPS_TESTS}.funding.test_project_refund_project_refund_create",
         "ProjectRefundCreateTest", "test_project_fund_decreases_after_refund"),
@@ -801,6 +825,12 @@ COVERAGE_MANIFEST: dict[tuple[str, str, str], str] = {
     ("CORRECTION_CREDIT", "create", "SE2"): _path(
         f"{_OPS_TESTS}.corrections.test_correction_correction_credit_create",
         "CorrectionCreditCreateTest", "test_creates_issuance_and_payment_transactions"),
+    ("CORRECTION_CREDIT", "reverse", "SR9"): _path(
+        f"{_OPS_TESTS}.corrections.test_correction_correction_credit_reversal",
+        "CorrectionCreditReversalTest", "test_reversal_clears_settlement_state"),
+    ("CORRECTION_CREDIT", "reverse", "SR10"): _path(
+        f"{_OPS_TESTS}.corrections.test_correction_correction_credit_reversal",
+        "CorrectionCreditReversalTest", "test_reason_flows_to_reversal_description"),
     ("CORRECTION_CREDIT", "create", "SE3"): _path(
         f"{_OPS_TESTS}.corrections.test_correction_correction_credit_create",
         "CorrectionCreditCreateTest", "test_project_fund_increases_by_correction_amount"),
@@ -821,6 +851,12 @@ COVERAGE_MANIFEST: dict[tuple[str, str, str], str] = {
     ("CORRECTION_DEBIT", "create", "SE2"): _path(
         f"{_OPS_TESTS}.corrections.test_correction_correction_debit_create",
         "CorrectionDebitCreateTest", "test_creates_issuance_and_payment_transactions"),
+    ("CORRECTION_DEBIT", "reverse", "SR9"): _path(
+        f"{_OPS_TESTS}.corrections.test_correction_correction_debit_reversal",
+        "CorrectionDebitReversalTest", "test_reversal_clears_settlement_state"),
+    ("CORRECTION_DEBIT", "reverse", "SR10"): _path(
+        f"{_OPS_TESTS}.corrections.test_correction_correction_debit_reversal",
+        "CorrectionDebitReversalTest", "test_reason_flows_to_reversal_description"),
     ("CORRECTION_DEBIT", "create", "SE3"): _path(
         f"{_OPS_TESTS}.corrections.test_correction_correction_debit_create",
         "CorrectionDebitCreateTest", "test_project_fund_decreases_by_correction_amount"),

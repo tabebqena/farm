@@ -225,8 +225,8 @@ Entry points: model `op.reverse(officer, date, reason)` or view `operation_rever
 | CC34 | Counter-txs preserve type | `counter.type == original.type` | same as CC32 | |
 | CC35 | Reversal op owns no txs | `reversal.get_all_transactions().count() == 0` (save skips tx creation for reversals) | `LinkedIssuanceTransactionMixin.save()` | |
 | CC36 | Project fund restored | `project.balance` back to pre-create baseline | `balance_at` | |
-| CC37 | Settlement state cleared | `amount_settled == 0`, `is_fully_settled == False` | `amount_settled` | differential invariant; no dedicated focused test yet (see §11) |
-| CC38 | Reason flows to reversal | `reversal.description` contains the reason | `ReversableModel.reverse()` | shared engine (see §11 — no dedicated focused test yet) |
+| CC37 | Settlement state cleared | `amount_settled == 0`, `is_fully_settled == False` | `amount_settled` | `CorrectionCreditReversalTest.test_reversal_clears_settlement_state` |
+| CC38 | Reason flows to reversal | `reversal.description` contains the reason | `ReversableModel.reverse()` | `CorrectionCreditReversalTest.test_reason_flows_to_reversal_description` |
 | CC39 | Differential invariant | create + reverse leaves the whole world unchanged (balances, payables, receivables, ledger) | whole engine | |
 
 ### 5.3 `create` — Correction Debit
@@ -292,8 +292,8 @@ Entry points: model `op.reverse(officer, date, reason)` or view `operation_rever
 | CD34 | Counter-txs preserve type | `counter.type == original.type` | same as CD32 | |
 | CD35 | Reversal op owns no txs | `reversal.get_all_transactions().count() == 0` (save skips tx creation for reversals) | `LinkedIssuanceTransactionMixin.save()` | |
 | CD36 | Project fund restored | `project.balance` back to pre-create baseline | `balance_at` | |
-| CD37 | Settlement state cleared | `amount_settled == 0`, `is_fully_settled == False` | `amount_settled` | differential invariant; no dedicated focused test yet (see §11) |
-| CD38 | Reason flows to reversal | `reversal.description` contains the reason | `ReversableModel.reverse()` | shared engine (see §11 — no dedicated focused test yet) |
+| CD37 | Settlement state cleared | `amount_settled == 0`, `is_fully_settled == False` | `amount_settled` | `CorrectionDebitReversalTest.test_reversal_clears_settlement_state` |
+| CD38 | Reason flows to reversal | `reversal.description` contains the reason | `ReversableModel.reverse()` | `CorrectionDebitReversalTest.test_reason_flows_to_reversal_description` |
 | CD39 | Differential invariant | create + reverse leaves the whole world unchanged (balances, payables, receivables, ledger) | whole engine | |
 
 ### 5.5 `pay` (one-shot guard) — both
@@ -393,6 +393,8 @@ There is **no standalone pay action** for either Correction variant:
 | CC Reverse happy path | | CC29–CC31 |
 | CC Counter txs | | CC32–CC35 |
 | CC Project restored | | CC36 |
+| CC Settlement cleared | `CorrectionCreditReversalTest.test_reversal_clears_settlement_state` | CC37 |
+| CC Reason in description | `CorrectionCreditReversalTest.test_reason_flows_to_reversal_description` | CC38 |
 | CC Differential invariant | | CC39, CC37, CC21 |
 | CC Reverse constraints | | CC24, CC25 |
 | CD Tx creation + counts | | CD16, CD17 |
@@ -409,6 +411,8 @@ There is **no standalone pay action** for either Correction variant:
 | CD Reverse happy path | | CD29–CD31 |
 | CD Counter txs | | CD32–CD35 |
 | CD Project restored | | CD36 |
+| CD Settlement cleared | `CorrectionDebitReversalTest.test_reversal_clears_settlement_state` | CD37 |
+| CD Reason in description | `CorrectionDebitReversalTest.test_reason_flows_to_reversal_description` | CD38 |
 | CD Differential invariant | | CD39, CD37, CD21 |
 | CD Reverse constraints | | CD24, CD25 |
 

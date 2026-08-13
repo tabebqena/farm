@@ -324,3 +324,33 @@ class SaleCreateFromSessionStockTest(TestCase):
                 operation=op, reversal_of__isnull=False
             ).exists()
         )
+
+    def test_reversal_blocked_when_product_moved_again_in_later_sale(self):
+        """VR4 — reversing a partial sale is blocked once the same product is
+        fully disposed by a later outbound operation (another SALE here).
+
+        Scenario: 10 on-hand → sell 4 (product stays ACTIVE) → sell the
+        remaining 6 (product SOLD). Reversing the first sale would resurrect
+        stock that was later sold, so the dependency guard blocks it.
+        """
+        product = self._receive_product(qty=Decimal("10.00"))
+        first_sale = SaleOperation.create_from_session(
+            project=self.project,
+            session_data=self._session_data(product, quantity="4.00"),
+            officer=self.officer,
+        )
+        # Product stays ACTIVE with 6 remaining after the partial sale.
+        product.refresh_from_db()
+        self.assertEqual(product.status, Product.Status.ACTIVE)
+
+        # Second sale disposes the remaining 6 → SOLD.
+        SaleOperation.create_from_session(
+            project=self.project,
+            session_data=self._session_data(product, quantity="6.00"),
+            officer=self.officer,
+        )
+        product.refresh_from_db()
+        self.assertEqual(product.status, Product.Status.SOLD)
+
+        with self.assertRaises(ValidationError):
+            first_sale.reverse(officer=self.officer)

@@ -150,6 +150,27 @@ class CorrectionDebitReversalTest(TestCase):
         )
 
     # ------------------------------------------------------------------
+    # CD37 / CD38 — settlement state + reason flow to the reversal
+    # ------------------------------------------------------------------
+
+    def test_reversal_clears_settlement_state(self):
+        """CD37 — after reversal the one-shot settlement is cleared."""
+        self.op.reverse(officer=self.officer_user)
+        self.op.refresh_from_db()
+
+        self.assertEqual(self.op.amount_settled, Decimal("0.00"))
+        self.assertEqual(self.op.amount_remaining_to_settle, self.op.amount)
+        self.assertFalse(self.op.is_fully_settled)
+
+    def test_reason_flows_to_reversal_description(self):
+        """CD38 — the reversal reason is recorded on the reversal's description."""
+        reversal = self.op.reverse(
+            officer=self.officer_user, reason="user requested reversal"
+        )
+
+        self.assertIn("user requested reversal", reversal.description)
+
+    # ------------------------------------------------------------------
     # Differential invariant — create + reverse leaves the world unchanged
     # ------------------------------------------------------------------
 

@@ -212,7 +212,7 @@ Entry points: model `op.reverse(officer, date, reason)` or view `operation_rever
 | VR1 | Not already reversed | `reversed_by is None` | `ValidationError` | `"The transaction is already reversed."` | `ReversableModel._validate_can_be_reversed` + view guard | |
 | VR2 | Not itself a reversal | `reversal_of is None` | `ValidationError` | `"You can't reverse this record as it is a reversal of …"` | `ReversableModel._validate_can_be_reversed` + view guard | |
 | VR3 | No explicit txs to reverse | all txs are implicit (one-shot issuance + payment) | `ValidationError` (would require manual reversal) | `"You can't reverse this object as it has non-reversed transactions…"` | `ReversableModel._requires_transaction_reversal` + `Operation._implicit_reversable_transaction_types` | implied by successful reverse |
-| VR4 | Reversal dependency guard | none of the dead products were moved again in a later non-reversed outbound op | `ValidationError` | `"Cannot reverse this operation: its products were moved again in a later operation."` | `Operation.reverse()` | **TODO(test): no test currently pins this branch — neither the shared SALE/CONSUMPTION suite nor a DEATH-specific test exercises "moved again in a later operation" (verified against the repo, 2026-08). Add a DEATH (and SALE/CONSUMPTION) reversal-dependency-guard test.** |
+| VR4 | Reversal dependency guard | none of the dead products were moved again in a later non-reversed outbound op | `ValidationError` | `"Cannot reverse this operation: its products were moved again in a later operation."` | `Operation.reverse()` | **Defensive guard (unreachable via normal flows):** there is **no partial death** — a death always writes off the full on-hand quantity of the (INDIVIDUAL) animal, so the dead product becomes terminal (DEAD) and `Product.validate_active()` blocks any later outbound move. The shared guard code path is therefore pinned by the reachable **partial** outbound scenarios in the SALE and CONSUMPTION suites (`test_reversal_blocked_when_product_moved_again_in_later_sale` and `test_reversal_blocked_when_product_moved_again_in_later_consumption`) — the same `Operation.reverse()` clause. |
 | VR5 | No non-reversed adjustments | n/a — Death is not adjustable | never fails | — | `is_adjustable=False` | n/a |
 | VR6 | Reason required | `POST['reversal_reason']` non-empty | view redirect + message | `"A reason for reversal is required."` | `operation_reverse_view` | view contract (see §8) |
 
@@ -319,5 +319,5 @@ There is **no standalone pay action** for Death:
 | Status DEAD | | SC8 |
 | Status restored ACTIVE | | SR9 |
 | Reverse constraints | | VR1, VR2 |
-| Reversal dependency guard | **TODO(test)** — untested (see §5.2.1 VR4) | VR4 |
+| Reversal dependency guard | defensive — shared guard pinned via SALE/CONSUMPTION partial-outbound tests (see §5.2.1 VR4) | VR4 |
 

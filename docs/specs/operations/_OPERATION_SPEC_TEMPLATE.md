@@ -18,6 +18,8 @@ Steps to widen a new operation:
   5. Record every implementing concern in §2 (contract map). The spec is the primary
      source of contract: where code and spec disagree, fix the code, not the spec.
   6. Update the branch catalog (§9) and the test coverage matrix (§10).
+  7. Reference code and tests by plain name only — never as markdown links (no
+     `[symbol](path)` and no `file.py:NN`), so renames do not break the spec.
 -->
 
 **Epic:** `<EPIC>` — `<SECTION>`
@@ -26,7 +28,7 @@ Steps to widen a new operation:
 **Contract status:** v2 (widened) — all branches recorded, business logic registered, test coverage mapped.
 
 > **Primary source of contract.** This document is the authoritative contract for the **`<OP_NAME>`** operation.
-> Every clause below is registered to its implementing code (model → mixin → transaction → view) and to its pinning test.
+> Every clause below names its implementing code (model → mixin → transaction → view) and its pinning test — as plain names, never links, so renames do not break the spec.
 > Where code and spec disagree, the spec states the *intended* behavior — fix the code, not the spec.
 > See [`_OPERATION_SPEC_TEMPLATE.md`](_OPERATION_SPEC_TEMPLATE.md) for the shared structure and
 > [`op_1_cash_injection.md`](op_1_cash_injection.md) for a fully worked example.
@@ -147,13 +149,13 @@ Steps to widen a new operation:
 
 | # | Branch | Pass condition | Failure outcome | Error (on failure) | Enforced by | Pinned by test |
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
-| VC1 | … | … | `ValidationError` | `"…"` | [`code`](…) | [`test`](…) |
+| VC1 | … | … | `ValidationError` | `"…"` | `code` | `test` |
 
 #### 5.1.2 Success effects
 
 | # | Effect | Detail / invariant | Implemented by | Verified by |
 |---|--------|--------------------|----------------|-------------|
-| SC1 | … | … | [`code`](…) | [`test`](…) |
+| SC1 | … | … | `code` | `test` |
 
 ### 5.2 `reverse`
 
@@ -203,5 +205,5 @@ Steps to widen a new operation:
 
 | Area | Test method | Branch(es) |
 |------|-------------|------------|
-| … | [`test…`](…) | … |
+| … | `test…` | … |
 

@@ -245,7 +245,7 @@ Entry points: model `op.reverse(officer, date, reason)` or view `operation_rever
 | VR1 | Not already reversed | `reversed_by is None` | `ValidationError` | `"The transaction is already reversed."` | `ReversableModel._validate_can_be_reversed` + view guard | shared engine suite (cf. [`op_1`](op_1_cash_injection.md) VR1) |
 | VR2 | Not itself a reversal | `reversal_of is None` | `ValidationError` | `"You can't reverse this record as it is a reversal of …"` | `ReversableModel._validate_can_be_reversed` + view guard | shared engine suite |
 | VR3 | No explicit txs to reverse | all txs are implicit (one-shot issuance + payment) | `ValidationError` (would require manual reversal) | `"You can't reverse this object as it has non-reversed transactions…"` | `ReversableModel._requires_transaction_reversal` + `Operation._implicit_reversable_transaction_types` | implied by successful reverse |
-| VR4 | Reversal dependency guard | none of the consumed products were moved again in a later non-reversed outbound op (SALE/DEATH/CONSUMPTION) | `ValidationError` | `"Cannot reverse this operation: its products were moved again in a later operation."` | `Operation.reverse()` | shared outbound-op suite (SALE/DEATH/CONSUMPTION) — **consumption-focused test pending** |
+| VR4 | Reversal dependency guard | none of the consumed products were moved again in a later non-reversed outbound op (SALE/DEATH/CONSUMPTION) | `ValidationError` | `"Cannot reverse this operation: its products were moved again in a later operation."` | `Operation.reverse()` | pinned by `test_reversal_blocked_when_product_moved_again_in_later_consumption` (`ConsumptionReversalTest`) — partial consumption then full write-off |
 | VR5 | No non-reversed adjustments | n/a — Consumption is not adjustable | never fails | — | `is_adjustable=False` | n/a |
 | VR6 | Reason required | `POST['reversal_reason']` non-empty | view redirect + message | `"A reason for reversal is required."` | `operation_reverse_view` | view contract (see §8) |
 
@@ -362,6 +362,7 @@ There is **no standalone pay action** for Consumption:
 | Status restored ACTIVE | | SR9 |
 | COGS negated (P&L restored) | | SR11 |
 | Non-cash balance on reverse | | SR12 |
+| Reversal dependency guard | pinned by `test_reversal_blocked_when_product_moved_again_in_later_consumption` | VR4 |
 | Stock history shows OUT | | SC7, SC8 (UI) |
 | Live tab excludes consumed | | SC8 (UI) |
 | Quick-consume full pipeline | | QCS1, SC1–SC10 |

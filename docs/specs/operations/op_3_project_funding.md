@@ -6,7 +6,7 @@
 **Contract status:** v2 (widened) — all branches recorded, business logic registered, test coverage mapped.
 
 > **Primary source of contract.** This document is the authoritative contract for the **Project Funding** operation.
-> Every clause below is registered to its implementing code (model → mixin → transaction → view) and to its pinning test.
+> Every clause below names its implementing code (model → mixin → transaction → view) and its pinning test — as plain names, never links, so renames do not break the spec.
 > Where code and spec disagree, the spec states the *intended* behavior — fix the code, not the spec.
 > Other operations follow the same structure — see [`_OPERATION_SPEC_TEMPLATE.md`](_OPERATION_SPEC_TEMPLATE.md).
 
@@ -45,7 +45,7 @@
 
 ## 2. Registered business logic (contract map)
 
-The tables below **register every file that implements this operation**. The spec is the primary source of contract; each row links the clause to the code that must honor it.
+The tables below **register every file that implements this operation**. The spec is the primary source of contract; each row names the code that must honor it (plain names, no links).
 
 ### 2.1 Model / config layer
 
@@ -210,8 +210,8 @@ Entry points: model `op.reverse(officer, date, reason)` or view `operation_rever
 | SR6 | Counter-txs preserve type + amount | `counter.type == original.type`, `counter.amount == original.amount` | same as SR4 | |
 | SR7 | Reversal op owns no txs | `reversal.get_all_transactions().count() == 0` (save skips tx creation for reversals) | `LinkedIssuanceTransactionMixin.save()` | |
 | SR8 | Funder + project restored | `person.balance` and `project.balance` back to pre-create baseline | `balance_at` | |
-| SR9 | Settlement state cleared | `amount_settled == 0`, `is_fully_settled == False` | `amount_settled` | differential invariant; no dedicated focused test yet (see §11) |
-| SR10 | Reason flows to reversal | `reversal.description` contains the reason | `ReversableModel.reverse()` | shared engine (see §11 — no dedicated focused test yet) |
+| SR9 | Settlement state cleared | `amount_settled == 0`, `is_fully_settled == False` | `amount_settled` | `ProjectFundingReversalTest.test_reversal_clears_settlement_state` |
+| SR10 | Reason flows to reversal | `reversal.description` contains the reason | `ReversableModel.reverse()` | `ProjectFundingReversalTest.test_reason_flows_to_reversal_description` |
 | SR11 | Differential invariant | create + reverse leaves the whole world unchanged (balances, payables, receivables, ledger) | whole engine | |
 
 ### 5.3 `pay` (one-shot guard)
@@ -306,6 +306,8 @@ There is **no standalone pay action** for Project Funding:
 | Counter txs | | SR4–SR7 |
 | Reverse constraints | | VR1, VR2 |
 | Balance restored | | SR8 |
+| Settlement cleared | `ProjectFundingReversalTest.test_reversal_clears_settlement_state` | SR9 |
+| Reason in description | `ProjectFundingReversalTest.test_reason_flows_to_reversal_description` | SR10 |
 | Differential invariant | | SR11, SR9 |
 
 ---
