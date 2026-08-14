@@ -3,6 +3,7 @@ from django.contrib import admin
 from .models import (
     InvoiceItem,
     Product,
+    ProductCapitalValuation,
     ProductTemplate,
 )
 
@@ -78,3 +79,11 @@ class ProductAdmin(admin.ModelAdmin):
     list_filter = ("product_template__nature", "gender")
     search_fields = ("unique_id", "product_template__name")
     raw_id_fields = ("entity", "mother")
+
+
+@admin.register(ProductCapitalValuation)
+class ProductCapitalValuationAdmin(admin.ModelAdmin):
+    list_display = ("product", "amount", "date", "operation", "officer")
+    list_filter = ("operation__operation_type", "date")
+    search_fields = ("product__unique_id", "product__product_template__name")
+    raw_id_fields = ("product", "operation")

@@ -56,6 +56,19 @@ def invoice_items_list_view(request, pk):
             },
         )
 
+        capital_valuations = []
+        if type(operation).has_capital_valuation:
+            capital_valuations = operation.capital_valuations.select_related(
+                "product", "product__product_template", "officer"
+            )
+            DebugContext.log(
+                "Capital valuations fetched",
+                {
+                    "count": len(capital_valuations),
+                    "operation_id": operation.pk,
+                },
+            )
+
         # Prefetch item-adjustment lines per invoice item
         item_adjustments = (
             InvoiceItemAdjustmentLine.objects.filter(
@@ -138,6 +151,8 @@ def invoice_items_list_view(request, pk):
         "items_data": items_data,
         "item_adjustments": item_adjustments_grouped,
         "has_invoice": type(operation).has_invoice,
+        "has_capital_valuation": type(operation).has_capital_valuation,
+        "capital_valuations": capital_valuations,
         "currency": getattr(settings, "CURRENCY_SYMBOL", "$"),
         "total_adjusted": total_adjusted,
     }

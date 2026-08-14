@@ -98,6 +98,7 @@ class Operation(
     has_repayment: bool = False
     repayment_label: str | None = None
     has_invoice: bool = False
+    has_capital_valuation: bool = False
     theme_color: str = "danger"
     theme_icon: str = "bi-box-arrow-up-right"
     creates_assets = False
@@ -244,6 +245,7 @@ class Operation(
             "category_required": cls.category_required,
             "has_repayment": cls.has_repayment,
             "has_invoice": cls.has_invoice,
+            "has_capital_valuation": cls.has_capital_valuation,
             "repayment_transaction_type": getattr(
                 cls, "_repayment_transaction_type", None
             ),
@@ -813,7 +815,10 @@ class Operation(
 
         * BIRTH/DEATH/CONSUMPTION → auto-creates movement lines
         * DEATH/CONSUMPTION → links the selected products to their items
-        * CAPITAL_GAIN/LOSS → links selected products to invoice items
+        * CAPITAL_GAIN/LOSS → NOT handled here — value-only; the capital proxy
+          records the product's signed valuation via ``add_valuation()``
+          (creates a ``ProductCapitalValuation`` row, never an InvoiceItem or
+          a movement line)
         * PURCHASE/SALE    → no movement here (movement lines are
           user-driven or created by the sale wizard later)
 
@@ -831,8 +836,6 @@ class Operation(
         if self.operation_type in (
             OperationType.DEATH,
             OperationType.CONSUMPTION,
-            OperationType.CAPITAL_GAIN,
-            OperationType.CAPITAL_LOSS,
         ):
             # Build product_map: {invoice_item_pk: product} for operations
             # where products are known at creation time

@@ -35,7 +35,8 @@
 | `check_balance_on_payment` | `False` | n/a (no payment) |
 | `has_category` / `category_required` | `False` | no financial category |
 | `has_repayment` | `False` | no repayment action |
-| `has_invoice` | `True` | links the loss to an existing owned product via an invoice item (value-only — no movement line) |
+| `has_invoice` | `False` | no invoice items — the loss is recorded on a dedicated valuation row, not on an `InvoiceItem` |
+| `has_capital_valuation` | `True` | the loss is a `ProductCapitalValuation` row linking the owned product to a signed (negative) amount (value-only — no movement line) |
 
 > **No accounting mixins.** `CapitalLossOperation` inherits only `ImmutableMixin`,
 > `AmountCleanMixin`, `OfficerMixin`, `ReversableModel`, `BaseModel` (via the lean `Operation`
@@ -86,10 +87,10 @@ The tables below **register every file that implements this operation**. The spe
 
 | Concern | Implementing code |
 |---------|-------------------|
-| Ownership guard: the evaluated product belongs to the source project | `save_inventory` + evaluation view |
-| Value-only: links the product to the invoice item; **no** movement line is created | `save_inventory` |
+| Ownership guard: the evaluated product belongs to the source project | `ProductCapitalValuation.clean` + evaluation view |
+| Value-only: creates a `ProductCapitalValuation` row linking the product to a signed (negative) amount; **no** `InvoiceItem` and **no** movement line are created | `CapitalLossOperation.add_valuation` + `ProductCapitalValuation` |
 | Valuation delta: `(new_unit_price − current_unit_price) × quantity` | `Product.compute_valuation_delta` |
-| Inventory value ▼: `capital_delta()` subtracts the loss from `movement_state(...)["value"]` / `inventory_value()` | `capital_delta` + `movement_state` |
+| Inventory value ▼: `capital_delta()` sums the signed amounts (negative loss) into `movement_state(...)["value"]` / `inventory_value()` | `capital_delta` + `movement_state` |
 | Product status unchanged (stays ACTIVE — a loss is a value write-down, not a status transition) | `Product.status` |
 
 ### 2.6 View / UI layer
@@ -161,7 +162,7 @@ Entry points: model `CapitalLossOperation.save()` (tests) or the evaluation view
 | SC2 | No settlement machinery | `amount_settled`/`is_fully_settled`/`create_payment_transaction` absent | (no payment mixin) | |
 | SC3 | No cash flow — project fund unchanged | `project.balance` unchanged by the loss (even a zero-balance or deficit project) | `Entity.balance_at` | |
 | SC4 | Inventory value ▼ | `Product.current_value`/`inventory_value` decreases by the loss (`capital_delta`) | `capital_delta()` + `Product.current_value` | |
-| SC5 | Value-only — no movement line | the loss creates an invoice item linked to the product but **no** `InventoryMovementLine` | `save_inventory` | |
+| SC5 | Value-only — no movement line | the loss creates a `ProductCapitalValuation` row linked to the product but **no** `InvoiceItem` and **no** `InventoryMovementLine` | `CapitalLossOperation.add_valuation` + `ProductCapitalValuation` | |
 | SC6 | Product stays ACTIVE | the loss is a value write-down, not a status transition | `Product.status` | |
 | SC7 | Period auto-assigned | `period` = the project's covering period | `Operation.save()` | covered by period suite |
 | SC8 | profit_loss unchanged | the loss is not an accounting transaction | `Entity.profit_loss` | |
@@ -233,8 +234,10 @@ reachable.
 | Category | hidden (no category) |
 | Amount | the absolute valuation delta, validated > 0 at model |
 | POST parsing | `OperationDataValidator` — date format, description, category (n/a), `amount_paid` (n/a, forced 0) |
+| Valuation | the view computes the signed delta, creates the operation, then `CapitalLossOperation.add_valuation(product, amount)` records the `ProductCapitalValuation` row |
 | List entry | not in the operations-list "New Operation" dropdown — entered from the stock detail "Record Evaluation" button |
-| Detail | `operation_detail_view` — shows the operation total + reversal action; **no** payment/settlement sections (rendered as one-shot) |
+| Detail | `operation_detail_view` — shows the operation total + a **Capital Valuations** section (product, signed amount, date, officer) + reversal action; **no** payment/settlement sections (rendered as one-shot) |
+| Valuations list | `invoice_items_list_view` renders the capital-valuation list for `has_capital_valuation` operations instead of an invoice-items table |
 | Reverse | `operation_reverse_view` — `POST` requires `reversal_reason`; guards already-reversed / is-reversal (VR1/VR2) |
 
 ---
@@ -264,7 +267,7 @@ reachable.
 | Amount | | VC5 |
 | No cash flow / fund unchanged (deficit allowed) | | SC3 |
 | Inventory value ▼ | | SC4 |
-| Value-only (no movement line) | | SC5 |
+| Value-only (no movement line) | `ProductCapitalValuationModelTest.test_loss_requires_negative_amount` + capital-loss value-only test | SC5 |
 | Product stays ACTIVE | | SC6, SR6 |
 | Period assigned | | SC7 |
 | Reversal — no counter-txs | | SR4 |

@@ -12,6 +12,10 @@
 
     {% include 'app_operation/snippets/detail/invoice_items.html' %}
 
+    {% if has_capital_valuation %}
+      {% include 'app_operation/snippets/detail/capital_valuations.html' %}
+    {% endif %}
+
     <div class="row g-2 g-sm-3 g-md-4">
       <div class="col-12 order-first order-lg-0">
         {% include 'app_operation/snippets/detail/inventory_movement_status.html' %}

@@ -6,7 +6,7 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from apps.app_entity.models import Entity, EntityType
-from apps.app_inventory.models import InvoiceItem, Product, ProductTemplate
+from apps.app_inventory.models import Product, ProductTemplate
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import CapitalGainOperation
 from apps.app_operation.tests.base import (
@@ -161,19 +161,13 @@ class CapitalGainReversalProductStatusTest(TestCase):
             officer=self.officer_user,
         )
         op.save()
-        item = InvoiceItem.objects.create(
-            operation=op,
-            product_template=self.template,
-            quantity=Decimal("1.00"),
-            unit_price=amount,
-        )
         product = Product.objects.create(
             product_template=self.template,
             entity=self.project_entity,
             unit_price=amount,
             quantity=1,
         )
-        product.invoice_items.add(item)
+        op.add_valuation(product=product, amount=amount, officer=self.officer_user)
         return op, product
 
     def test_gain_and_reversal_keep_product_active(self):

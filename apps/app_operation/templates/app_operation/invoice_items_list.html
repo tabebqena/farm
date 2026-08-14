@@ -32,10 +32,59 @@
 
     {# ─── Alert: no invoice items ─────────────────────────────────── #}
     {% if not has_invoice %}
-      <div class="alert alert-info" role="alert">
-        <i class="bi bi-info-circle me-2"></i>
-        {% trans 'This operation type does not support invoice items.' %}
-      </div>
+      {% if has_capital_valuation %}
+        {# ─── Capital Valuations (value-only ops) ───────────────── #}
+        <div class="card shadow-sm mb-4">
+          <div class="card-header fw-bold bg-dark text-white d-flex justify-content-between align-items-center">
+            <span>{% trans 'Capital Valuations' %}</span>
+            <span class="badge bg-light text-dark">{{ capital_valuations|length }}</span>
+          </div>
+          <div class="card-body p-0">
+            <div class="list-group list-group-flush">
+              {% for valuation in capital_valuations %}
+                <div class="list-group-item">
+                  <div class="row g-2 align-items-center">
+                    <div class="col-12 col-md-6">
+                      <small class="text-muted d-md-none">{% trans 'Product' %}:</small>
+                      <span class="fw-semibold">{{ valuation.product.product_template.name }}</span>
+                      <span class="text-muted small">#{{ valuation.product.pk }}</span>
+                    </div>
+                    <div class="col-12 col-md-3">
+                      <small class="text-muted d-md-none">{% trans 'Date' %}:</small>
+                      <span>{{ valuation.date }}</span>
+                    </div>
+                    <div class="col-6 col-md-2 text-end">
+                      <small class="text-muted d-md-none d-block">{% trans 'Amount' %}</small>
+                      {% if valuation.amount >= 0 %}
+                        <span class="fw-bold text-success">+{{ valuation.amount }}</span>
+                      {% else %}
+                        <span class="fw-bold text-danger">{{ valuation.amount }}</span>
+                      {% endif %}
+                    </div>
+                    <div class="col-6 col-md-1 text-end d-none d-sm-block">
+                      <small class="text-muted d-md-none d-block">{% trans 'By' %}</small>
+                      <span class="text-muted small">{{ valuation.officer|default:"—" }}</span>
+                    </div>
+                  </div>
+                </div>
+              {% empty %}
+                <div class="list-group-item text-center text-muted py-3">
+                  {% trans 'No capital valuations.' %}
+                </div>
+              {% endfor %}
+            </div>
+            <div class="d-flex justify-content-end fw-bold py-2 px-3 border-top bg-light">
+              <span class="me-3">{% trans 'Net Valuation' %}</span>
+              <span>{{ operation.effective_amount }}</span>
+            </div>
+          </div>
+        </div>
+      {% else %}
+        <div class="alert alert-info" role="alert">
+          <i class="bi bi-info-circle me-2"></i>
+          {% trans 'This operation type does not support invoice items.' %}
+        </div>
+      {% endif %}
     {% elif not merged_items %}
       <div class="alert alert-warning" role="alert">
         <i class="bi bi-exclamation-triangle me-2"></i>

@@ -154,14 +154,14 @@ Actions: create, reverse.
 ### 5. Capital Gain (CG) — `CapitalGainOperation` — [op_5](op_5_capital_gain.md)
 
 Actions: create, reverse.
-- **create** — *Valid:* source=system; dest=project (E, `clean_source`/`clean_destination`); balance ✗ (system exempt); one-shot auto-settled. *Effects:* `CAPITAL_GAIN_ISSUANCE` + `CAPITAL_GAIN_PAYMENT` (non-cash — excluded from `payment_types()`); immediately settled; **no cash flow** — ▼system → ▲project (inventory value only); ✓ value-only ledger (qty 0, value +); status unchanged (ACTIVE).
-- **reverse** — *Valid:* (constants). *Effects:* reversal record; counter-tx for issuance + payment; negated ledger.
+- **create** — *Valid:* source=system; dest=project (E, `clean_source`/`clean_destination`); balance ✗ (system exempt); one-shot auto-settled; value-only. *Effects:* **no** `Transaction` rows; **no** cash flow — ▲project inventory value only; creates a `ProductCapitalValuation` row (signed `+amount`) via `add_valuation`; **no** `InvoiceItem` and **no** movement line; status unchanged (ACTIVE).
+- **reverse** — *Valid:* (constants). *Effects:* reversal record; no counter-txs; the reversed op's valuation row is excluded from `capital_delta()` → inventory value restored.
 
 ### 6. Capital Loss (CL) — `CapitalLossOperation` — [op_6](op_6_capital_loss.md)
 
 Actions: create, reverse.
-- **create** — *Valid:* source=entity; dest=system; balance ✗ (no-balance write-down, may go into deficit); one-shot auto-settled; verified: source fund must NOT have sufficient balance (loss can deepen deficit). *Effects:* `CAPITAL_LOSS_ISSUANCE` + `CAPITAL_LOSS_PAYMENT` (non-cash — excluded from `payment_types()`); immediately settled; **no cash flow** — ▼entity → ▲system (inventory value only); ✓ value-only ledger (qty 0, value −); status unchanged (ACTIVE).
-- **reverse** — *Valid:* (constants). *Effects:* reversal record; counter-tx for issuance + payment; negated ledger.
+- **create** — *Valid:* source=project; dest=system; balance ✗ (no-balance write-down, may go into deficit); one-shot auto-settled; value-only. *Effects:* **no** `Transaction` rows; **no** cash flow — ▼project inventory value only; creates a `ProductCapitalValuation` row (signed `−amount`) via `add_valuation`; **no** `InvoiceItem` and **no** movement line; status unchanged (ACTIVE).
+- **reverse** — *Valid:* (constants). *Effects:* reversal record; no counter-txs; the reversed op's valuation row is excluded from `capital_delta()` → inventory value restored.
 
 ### 7. Internal Transfer (IT) — `InternalTransferOperation` — [op_7](op_7_internal_transfer.md)
 

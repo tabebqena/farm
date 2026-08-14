@@ -58,6 +58,19 @@ def operation_detail_view(request, pk):
             },
         )
 
+        capital_valuations = None
+        if type(operation).has_capital_valuation:
+            capital_valuations = operation.capital_valuations.select_related(
+                "product", "product__product_template", "officer"
+            )
+            DebugContext.log(
+                "Capital valuations fetched",
+                {
+                    "count": len(capital_valuations),
+                    "operation_id": operation.pk,
+                },
+            )
+
         adjustments = list(
             operation.adjustments.filter(reversal_of__isnull=True).order_by("date")
         )
@@ -203,6 +216,8 @@ def operation_detail_view(request, pk):
         ),
         "items": items,
         "items_data": items_data,
+        "capital_valuations": capital_valuations,
+        "has_capital_valuation": type(operation).has_capital_valuation,
         "adjustments": adjustments,
         "item_adjustments": item_adjustments,
         "is_reversed": operation.is_reversed,

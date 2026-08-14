@@ -445,13 +445,9 @@ class EndAssetsMovementValueTest(TestCase):
             CapitalGainOperation, OperationType.CAPITAL_GAIN, self.system, self.project,
             Decimal("500.00"),
         )
-        item = make_invoice_item(
-            op,
-            product.product_template,
-            quantity=Decimal("1.00"),
-            unit_price=Decimal("500.00"),
+        op.add_valuation(
+            product=product, amount=Decimal("500.00"), officer=self.officer
         )
-        product.invoice_items.add(item)
 
         self.period.refresh_from_db()
         self.assertEqual(self.project.balance, balance_before)
@@ -472,13 +468,9 @@ class EndAssetsMovementValueTest(TestCase):
             CapitalLossOperation, OperationType.CAPITAL_LOSS, self.project, self.system,
             Decimal("200.00"),
         )
-        item = make_invoice_item(
-            op,
-            product.product_template,
-            quantity=Decimal("1.00"),
-            unit_price=Decimal("200.00"),
+        op.add_valuation(
+            product=product, amount=Decimal("-200.00"), officer=self.officer
         )
-        product.invoice_items.add(item)
 
         self.period.refresh_from_db()
         self.assertEqual(self.project.balance, balance_before)

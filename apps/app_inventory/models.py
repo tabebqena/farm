@@ -1281,3 +1281,128 @@ class InventoryMovementLine(ImmutableMixin, BaseModel):
         verbose_name = _("inventory movement line")
         verbose_name_plural = _("inventory movement lines")
         ordering = ["-date", "-created_at"]
+
+
+class ProductCapitalValuation(ImmutableMixin, BaseModel):
+    """
+    Value-only capital gain/loss entry linking a Product to a signed value for a
+    Capital Gain/Loss operation.
+
+    No physical movement is recorded: quantity stays untouched and the product
+    stays ACTIVE — only the movement-based inventory value rises/falls via
+    ``stock.capital_delta()`` (signed: positive = gain, negative = loss).
+
+    Reversability is operation-level: this row carries no ``reversal_of``; the
+    stock queries exclude rows whose operation has been reversed
+    (``operation__reversed_by__isnull=True``).
+    """
+
+    _immutable_fields = {
+        "operation": {},
+        "product": {},
+        "amount": {},
+        "date": {},
+    }
+
+    operation = models.ForeignKey(
+        "app_operation.Operation",
+        on_delete=models.PROTECT,
+        related_name="capital_valuations",
+        verbose_name=_("operation"),
+    )
+    product = models.ForeignKey(
+        "Product",
+        on_delete=models.PROTECT,
+        related_name="capital_valuations",
+        verbose_name=_("product"),
+    )
+    amount = models.DecimalField(
+        _("amount"),
+        max_digits=15,
+        decimal_places=2,
+        help_text=_(
+            "Signed capital value: positive for a gain, negative for a loss."
+        ),
+    )
+    date = models.DateField(_("date"), default=today_date.today)
+    notes = models.TextField(_("notes"), blank=True)
+    officer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="capital_valuations_supervised",
+        verbose_name=_("officer"),
+        null=True,
+        blank=True,
+    )
+
+    def clean(self) -> None:
+        from apps.app_operation.models.operation_type import OperationType
+
+        if self.operation_id is not None:
+            op_type = self.operation.operation_type
+            if op_type not in (
+                OperationType.CAPITAL_GAIN,
+                OperationType.CAPITAL_LOSS,
+            ):
+                raise ValidationError(
+                    _(
+                        "Capital valuations can only be attached to Capital "
+                        "Gain or Capital Loss operations."
+                    )
+                )
+            # The signed amount must match the operation's direction.
+            if self.amount is not None:
+                is_gain = op_type == OperationType.CAPITAL_GAIN
+                if self.amount == 0 or (self.amount > 0) != is_gain:
+                    raise ValidationError(
+                        _(
+                            "A %(op)s must carry a %(sign)s amount."
+                        )
+                        % {
+                            "op": op_type,
+                            "sign": _("positive") if is_gain else _("negative"),
+                        }
+                    )
+            # Ownership guard (VC10): the product must belong to the project
+            # whose inventory this operation values.
+            if self.product_id is not None:
+                owner = self.operation.inventory_owner_entity
+                if owner is not None and self.product.entity_id != owner.id:
+                    raise ValidationError(
+                        _(
+                            "Product '%(p)s' does not belong to '%(entity)s' "
+                            "and cannot be evaluated."
+                        )
+                        % {"p": self.product, "entity": owner}
+                    )
+                # Template compatibility: the product's nature must accept the op.
+                if not self.product.product_template.accepts_operation(op_type):
+                    raise ValidationError(
+                        _(
+                            "Product '%(p)s' is not compatible with operation "
+                            "type %(op)s."
+                        )
+                        % {"p": self.product.product_template.name, "op": op_type}
+                    )
+                # The product stays ACTIVE (SC6) — terminal-status products
+                # (SOLD/DEAD/CONSUMED/REMOVED) are rejected, unless this row
+                # belongs to a reversal operation. Obligated-only products are
+                # allowed: a value write-up needs no physical presence.
+                is_reversal = (
+                    getattr(self.operation, "reversal_of_id", None) is not None
+                )
+                self.product.validate_active(
+                    allow_reversal=is_reversal, allow_obligated=True
+                )
+        super().clean()
+
+    def __str__(self):
+        return (
+            f"CapitalValuation {self.pk} — {self.product} "
+            f"amount={self.amount} op={self.operation_id}"
+        )
+
+    class Meta:
+        verbose_name = _("capital valuation")
+        verbose_name_plural = _("capital valuations")
+        ordering = ["-date", "-created_at"]

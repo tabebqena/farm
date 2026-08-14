@@ -6,7 +6,13 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from apps.app_entity.models import Entity, EntityType
-from apps.app_inventory.models import InventoryMovementLine, Product, ProductTemplate
+from apps.app_inventory.models import (
+    InventoryMovementLine,
+    InvoiceItem,
+    Product,
+    ProductCapitalValuation,
+    ProductTemplate,
+)
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import CapitalLossOperation
 
@@ -250,8 +256,9 @@ class CapitalLossCreateTest(TestCase):
         )
 
     def test_capital_loss_is_value_only_no_movement_line(self):
-        """A capital loss never creates an InventoryMovementLine and keeps the
-        product ACTIVE — quantity is untouched, only value is written down."""
+        """A capital loss never creates an InventoryMovementLine or an
+        InvoiceItem and keeps the product ACTIVE — quantity is untouched, only
+        value is written down via a ProductCapitalValuation row."""
         template = ProductTemplate.objects.create(
             name="Calves",
             nature=ProductTemplate.Nature.ANIMAL,
@@ -262,23 +269,26 @@ class CapitalLossCreateTest(TestCase):
         op = self._make_op(amount=Decimal("500.00"))
         op.save()
 
-        from apps.app_inventory.models import InvoiceItem
-
-        item = InvoiceItem.objects.create(
-            operation=op,
-            product_template=template,
-            quantity=Decimal("1.00"),
-            unit_price=Decimal("500.00"),
-        )
         product = Product.objects.create(
             product_template=template,
+            entity=self.project_entity,
             unit_price=Decimal("500.00"),
             quantity=1,
         )
-        product.invoice_items.add(item)
+        op.add_valuation(
+            product=product, amount=Decimal("-500.00"), officer=self.officer_user
+        )
 
         self.assertEqual(product.status, Product.Status.ACTIVE)
         self.assertFalse(
             InventoryMovementLine.objects.filter(operation=op).exists(),
             "Capital loss must not create an InventoryMovementLine.",
+        )
+        self.assertFalse(
+            InvoiceItem.objects.filter(operation=op).exists(),
+            "Capital loss must not create an InvoiceItem.",
+        )
+        self.assertTrue(
+            ProductCapitalValuation.objects.filter(operation=op, product=product).exists(),
+            "Capital loss is recorded as a ProductCapitalValuation row.",
         )

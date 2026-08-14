@@ -88,24 +88,16 @@ def movement_delta(line, product_entity_id) -> Decimal:
 
 
 def capital_delta(product) -> Decimal:
-    """Value-only capital gain/loss from the linked capital operations that are
-    still active (not reversed — a reversed capital op cancels its effect)."""
-    total = Decimal("0")
-    items = product.invoice_items.filter(
-        operation__operation_type__in=(
-            OperationType.CAPITAL_GAIN,
-            OperationType.CAPITAL_LOSS,
-        ),
-        operation__reversed_by__isnull=True,
+    """Value-only capital gain/loss from the linked capital valuations that are
+    still active (not reversed — a reversed capital op cancels its effect).
+
+    Each ``ProductCapitalValuation`` carries a signed amount (positive = gain,
+    negative = loss); rows whose operation has been reversed are excluded.
+    """
+    entries = product.capital_valuations.filter(
+        operation__reversed_by__isnull=True
     ).select_related("operation")
-    for item in items:
-        sign = (
-            Decimal("1")
-            if item.operation.operation_type == OperationType.CAPITAL_GAIN
-            else Decimal("-1")
-        )
-        total += sign * (item.quantity * item.unit_price)
-    return total
+    return sum((entry.amount for entry in entries), Decimal("0"))
 
 
 def movement_state(product, as_of=None) -> dict:

@@ -335,10 +335,12 @@ InvoiceItemCreateFormSet = forms.inlineformset_factory(
 
 
 # ---------------------------------------------------------------------------
-# Select-mode: used by SALE, DEATH, CAPITAL_GAIN, CAPITAL_LOSS
+# Select-mode: used by SALE, DEATH, CONSUMPTION
 # Each form row picks an existing Product (animal/batch) and records the
 # price/quantity for this operation.
 # The view links the saved InvoiceItem back to the Product via M2M.
+# (Capital Gain/Loss no longer use invoice items — they record value on a
+# dedicated ProductCapitalValuation row via the capital proxy.)
 # ---------------------------------------------------------------------------
 
 

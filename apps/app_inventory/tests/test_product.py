@@ -63,6 +63,22 @@ class ProductTest(TestCase):
     ):
         """Create an operation → item → product chain and return the product."""
         op = make_operation(source, destination, self.officer, proxy_class, op_type)
+        if op_type in (OperationType.CAPITAL_GAIN, OperationType.CAPITAL_LOSS):
+            # Value-only: the product is linked via a ProductCapitalValuation row
+            # (no InvoiceItem, no movement line). The product must be owned by
+            # the project whose inventory is valued (VC10 ownership guard).
+            product = make_product(
+                self.template, price, int(qty), op.inventory_owner_entity
+            )
+            amount = price * qty
+            op.add_valuation(
+                product=product,
+                amount=amount
+                if op_type == OperationType.CAPITAL_GAIN
+                else -amount,
+                officer=self.officer,
+            )
+            return product
         item = make_invoice_item(op, self.template, qty, price)
         product = make_product(self.template, price, int(qty))
         product.invoice_items.add(item)
@@ -163,8 +179,7 @@ class ProductTest(TestCase):
                 OperationType.CAPITAL_GAIN,
                 amount=capital_gain,
             )
-            item = make_invoice_item(op, self.template, Decimal(1), capital_gain)
-            product.invoice_items.add(item)
+            op.add_valuation(product=product, amount=capital_gain, officer=self.officer)
         if capital_loss:
             op = make_operation(
                 self.project,
@@ -174,8 +189,7 @@ class ProductTest(TestCase):
                 OperationType.CAPITAL_LOSS,
                 amount=capital_loss,
             )
-            item = make_invoice_item(op, self.template, Decimal(1), capital_loss)
-            product.invoice_items.add(item)
+            op.add_valuation(product=product, amount=-capital_loss, officer=self.officer)
         return product
 
     def test_current_value_base_only(self):

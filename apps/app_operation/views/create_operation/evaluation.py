@@ -13,7 +13,7 @@ from django.utils.translation import gettext as _
 
 from apps.app_base.debug import DebugContext, debug_view
 from apps.app_entity.models import Entity
-from apps.app_inventory.models import InvoiceItem, Product
+from apps.app_inventory.models import Product
 from apps.app_operation.models.proxies.op_capital_gain import CapitalGainOperation
 from apps.app_operation.models.proxies.op_capital_loss import CapitalLossOperation
 from farm.shortcuts import get_object_or_404
@@ -192,7 +192,8 @@ class EvaluationCreateView(OperationCreateView):
                     ):
                         # Ownership guard (defense-in-depth — the form queryset
                         # already restricts choices to entity=project): never
-                        # record a gain/loss on another entity's asset.
+                        # record a gain/loss on another entity's asset. The
+                        # valuation row's clean() re-checks it at the model layer.
                         if product.entity_id != self.project.id:
                             raise ValidationError(
                                 _(
@@ -201,22 +202,27 @@ class EvaluationCreateView(OperationCreateView):
                                 )
                                 % {"p": product, "entity": self.project}
                             )
-                        op = self._create_operation(amount, date, description)
-                        item = InvoiceItem.objects.create(
-                            operation=op,
-                            product=product.product_template,
-                            quantity=product.quantity,
-                            unit_price=abs(
-                                new_unit_price - valuation["current_unit_price"]
-                            ),
+                        op = self.proxy_cls.create(
+                            operation_type=self.canonical_op_type,
+                            source=self.data["source_entity"],
+                            destination=self.data["dest_entity"],
+                            amount=amount,
+                            date=date,
+                            description=description,
+                            officer=request.user,
+                            amount_paid=Decimal("0"),
+                            project=self.project,
                         )
-                        product.validate_active()
-                        product.invoice_items.add(item)
+                        entry = op.add_valuation(
+                            product=product,
+                            amount=delta.quantize(Decimal("0.01")),
+                            officer=request.user,
+                        )
                         DebugContext.success(
                             "Evaluation operation created",
                             {
                                 "operation_id": op.pk,
-                                "invoice_item_id": item.pk,
+                                "capital_valuation_id": entry.pk,
                             },
                         )
 
