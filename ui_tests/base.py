@@ -253,18 +253,35 @@ class UiTestCase(LiveServerTestCase):
         unreliable in headless Chrome.
         """
         self.driver.execute_script(
+            f"var value={value};"+
             "var visible=document.getElementById('id_total_amount');"
             "var hidden=document.querySelector('input[name=\"amount\"]');"
-            "if(visible){visible.value=arguments[0];"
+            "if(visible){visible.value=value;"
             "visible.dispatchEvent(new Event('input',{bubbles:true}));"
             "visible.dispatchEvent(new Event('change',{bubbles:true}));}"
-            "if(hidden){hidden.value=arguments[0];}",
-            str(value),
+            "if(hidden){hidden.value=value;}",
+            # str(value),
         )
         return self
 
     def select(self, name, value):
-        Select(self.driver.find_element(By.NAME, name)).select_by_value(str(value))
+        """Select an option by value; falls back to a JS set for select2 fields."""
+        try:
+            Select(self.driver.find_element(By.NAME, name)).select_by_value(str(value))
+        except Exception:
+            self.driver.execute_script(
+                "var sel=document.querySelector('select[name=%(name)s]');"
+                "if(!sel) return;"
+                "var opt=sel.querySelector('option[value=\"%(value)s\"]');"
+                "if(opt){sel.value=opt.value;}"
+                "sel.dispatchEvent(new Event('change',{bubbles:true}));"
+                % {"name": name, "value": value}
+            )
+        return self
+
+    def select_secondary_entity(self, entity):
+        """Pick ``entity`` in the create form's secondary-entity dropdown."""
+        return self.select("secondary_entity", entity.pk)
 
     def disable_html5_validation(self):
         """Let the browser POST even when a field is required/min-guarded, so the
@@ -313,14 +330,20 @@ class UiTestCase(LiveServerTestCase):
     # Operation clause helpers
     # ------------------------------------------------------------------
 
-    def create_one_shot(self, op_type, entity, amount, description="UI test"):
+    def create_one_shot(
+        self, op_type, entity, amount, secondary=None, description="UI test"
+    ):
         """Open the generic create form for a one-shot op and submit it.
 
+        ``secondary`` (optional) is selected in the secondary-entity picker when the
+        operation's post-role needs it (e.g. Project Funding, Internal Transfer).
         Assumes redirect to operation detail on success.
         """
         self.goto("operation_create_view", entity.pk, op_type)
         # The create form pre-fills `date` with today (server-side), which is
         # always covered by the entity's auto-created open period, so leave it.
+        if secondary is not None:
+            self.select_secondary_entity(secondary)
         self.fill_amount(f"{amount:.2f}")
         self.fill("description", description)
         self.click_submit()
