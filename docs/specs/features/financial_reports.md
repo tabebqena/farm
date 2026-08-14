@@ -16,16 +16,16 @@
 
 The reporting surface exposes **four accounting statements** plus **operational summary views**. Every report is a *derived, read-only* calculation over `Transaction`, `InventoryMovementLine`, and `FinancialPeriod` data — nothing here writes.
 
-| # | Report | العربية | Type | Scope | As-of semantics | Primary implementation |
-|---|--------|---------|------|-------|-----------------|------------------------|
-| R1 | Fund Balance | رصيد الصندوق | point-in-time | person + project | as of `dt` | `Entity.balance_at` |
-| R2 | Payables | الذمم الدائنة (المستحقة للغير) | point-in-time | person + project | as of `dt` | `Entity.payables_at` |
-| R3 | Receivables | الذمم المدينة (المستحقة لنا) | point-in-time | person + project | as of `dt` | `Entity.receivables_at` |
-| R4 | Inventory Value | قيمة المخزون | point-in-time | project only | as of `dt` | `stock.inventory_value` |
-| R5 | Income Statement (P&L) | قائمة الدخل | period | project only | `[start, end)` | `Entity.profit_loss` |
-| R6 | Balance Sheet | قائمة المركز المالي (الميزانية العمومية) | period-end snapshot | project only | `end_date` | `FinancialPeriod.end_assets` / `end_liabilities` / equity |
-| R7 | Cash Flow Statement | قائمة التدفقات النقدية | period | person + project | `[start, end)` | `FinancialPeriod.cash_in` / `cash_out` / `previous_balance` / `end_balance` |
-| R8 | Statement of Changes in Equity | قائمة التغيرات في حقوق الملكية | period | person + project | `[start, end)` | derived — see §3.6 (not yet a dedicated page) |
+| # | Report | Type | Scope | As-of semantics | Primary implementation |
+|---|--------|------|-------|-----------------|------------------------|
+| R1 | Fund Balance | point-in-time | person + project | as of `dt` | `Entity.balance_at` |
+| R2 | Payables | point-in-time | person + project | as of `dt` | `Entity.payables_at` |
+| R3 | Receivables | point-in-time | person + project | as of `dt` | `Entity.receivables_at` |
+| R4 | Inventory Value | point-in-time | project only | as of `dt` | `stock.inventory_value` |
+| R5 | Income Statement (P&L) | period | project only | `[start, end)` | `Entity.profit_loss` |
+| R6 | Balance Sheet | period-end snapshot | project only | `end_date` | `FinancialPeriod.end_assets` / `end_liabilities` / equity |
+| R7 | Cash Flow Statement | period | person + project | `[start, end)` | `FinancialPeriod.cash_in` / `cash_out` / `previous_balance` / `end_balance` |
+| R8 | Statement of Changes in Equity | period | person + project | `[start, end)` | derived — see §3.6 (not yet a dedicated page) |
 
 **Configuration / currency:**
 - Currency symbol: `settings.CURRENCY_SYMBOL` (default `"$"`) — every amount renders with this symbol.
@@ -99,103 +99,150 @@ The reporting surface exposes **four accounting statements** plus **operational 
 
 ## 3. Report definitions & formulas
 
-Common building blocks (how every amount is derived):
+### 3.0 Common building blocks (how every amount is derived from the models)
 
-- **Payment types** (`TransactionType.payment_types()`): the only types that move a fund balance. Virtual-value ops — Birth, Death, Capital Gain, Capital Loss, Consumption — are **excluded** (their `*_PAYMENT` records are non-cash bookkeeping; value lives in inventory).
-- **Issuance types** (`TransactionType.issuance_types()`): obligations / receivables, no cash movement.
-- **Reversal handling** differs per report and is specified in §6.
+Every cash amount is an **aggregation over `Transaction` rows**; every stock amount is an **aggregation over `InventoryMovementLine` / `Product` / `ProductCapitalValuation` rows**. The shared rules:
 
-### 3.1 R1 — Fund Balance (رصيد الصندوق)
+- **Cash rows** = `Transaction` with `deleted_at IS NULL` and `type` in the report's type set. The ledger has no balance column — balance is always `SUM(amount)` grouped by direction.
+- **Direction** is decided by which foreign key points at the reporting entity: `source = entity` means the entity gives the amount (outgoing), `target = entity` means the entity receives it (incoming).
+- **`Transaction.type`** is the only discriminator between cash movement, obligations, and value bookkeeping. The sets come from `TransactionType.payment_types()` (cash) and `TransactionType.issuance_types()` (obligations).
+- **Reversal linkage:** a reversal row carries `reversal_of → original`; the original exposes `reversed_by → reversal`. Each report decides whether to include or exclude these (see §6).
+- **Stock rows:** `InventoryMovementLine` carries `product`, `quantity`, `date`, and an implicit sign from `operation.operation_type` (PURCHASE / BIRTH = inbound `+`; SALE / DEATH / CONSUMPTION = outbound `−`). Value per unit is `Product.unit_price` (the carried cost). Value-only adjustments come from `ProductCapitalValuation.amount` (signed: gain `+`, loss `−`), linked to `product` and to an `operation` that may be reversed.
+
+---
+
+### 3.1 R1 — Fund Balance
 
 - **Purpose:** net cash position of an entity's fund at a point in time.
 - **Scope:** person + project (world/system excluded — virtual).
-- **Formula:** `balance_at(dt) = Σ incoming payment txs (target=entity, date ≤ dt) − Σ outgoing payment txs (source=entity, date ≤ dt)`.
-- **Reversal handling:** original **and** reversal transactions are both counted (with their sign), so a cross-period reversal lands in the correct period with the correct sign.
+- **Calculation (models):** over `Transaction` where
+  - `deleted_at IS NULL`,
+  - `type IN TransactionType.payment_types()`,
+  - `date ≤ as_of`:
+  - `incoming = SUM(amount)` where `target = entity`
+  - `outgoing = SUM(amount)` where `source = entity`
+  - **balance = incoming − outgoing**
+- **Reversal handling:** original **and** reversal transactions are both counted (with their own sign), so a cross-period reversal lands in the correct period with the correct sign.
 - **Status:** implemented — `Entity.balance_at` / `Entity.balance` (today).
 
-### 3.2 R2 / R3 — Payables & Receivables (الذمم الدائنة / المدينة)
+---
+
+### 3.2 R2 / R3 — Payables & Receivables
 
 - **Purpose:** outstanding obligations owed **by** the entity (payables) and amounts owed **to** the entity (receivables), at a point in time.
 - **Scope:** person + project. A person can hold both sides across roles (vendor ⇒ receivable, client ⇒ payable, lender ⇒ receivable, worker ⇒ receivable).
-- **Payables formula** (`payables_at`): `[increase_as_source − decrease_as_source] + [increase_as_target − decrease_as_target]`, where:
-  - increase_as_source: `PURCHASE_ISSUANCE`, `PURCHASE_ADJUSTMENT_INCREASE`, `SALE_ISSUANCE`, `SALE_ADJUSTMENT_INCREASE`, `EXPENSE_ISSUANCE`, `EXPENSE_ADJUSTMENT_INCREASE`, `PROJECT_REFUND_ISSUANCE`
-  - decrease_as_source: `PURCHASE_PAYMENT`, `SALE_COLLECTION`, `EXPENSE_PAYMENT`, `WORKER_ADVANCE_REPAYMENT`, `LOAN_REPAYMENT`, `PROJECT_REFUND_PAYMENT`
-  - increase_as_target: `WORKER_ADVANCE_PAYMENT`, `LOAN_PAYMENT`
-  - decrease_as_target: `PURCHASE/SALE/EXPENSE_ADJUSTMENT_DECREASE`
-- **Receivables formula** (`receivables_at`): the mirror buckets (see the model — a receivable for one side is the counterpart of the other's payable).
-- **Reversal handling:** both reports use `_tx_sum_excluding_reversed` — reversal (mirror) transactions are excluded, and transactions reversed before `dt` are excluded (reversed after `dt` still count).
-- **Status:** implemented — `Entity.payables_at` / `receivables_at` (+ drill-down pages R9/R10, §7).
+- **Calculation (models):** over `Transaction` where
+  - `deleted_at IS NULL`,
+  - `date ≤ as_of`,
+  - `reversal_of IS NULL` (reversal rows are not obligations),
+  - and (`reversed_by IS NULL` OR `reversed_by.date > as_of`) — an original reversed after `as_of` still counts today:
+  - **payables = [Σ source-side increase − Σ source-side decrease] + [Σ target-side increase − Σ target-side decrease]** with the buckets:
+    - source increase: `PURCHASE_ISSUANCE`, `PURCHASE_ADJUSTMENT_INCREASE`, `SALE_ISSUANCE`, `SALE_ADJUSTMENT_INCREASE`, `EXPENSE_ISSUANCE`, `EXPENSE_ADJUSTMENT_INCREASE`, `PROJECT_REFUND_ISSUANCE`
+    - source decrease: `PURCHASE_PAYMENT`, `SALE_COLLECTION`, `EXPENSE_PAYMENT`, `WORKER_ADVANCE_REPAYMENT`, `LOAN_REPAYMENT`, `PROJECT_REFUND_PAYMENT`
+    - target increase: `WORKER_ADVANCE_PAYMENT`, `LOAN_PAYMENT`
+    - target decrease: `PURCHASE_ADJUSTMENT_DECREASE`, `SALE_ADJUSTMENT_DECREASE`, `EXPENSE_ADJUSTMENT_DECREASE`
+  - **receivables = the mirror buckets** (the same transaction sets, with source/target and increase/decrease swapped — a receivable for one side is the counterpart of the other's payable).
+- **Reversal handling:** `_tx_sum_excluding_reversed` — reversal rows excluded; originals reversed before `as_of` excluded, reversed after `as_of` still counted.
+- **Status:** implemented — `Entity.payables_at` / `receivables_at` (+ drill-down pages R10/R11, §3.7).
 
-### 3.3 R5 — Income Statement / P&L (قائمة الدخل)
+---
+
+### 3.3 R5 — Income Statement / P&L
 
 - **Purpose:** summarize **revenues** and **expenses** over a period → **net profit or loss**.
 - **Scope:** project **only** — `Entity.profit_loss` raises `ValueError` for non-project funds.
-- **Formula:** `profit_loss(period) = income − costs`, where each bucket is a *reversal-aware signed sum* (`_signed_sum` negates any reversal transaction) of **issuance/adjustment** transactions dated `[start_date, end_date)`:
-  - **Income (target = fund):** `SALE_ISSUANCE`, `CORRECTION_CREDIT_ISSUANCE`, `PURCHASE_ISSUANCE` (project acting as vendor), plus `SALE/PURCHASE_ADJUSTMENT_INCREASE`; **minus** `SALE/PURCHASE_ADJUSTMENT_DECREASE`.
-  - **Costs (source = fund):** `PURCHASE_ISSUANCE`, `EXPENSE_ISSUANCE`, `CORRECTION_DEBIT_ISSUANCE`, `SALE_ISSUANCE` (project acting as client), plus `PURCHASE/SALE/EXPENSE_ADJUSTMENT_INCREASE`; **minus** the matching `_DECREASE` types.
+- **Calculation (models):** over `Transaction` where
+  - `deleted_at IS NULL`,
+  - `date ∈ [period.start_date, period.end_date)` (when the period is open, `date ≥ period.start_date`):
+  - define `signed(amount) = amount` if `reversal_of IS NULL` else `−amount` (a reversal cancels its original in the same or later period).
+  - **income =** `Σ signed(target = fund ∧ type ∈ {SALE_ISSUANCE, CORRECTION_CREDIT_ISSUANCE, PURCHASE_ISSUANCE (project as vendor), SALE_ADJUSTMENT_INCREASE, PURCHASE_ADJUSTMENT_INCREASE})` **−** `Σ signed(target = fund ∧ type ∈ {SALE_ADJUSTMENT_DECREASE, PURCHASE_ADJUSTMENT_DECREASE})`
+  - **costs =** `Σ signed(source = fund ∧ type ∈ {PURCHASE_ISSUANCE, EXPENSE_ISSUANCE, CORRECTION_DEBIT_ISSUANCE, SALE_ISSUANCE (project as client), PURCHASE_ADJUSTMENT_INCREASE, SALE_ADJUSTMENT_INCREASE, EXPENSE_ADJUSTMENT_INCREASE})` **−** `Σ signed(source = fund ∧ type ∈ {PURCHASE_ADJUSTMENT_DECREASE, SALE_ADJUSTMENT_DECREASE, EXPENSE_ADJUSTMENT_DECREASE})`
+  - **P&L = income − costs**
 - **Deliberately excluded:** Capital Gain, Capital Loss, Consumption are **not** accounting transactions — their value effect flows through inventory value (`stock.inventory_value` / `FinancialPeriod.end_assets`), not P&L.
 - **Reversal handling:** originals **and** reversals are included with the correct sign (reversals negated), so cross-period reversals land in the right period.
 - **Status:** implemented — `Entity.profit_loss`; surfaced on `FinancialPeriod.amount` (closed project periods only) and period list/detail P/L columns.
 
-### 3.4 R6 — Balance Sheet (قائمة المركز المالي / الميزانية العمومية)
+---
 
-- **Purpose:** financial position **at a moment in time**: Assets (ما تملكه), Liabilities (ما تدين به), Equity (حقوق الملكية).
+### 3.4 R6 — Balance Sheet
+
+- **Purpose:** financial position **at a moment in time**: Assets (what the entity owns), Liabilities (what the entity owes), Equity (ownership residual).
 - **Scope:** project only (for a person the sheet collapses to: Assets = balance, Liabilities = 0, Equity = balance — see §4).
 - **As-of:** `end_date` when closed; `as_of = today` while open.
-- **Intended formula:**
-  - **Assets (الأصول)** = cash & fund balance (`balance_at(as_of)`) + trade receivables + inventory value (`stock.inventory_value`) + loans given (`outstanding_loan_credited`) + worker advances paid (`outstanding_worker_advance_paid`). `receivables_at` already contains loans/advances given, so the asset side may equivalently be `balance + inventory + receivables_at` **without** re-adding loans/advances (no double counting).
-  - **Liabilities (الالتزامات)** = trade payables + loans received (`outstanding_loan_received`) + worker advances received (`outstanding_worker_advance_received`). `payables_at` already contains loans/advances received, so this equals `payables_at(as_of)`.
-  - **Equity (حقوق الملكية)** = Assets − Liabilities (residual) = contributed capital + cumulative retained earnings (P&L).
-- **Current implementation (subset):** `FinancialPeriod.end_assets` = cash balance + inventory value + loans given + advances paid (**excludes trade receivables**); `end_liabilities` = loans received + advances received (**excludes trade payables**). Trade payables/receivables are tracked separately (R2/R3) but not yet folded into the sheet. **Refinement for Epic 7:** fold `payables_at`/`receivables_at` into the sheet so Assets − Liabilities reconciles exactly to contributed capital + cumulative P&L.
+- **Calculation (models)** — intended full sheet, all as-of `as_of`:
+  - **Cash & fund balance** = `balance_at(as_of)` (R1).
+  - **Receivables** = `receivables_at(as_of)` (R3) — this already includes trade receivables **and** loans given (`LOAN_PAYMENT` as source) **and** advances paid (`WORKER_ADVANCE_PAYMENT` as source).
+  - **Inventory value** = `stock.inventory_value(entity, as_of)` = per product: net active movement quantity × `Product.unit_price` + Σ `ProductCapitalValuation.amount` (rows whose `operation.reversed_by` is null).
+  - **Assets** = cash + receivables + inventory. *(Equivalently: cash + inventory + `outstanding_loan_credited` + `outstanding_worker_advance_paid` + trade receivables — do **not** add loans/advances twice.)*
+  - **Payables** = `payables_at(as_of)` (R2) — already includes trade payables, loans received, and advances received.
+  - **Liabilities** = payables.
+  - **Equity** = Assets − Liabilities (residual) = contributed capital + cumulative retained earnings (P&L).
+- **Current implementation (subset):** `FinancialPeriod.end_assets` = cash balance + inventory value + `outstanding_loan_credited` + `outstanding_worker_advance_paid` (**excludes trade receivables**); `end_liabilities` = `outstanding_loan_received` + `outstanding_worker_advance_received` (**excludes trade payables**). Trade payables/receivables are tracked separately (R2/R3) but not yet folded into the sheet. **Refinement for Epic 7:** fold `payables_at`/`receivables_at` into the sheet so Assets − Liabilities reconciles exactly to contributed capital + cumulative P&L.
 - **Status:** partial — `FinancialPeriod.end_assets` / `end_liabilities` implemented and surfaced in the period detail "Period Summary"; full reconciliation is a documented gap.
 
-### 3.5 R7 — Cash Flow Statement (قائمة التدفقات النقدية)
+---
+
+### 3.5 R7 — Cash Flow Statement
 
 - **Purpose:** track cash moving in and out over a period → why the balance changed.
 - **Scope:** person + project.
-- **Intended formula:**
-  - Opening cash = `previous_balance` (= `balance_at(start_date − 1 day)`).
-  - Operating cash flow: purchase / sale / expense collections & payments (`PURCHASE_PAYMENT`, `SALE_COLLECTION`, `EXPENSE_PAYMENT`).
-  - Financing cash flow: injections, withdrawals, project funding/refund, loans, worker advances, internal transfers (`CASH_INJECTION_PAYMENT`, `CAPITAL_WITHDRAWAL_PAYMENT`, `PROJECT_FUNDING_PAYMENT`, `PROJECT_REFUND_PAYMENT`, `LOAN_PAYMENT`, `LOAN_REPAYMENT`, `WORKER_ADVANCE_PAYMENT`, `WORKER_ADVANCE_REPAYMENT`, `INTERNAL_TRANSFER_PAYMENT`, correction payments).
-  - Investing cash flow: none today (Birth/Death/Capital Gain/Capital Loss are non-cash; value flows via inventory).
-  - Closing cash = opening + net cash flow = `balance` (open) / `end_balance` (closed).
-- **Current implementation:** a **combined** `cash_in` (total incoming payment txs) and `cash_out` (total outgoing payment txs), plus `previous_balance`/`end_balance`. The operating/investing/financing split is a **future refinement** (Epic 7).
+- **Calculation (models):** over `Transaction` where `deleted_at IS NULL`, `type IN TransactionType.payment_types()`, `date ∈ [start_date, end_date)`:
+  - **Opening cash** = `previous_balance` = `balance_at(start_date − 1 day)`.
+  - **cash_in** = `Σ amount` where `target = entity`; **cash_out** = `Σ amount` where `source = entity`.
+  - **Closing cash** = opening + cash_in − cash_out = `balance` (open) / `end_balance` (closed).
+  - **Activity split (intended):**
+    - *Operating* — `PURCHASE_PAYMENT`, `SALE_COLLECTION`, `EXPENSE_PAYMENT`.
+    - *Financing* — `CASH_INJECTION_PAYMENT`, `CAPITAL_WITHDRAWAL_PAYMENT`, `PROJECT_FUNDING_PAYMENT`, `PROJECT_REFUND_PAYMENT`, `LOAN_PAYMENT`, `LOAN_REPAYMENT`, `WORKER_ADVANCE_PAYMENT`, `WORKER_ADVANCE_REPAYMENT`, `INTERNAL_TRANSFER_PAYMENT`, `CORRECTION_CREDIT_PAYMENT`, `CORRECTION_DEBIT_PAYMENT`.
+    - *Investing* — none today (Birth / Death / Capital Gain / Capital Loss are non-cash; value flows via inventory).
+- **Current implementation:** a **combined** `cash_in` / `cash_out` plus `previous_balance` / `end_balance`. The operating/investing/financing split is a **future refinement** (Epic 7).
 - **Status:** partial — `FinancialPeriod.cash_in` / `cash_out` / `previous_balance` / `end_balance` implemented and shown in the period detail "Cash & Balance" card.
 
-### 3.6 R8 — Statement of Changes in Equity (قائمة التغيرات في حقوق الملكية)
+---
+
+### 3.6 R8 — Statement of Changes in Equity
 
 - **Purpose:** explain how equity moved across a period: opening equity → capital contributed → net profit/loss → withdrawals/distributions → closing equity.
 - **Scope:** person + project (different drivers, §4).
-- **Intended formula:**
-  - **Person:** equity = fund balance. Opening equity = `previous_balance`; contributions = `CASH_INJECTION_PAYMENT` + `PROJECT_FUNDING_PAYMENT`; withdrawals = `CAPITAL_WITHDRAWAL_PAYMENT` + `PROJECT_REFUND_PAYMENT`; net profit/loss = capital gain/loss payments (for persons); closing equity = `balance` / `end_balance`.
-  - **Project:** equity = contributed capital + retained earnings. Contributed = funding + injections − refunds − withdrawals (payment types); retained earnings = cumulative `profit_loss`; distributions via `DistributionPlan` / `ShareholderAllocation` (models not yet present — future).
+- **Calculation (models):**
+  - **Person** (equity = fund balance):
+    - opening equity = `previous_balance`
+    - contributions (incoming payment txs) = `CASH_INJECTION_PAYMENT` + `PROJECT_FUNDING_PAYMENT` (as `target`)
+    - withdrawals (outgoing payment txs) = `CAPITAL_WITHDRAWAL_PAYMENT` + `PROJECT_REFUND_PAYMENT` (as `source`)
+    - net change = contributions − withdrawals; closing equity = `balance` / `end_balance`.
+  - **Project** (equity = contributed capital + retained earnings):
+    - contributed capital = Σ incoming financing payment types (funding, injections) − Σ outgoing financing payment types (refunds, withdrawals)
+    - retained earnings = cumulative `profit_loss` over closed periods
+    - distributions via `DistributionPlan` / `ShareholderAllocation` (models not yet present — future)
+    - closing equity = Assets − Liabilities (R6).
 - **Status:** not implemented as a page. The inputs (balance, cash flows, P&L) all exist; the dedicated statement is a future Epic 7 deliverable.
+
+---
 
 ### 3.7 Operational summary views (R9–R12)
 
-| # | View | العربية | Formula / content | Implementing code |
-|---|------|---------|-------------------|-------------------|
-| R9 | Payment Transactions | قائمة المعاملات النقدية | all payment-type txs where entity is source/target, annotated `direction` + `running_balance`, totals incoming/outgoing, current balance | `entity_payment_transactions_view` |
-| R10 | Payables detail | تفاصيل الذمم الدائنة | the transactions that build `payables_at`, annotated increase/decrease + running balance + totals | `entity_payables_view` |
-| R11 | Receivables detail | تفاصيل الذمم المدينة | mirror of R10 for `receivables_at` | `entity_receivables_view` |
-| R12 | Stock value | قيمة المخزون | movement-based `inventory_value` (project only) | `stock_detail` + `stock.inventory_value` |
+| # | View | Calculation (models) | Implementing code |
+|---|------|----------------------|-------------------|
+| R9 | Payment Transactions | all `Transaction` where `(source = entity OR target = entity)`, `type IN payment_types()`, `deleted_at IS NULL`, ordered by `date, pk`; each row annotated `direction` (incoming if `target = entity` else outgoing) and a running balance (`+amount` incoming, `−amount` outgoing); totals = Σ incoming / Σ outgoing; current balance = `entity.balance` | `entity_payment_transactions_view` |
+| R10 | Payables detail | the `Transaction` rows behind R2 (same filters), annotated `direction` = increase/decrease and a running obligation balance; totals = Σ increase / Σ decrease; current obligation = `entity.payables` | `entity_payables_view` |
+| R11 | Receivables detail | mirror of R10 using the R3 buckets; current obligation = `entity.receivables` | `entity_receivables_view` |
+| R12 | Stock value | `stock.inventory_value(entity, today)` — per `Product` owned by the entity: net active `InventoryMovementLine.quantity` × `Product.unit_price` + Σ active `ProductCapitalValuation.amount` | `stock_detail` + `stock.inventory_value` |
 
 ---
 
 ## 4. Entity-type applicability — what matters for persons vs projects
 
-| Metric / report | Person (الشخص) | Project (المشروع) |
-|-----------------|----------------|-------------------|
-| Fund balance (رصيد الصندوق) | ✓ — the person's wallet | ✓ — project cash position |
-| Cash in / out (تدفقات نقدية) | ✓ — injections, withdrawals, funding, refunds, repayments | ✓ — full cash-flow statement (R7) |
-| Payables (ذمم دائنة) | ✓ — as client / borrower / debtor | ✓ — purchases, expenses, loans received, advances received |
-| Receivables (ذمم مدينة) | ✓ — as vendor / lender / worker / shareholder | ✓ — sales, loans given, advances paid |
-| Inventory value (قيمة المخزون) | ✗ — persons hold no stock | ✓ — movement-based stock value (R4/R12) |
-| Income Statement / P&L (قائمة الدخل) | ✗ — `profit_loss` raises for non-projects | ✓ — R5, the primary project profitability report |
-| Balance Sheet (المركز المالي) | reduced — Assets = balance, Liabilities = 0, Equity = balance | ✓ — R6 full sheet (assets / liabilities / equity) |
-| Statement of Changes in Equity (تغيرات حقوق الملكية) | equity = balance (injections − withdrawals) | equity = contributed capital + retained earnings (− distributions) |
-| Financial periods (فترات مالية) | ✓ — auto-created open period on activation | ✓ — sequential, closeable periods; the backbone of R5–R8 |
-| Loans / worker advances | ✓ — tracked via receivables/payables buckets | ✓ — outstanding_loan_* / outstanding_worker_advance_* on periods |
+| Metric / report | Person | Project |
+|-----------------|--------|---------|
+| Fund balance | ✓ — the person's wallet | ✓ — project cash position |
+| Cash in / out | ✓ — injections, withdrawals, funding, refunds, repayments | ✓ — full cash-flow statement (R7) |
+| Payables | ✓ — as client / borrower / debtor | ✓ — purchases, expenses, loans received, advances received |
+| Receivables | ✓ — as vendor / lender / worker / shareholder | ✓ — sales, loans given, advances paid |
+| Inventory value | ✗ — persons hold no stock | ✓ — movement-based stock value (R4/R12) |
+| Income Statement / P&L | ✗ — `profit_loss` raises for non-projects | ✓ — R5, the primary project profitability report |
+| Balance Sheet | reduced — Assets = balance, Liabilities = 0, Equity = balance | ✓ — R6 full sheet (assets / liabilities / equity) |
+| Statement of Changes in Equity | equity = balance (injections − withdrawals) | equity = contributed capital + retained earnings (− distributions) |
+| Financial periods | ✓ — auto-created open period on activation | ✓ — sequential, closeable periods; the backbone of R5–R8 |
+| Loans / worker advances | ✓ — tracked via receivables/payables buckets | ✓ — `outstanding_loan_*` / `outstanding_worker_advance_*` on periods |
 
 **Key asymmetry (spec contract):** P&L and full balance sheet are **project-only**. A person's "financial statements" reduce to balance, cash flows, and the payables/receivables positions — the system therefore never offers R5/R6 for a person.
 
@@ -211,7 +258,7 @@ Common building blocks (how every amount is derived):
   - Closed project periods produce a final `amount` (= `profit_loss(period)`); open periods expose **current** (as-of-today) values.
   - `end_balance`, `inventory_value_end`, `payables_end`, `receivables_end`, `end_assets` return `None` while the period is open.
 - **Period chaining:** closing an active entity's period auto-creates the next open period starting on `end_date`; closing an inactive entity returns `None`.
-- **Guards:** no-overlap validation per entity; end_date immutable once set; closed periods reject new operations/payments/movements dated inside them (reversals exempt).
+- **Guards:** no-overlap validation per entity; `end_date` immutable once set; closed periods reject new operations/payments/movements dated inside them (reversals exempt).
 
 ---
 
@@ -224,7 +271,7 @@ Common building blocks (how every amount is derived):
 | P&L (R5) | `_signed_sum`: include originals + reversals, negating reversal amounts |
 | Cash flow (R7) | payment types only; reversal rows count as cash movement with the original's type/amount |
 | Balance sheet (R6) | built from the above per-component rules (as-of `end_date`) |
-| Inventory (R4/R12) | `active_movements`: exclude reversal lines and reversed originals; capital valuations exclude reversed operations |
+| Inventory (R4/R12) | `active_movements`: exclude reversal lines and reversed originals; `ProductCapitalValuation` rows exclude those whose `operation.reversed_by` is set |
 
 **Non-accounting types:** `BIRTH` / `DEATH` / `CAPITAL_GAIN` / `CAPITAL_LOSS` / `CONSUMPTION` payment records never enter balance or P&L — their value is carried by movement-based inventory (`stock.inventory_value`), which feeds `end_assets`.
 
