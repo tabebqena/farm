@@ -247,3 +247,178 @@ class ConsumptionCreateTest(TestCase):
             balance_before,
             "Consumption must not drain the fund balance (payment is no longer a payment type).",
         )
+
+    # ------------------------------------------------------------------
+    # SC5 — partial consumption keeps the product ACTIVE
+    # ------------------------------------------------------------------
+
+    def test_partial_consumption_keeps_product_active(self):
+        """SC5 — consuming part of the on-hand stock (2 of 5) leaves the product
+        ACTIVE with the remainder physically present; only a full write-off flips
+        it to CONSUMED."""
+        product = self._make_moved_product(qty=Decimal("5.00"), price=Decimal("100.00"))
+        self._consume(product, qty=Decimal("2.00"), price=Decimal("100.00"))
+
+        product.refresh_from_db()
+        self.assertEqual(product.status, Product.Status.ACTIVE)
+        state = movement_state(product, as_of=date.today())
+        self.assertEqual(state["quantity"], Decimal("3.00"))
+
+    # ------------------------------------------------------------------
+    # VC10 — consumable template gating in the full create pipeline
+    # ------------------------------------------------------------------
+
+    def _make_moved_product_for_template(self, template, qty=Decimal("5.00"), price=Decimal("100.00")):
+        """Create a physically-moved ACTIVE product owned by the project for an
+        arbitrary template (so ``validate_active`` passes and any rejection must
+        come from the template's ``accepts_operation(CONSUMPTION)`` gating)."""
+        purchase = make_operation(
+            self.project_entity,
+            self.vendor,
+            self.officer_user,
+            PurchaseOperation,
+            OperationType.PURCHASE,
+            amount=(qty * price).quantize(Decimal("0.01")),
+        )
+        item = make_invoice_item(purchase, template, qty, price)
+        product = Product.objects.create(
+            product_template=template,
+            entity=self.project_entity,
+            unit_price=price,
+            quantity=int(qty),
+        )
+        product.invoice_items.add(item)
+        InventoryMovementLine.objects.create(
+            operation=purchase,
+            invoice_item=item,
+            product=product,
+            quantity=qty,
+            date=date.today(),
+            officer=self.officer_user,
+        )
+        return product
+
+    def test_non_consumable_template_rejected_for_consumption(self):
+        """VC10 — ANIMAL templates are never consumable: the full create
+        pipeline rejects them at invoice-item validation."""
+        animal = ProductTemplate.objects.create(
+            name="Calves",
+            nature=ProductTemplate.Nature.ANIMAL,
+            sub_category="Cattle",
+            default_unit="Head",
+        )
+        product = self._make_moved_product_for_template(animal)
+        with self.assertRaises((ValidationError, ValueError)):
+            self._consume(product)
+
+    def test_non_consumable_flag_rejected_for_consumption(self):
+        """VC10 — a FEED template with can_be_consumed=False is rejected even
+        though its nature otherwise allows consumption."""
+        feed = ProductTemplate.objects.create(
+            name="Restricted Feed",
+            nature=ProductTemplate.Nature.FEED,
+            sub_category="Feed",
+            default_unit="Kg",
+            can_be_consumed=False,
+        )
+        product = self._make_moved_product_for_template(feed)
+        with self.assertRaises((ValidationError, ValueError)):
+            self._consume(product)
+
+
+class ConsumptionCreateValidationTest(TestCase):
+    """Model-level validation branches VC1–VC7 for Consumption (mirror of
+    ``op_18_death.md`` — plain ``save()`` without a formset)."""
+
+    def setUp(self):
+        self.system_entity = Entity.create(EntityType.SYSTEM)
+        self.officer_user = make_user()
+        self.project_entity = make_project_entity("Test Farm Project")
+
+    def _make_op(self, **kwargs):
+        defaults = dict(
+            source=self.project_entity,
+            destination=self.system_entity,
+            amount=Decimal("500.00"),
+            operation_type=OperationType.CONSUMPTION,
+            date=date.today(),
+            description="Test consumption",
+            officer=self.officer_user,
+        )
+        defaults.update(kwargs)
+        return ConsumptionOperation(**defaults)
+
+    # ------------------------------------------------------------------
+    # VC1 — source must be a Project entity
+    # ------------------------------------------------------------------
+
+    def test_source_must_be_a_project_entity(self):
+        non_project = make_entity(EntityType.PERSON, "Not A Project")
+        op = self._make_op(source=non_project)
+        with self.assertRaises(ValidationError):
+            op.save()
+
+    def test_source_system_entity_raises_validation_error(self):
+        op = self._make_op(source=self.system_entity, destination=self.project_entity)
+        with self.assertRaises(ValidationError):
+            op.save()
+
+    # ------------------------------------------------------------------
+    # VC2 — destination must be the System entity
+    # ------------------------------------------------------------------
+
+    def test_destination_must_be_system_entity(self):
+        non_system = make_project_entity("Not The System")
+        op = self._make_op(destination=non_system)
+        with self.assertRaises(ValidationError):
+            op.save()
+
+    def test_destination_person_entity_raises_validation_error(self):
+        person = make_entity(EntityType.PERSON, "Some Person")
+        op = self._make_op(destination=person)
+        with self.assertRaises(ValidationError):
+            op.save()
+
+    # ------------------------------------------------------------------
+    # VC3 — source entity active
+    # ------------------------------------------------------------------
+
+    def test_source_must_be_active(self):
+        self.project_entity.active = False
+        self.project_entity.save()
+
+        op = self._make_op()
+        with self.assertRaises(ValidationError):
+            op.save()
+
+    # ------------------------------------------------------------------
+    # VC5 — amount positive
+    # ------------------------------------------------------------------
+
+    def test_amount_zero_raises_validation_error(self):
+        op = self._make_op(amount=Decimal("0.00"))
+        with self.assertRaises(ValidationError):
+            op.save()
+
+    def test_amount_negative_raises_validation_error(self):
+        op = self._make_op(amount=Decimal("-50.00"))
+        with self.assertRaises(ValidationError):
+            op.save()
+
+    # ------------------------------------------------------------------
+    # VC6 / VC7 — officer staff + active
+    # ------------------------------------------------------------------
+
+    def test_officer_must_be_a_staff_user(self):
+        non_staff = make_user(username="non_staff_consumption", is_staff=False)
+        op = self._make_op(officer=non_staff)
+        with self.assertRaises(ValidationError):
+            op.save()
+
+    def test_officer_must_be_active(self):
+        self.officer_user.is_active = False
+        self.officer_user.save()
+
+        op = self._make_op()
+        with self.assertRaises(ValidationError):
+            op.save()

@@ -116,11 +116,11 @@ The tables below **register every file that implements this operation**. The spe
 
 | Concern | Test file |
 |---------|-----------|
-| Create branches (movement lines, status, no transactions, period assigned, non-cash) | |
-| Reverse branches (reversal record, no counter-tx, auto lines reversed, ledger negation, status CONSUMED→ACTIVE) | |
-| Stock detail/history UI branches | |
-| One-step quick-consume branches | |
-| Coverage manifest (executable branch registry) | |
+| Create branches (movement lines, status, no transactions, period assigned, non-cash) | `test_consumption_consumption_create` (`ConsumptionCreateTest` + `ConsumptionCreateValidationTest`) |
+| Reverse branches (reversal record, no counter-tx, auto lines reversed, ledger negation, status CONSUMED→ACTIVE, VR1/VR2/VR4, SR10) | `test_consumption_consumption_reversal` (`ConsumptionReversalTest`) |
+| Stock detail/history UI branches | `test_consumption_stock_detail` (`ConsumptionStockDetailTest`) |
+| One-step quick-consume branches | `test_quick_consume_from_stock` (`QuickConsumeFromStockTest`) |
+| Coverage manifest (executable branch registry) | `test_coverage_manifest` → `base.py` `COVERAGE_MANIFEST` |
 
 ---
 
@@ -150,8 +150,8 @@ Entry points: model `ConsumptionOperation.save()` (tests) or `Operation.create()
 
 | # | Branch | Pass condition | Failure outcome | Error (on failure) | Enforced by | Pinned by test |
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
-| VC1 | Source is Project | `source.is_project` | `ValidationError` | `"Consumption source must be a Project entity."` | `clean_source` | model clean (mirror of [`op_18`](op_18_death.md) VC1) |
-| VC2 | Destination is System | `destination.is_system` | `ValidationError` | `"Consumption destination must be the System entity."` | `clean_destination` | model clean (mirror of [`op_18`](op_18_death.md) VC2) |
+| VC1 | Source is Project | `source.is_project` | `ValidationError` | `"Consumption source must be a Project entity."` | `clean_source` | `test_source_must_be_a_project_entity` / `test_source_system_entity_raises_validation_error` (`ConsumptionCreateValidationTest`) — mirror of [`op_18`](op_18_death.md) VC1 |
+| VC2 | Destination is System | `destination.is_system` | `ValidationError` | `"Consumption destination must be the System entity."` | `clean_destination` | `test_destination_must_be_system_entity` / `test_destination_person_entity_raises_validation_error` (`ConsumptionCreateValidationTest`) — mirror of [`op_18`](op_18_death.md) VC2 |
 | VC3 | Source entity active | `source.active` | `ValidationError` | `"Entity '%(name)s' must be active…"` | `Operation.clean()` | shared engine suite |
 | VC4 | Destination entity active | `destination.active` | `ValidationError` | same as VC3 | `Operation.clean()` | shared engine suite |
 | VC5 | Amount positive | `amount > 0` | `ValidationError` | `"Amount should be positive, got …"` | `AmountCleanMixin` | shared engine suite |
@@ -159,7 +159,7 @@ Entry points: model `ConsumptionOperation.save()` (tests) or `Operation.create()
 | VC7 | Officer active | `officer.is_active` | `ValidationError` | `"Officer should be an active user."` | `OfficerMixin` | shared engine suite |
 | VC8 | Date not in a closed period (both entities) | no closed period contains `date` | `ValidationError` | `"Cannot create an operation whose date falls within a closed financial period."` | `Operation.clean()` | period suite |
 | VC9 | A covering financial period exists | `period_entity` has a period containing `date` | `ValidationError` | `"Cannot create an operation: no financial period covers this operation's date."` | `Operation.save()` | period suite |
-| VC10 | Template is consumable | `nature ∈ {FEED, MEDICINE}` **and** `can_be_consumed=True` (ANIMAL is always rejected — `can_be_consumed` forced off) | `ValidationError` | template rejected by `accepts_operation(CONSUMPTION)` | `ProductTemplate.accepts_operation` + nature allow-list | |
+| VC10 | Template is consumable | `nature ∈ {FEED, MEDICINE}` **and** `can_be_consumed=True` (ANIMAL is always rejected — `can_be_consumed` forced off) | `ValidationError` | template rejected by `accepts_operation(CONSUMPTION)` | `ProductTemplate.accepts_operation` + nature allow-list | `test_non_consumable_template_rejected_for_consumption` (ANIMAL) / `test_non_consumable_flag_rejected_for_consumption` (FEED `can_be_consumed=False`) — `ConsumptionCreateTest` |
 | VC11 | Product linked (must be an existing asset) | `selected_product` present on the invoice item | form/`ValidationError` | missing-product error | `InvoiceItemSelectFormSet` + `save_inventory` | implied by create flow |
 | VC12 | Ownership — product belongs to source project | `selected.entity == inventory_owner_entity` | `ValidationError` | `"Product '%(p)s' does not belong to '%(entity)s' and cannot be used in this operation."` | `save_inventory` + `InventoryMovementLine.clean` | shared inventory suite |
 | VC13 | Availability — quantity ≤ on-hand | `quantity ≤ movement_state(product, as_of=date)["quantity"]` | `ValidationError` | availability error | `InventoryMovementLine.clean` + `_auto_create_inventory_movements` | shared inventory suite |
@@ -305,19 +305,24 @@ reachable.
 |------|-------------|------------|
 | Auto movement line | | SC4, VC11 |
 | Ledger / stock state | | SC6 |
-| Status: ACTIVE while partial → CONSUMED at zero | | SC5 |
-| Status reuse blocked | | VC15 |
-| No transactions | | SC1 |
-| No settlement machinery | | SC2 |
-| No cash flow / fund unchanged | | SC3 |
-| profit_loss unchanged | | SC8 |
-| Period assigned | | SC7 |
-| Reverse happy path | | SR1 |
-| Auto lines reversed | | SR5, SR6 |
-| Ledger negation | | SR6 |
-| No counter txs | | SR4 |
-| Status restored ACTIVE | | SR7 |
+| Status: ACTIVE while partial → CONSUMED at zero | `test_partial_consumption_keeps_product_active` (partial → ACTIVE) + `test_create_marks_product_consumed` (zero → CONSUMED) | SC5 |
+| Status reuse blocked | `test_consumed_product_validate_active_blocks_reuse` | VC15 |
+| No transactions | `test_create_creates_no_transactions` | SC1 |
+| No settlement machinery | `test_period_is_assigned_and_no_settlement_machinery` | SC2 |
+| No cash flow / fund unchanged | `test_create_does_not_drain_fund_balance` | SC3 |
+| profit_loss unchanged | `test_create_does_not_change_profit_loss` | SC8 |
+| Period assigned | `test_period_is_assigned_and_no_settlement_machinery` | SC7 |
+| Reverse happy path | `test_reverse_creates_reversal_record` | SR1 |
+| Auto lines reversed | `test_reverse_reverses_auto_movement_lines` | SR5, SR6 |
+| Ledger negation | `test_reverse_negates_ledger_entries` | SR6 |
+| No counter txs | `test_reverse_creates_no_transactions` | SR4 |
+| Status restored ACTIVE | `test_reversed_product_returns_to_active_status` | SR7 |
 | Reversal dependency guard | pinned by `test_reversal_blocked_when_product_moved_again_in_later_consumption` | VR4 |
+| Already reversed / is-a-reversal | `test_cannot_reverse_already_reversed_operation` / `test_cannot_reverse_a_reversal` | VR1, VR2 |
+| Differential invariant (create + reverse unchanged) | `test_create_then_reverse_leaves_world_unchanged` | SR10 |
+| Source role (model clean) | `test_source_must_be_a_project_entity` | VC1 |
+| Destination role (model clean) | `test_destination_must_be_system_entity` | VC2 |
+| Template gating (full create pipeline) | `test_non_consumable_template_rejected_for_consumption` / `test_non_consumable_flag_rejected_for_consumption` | VC10 |
 | Stock history shows OUT | | SC4, SC5 (UI) |
 | Live tab excludes consumed | | SC5 (UI) |
 | Quick-consume full pipeline | | QCS1, SC1–SC8 |

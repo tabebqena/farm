@@ -228,3 +228,60 @@ class ConsumptionReversalTest(TestCase):
 
         with self.assertRaises(ValidationError):
             first.reverse(officer=self.officer_user)
+
+    # ------------------------------------------------------------------
+    # VR1 / VR2 — already-reversed and is-a-reversal guards
+    # ------------------------------------------------------------------
+
+    def test_cannot_reverse_already_reversed_operation(self):
+        """VR1 — reversing an already-reversed consumption is rejected."""
+        op, _ = self._make_consumed()
+        op.reverse(officer=self.officer_user, reason="test reversal")
+        op.refresh_from_db()
+
+        with self.assertRaises(ValidationError):
+            op.reverse(officer=self.officer_user)
+
+    def test_cannot_reverse_a_reversal(self):
+        """VR2 — a reversal record cannot itself be reversed."""
+        op, _ = self._make_consumed()
+        reversal = op.reverse(officer=self.officer_user, reason="test reversal")
+
+        with self.assertRaises(ValidationError):
+            reversal.reverse(officer=self.officer_user)
+
+    # ------------------------------------------------------------------
+    # SR10 — differential invariant: create + reverse leaves the world unchanged
+    # ------------------------------------------------------------------
+
+    def test_create_then_reverse_leaves_world_unchanged(self):
+        """SR10 — balances, payables, receivables, ledger totals and inventory
+        value all return to the pre-consumption state after a full
+        create + reverse cycle.
+
+        The setup purchase is a permanent fixture (it moves the feed into the
+        project's stock), so the snapshot is taken after the purchase and before
+        the consumption — the consumption + reversal must leave that state intact."""
+        from apps.app_inventory.stock import inventory_value
+
+        from apps.app_operation.tests.base import (
+            assert_derived_state_unchanged,
+            snapshot_derived_state,
+        )
+
+        product = self._purchase_product(qty=Decimal("5.00"), price=Decimal("100.00"))
+        before = snapshot_derived_state()
+        value_before = inventory_value(self.project_entity, as_of=date.today())
+        self.assertEqual(value_before, Decimal("500.00"))
+
+        op = self._consume(product, qty=Decimal("5.00"), price=Decimal("100.00"))
+        op.reverse(officer=self.officer_user, reason="test reversal")
+
+        assert_derived_state_unchanged(self, before, msg="consumption create+reverse")
+        self.assertEqual(
+            inventory_value(self.project_entity, as_of=date.today()),
+            value_before,
+            "Inventory value must be restored after create+reverse.",
+        )
+        product.refresh_from_db()
+        self.assertEqual(product.status, Product.Status.ACTIVE)

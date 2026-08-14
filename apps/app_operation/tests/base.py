@@ -649,6 +649,15 @@ COVERAGE_MANIFEST: dict[tuple[str, str, str], str] = {
     ("CONSUMPTION", "create", "SE7"): _path(
         f"{_OPS_TESTS}.inventory.test_consumption_consumption_create",
         "ConsumptionCreateTest", "test_create_marks_product_consumed"),
+    ("CONSUMPTION", "create", "VC7"): _path(
+        f"{_OPS_TESTS}.inventory.test_consumption_consumption_create",
+        "ConsumptionCreateValidationTest", "test_officer_must_be_active"),
+    ("CONSUMPTION", "create", "VC10"): _path(
+        f"{_OPS_TESTS}.inventory.test_consumption_consumption_create",
+        "ConsumptionCreateTest", "test_non_consumable_template_rejected_for_consumption"),
+    ("CONSUMPTION", "create", "SC5-partial"): _path(
+        f"{_OPS_TESTS}.inventory.test_consumption_consumption_create",
+        "ConsumptionCreateTest", "test_partial_consumption_keeps_product_active"),
     ("CONSUMPTION", "reverse", "SE1"): _path(
         f"{_OPS_TESTS}.inventory.test_consumption_consumption_reversal",
         "ConsumptionReversalTest", "test_reverse_creates_reversal_record"),
@@ -664,9 +673,18 @@ COVERAGE_MANIFEST: dict[tuple[str, str, str], str] = {
     ("CONSUMPTION", "reverse", "SE7"): _path(
         f"{_OPS_TESTS}.inventory.test_consumption_consumption_reversal",
         "ConsumptionReversalTest", "test_reversed_product_returns_to_active_status"),
+    ("CONSUMPTION", "reverse", "VR1"): _path(
+        f"{_OPS_TESTS}.inventory.test_consumption_consumption_reversal",
+        "ConsumptionReversalTest", "test_cannot_reverse_already_reversed_operation"),
+    ("CONSUMPTION", "reverse", "VR2"): _path(
+        f"{_OPS_TESTS}.inventory.test_consumption_consumption_reversal",
+        "ConsumptionReversalTest", "test_cannot_reverse_a_reversal"),
     ("CONSUMPTION", "reverse", "VR4"): _path(
         f"{_OPS_TESTS}.inventory.test_consumption_consumption_reversal",
         "ConsumptionReversalTest", "test_reversal_blocked_when_product_moved_again_in_later_consumption"),
+    ("CONSUMPTION", "reverse", "differential"): _path(
+        f"{_OPS_TESTS}.inventory.test_consumption_consumption_reversal",
+        "ConsumptionReversalTest", "test_create_then_reverse_leaves_world_unchanged"),
 
     # ------------------------------------------------------------ CAPITAL_GAIN
     ("CAPITAL_GAIN", "create", "SE2"): _path(
