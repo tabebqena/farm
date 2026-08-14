@@ -363,6 +363,11 @@ class InvoiceItem(AmountCleanMixin, BaseModel):
 
         except Exception as e:
             return super().clean()
+        # A row with no product selected (e.g. a birth form whose newborn
+        # template is missing) must surface the friendly form-level error
+        # instead of crashing on the unset FK (op_17_birth.md VC12).
+        if self.product_template_id is None:
+            return super().clean()
         if not self.product_template.accepts_operation(op_type):
             raise ValidationError(
                 _(

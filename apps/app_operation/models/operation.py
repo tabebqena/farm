@@ -1016,18 +1016,24 @@ class Operation(
         )
 
         try:
-            # Reversal dependency guard: do not reverse an outbound operation
-            # (DEATH/CONSUMPTION/SALE) whose products were moved again in a
-            # later non-reversed operation — the reversal would resurrect
-            # stock that has since been consumed/sold/written off.
+            # Reversal dependency guard: do not reverse an operation whose
+            # products were moved again in a later non-reversed operation.
+            # For the outbound ops (DEATH/CONSUMPTION/SALE) the reversal would
+            # resurrect stock that has since been consumed/sold/written off.
+            # For BIRTH (an inbound op) the reversal would push a newborn's net
+            # presence negative once its born value was dispatched by a later
+            # SALE/DEATH/CONSUMPTION, so the guard is extended to BIRTH too
+            # (docs/specs/operations/op_17_birth.md §5.2.1 VR4).
             #
-            # Pinned by the reachable partial-outbound scenarios:
+            # Pinned by the reachable scenarios:
             #   - Sale:  test_reversal_blocked_when_product_moved_again_in_later_sale
             #   - Consumption: test_reversal_blocked_when_product_moved_again_in_later_consumption
+            #   - Birth: test_reversal_blocked_when_born_product_moved_again_in_later_death
             # Death cannot reach this branch via normal flows (no partial death —
             # a fully written-off product is terminal), so the DEATH case is
             # defensive (see docs/specs/operations/op_18_death.md §5.2.1 VR4).
             if type(self).has_invoice and self.operation_type in (
+                OperationType.BIRTH,
                 OperationType.DEATH,
                 OperationType.CONSUMPTION,
                 OperationType.SALE,

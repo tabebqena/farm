@@ -180,6 +180,73 @@ class BirthReversalTest(TestCase):
                 product.validate_active()
 
     # ------------------------------------------------------------------
+    # SR8 — differential invariant: create + reverse leaves the world unchanged
+    # ------------------------------------------------------------------
+
+    def test_create_then_reverse_leaves_world_unchanged(self):
+        """SR8 — balances, payables, receivables and the ledger all return to
+        the pre-operation state after a full birth create + reverse cycle."""
+        from apps.app_operation.tests.base import (
+            assert_derived_state_unchanged,
+            snapshot_derived_state,
+        )
+
+        before = snapshot_derived_state()
+
+        op, _ = self._make_born(qty=Decimal("5.00"), price=Decimal("100.00"))
+        op.reverse(officer=self.officer_user, reason="test reversal")
+
+        assert_derived_state_unchanged(self, before, msg="birth create+reverse")
+
+    # ------------------------------------------------------------------
+    # VR4 — reversal dependency guard (born products still ACTIVE)
+    # ------------------------------------------------------------------
+
+    def test_reversal_blocked_when_born_product_moved_again_in_later_death(self):
+        """VR4 — reversing a birth is blocked once a born animal was moved
+        again in a later non-reversed outbound operation (e.g. DEATH).
+
+        Scenario: calf born (ACTIVE) → the same calf dies (DEATH, outbound
+        movement). Reversing the birth would push the calf's net presence
+        negative, so the dependency guard blocks it.
+        """
+        from apps.app_inventory.tests.general import (
+            make_invoice_item,
+            make_operation,
+        )
+        from apps.app_operation.models.proxies import DeathOperation
+
+        op, product = self._make_born(qty=Decimal("1.00"), price=Decimal("100.00"))
+        product.refresh_from_db()
+        self.assertEqual(product.status, Product.Status.ACTIVE)
+
+        # A later DEATH writes the same animal off stock (outbound movement).
+        death = make_operation(
+            self.project_entity,
+            self.system_entity,
+            self.officer_user,
+            DeathOperation,
+            OperationType.DEATH,
+            amount=Decimal("100.00"),
+        )
+        item = make_invoice_item(
+            death, self.template, Decimal("1"), Decimal("100.00")
+        )
+        InventoryMovementLine.objects.create(
+            operation=death,
+            invoice_item=item,
+            product=product,
+            quantity=Decimal("1.00"),
+            date=date.today(),
+            officer=self.officer_user,
+        )
+        product.refresh_from_db()
+        self.assertEqual(product.status, Product.Status.DEAD)
+
+        with self.assertRaises(ValidationError):
+            op.reverse(officer=self.officer_user, reason="test reversal")
+
+    # ------------------------------------------------------------------
     # Constraints
     # ------------------------------------------------------------------
 

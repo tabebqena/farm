@@ -157,9 +157,9 @@ Entry points: model `BirthOperation.save()` (tests) or `Operation.create()` (vie
 | VC7 | Officer active | `officer.is_active` | `ValidationError` | `"Officer should be an active user."` | `OfficerMixin` | |
 | VC8 | Date not in a closed period (both entities) | no closed period contains `date` | `ValidationError` | `"Cannot create an operation whose date falls within a closed financial period."` | `Operation.clean()` | period suite |
 | VC9 | A covering financial period exists | `period_entity` has a period containing `date` | `ValidationError` | `"Cannot create an operation: no financial period covers this operation's date."` | `Operation.save()` | period suite |
-| VC10 | Template is a giving-birth (or newborn) ANIMAL | template `nature == ANIMAL` (BIRTH allowed) | `ValidationError` | template rejected by `accepts_operation(BIRTH)` | `ProductTemplate.accepts_operation` | (nature gating) |
+| VC10 | Template is a giving-birth (or newborn) ANIMAL | template `nature == ANIMAL` (BIRTH allowed) | `ValidationError` | template rejected by `accepts_operation(BIRTH)` | `ProductTemplate.accepts_operation` | `test_non_animal_template_rejected_for_birth` |
 | VC11 | Mother is an ACTIVE female/mixed animal of the project (when a mother is picked) | mother in restricted queryset | form `ValidationError` | mother picker restricted | `InvoiceItemCreateForm` | |
-| VC12 | Newborn template present | `product_template` chosen (defaults to mother's `gives_birth_to`) | form `ValidationError` | `"Newborn template is required (or select a mother whose template has a 'gives birth to' template)."` | `InvoiceItemCreateForm.clean()` | |
+| VC12 | Newborn template present | `product_template` chosen (defaults to mother's `gives_birth_to`) | form `ValidationError` | `"Newborn template is required (or select a mother whose template has a 'gives birth to' template)."` | `InvoiceItemCreateForm.clean()` | `test_newborn_template_required_without_gives_birth_to` |
 | VC13 | Identity — unique tag per entity | `INDIVIDUAL` tracking: `unique_id` present + unique per `(entity, unique_id)` | `ValidationError` / `IntegrityError` | DB `UniqueConstraint` | `Product.Meta` | |
 | VC14 | Unit consistency | quantity is a multiple of `product_template.minimum_quantity` | `ValidationError` | unit-step error | inventory form / movement clean | shared inventory suite |
 
@@ -176,7 +176,7 @@ Entry points: model `BirthOperation.save()` (tests) or `Operation.create()` (vie
 | SC7 | Newborn template defaulted | newborn `product_template == mother.gives_birth_to` unless overridden | `InvoiceItemCreateForm.clean()` | |
 | SC8 | Inventory value increases once | `movement_state(product)` → `qty > 0`, `value = qty × carried cost`; `inventory_value()` includes the born value; `FinancialPeriod.end_assets` ▲ once (via inventory, not cash) | `movement_state` + `inventory_value` | |
 | SC9 | Period auto-assigned | `period` = the project's covering period (open period auto-created at entity creation) | `Operation.save()` + `Entity.save()` | covered by period suite |
-| SC10 | Fund balance unchanged | `balance_at()` unaffected (no payment) | `Entity.balance_at` | |
+| SC10 | Fund balance unchanged | `balance_at()` unaffected (no payment) | `Entity.balance_at` | `test_project_fund_unchanged_by_birth` |
 
 ### 5.2 `reverse`
 
@@ -189,7 +189,7 @@ Entry points: model `op.reverse(officer, date, reason)` or view `operation_rever
 | VR1 | Not already reversed | `reversed_by is None` | `ValidationError` | `"The transaction is already reversed."` | `ReversableModel._validate_can_be_reversed` + view guard | |
 | VR2 | Not itself a reversal | `reversal_of is None` | `ValidationError` | `"You can't reverse this record as it is a reversal of …"` | `ReversableModel._validate_can_be_reversed` + view guard | |
 | VR3 | No non-reversed adjustments | n/a — Birth is not adjustable | never fails | — | `is_adjustable=False` | n/a |
-| VR4 | Born products still ACTIVE | every born product's `status == ACTIVE` — none was moved again in a later non-reversed outbound op (SALE/DEATH/CONSUMPTION) | `ValidationError` | `"Cannot reverse this operation: its products were moved again in a later operation."` | `Operation.reverse()` (shared reversal dependency guard, extended to cover BIRTH) | **Intended behavior** — the reverse of a birth is valid only while the newborn is still ACTIVE in stock; once it has been sold/dead/consumed in a later operation the reversal would resurrect stock that no longer exists |
+| VR4 | Born products still ACTIVE | every born product's `status == ACTIVE` — none was moved again in a later non-reversed outbound op (SALE/DEATH/CONSUMPTION) | `ValidationError` | `"Cannot reverse this operation: its products were moved again in a later operation."` | `Operation.reverse()` (shared reversal dependency guard, extended to cover BIRTH) | `test_reversal_blocked_when_born_product_moved_again_in_later_death` — the reverse of a birth is valid only while the newborn is still ACTIVE in stock; once it has been sold/dead/consumed in a later operation the reversal would push the newborn's net presence negative, so the guard blocks it |
 | VR5 | Reason required | `POST['reversal_reason']` non-empty | view redirect + message | `"A reason for reversal is required."` | `operation_reverse_view` | view contract (see §8) |
 
 #### 5.2.2 Success effects
@@ -203,7 +203,7 @@ Entry points: model `op.reverse(officer, date, reason)` or view `operation_rever
 | SR5 | Auto movement lines reversed | one reversal line per original (equal qty, `reversal_of` link); originals preserved | `Operation.reverse()` → `line.reverse()` | |
 | SR6 | Ledger negated | each born product's net presence → `qty 0`, `value 0` | `movement_state` | |
 | SR7 | Born products removed from stock | products persist (audit trail) but `status == REMOVED`; `validate_active()` fails → barred from new operations; value leaves `inventory_value()` | `Product.status` + `validate_active` | |
-| SR8 | Differential invariant | create + reverse leaves the whole world unchanged (balances, payables, receivables, ledger, inventory value) | whole engine | shared engine invariant |
+| SR8 | Differential invariant | create + reverse leaves the whole world unchanged (balances, payables, receivables, ledger, inventory value) | whole engine | `test_create_then_reverse_leaves_world_unchanged` |
 
 ### 5.3 `pay`
 
@@ -271,17 +271,30 @@ does not exist on the class). Payment-related code is never reachable.
 
 | Area | Test method | Branch(es) |
 |------|-------------|------------|
-| Config flags | | flags |
-| No transactions | | SC1 |
-| No settlement machinery | | SC2 |
-| Source validation | | VC1 |
-| Destination validation | | VC2 |
-| Amount | | VC5 |
-| Officer | | VC6, VC7 |
-| Auto inbound lines | | SC3 |
-| Lazy tagged products | | SC4, VC13 |
-| ACTIVE status | | SC5 |
-| Ledger / movement state | | SC8 |
-| Period assigned | | SC9 |
-| Reversal — no counter-txs | | SR4 |
-| Reversal — born products still ACTIVE | | VR4 |
+| Config flags | `test_can_pay_config_is_false` · `test_is_partially_payable_config_is_false` · `test_check_balance_on_payment_is_disabled` · `test_has_category_config_is_false` · `test_category_required_config_is_false` · `test_has_repayment_config_is_false` · `test_has_invoice_config_is_true` · `test_creates_assets_config_is_true` · `test_can_create_movement_is_false` | flags |
+| No transactions | `test_save_creates_no_transactions` | SC1 |
+| No settlement machinery | `test_no_settlement_or_payment_machinery` | SC2 |
+| Source validation | `test_source_must_be_system_entity` | VC1 |
+| Destination validation | `test_destination_must_be_project_entity` | VC2 |
+| Amount | `test_amount_zero_raises_validation_error` · `test_amount_negative_raises_validation_error` | VC5 |
+| Officer | `test_officer_must_be_a_staff_user` · `test_officer_must_be_active` | VC6, VC7 |
+| Template nature gating | `test_non_animal_template_rejected_for_birth` | VC10 |
+| Mother picker (active female/mixed) | `test_mother_picker_only_lists_active_female_mixed` · `test_mother_must_be_active_form_error` · `test_mother_active_passes_form_validation` | VC11 |
+| Newborn template required | `test_newborn_template_required_without_gives_birth_to` | VC12 |
+| Auto inbound lines | `test_create_auto_creates_inbound_movement_lines` | SC3 |
+| Lazy tagged products | `test_movement_lines_have_lazily_created_tagged_products` | SC4, VC13 |
+| ACTIVE status | `test_created_product_is_active` | SC5 |
+| Newborn attributes | `test_birth_sets_gender_birth_date_and_mother` · `test_birth_male_gender_recorded` · `test_birth_defaults_newborn_template_to_gives_birth_to` | SC6, SC7 |
+| Ledger / movement state | `test_create_writes_movement_and_issuance_ledger_entries` | SC8 |
+| Period assigned | `test_period_is_assigned_on_creation` | SC9 |
+| Fund balance unchanged | `test_project_fund_unchanged_by_birth` | SC10 |
+| Immutability | `test_source_is_immutable_after_save` · `test_destination_is_immutable_after_save` · `test_amount_is_immutable_after_save` | IM1–IM3 |
+| Reversal — reversal record | `test_reverse_creates_reversal_record` · `test_reverse_marks_original_as_reversed` | SR1, SR2 |
+| Reversal — no counter-txs | `test_reverse_creates_no_transactions` | SR4 |
+| Reversal — lines reversed | `test_reverse_reverses_auto_movement_lines` · `test_reverse_movement_ledger_negation_exact_set` | SR5, SR6 |
+| Reversal — born products REMOVED | `test_reverse_born_products_removed_from_stock` | SR7 |
+| Reversal — constraints | `test_cannot_reverse_already_reversed_operation` · `test_cannot_reverse_a_reversal` | VR1, VR2 |
+| Reversal — born products still ACTIVE | `test_reversal_blocked_when_born_product_moved_again_in_later_death` | VR4 |
+| Reversal — reason required (view) | `test_reverse_view_rejects_missing_reason` · `test_reverse_view_with_reason_reverses_and_flows_reason` | VR5, SR10 |
+| Differential invariant | `test_create_then_reverse_leaves_world_unchanged` | SR8 |
+| View — create route | `test_get_birth_create_renders_birth_form` · `test_post_birth_create_creates_operation_with_movements` | §8 |

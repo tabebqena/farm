@@ -230,3 +230,67 @@ class BirthAnimalAttributesTest(TestCase):
         )
 
         self.assertTrue(formset.is_valid(), formset.errors)
+
+    # ------------------------------------------------------------------
+    # VC12 — a newborn template is required (mother must have gives_birth_to)
+    # ------------------------------------------------------------------
+
+    def test_newborn_template_required_without_gives_birth_to(self):
+        """VC12 — a mother whose template has no ``gives_birth_to`` and no
+        explicit newborn template makes the birth form invalid."""
+        barren = ProductTemplate.objects.create(
+            name="Barren Cow",
+            nature=ProductTemplate.Nature.ANIMAL,
+            sub_category="Cattle",
+            default_unit="Head",
+            animal_type="Cow",
+            gender=ProductTemplate.Gender.FEMALE,
+        )
+        barren.entities.add(self.project_entity)
+        mother = Product.objects.create(
+            entity=self.project_entity,
+            product_template=barren,
+            quantity=1,
+            unit_price=Decimal("1000.00"),
+            unique_id="COW-BARREN",
+            gender=Product.Gender.FEMALE,
+            birth_date=date(2023, 1, 1),
+        )
+
+        raw_post = {
+            "items-TOTAL_FORMS": "1",
+            "items-INITIAL_FORMS": "0",
+            "items-MIN_NUM_FORMS": "0",
+            "items-MAX_NUM_FORMS": "1000",
+            "items-0-id": "",
+            "items-0-product_template": "",
+            "items-0-quantity": "1",
+            "items-0-unit_price": "100",
+            "items-0-description": "",
+            "items-0-unique_id": "",
+            "items-0-mother": str(mother.pk),
+            "items-0-gender": "FEMALE",
+            "items-0-birth_date": date.today().isoformat(),
+            "items-0-DELETE": "",
+        }
+        formset = InvoiceItemCreateFormSet(
+            data=raw_post,
+            instance=BirthOperation(
+                operation_type=OperationType.BIRTH,
+                source=self.system_entity,
+                destination=self.project_entity,
+                amount=Decimal("100.00"),
+                date=date.today(),
+                description="Test birth",
+                officer=self.officer_user,
+            ),
+            project=self.project_entity,
+            is_birth=True,
+        )
+
+        self.assertFalse(formset.is_valid())
+        template_errors = formset.forms[0].errors.get("product_template", [])
+        self.assertTrue(
+            template_errors,
+            "A mother without gives_birth_to must require a newborn template",
+        )

@@ -555,6 +555,12 @@ COVERAGE_MANIFEST: dict[tuple[str, str, str], str] = {
     ("BIRTH", "create", "SE7"): _path(
         f"{_OPS_TESTS}.birth.test_birth_birth_create",
         "BirthCreateTest", "test_created_product_is_active"),
+    ("BIRTH", "create", "SC10"): _path(
+        f"{_OPS_TESTS}.birth.test_birth_birth_create",
+        "BirthCreateTest", "test_project_fund_unchanged_by_birth"),
+    ("BIRTH", "create", "VC10"): _path(
+        f"{_OPS_TESTS}.birth.test_birth_birth_create",
+        "BirthCreateTest", "test_non_animal_template_rejected_for_birth"),
     ("BIRTH", "reverse", "SE1"): _path(
         f"{_OPS_TESTS}.birth.test_birth_birth_reversal",
         "BirthReversalTest", "test_reverse_creates_reversal_record"),
@@ -573,6 +579,12 @@ COVERAGE_MANIFEST: dict[tuple[str, str, str], str] = {
     ("BIRTH", "reverse", "SE10"): _path(
         f"{_OPS_TESTS}.birth.test_birth_birth_reversal",
         "BirthReversalTest", "test_cannot_reverse_already_reversed_operation"),
+    ("BIRTH", "reverse", "VR4"): _path(
+        f"{_OPS_TESTS}.birth.test_birth_birth_reversal",
+        "BirthReversalTest", "test_reversal_blocked_when_born_product_moved_again_in_later_death"),
+    ("BIRTH", "reverse", "differential"): _path(
+        f"{_OPS_TESTS}.birth.test_birth_birth_reversal",
+        "BirthReversalTest", "test_create_then_reverse_leaves_world_unchanged"),
 
     # ------------------------------------------------------------------ DEATH
     ("DEATH", "create", "SE2"): _path(

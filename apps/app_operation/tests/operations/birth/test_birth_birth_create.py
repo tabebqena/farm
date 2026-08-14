@@ -47,15 +47,18 @@ class BirthCreateTest(TestCase):
         )
         self.template.entities.add(self.project_entity)
 
-    def _birth(self, qty=Decimal("5.00"), price=Decimal("100.00")):
+    def _birth(
+        self, qty=Decimal("5.00"), price=Decimal("100.00"), template=None
+    ):
         """Drive the full BirthOperation.create() pipeline with a formset."""
+        template = template or self.template
         raw_post = {
             "items-TOTAL_FORMS": "1",
             "items-INITIAL_FORMS": "0",
             "items-MIN_NUM_FORMS": "0",
             "items-MAX_NUM_FORMS": "1000",
             "items-0-id": "",
-            "items-0-product_template": str(self.template.pk),
+            "items-0-product_template": str(template.pk),
             "items-0-quantity": str(qty),
             "items-0-unit_price": str(price),
             "items-0-description": "",
@@ -101,6 +104,27 @@ class BirthCreateTest(TestCase):
 
     def test_creates_assets_config_is_true(self):
         self.assertTrue(BirthOperation.creates_assets)
+
+    def test_has_invoice_config_is_true(self):
+        """Birth carries invoice items + auto inventory movements."""
+        self.assertTrue(BirthOperation.has_invoice)
+
+    def test_has_repayment_config_is_false(self):
+        """No repayment machinery on a birth."""
+        self.assertFalse(BirthOperation.has_repayment)
+
+    def test_can_create_movement_is_false(self):
+        """Birth has no manual movement screen — inbound lines are auto-created."""
+        op = BirthOperation(
+            source=self.system_entity,
+            destination=self.project_entity,
+            amount=Decimal("100.00"),
+            operation_type=OperationType.BIRTH,
+            date=date.today(),
+            description="Test birth",
+            officer=self.officer_user,
+        )
+        self.assertFalse(op.can_create_movement)
 
     # ------------------------------------------------------------------
     # No accounting transactions — Birth is a stock event
@@ -225,6 +249,54 @@ class BirthCreateTest(TestCase):
             self._birth()
 
     # ------------------------------------------------------------------
+    # Immutability (IM1/IM2/IM3)
+    # ------------------------------------------------------------------
+
+    def test_source_is_immutable_after_save(self):
+        op = self._birth()
+        other_project = Entity.create(EntityType.PROJECT, name="Other Project")
+
+        op.source = other_project
+        with self.assertRaises(ValidationError):
+            op.save()
+
+    def test_destination_is_immutable_after_save(self):
+        op = self._birth()
+        other_project = Entity.create(EntityType.PROJECT, name="Other Project 2")
+
+        op.destination = other_project
+        with self.assertRaises(ValidationError):
+            op.save()
+
+    def test_amount_is_immutable_after_save(self):
+        op = self._birth()
+
+        op.amount = Decimal("9999.00")
+        with self.assertRaises(ValidationError):
+            op.save()
+
+    # ------------------------------------------------------------------
+    # Template nature gating — BIRTH is ANIMAL-only (VC10)
+    # ------------------------------------------------------------------
+
+    def test_non_animal_template_rejected_for_birth(self):
+        """VC10 — BIRTH only accepts ANIMAL templates; a COMMODITY (FEED)
+        template is rejected at invoice-item validation."""
+        feed = ProductTemplate.objects.create(
+            name="Feed Mix",
+            nature=ProductTemplate.Nature.FEED,
+            sub_category="Feed",
+            tracking_mode=ProductTemplate.TrackingMode.COMMODITY,
+            default_unit="Kg",
+        )
+        feed.entities.add(self.project_entity)
+
+        # The model-level InvoiceItem.clean() raises ValidationError; the
+        # inline formset re-wraps it into ValueError at save time.
+        with self.assertRaises((ValidationError, ValueError)):
+            self._birth(template=feed, qty=Decimal("1.00"), price=Decimal("100.00"))
+
+    # ------------------------------------------------------------------
     # Auto movement line + lazy product creation
     # ------------------------------------------------------------------
 
@@ -279,6 +351,22 @@ class BirthCreateTest(TestCase):
             state = movement_state(ml.product, as_of=date.today())
             self.assertEqual(state["quantity"], Decimal("1.00"), ml.product.unique_id)
             self.assertEqual(state["value"], Decimal("100.00"))
+
+    # ------------------------------------------------------------------
+    # Fund balance — Birth is non-cash (SC10)
+    # ------------------------------------------------------------------
+
+    def test_project_fund_unchanged_by_birth(self):
+        """SC10 — a birth is non-cash: the project's fund balance is untouched."""
+        balance_before = self.project_entity.balance
+        self._birth()
+
+        self.project_entity.refresh_from_db()
+        self.assertEqual(
+            self.project_entity.balance,
+            balance_before,
+            "Birth must not change the fund balance.",
+        )
 
     # ------------------------------------------------------------------
     # One-shot constraint
