@@ -148,18 +148,18 @@ Entry points: model `CashInjectionOperation.save()` (tests) or `Operation.create
 
 | # | Branch | Pass condition | Failure outcome | Error (on failure) | Enforced by | Pinned by test |
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
-| VC1 | Source is World | `source.is_world` | `ValidationError` | `"Cash Injection source must be the World entity."` | `clean_source` | |
-| VC2 | Destination is Person | `destination.is_person` | `ValidationError` | `"Cash Injection must target a Person entity."` | `clean_destination` | |
-| VC3 | Source entity active | `source.active` | `ValidationError` | `"Entity '%(name)s' must be active…"` | `Operation.clean()` | |
-| VC4 | Destination entity active | `destination.active` | `ValidationError` | same as VC3 | `Operation.clean()` | |
+| VC1 | Source is World | `source.is_world` | `ValidationError` | `"Cash Injection source must be the World entity."` | `clean_source` | `CashInjectionCreateTest.test_source_must_be_world` |
+| VC2 | Destination is Person | `destination.is_person` | `ValidationError` | `"Cash Injection must target a Person entity."` | `clean_destination` | `CashInjectionCreateTest.test_destination_must_be_person_entity` |
+| VC3 | Source entity active | `source.active` | `ValidationError` | `"Entity '%(name)s' must be active…"` | `Operation.clean()` | `CashInjectionCreateTest.test_source_entity_must_be_active` |
+| VC4 | Destination entity active | `destination.active` | `ValidationError` | same as VC3 | `Operation.clean()` | `CashInjectionCreateTest.test_destination_entity_must_be_active` |
 | VC5 | Source fund active | `payment_source_fund.active` | `ValidationError` | `"The Payment source entity should be active."` | `SourceFundMixin` | merged with VC3 |
 | VC6 | Target fund active | `payment_target_fund.active` | `ValidationError` | `"The Payment target entity should be active."` | `TargetFundMixin` | merged with VC4 |
-| VC7 | Amount positive | `amount > 0` | `ValidationError` | `"Amount should be positive, got …"` | `AmountCleanMixin` | |
-| VC8 | Officer is staff | `officer.is_staff` | `ValidationError` | `"Officer should be a staff user."` | `OfficerMixin` | |
-| VC9 | Officer active | `officer.is_active` | `ValidationError` | `"Officer should be an active user."` | `OfficerMixin` | |
-| VC10 | Date not in a closed period (both entities) | no closed period contains `date` | `ValidationError` | `"Cannot create an operation whose date falls within a closed financial period."` | `Operation.clean()` | |
-| VC11 | A covering financial period exists | `period_entity` has a period containing `date` | `ValidationError` | `"Cannot create an operation: no financial period covers this operation's date."` | `Operation.save()` | |
-| VC12 | Balance exempt (world payer) | no balance check | never fails | — | `check_balance_on_payment=False` (default) | |
+| VC7 | Amount positive | `amount > 0` | `ValidationError` | `"Amount should be positive, got …"` | `AmountCleanMixin` | `CashInjectionCreateTest.test_amount_zero_raises_validation_error` · `test_amount_negative_raises_validation_error` |
+| VC8 | Officer is staff | `officer.is_staff` | `ValidationError` | `"Officer should be a staff user."` | `OfficerMixin` | `CashInjectionCreateTest.test_officer_user_must_be_staff` |
+| VC9 | Officer active | `officer.is_active` | `ValidationError` | `"Officer should be an active user."` | `OfficerMixin` | `CashInjectionCreateTest.test_officer_must_be_active` |
+| VC10 | Date not in a closed period (both entities) | no closed period contains `date` | `ValidationError` | `"Cannot create an operation whose date falls within a closed financial period."` | `Operation.clean()` | `CashInjectionCreateTest.test_operation_blocked_when_destination_in_closed_period` |
+| VC11 | A covering financial period exists | `period_entity` has a period containing `date` | `ValidationError` | `"Cannot create an operation: no financial period covers this operation's date."` | `Operation.save()` | `CashInjectionCreateTest.test_operation_blocked_when_no_covering_period` |
+| VC12 | Balance exempt (world payer) | no balance check | never fails | — | `check_balance_on_payment=False` (default) | `CashInjectionCreateTest.test_check_balance_on_payment_is_disabled` · `test_injection_succeeds_regardless_of_prior_injections` |
 | VC13 | Tx entity-type contract | `source.is_world` and `target.is_person` | `ValidationError` | `"Transaction type '…' has invalid entity types: …"` | `Transaction.create()` | implied by VC1/VC2 (model clean blocks first) |
 | VC14 | Tx operation-type allowed | document is `CASH_INJECTION` | `ValidationError` | `"Transaction type '…' is not allowed for operation '…'."` | `Transaction.create()` | implied by VC1/VC2 |
 | VC15 | Source ≠ target | world ≠ person | always true | `"Source and target funds must be different."` | `Transaction.clean()` | structural (world ≠ person) |
@@ -168,15 +168,15 @@ Entry points: model `CashInjectionOperation.save()` (tests) or `Operation.create
 
 | # | Effect | Detail / invariant | Implemented by | Verified by |
 |---|--------|--------------------|----------------|-------------|
-| SC1 | Issuance tx created | 1 × `CASH_INJECTION_ISSUANCE`, amount `== op.amount`, `world → person` | `LinkedIssuanceTransactionMixin.save()` | |
+| SC1 | Issuance tx created | 1 × `CASH_INJECTION_ISSUANCE`, amount `== op.amount`, `world → person` | `LinkedIssuanceTransactionMixin.save()` | `CashInjectionCreateTest.test_creates_issuance_and_payment_transactions` |
 | SC2 | Payment tx created | 1 × `CASH_INJECTION_PAYMENT`, amount `== op.amount`, `world → person` | `LinkedPaymentTransactionMixin.save()` | same as SC1 |
-| SC3 | Tx amounts equal op amount | both txs `amount == op.amount` | transaction creation | |
-| SC4 | Tx fund direction | both txs `source=world`, `target=person` | | |
-| SC5 | Fully settled immediately | `amount_settled == amount`, `remaining == 0`, `is_fully_settled` | `LinkedPaymentTransactionMixin` | |
-| SC6 | Person fund ▲ amount | `person.balance` increases by `amount` | `Entity.balance_at` | |
+| SC3 | Tx amounts equal op amount | both txs `amount == op.amount` | transaction creation | `CashInjectionCreateTest.test_transaction_amounts_match_operation` |
+| SC4 | Tx fund direction | both txs `source=world`, `target=person` | | `CashInjectionCreateTest.test_transaction_funds_are_correct` |
+| SC5 | Fully settled immediately | `amount_settled == amount`, `remaining == 0`, `is_fully_settled` | `LinkedPaymentTransactionMixin` | `CashInjectionCreateTest.test_is_fully_settled_after_creation` |
+| SC6 | Person fund ▲ amount | `person.balance` increases by `amount` | `Entity.balance_at` | `CashInjectionCreateTest.test_receiver_balance_increases_after_cash_injection` |
 | SC7 | World (virtual) ▼ | world balance moves but is never enforced / never read for checks | `can_pay` virtual exemption | differential invariant |
-| SC8 | No invoice / no movements | `has_invoice=False`; no invoice items; no movement lines | `has_invoice=False` | |
-| SC9 | Period auto-assigned | `period` = the person's covering period (open period auto-created at entity creation) | `Operation.save()` + `Entity.save()` | covered by period suite |
+| SC8 | No invoice / no movements | `has_invoice=False`; no invoice items; no movement lines | `has_invoice=False` | `CashInjectionCreateTest.test_no_invoice_items_and_no_movements` |
+| SC9 | Period auto-assigned | `period` = the person's covering period (open period auto-created at entity creation) | `Operation.save()` + `Entity.save()` | shared period suite (`OperationPeriodAssignmentTest`) |
 
 ### 5.2 `reverse`
 
@@ -186,8 +186,8 @@ Entry points: model `op.reverse(officer, date, reason)` or view `operation_rever
 
 | # | Branch | Pass condition | Failure outcome | Error (on failure) | Enforced by | Pinned by test |
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
-| VR1 | Not already reversed | `reversed_by is None` | `ValidationError` | `"The transaction is already reversed."` | `ReversableModel._validate_can_be_reversed` + view guard | |
-| VR2 | Not itself a reversal | `reversal_of is None` | `ValidationError` | `"You can't reverse this record as it is a reversal of …"` | `ReversableModel._validate_can_be_reversed` + view guard | |
+| VR1 | Not already reversed | `reversed_by is None` | `ValidationError` | `"The transaction is already reversed."` | `ReversableModel._validate_can_be_reversed` + view guard | `CashInjectionReversalTest.test_cannot_reverse_already_reversed_operation` |
+| VR2 | Not itself a reversal | `reversal_of is None` | `ValidationError` | `"You can't reverse this record as it is a reversal of …"` | `ReversableModel._validate_can_be_reversed` + view guard | `CashInjectionReversalTest.test_cannot_reverse_a_reversal` |
 | VR3 | No explicit txs to reverse | all txs are implicit (one-shot issuance + payment) | `ValidationError` (would require manual reversal) | `"You can't reverse this object as it has non-reversed transactions…"` | `ReversableModel._requires_transaction_reversal` + `Operation._implicit_reversable_transaction_types` | implied by successful reverse |
 | VR4 | No non-reversed adjustments | n/a — Cash Injection is not adjustable | never fails | — | `is_adjustable=False` | n/a |
 | VR5 | Reason required | `POST['reversal_reason']` non-empty | view redirect + message | `"A reason for reversal is required."` | `operation_reverse_view` | view contract (see §8) |
@@ -196,17 +196,17 @@ Entry points: model `op.reverse(officer, date, reason)` or view `operation_rever
 
 | # | Effect | Detail / invariant | Implemented by | Verified by |
 |---|--------|--------------------|----------------|-------------|
-| SR1 | Reversal record created | cloned op, `reversal_of = original` | `ReversableModel.reverse()` | |
-| SR2 | Original marked reversed | `original.reversed_by = reversal` | `ReversableModel.reverse()` | |
-| SR3 | Reversal inherits identity | `amount`, `source`, `destination` copied | `ReversableModel._get_reverse_kwargs` | |
-| SR4 | Counter-tx for issuance | `person → world`, same amount, same type, `reversal_of=original` | `Transaction.reverse()` | |
-| SR5 | Counter-tx for payment | `person → world`, same amount, same type, `reversal_of=original` | same as SR4 | |
-| SR6 | Counter-txs preserve type + amount | `counter.type == original.type`, `counter.amount == original.amount` | same as SR4 | |
-| SR7 | Reversal op owns no txs | `reversal.get_all_transactions().count() == 0` (save skips tx creation for reversals) | `LinkedIssuanceTransactionMixin.save()` | |
-| SR8 | Person fund restored | `person.balance` back to pre-create baseline | `balance_at` | |
-| SR9 | Settlement state cleared | `amount_settled == 0`, `is_fully_settled == False` | `amount_settled` | |
-| SR10 | Reason flows to reversal | `reversal.description` contains the reason | `ReversableModel.reverse()` | |
-| SR11 | Differential invariant | create + reverse leaves the whole world unchanged (balances, payables, receivables, ledger) | whole engine | |
+| SR1 | Reversal record created | cloned op, `reversal_of = original` | `ReversableModel.reverse()` | `CashInjectionReversalTest.test_reverse_creates_reversal_operation` |
+| SR2 | Original marked reversed | `original.reversed_by = reversal` | `ReversableModel.reverse()` | `CashInjectionReversalTest.test_reverse_marks_original_as_reversed` |
+| SR3 | Reversal inherits identity | `amount`, `source`, `destination` copied | `ReversableModel._get_reverse_kwargs` | `CashInjectionReversalTest.test_reverse_inherits_amount_source_destination` |
+| SR4 | Counter-tx for issuance | `person → world`, same amount, same type, `reversal_of=original` | `Transaction.reverse()` | `CashInjectionReversalTest.test_reverse_creates_counter_transactions` |
+| SR5 | Counter-tx for payment | `person → world`, same amount, same type, `reversal_of=original` | same as SR4 | `CashInjectionReversalTest.test_reverse_creates_counter_transactions` |
+| SR6 | Counter-txs preserve type + amount | `counter.type == original.type`, `counter.amount == original.amount` | same as SR4 | `CashInjectionReversalTest.test_reverse_counter_transactions_flip_funds` · `test_reverse_counter_transactions_preserve_type` |
+| SR7 | Reversal op owns no txs | `reversal.get_all_transactions().count() == 0` (save skips tx creation for reversals) | `LinkedIssuanceTransactionMixin.save()` | `CashInjectionReversalTest.test_reversal_operation_owns_no_transactions` |
+| SR8 | Person fund restored | `person.balance` back to pre-create baseline | `balance_at` | `CashInjectionReversalTest.test_receiver_balance_restored_to_zero_after_reversal` |
+| SR9 | Settlement state cleared | `amount_settled == 0`, `is_fully_settled == False` | `amount_settled` | `CashInjectionReversalTest.test_reversal_clears_settlement_state` |
+| SR10 | Reason flows to reversal | `reversal.description` contains the reason | `ReversableModel.reverse()` | `CashInjectionReversalTest.test_reason_flows_to_reversal_description` |
+| SR11 | Differential invariant | create + reverse leaves the whole world unchanged (balances, payables, receivables, ledger) | whole engine | `CashInjectionReversalTest.test_create_then_reverse_leaves_world_unchanged` |
 
 ### 5.3 `pay` (one-shot guard)
 
@@ -215,7 +215,7 @@ There is **no standalone pay action** for Cash Injection:
 | Branch | Behavior | Enforced by | Pinned by test |
 |--------|----------|-------------|----------------|
 | `process_payment()` called | no-op (returns immediately — `can_pay=False`) | `process_payment` | n/a (covered by `can_pay=False`) |
-| `create_payment_transaction()` called after create | `ValidationError` — one-shot allows a single payment only, amount must equal `op.amount` | `create_payment_transaction` | |
+| `create_payment_transaction()` called after create | `ValidationError` — one-shot allows a single payment only, amount must equal `op.amount` | `create_payment_transaction` | `CashInjectionCreateTest.test_one_shot_prevents_second_payment` |
 
 ### 5.4 Immutability
 
@@ -223,9 +223,9 @@ There is **no standalone pay action** for Cash Injection:
 
 | Branch | Enforced by | Pinned by test |
 |--------|-------------|----------------|
-| `source` changed after save | `ImmutableMixin.save()` | |
-| `destination` changed after save | `ImmutableMixin.save()` | |
-| `amount` changed after save | `ImmutableMixin.save()` | |
+| `source` changed after save | `ImmutableMixin.save()` | `CashInjectionCreateTest.test_source_is_immutable` |
+| `destination` changed after save | `ImmutableMixin.save()` | `CashInjectionCreateTest.test_destination_is_immutable` |
+| `amount` changed after save | `ImmutableMixin.save()` | `CashInjectionCreateTest.test_amount_is_immutable` |
 
 ---
 
@@ -281,28 +281,28 @@ There is **no standalone pay action** for Cash Injection:
 
 | Area | Test method | Branch(es) |
 |------|-------------|------------|
-| Tx creation + counts | | SC1, SC2 |
-| Tx amounts | | SC3 |
-| Tx direction | | SC4 |
-| Settlement | | SC5 |
-| Source/dest validation | | VC1, VC2 |
-| Active entities | | VC3–VC6 |
-| Amount | | VC7 |
-| Officer | | VC8, VC9 |
-| Immutability | | IM1–IM3 |
-| One-shot guard | | BP2 |
-| Balance exempt | | VC12 |
-| Person balance ▲ | | SC6 |
-| Closed period | | VC10 |
-| No covering period | | VC11 |
-| No invoice/movements | | SC8 |
-| Reverse happy path | | SR1–SR3 |
-| Counter txs | | SR4–SR6 |
-| Reverse constraints | | VR1, VR2 |
-| Person balance restored | | SR8 |
-| Reversal owns no txs | | SR7 |
-| Differential invariant | | SR11, SC7 |
-| Settlement cleared | | SR9 |
-| Reason in description | | SR10 |
+| Tx creation + counts | `CashInjectionCreateTest.test_creates_issuance_and_payment_transactions` | SC1, SC2 |
+| Tx amounts | `CashInjectionCreateTest.test_transaction_amounts_match_operation` | SC3 |
+| Tx direction | `CashInjectionCreateTest.test_transaction_funds_are_correct` | SC4 |
+| Settlement | `CashInjectionCreateTest.test_is_fully_settled_after_creation` | SC5 |
+| Source/dest validation | `CashInjectionCreateTest.test_source_must_be_world` · `test_destination_must_be_person_entity` | VC1, VC2 |
+| Active entities | `CashInjectionCreateTest.test_source_entity_must_be_active` · `test_destination_entity_must_be_active` | VC3–VC6 |
+| Amount | `CashInjectionCreateTest.test_amount_zero_raises_validation_error` · `test_amount_negative_raises_validation_error` | VC7 |
+| Officer | `CashInjectionCreateTest.test_officer_user_must_be_staff` · `test_officer_must_be_active` | VC8, VC9 |
+| Immutability | `CashInjectionCreateTest.test_source_is_immutable` · `test_destination_is_immutable` · `test_amount_is_immutable` | IM1–IM3 |
+| One-shot guard | `CashInjectionCreateTest.test_one_shot_prevents_second_payment` | BP2 |
+| Balance exempt | `CashInjectionCreateTest.test_check_balance_on_payment_is_disabled` · `test_injection_succeeds_regardless_of_prior_injections` | VC12 |
+| Person balance ▲ | `CashInjectionCreateTest.test_receiver_balance_increases_after_cash_injection` | SC6 |
+| Closed period | `CashInjectionCreateTest.test_operation_blocked_when_destination_in_closed_period` | VC10 |
+| No covering period | `CashInjectionCreateTest.test_operation_blocked_when_no_covering_period` | VC11 |
+| No invoice/movements | `CashInjectionCreateTest.test_no_invoice_items_and_no_movements` | SC8 |
+| Reverse happy path | `CashInjectionReversalTest.test_reverse_creates_reversal_operation` · `test_reverse_marks_original_as_reversed` · `test_reverse_inherits_amount_source_destination` | SR1–SR3 |
+| Counter txs | `CashInjectionReversalTest.test_reverse_creates_counter_transactions` · `test_reverse_counter_transactions_flip_funds` · `test_reverse_counter_transactions_preserve_type` | SR4–SR6 |
+| Reverse constraints | `CashInjectionReversalTest.test_cannot_reverse_already_reversed_operation` · `test_cannot_reverse_a_reversal` | VR1, VR2 |
+| Person balance restored | `CashInjectionReversalTest.test_receiver_balance_restored_to_zero_after_reversal` | SR8 |
+| Reversal owns no txs | `CashInjectionReversalTest.test_reversal_operation_owns_no_transactions` | SR7 |
+| Differential invariant | `CashInjectionReversalTest.test_create_then_reverse_leaves_world_unchanged` | SR11, SC7 |
+| Settlement cleared | `CashInjectionReversalTest.test_reversal_clears_settlement_state` | SR9 |
+| Reason in description | `CashInjectionReversalTest.test_reason_flows_to_reversal_description` | SR10 |
 
 ---

@@ -173,19 +173,19 @@ Entry points: model `WorkerAdvanceOperation.save()` (tests) or `Operation.create
 
 | # | Branch | Pass condition | Failure outcome | Error (on failure) | Enforced by | Pinned by test |
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
-| VC1 | Source (project) is a Project | `source.is_project` | `ValidationError` | `"Worker advance source should be a project."` | `clean_source` | |
-| VC2 | Destination (worker) is a Person | `destination.is_person` | `ValidationError` | `"Worker Advance destination must be a person entity."` | `clean_destination` | |
-| VC3 | Destination is an active `WORKER` stakeholder of the source project | active `Stakeholder(parent=source, target=dest, role=WORKER)` exists | `ValidationError` | `"Worker Advance destination must be an active worker in the selected project."` | `clean_destination` | |
-| VC4 | Source entity active | `source.active` | `ValidationError` | `"Entity '%(name)s' must be active…"` | `Operation.clean()` | |
-| VC5 | Destination entity active | `destination.active` | `ValidationError` | same as VC4 | `Operation.clean()` | |
+| VC1 | Source (project) is a Project | `source.is_project` | `ValidationError` | `"Worker advance source should be a project."` | `clean_source` | `WorkerAdvanceCreateTest.test_source_must_be_a_project_entity` |
+| VC2 | Destination (worker) is a Person | `destination.is_person` | `ValidationError` | `"Worker Advance destination must be a person entity."` | `clean_destination` | `WorkerAdvanceCreateTest.test_destination_must_be_a_person_entity` |
+| VC3 | Destination is an active `WORKER` stakeholder of the source project | active `Stakeholder(parent=source, target=dest, role=WORKER)` exists | `ValidationError` | `"Worker Advance destination must be an active worker in the selected project."` | `clean_destination` | `WorkerAdvanceCreateTest.test_destination_must_be_worker_role_stakeholder` · `test_destination_without_stakeholder_relationship_raises_validation_error` · `test_destination_with_inactive_stakeholder_raises_validation_error` |
+| VC4 | Source entity active | `source.active` | `ValidationError` | `"Entity '%(name)s' must be active…"` | `Operation.clean()` | `WorkerAdvanceCreateTest.test_source_must_be_active` |
+| VC5 | Destination entity active | `destination.active` | `ValidationError` | same as VC4 | `Operation.clean()` | `WorkerAdvanceCreateTest.test_destination_must_be_active` |
 | VC6 | Source fund active | `payment_source_fund.active` | `ValidationError` | `"The Payment source entity should be active."` | `SourceFundMixin` | merged with VC4 |
 | VC7 | Target fund active | `payment_target_fund.active` | `ValidationError` | `"The Payment target entity should be active."` | `TargetFundMixin` | merged with VC5 |
-| VC8 | Amount positive | `amount > 0` | `ValidationError` | `"Amount should be positive, got …"` | `AmountCleanMixin` | |
-| VC9 | Officer is staff | `officer.is_staff` | `ValidationError` | `"Officer should be a staff user."` | `OfficerMixin` | |
-| VC10 | Officer active | `officer.is_active` | `ValidationError` | `"Officer should be an active user."` | `OfficerMixin` | |
-| VC11 | Project fund has sufficient balance | `payment_source_fund.can_pay(amount)` | `ValidationError` | `"Insufficient funds: project fund balance (%(balance)s) is less than the advance amount (%(amount)s)."` | `WorkerAdvanceOperation.clean()` | |
-| VC12 | Date not in a closed period (both entities) | no closed period contains `date` | `ValidationError` | `"Cannot create an operation whose date falls within a closed financial period."` | `Operation.clean()` | covered by period suite |
-| VC13 | A covering financial period exists | `period_entity` has a period containing `date` | `ValidationError` | `"Cannot create an operation: no financial period covers this operation's date."` | `Operation.save()` | covered by period suite |
+| VC8 | Amount positive | `amount > 0` | `ValidationError` | `"Amount should be positive, got …"` | `AmountCleanMixin` | `WorkerAdvanceCreateTest.test_amount_zero_raises_validation_error` · `test_amount_negative_raises_validation_error` |
+| VC9 | Officer is staff | `officer.is_staff` | `ValidationError` | `"Officer should be a staff user."` | `OfficerMixin` | `WorkerAdvanceCreateTest.test_officer_user_must_be_staff` |
+| VC10 | Officer active | `officer.is_active` | `ValidationError` | `"Officer should be an active user."` | `OfficerMixin` | `WorkerAdvanceCreateTest.test_officer_must_be_active` |
+| VC11 | Project fund has sufficient balance | `payment_source_fund.can_pay(amount)` | `ValidationError` | `"Insufficient funds: project fund balance (%(balance)s) is less than the advance amount (%(amount)s)."` | `WorkerAdvanceOperation.clean()` | `WorkerAdvanceCreateTest.test_source_fund_insufficient_balance_raises_validation_error` |
+| VC12 | Date not in a closed period (both entities) | no closed period contains `date` | `ValidationError` | `"Cannot create an operation whose date falls within a closed financial period."` | `Operation.clean()` | shared period suite (`OperationPeriodAssignmentTest.test_operation_in_closed_period_raises`) |
+| VC13 | A covering financial period exists | `period_entity` has a period containing `date` | `ValidationError` | `"Cannot create an operation: no financial period covers this operation's date."` | `Operation.save()` | shared period suite (`OperationPeriodAssignmentTest.test_operation_raises_when_no_open_period`) |
 | VC14 | Tx entity-type contract | `source.is_project` and `target.is_worker` | `ValidationError` | `"Transaction type '…' has invalid entity types: …"` | `Transaction.create()` | implied by VC1–VC3 (model clean blocks first) |
 | VC15 | Tx operation-type allowed | document is `WORKER_ADVANCE` | `ValidationError` | `"Transaction type '…' is not allowed for operation '…'."` | `Transaction.create()` | implied by VC1–VC3 |
 | VC16 | Source ≠ destination | `source_id != destination_id` | `ValidationError` | `"Source and target funds must be different."` | `Transaction.clean()` | structural (project ≠ person) |
@@ -194,17 +194,17 @@ Entry points: model `WorkerAdvanceOperation.save()` (tests) or `Operation.create
 
 | # | Effect | Detail / invariant | Implemented by | Verified by |
 |---|--------|--------------------|----------------|-------------|
-| SC1 | Issuance tx created | 1 × `WORKER_ADVANCE_ISSUANCE`, amount `== op.amount`, `project → worker` (non-cash memo) | `LinkedIssuanceTransactionMixin.save()` | |
-| SC2 | Payment tx created | 1 × `WORKER_ADVANCE_PAYMENT`, amount `== op.amount`, `project → worker` | `LinkedPaymentTransactionMixin.save()` | |
-| SC3 | Exactly two txs | one-shot pattern writes issuance + payment, nothing else | one-shot `post_save_tasks` | |
-| SC4 | Project fund ▼ amount | `project.balance` decreases by `amount` | `Entity.balance_at` | |
-| SC5 | Worker fund ▲ amount | `worker.balance` increases by `amount` | `Entity.balance_at` | |
-| SC6 | Project receivables ▲ amount | the advance is a receivable the project is owed | `Entity.receivables_at` | |
-| SC7 | Worker payables ▲ amount | the worker now owes the advance back | `Entity.payables_at` | |
-| SC8 | Project payables unchanged | no payable created for the project | `payables_at` | |
-| SC9 | Worker receivables unchanged | no receivable created for the worker | `receivables_at` | |
-| SC10 | Repayment-tracked from create | `amount_remaining_to_repay == op.amount` after create | `repayable_amount` / `amount_repayed` | |
-| SC11 | One-shot guard | a second payment tx is rejected | `create_payment_transaction()` | |
+| SC1 | Issuance tx created | 1 × `WORKER_ADVANCE_ISSUANCE`, amount `== op.amount`, `project → worker` (non-cash memo) | `LinkedIssuanceTransactionMixin.save()` | `WorkerAdvanceCreateTest.test_create_creates_issuance_tx_exact` |
+| SC2 | Payment tx created | 1 × `WORKER_ADVANCE_PAYMENT`, amount `== op.amount`, `project → worker` | `LinkedPaymentTransactionMixin.save()` | `WorkerAdvanceCreateTest.test_create_creates_payment_tx_exact` |
+| SC3 | Exactly two txs | one-shot pattern writes issuance + payment, nothing else | one-shot `post_save_tasks` | `WorkerAdvanceCreateTest.test_create_creates_exactly_two_transactions` |
+| SC4 | Project fund ▼ amount | `project.balance` decreases by `amount` | `Entity.balance_at` | `WorkerAdvanceCreateTest.test_create_project_balance_decreases` |
+| SC5 | Worker fund ▲ amount | `worker.balance` increases by `amount` | `Entity.balance_at` | `WorkerAdvanceCreateTest.test_create_worker_balance_increases` |
+| SC6 | Project receivables ▲ amount | the advance is a receivable the project is owed | `Entity.receivables_at` | `WorkerAdvanceCreateTest.test_create_project_receivables_increase` |
+| SC7 | Worker payables ▲ amount | the worker now owes the advance back | `Entity.payables_at` | `WorkerAdvanceCreateTest.test_create_worker_payables_increase` |
+| SC8 | Project payables unchanged | no payable created for the project | `payables_at` | `WorkerAdvanceCreateTest.test_create_project_payables_unchanged` |
+| SC9 | Worker receivables unchanged | no receivable created for the worker | `receivables_at` | `WorkerAdvanceCreateTest.test_create_worker_receivables_unchanged` |
+| SC10 | Repayment-tracked from create | `amount_remaining_to_repay == op.amount` after create | `repayable_amount` / `amount_repayed` | `WorkerAdvanceCreateTest.test_create_remaining_to_repay_equals_amount` |
+| SC11 | One-shot guard | a second payment tx is rejected | `create_payment_transaction()` | `WorkerAdvanceCreateTest.test_one_shot_prevents_additional_payment_transaction` |
 
 ### 5.2 `repay`
 
@@ -214,26 +214,26 @@ Entry point: model `op.create_repayment_transaction(amount, officer, date)` or v
 
 | # | Branch | Pass condition | Failure outcome | Error (on failure) | Enforced by | Pinned by test |
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
-| VRp1 | Amount > 0 | `amount > 0` | `ValidationError` | `"The amount should be more than 0"` | `validate_repayement_amount` | |
-| VRp2 | Amount ≤ remaining | `amount <= amount_remaining_to_repay` | `ValidationError` | `"The paid amount %(amount)s exceeds the remaining: %(remaining)s"` | `validate_repayement_amount` | |
-| VRp3 | Closed-period guard on repayment date | governing period open on `date` | `ValidationError` | `"Cannot record a repayment dated within a closed financial period."` | `create_repayment_transaction()` | covered by period suite |
+| VRp1 | Amount > 0 | `amount > 0` | `ValidationError` | `"The amount should be more than 0"` | `validate_repayement_amount` | `WorkerAdvanceRepaymentTest.test_zero_repayment_raises_validation_error` |
+| VRp2 | Amount ≤ remaining | `amount <= amount_remaining_to_repay` | `ValidationError` | `"The paid amount %(amount)s exceeds the remaining: %(remaining)s"` | `validate_repayement_amount` | `WorkerAdvanceRepaymentTest.test_repayment_exceeding_advance_amount_raises_validation_error` · `test_partial_repayment_then_over_repayment_raises_validation_error` |
+| VRp3 | Closed-period guard on repayment date | governing period open on `date` | `ValidationError` | `"Cannot record a repayment dated within a closed financial period."` | `create_repayment_transaction()` | shared period suite (`DownstreamClosedPeriodGuardTest.test_repayment_rejected_in_closed_period`) |
 
 #### 5.2.2 Success effects
 
 | # | Effect | Detail / invariant | Implemented by | Verified by |
 |---|--------|--------------------|----------------|-------------|
-| SRp1 | `WORKER_ADVANCE_REPAYMENT` created | `worker.fund → project.fund`, type `WORKER_ADVANCE_REPAYMENT`, amount exact | `create_repayment_transaction()` | |
-| SRp2 | Exactly one repayment per call | issuance + payment + exactly one repayment | `Transaction.create` | |
-| SRp3 | Worker fund ▼ amount | `worker.balance` decreases by `amount` | `Entity.balance_at` | |
-| SRp4 | Project fund ▲ amount | `project.balance` increases by `amount` | `Entity.balance_at` | |
-| SRp5 | Project receivables ▼ | `project.receivables` decreases by `amount` | `receivables_at` | |
-| SRp6 | Worker payables ▼ | `worker.payables` decreases by `amount` | `payables_at` | |
-| SRp7 | `amount_remaining_to_repay` ▼ | remaining decreases by `amount` | `amount_remaining_to_repay` | |
-| SRp8 | Multiple partial repayments accumulate | remaining sums all active repayments | `amount_repayed` | |
-| SRp9 | Full repayment → `is_fully_repayed` | `amount_repayed == repayable_amount`, remaining `0` | `is_fully_repayed` | |
-| SRp10 | Full repayment zeroes project receivables | `project.receivables == 0` | `receivables_at` | |
-| SRp11 | Full repayment zeroes worker payables | `worker.payables == 0` | `payables_at` | |
-| SRp12 | Differential invariant (repay + reverse) | repay then reverse the repayment returns to the advance-only state | whole engine | |
+| SRp1 | `WORKER_ADVANCE_REPAYMENT` created | `worker.fund → project.fund`, type `WORKER_ADVANCE_REPAYMENT`, amount exact | `create_repayment_transaction()` | `WorkerAdvanceRepaymentTest.test_repayment_creates_repayment_tx_exact` |
+| SRp2 | Exactly one repayment per call | issuance + payment + exactly one repayment | `Transaction.create` | `WorkerAdvanceRepaymentTest.test_repayment_creates_exactly_one_repayment` |
+| SRp3 | Worker fund ▼ amount | `worker.balance` decreases by `amount` | `Entity.balance_at` | `WorkerAdvanceRepaymentTest.test_worker_fund_decreases_after_repayment` |
+| SRp4 | Project fund ▲ amount | `project.balance` increases by `amount` | `Entity.balance_at` | `WorkerAdvanceRepaymentTest.test_project_fund_increases_after_repayment` |
+| SRp5 | Project receivables ▼ | `project.receivables` decreases by `amount` | `receivables_at` | `WorkerAdvanceRepaymentTest.test_repayment_decreases_project_receivables` |
+| SRp6 | Worker payables ▼ | `worker.payables` decreases by `amount` | `payables_at` | `WorkerAdvanceRepaymentTest.test_repayment_decreases_worker_payables` |
+| SRp7 | `amount_remaining_to_repay` ▼ | remaining decreases by `amount` | `amount_remaining_to_repay` | `WorkerAdvanceRepaymentTest.test_amount_remaining_to_repay_decreases_after_repayment` |
+| SRp8 | Multiple partial repayments accumulate | remaining sums all active repayments | `amount_repayed` | `WorkerAdvanceRepaymentTest.test_multiple_partial_repayments_accumulate` |
+| SRp9 | Full repayment → `is_fully_repayed` | `amount_repayed == repayable_amount`, remaining `0` | `is_fully_repayed` | `WorkerAdvanceRepaymentTest.test_full_repayment_marks_as_fully_repayed` |
+| SRp10 | Full repayment zeroes project receivables | `project.receivables == 0` | `receivables_at` | `WorkerAdvanceRepaymentTest.test_full_repayment_zeroes_project_receivables` |
+| SRp11 | Full repayment zeroes worker payables | `worker.payables == 0` | `payables_at` | `WorkerAdvanceRepaymentTest.test_full_repayment_zeroes_worker_payables` |
+| SRp12 | Differential invariant (repay + reverse) | repay then reverse the repayment returns to the advance-only state | whole engine | `WorkerAdvanceRepaymentTest.test_repay_then_reverse_repayment_returns_to_advance_state` |
 
 ### 5.3 Individual transaction reversal (repay)
 
@@ -241,8 +241,8 @@ The **operation-level** reverse is distinct from reversing an individual `WORKER
 
 | # | Branch | Behavior | Enforced by | Pinned by test |
 |---|--------|----------|-------------|----------------|
-| TR1 | Repayment tx reversed | `amount_repayed` ↓, `is_fully_repayed` unset, `amount_remaining_to_repay` restored; worker ▲, project ▼; worker payables ▲, project receivables ▲ | `Transaction.reverse()` | |
-| TR2 | Reversed repayment must not leak into the opposite bucket | the reversal mirror must not create a payable for the project | obligation derivation | |
+| TR1 | Repayment tx reversed | `amount_repayed` ↓, `is_fully_repayed` unset, `amount_remaining_to_repay` restored; worker ▲, project ▼; worker payables ▲, project receivables ▲ | `Transaction.reverse()` | `WorkerAdvanceRepaymentTest.test_full_repayment_reversed_restores_remaining_balance` · `test_partial_repayment_reversed_restores_remaining_balance` · `test_reversed_repayment_restores_project_receivables` · `test_reversed_repayment_restores_worker_payables` · `test_only_reversed_repayment_is_net_out` |
+| TR2 | Reversed repayment must not leak into the opposite bucket | the reversal mirror must not create a payable for the project | obligation derivation | `WorkerAdvanceRepaymentTest.test_reversed_repayment_keeps_project_payables_zero` |
 
 ### 5.4 `reverse` (operation level)
 
@@ -252,9 +252,9 @@ Entry point: model `op.reverse(officer, date, reason)` or view `operation_revers
 
 | # | Branch | Pass condition | Failure outcome | Error (on failure) | Enforced by | Pinned by test |
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
-| VR1 | Not already reversed | `reversed_by is None` | `ValidationError` | `"The transaction is already reversed."` | `ReversableModel._validate_can_be_reversed` + view guard | |
-| VR2 | Not itself a reversal | `reversal_of is None` | `ValidationError` | `"You can't reverse this record as it is a reversal of …"` | `ReversableModel._validate_can_be_reversed` + view guard | |
-| VR3 | No outstanding repayments | no active non-reversed `WORKER_ADVANCE_REPAYMENT` tx | `ValidationError` | `"You can't reverse this object as it has non-reversed transactions…"` | `WorkerAdvanceOperation._requires_transaction_reversal()` + `ReversableModel._requires_transaction_reversal` | |
+| VR1 | Not already reversed | `reversed_by is None` | `ValidationError` | `"The transaction is already reversed."` | `ReversableModel._validate_can_be_reversed` + view guard | `WorkerAdvanceReversalTest.test_cannot_reverse_already_reversed_operation` |
+| VR2 | Not itself a reversal | `reversal_of is None` | `ValidationError` | `"You can't reverse this record as it is a reversal of …"` | `ReversableModel._validate_can_be_reversed` + view guard | `WorkerAdvanceReversalTest.test_cannot_reverse_a_reversal` |
+| VR3 | No outstanding repayments | no active non-reversed `WORKER_ADVANCE_REPAYMENT` tx | `ValidationError` | `"You can't reverse this object as it has non-reversed transactions…"` | `WorkerAdvanceOperation._requires_transaction_reversal()` + `ReversableModel._requires_transaction_reversal` | `WorkerAdvanceReversalTest.test_reversal_blocked_when_repayment_exists` |
 | VR4 | No explicit txs to reverse | all txs are implicit (one-shot issuance + payment) | `ValidationError` (would require manual reversal) | `"You can't reverse this object as it has non-reversed transactions…"` | `_implicit_reversable_transaction_types` | implied by successful reverse |
 | VR5 | Reason required | `POST['reversal_reason']` non-empty | view redirect + message | `"A reason for reversal is required."` | `operation_reverse_view` | view contract (see §8) |
 
@@ -262,19 +262,19 @@ Entry point: model `op.reverse(officer, date, reason)` or view `operation_revers
 
 | # | Effect | Detail / invariant | Implemented by | Verified by |
 |---|--------|--------------------|----------------|-------------|
-| SR1 | Reversal record created | cloned op, `reversal_of = original` | `ReversableModel.reverse()` | |
-| SR2 | Original marked reversed | `original.reversed_by = reversal` | `ReversableModel.reverse()` | |
-| SR3 | Reversal is a reversal, not reversed | `reversal.is_reversal`, `not reversal.is_reversed` | `ReversableModel` | |
-| SR4 | Reversal inherits identity | `amount`, `source`, `destination` copied | `ReversableModel._get_reverse_kwargs` | |
-| SR5 | Counter-tx for issuance + payment | both implicit types get counter-txs, `worker → project`, same amounts, `reversal_of=original` | `_implicit_reversable_transaction_types` | |
-| SR6 | Counter-txs flip funds | `counter.source = original.target`, `counter.target = original.source`, same amount | `Transaction.reverse()` | |
-| SR7 | Project fund restored | `project.balance` back to pre-create baseline | `balance_at` | |
-| SR8 | Worker fund restored | `worker.balance` back to `0.00` | `balance_at` | |
-| SR9 | Project receivables restored | `project.receivables == 0` | `receivables_at` | |
-| SR10 | Worker payables restored | `worker.payables == 0` | `payables_at` | |
-| SR11 | Project payables unchanged | no payable leak | `payables_at` | |
-| SR12 | Worker receivables unchanged | no receivable leak | `receivables_at` | |
-| SR13 | Differential invariant | create + reverse leaves the whole world unchanged (balances, payables, receivables, ledger) | whole engine | |
+| SR1 | Reversal record created | cloned op, `reversal_of = original` | `ReversableModel.reverse()` | `WorkerAdvanceReversalTest.test_reverse_creates_reversal_operation` |
+| SR2 | Original marked reversed | `original.reversed_by = reversal` | `ReversableModel.reverse()` | `WorkerAdvanceReversalTest.test_reverse_marks_original_as_reversed` |
+| SR3 | Reversal is a reversal, not reversed | `reversal.is_reversal`, `not reversal.is_reversed` | `ReversableModel` | `WorkerAdvanceReversalTest.test_reversal_is_marked_as_reversal` |
+| SR4 | Reversal inherits identity | `amount`, `source`, `destination` copied | `ReversableModel._get_reverse_kwargs` | `WorkerAdvanceReversalTest.test_reverse_inherits_amount_source_destination` |
+| SR5 | Counter-tx for issuance + payment | both implicit types get counter-txs, `worker → project`, same amounts, `reversal_of=original` | `_implicit_reversable_transaction_types` | `WorkerAdvanceReversalTest.test_reverse_creates_counter_transactions_for_issuance_and_payment` |
+| SR6 | Counter-txs flip funds | `counter.source = original.target`, `counter.target = original.source`, same amount | `Transaction.reverse()` | `WorkerAdvanceReversalTest.test_reverse_counter_transactions_flip_funds` |
+| SR7 | Project fund restored | `project.balance` back to pre-create baseline | `balance_at` | `WorkerAdvanceReversalTest.test_project_fund_restored_after_reversal` |
+| SR8 | Worker fund restored | `worker.balance` back to `0.00` | `balance_at` | `WorkerAdvanceReversalTest.test_worker_fund_restored_after_reversal` |
+| SR9 | Project receivables restored | `project.receivables == 0` | `receivables_at` | `WorkerAdvanceReversalTest.test_reverse_project_receivables_restored` |
+| SR10 | Worker payables restored | `worker.payables == 0` | `payables_at` | `WorkerAdvanceReversalTest.test_reverse_worker_payables_restored` |
+| SR11 | Project payables unchanged | no payable leak | `payables_at` | `WorkerAdvanceReversalTest.test_reverse_project_payables_unchanged` |
+| SR12 | Worker receivables unchanged | no receivable leak | `receivables_at` | `WorkerAdvanceReversalTest.test_reverse_worker_receivables_unchanged` |
+| SR13 | Differential invariant | create + reverse leaves the whole world unchanged (balances, payables, receivables, ledger) | whole engine | `WorkerAdvanceReversalTest.test_create_then_reverse_leaves_world_unchanged` |
 
 ### 5.5 `pay` (one-shot guard)
 
@@ -283,7 +283,7 @@ There is **no standalone pay action** for Worker Advance — the payment is part
 | Branch | Behavior | Enforced by | Pinned by test |
 |--------|----------|-------------|----------------|
 | `process_payment()` called | no-op (returns immediately — `can_pay=False`) | `process_payment` | n/a (covered by `can_pay=False`) |
-| `create_payment_transaction()` called after create | `ValidationError` — one-shot allows a single payment only, amount must equal `op.amount` | `create_payment_transaction()` | |
+| `create_payment_transaction()` called after create | `ValidationError` — one-shot allows a single payment only, amount must equal `op.amount` | `create_payment_transaction()` | `WorkerAdvanceCreateTest.test_one_shot_prevents_additional_payment_transaction` |
 
 ### 5.6 Immutability
 
@@ -291,9 +291,9 @@ There is **no standalone pay action** for Worker Advance — the payment is part
 
 | Branch | Enforced by | Pinned by test |
 |--------|-------------|----------------|
-| `source` changed after save | `ImmutableMixin.save()` | |
-| `destination` changed after save | `ImmutableMixin.save()` | |
-| `amount` changed after save | `ImmutableMixin.save()` | |
+| `source` changed after save | `ImmutableMixin.save()` | `WorkerAdvanceCreateTest.test_source_is_immutable_after_save` |
+| `destination` changed after save | `ImmutableMixin.save()` | `WorkerAdvanceCreateTest.test_destination_is_immutable_after_save` |
+| `amount` changed after save | `ImmutableMixin.save()` | `WorkerAdvanceCreateTest.test_amount_is_immutable_after_save` |
 
 ---
 
@@ -356,32 +356,32 @@ There is **no standalone pay action** for Worker Advance — the payment is part
 
 | Area | Test method | Branch(es) |
 |------|-------------|------------|
-| Issuance tx | | SC1 |
-| Payment tx | | SC2 |
-| Exactly two txs | | SC3 |
-| Fund balances | | SC4, SC5 |
-| Obligation buckets | | SC6–SC9 |
-| Repayment-tracked | | SC10 |
-| One-shot guard | | SC11, BP2 |
-| Source validation | | VC1, VC4, VC11 |
-| Destination validation | | VC2, VC3, VC5 |
-| Amount | | VC8 |
-| Officer | | VC9, VC10 |
-| Immutability | | IM1–IM3 |
-| Balance check flag | | VC11 (via clean) |
-| Repayment tx | | SRp1, SRp2 |
-| Repay balances | | SRp3, SRp4 |
-| Repay buckets | | SRp5, SRp6, SRp10, SRp11 |
-| Derived amounts | | SRp7–SRp9 |
-| Over-repayment guard | | VRp2, VRp1 |
-| Repayment reversal restores state | | TR1 |
-| Reversed repayment buckets | | TR2 |
-| Repay differential | | SRp12, TR1 |
-| Reverse happy path | | SR1–SR4 |
-| Counter-txs | | SR5, SR6 |
-| Reverse balances | | SR7, SR8 |
-| Reverse buckets | | SR9–SR12 |
-| Reverse differential | | SR13 |
-| Reverse blocked by repayment | | VR3 |
-| Reverse constraints | | VR1, VR2 |
+| Issuance tx | `WorkerAdvanceCreateTest.test_create_creates_issuance_tx_exact` | SC1 |
+| Payment tx | `WorkerAdvanceCreateTest.test_create_creates_payment_tx_exact` | SC2 |
+| Exactly two txs | `WorkerAdvanceCreateTest.test_create_creates_exactly_two_transactions` | SC3 |
+| Fund balances | `WorkerAdvanceCreateTest.test_create_project_balance_decreases` · `test_create_worker_balance_increases` | SC4, SC5 |
+| Obligation buckets | `WorkerAdvanceCreateTest.test_create_project_receivables_increase` · `test_create_worker_payables_increase` · `test_create_project_payables_unchanged` · `test_create_worker_receivables_unchanged` | SC6–SC9 |
+| Repayment-tracked | `WorkerAdvanceCreateTest.test_create_remaining_to_repay_equals_amount` | SC10 |
+| One-shot guard | `WorkerAdvanceCreateTest.test_one_shot_prevents_additional_payment_transaction` | SC11, BP2 |
+| Source validation | `WorkerAdvanceCreateTest.test_source_must_be_a_project_entity` · `test_source_must_be_active` · `test_source_fund_insufficient_balance_raises_validation_error` | VC1, VC4, VC11 |
+| Destination validation | `WorkerAdvanceCreateTest.test_destination_must_be_a_person_entity` · `test_destination_must_be_worker_role_stakeholder` · `test_destination_must_be_active` | VC2, VC3, VC5 |
+| Amount | `WorkerAdvanceCreateTest.test_amount_zero_raises_validation_error` · `test_amount_negative_raises_validation_error` | VC8 |
+| Officer | `WorkerAdvanceCreateTest.test_officer_user_must_be_staff` · `test_officer_must_be_active` | VC9, VC10 |
+| Immutability | `WorkerAdvanceCreateTest.test_source_is_immutable_after_save` · `test_destination_is_immutable_after_save` · `test_amount_is_immutable_after_save` | IM1–IM3 |
+| Balance check flag | `WorkerAdvanceCreateTest.test_check_balance_on_payment_is_disabled` · `test_source_fund_insufficient_balance_raises_validation_error` | VC11 (via clean) |
+| Repayment tx | `WorkerAdvanceRepaymentTest.test_repayment_creates_repayment_tx_exact` · `test_repayment_creates_exactly_one_repayment` | SRp1, SRp2 |
+| Repay balances | `WorkerAdvanceRepaymentTest.test_worker_fund_decreases_after_repayment` · `test_project_fund_increases_after_repayment` | SRp3, SRp4 |
+| Repay buckets | `WorkerAdvanceRepaymentTest.test_repayment_decreases_project_receivables` · `test_repayment_decreases_worker_payables` · `test_full_repayment_zeroes_project_receivables` · `test_full_repayment_zeroes_worker_payables` | SRp5, SRp6, SRp10, SRp11 |
+| Derived amounts | `WorkerAdvanceRepaymentTest.test_amount_remaining_to_repay_decreases_after_repayment` · `test_multiple_partial_repayments_accumulate` · `test_full_repayment_marks_as_fully_repayed` | SRp7–SRp9 |
+| Over-repayment guard | `WorkerAdvanceRepaymentTest.test_repayment_exceeding_advance_amount_raises_validation_error` · `test_partial_repayment_then_over_repayment_raises_validation_error` · `test_zero_repayment_raises_validation_error` | VRp2, VRp1 |
+| Repayment reversal restores state | `WorkerAdvanceRepaymentTest.test_full_repayment_reversed_restores_remaining_balance` · `test_partial_repayment_reversed_restores_remaining_balance` · `test_reversed_repayment_restores_project_receivables` · `test_reversed_repayment_restores_worker_payables` · `test_only_reversed_repayment_is_net_out` | TR1 |
+| Reversed repayment buckets | `WorkerAdvanceRepaymentTest.test_reversed_repayment_keeps_project_payables_zero` | TR2 |
+| Repay differential | `WorkerAdvanceRepaymentTest.test_repay_then_reverse_repayment_returns_to_advance_state` | SRp12, TR1 |
+| Reverse happy path | `WorkerAdvanceReversalTest.test_reverse_creates_reversal_operation` · `test_reverse_marks_original_as_reversed` · `test_reversal_is_marked_as_reversal` · `test_reverse_inherits_amount_source_destination` | SR1–SR4 |
+| Counter-txs | `WorkerAdvanceReversalTest.test_reverse_creates_counter_transactions_for_issuance_and_payment` · `test_reverse_counter_transactions_flip_funds` | SR5, SR6 |
+| Reverse balances | `WorkerAdvanceReversalTest.test_project_fund_restored_after_reversal` · `test_worker_fund_restored_after_reversal` | SR7, SR8 |
+| Reverse buckets | `WorkerAdvanceReversalTest.test_reverse_project_receivables_restored` · `test_reverse_worker_payables_restored` · `test_reverse_project_payables_unchanged` · `test_reverse_worker_receivables_unchanged` | SR9–SR12 |
+| Reverse differential | `WorkerAdvanceReversalTest.test_create_then_reverse_leaves_world_unchanged` | SR13 |
+| Reverse blocked by repayment | `WorkerAdvanceReversalTest.test_reversal_blocked_when_repayment_exists` | VR3 |
+| Reverse constraints | `WorkerAdvanceReversalTest.test_cannot_reverse_already_reversed_operation` · `test_cannot_reverse_a_reversal` | VR1, VR2 |
 

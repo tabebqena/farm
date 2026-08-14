@@ -155,37 +155,37 @@ Entry points: model `InternalTransferOperation.save()` (tests) or `Operation.cre
 
 | # | Branch | Pass condition | Failure outcome | Error (on failure) | Enforced by | Pinned by test |
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
-| VC1 | Source is internal | `source.is_internal` | `ValidationError` | `"Internal Transfer source must be an internal entity."` | `clean()` | |
-| VC2 | Destination is internal | `destination.is_internal` | `ValidationError` | `"Internal Transfer destination must be an internal entity."` | `clean()` | |
-| VC3 | Source not system/world | `not (source.is_system or source.is_world)` | `ValidationError` | `"Internal Transfer source cannot be a system or world entity."` | `clean()` | |
-| VC4 | Destination not system/world | `not (destination.is_system or destination.is_world)` | `ValidationError` | `"Internal Transfer destination cannot be a system or world entity."` | `clean()` | |
-| VC5 | Source entity active | `source.active` | `ValidationError` | `"Entity '%(name)s' must be active…"` | `Operation.clean()` | |
-| VC6 | Destination entity active | `destination.active` | `ValidationError` | same as VC5 | `Operation.clean()` | |
-| VC7 | Source fund active | `payment_source_fund.active` | `ValidationError` | `"The Payment source entity should be active."` | `SourceFundMixin` | merged with VC5 |
+| VC1 | Source is internal | `source.is_internal` | `ValidationError` | `"Internal Transfer source must be an internal entity."` | `clean()` | `InternalTransferCreateTest.test_non_internal_source_raises_validation_error` |
+| VC2 | Destination is internal | `destination.is_internal` | `ValidationError` | `"Internal Transfer destination must be an internal entity."` | `clean()` | `InternalTransferCreateTest.test_non_internal_destination_raises_validation_error` |
+| VC3 | Source not system/world | `not (source.is_system or source.is_world)` | `ValidationError` | `"Internal Transfer source cannot be a system or world entity."` | `clean()` | `InternalTransferCreateTest.test_system_entity_as_source_raises_validation_error` · `test_world_entity_as_source_raises_validation_error` |
+| VC4 | Destination not system/world | `not (destination.is_system or destination.is_world)` | `ValidationError` | `"Internal Transfer destination cannot be a system or world entity."` | `clean()` | `InternalTransferCreateTest.test_system_entity_as_destination_raises_validation_error` · `test_world_entity_as_destination_raises_validation_error` |
+| VC5 | Source entity active | `source.active` | `ValidationError` | `"Entity '%(name)s' must be active…"` | `Operation.clean()` | `InternalTransferCreateTest.test_source_must_be_active` |
+| VC6 | Destination entity active | `destination.active` | `ValidationError` | same as VC5 | `Operation.clean()` | `InternalTransferCreateTest.test_destination_must_be_active` |
+| VC7 | Source fund active | `payment_source_fund.active` | `ValidationError` | `"The Payment source entity should be active."` | `SourceFundMixin` | `InternalTransferCreateTest.test_source_fund_must_be_active` |
 | VC8 | Target fund active | `payment_target_fund.active` | `ValidationError` | `"The Payment target entity should be active."` | `TargetFundMixin` | merged with VC6 |
-| VC9 | Amount positive | `amount > 0` | `ValidationError` | `"Amount should be positive, got …"` | `AmountCleanMixin` | |
-| VC10 | Officer is staff | `officer.is_staff` | `ValidationError` | `"Officer should be a staff user."` | `OfficerMixin` | |
-| VC11 | Officer active | `officer.is_active` | `ValidationError` | `"Officer should be an active user."` | `OfficerMixin` | |
-| VC12 | Date not in a closed period (both entities) | no closed period contains `date` | `ValidationError` | `"Cannot create an operation whose date falls within a closed financial period."` | `Operation.clean()` | covered by the shared period suite (see §10) |
-| VC13 | A covering financial period exists | `period_entity` has a period containing `date` | `ValidationError` | `"Cannot create an operation: no financial period covers this operation's date."` | `Operation.save()` | covered by the shared period suite (see §10) |
-| VC14 | Balance checked at create (source pays) | `payment_source_fund.can_pay(amount)` | `ValidationError` | `"Insufficient funds: source fund balance (%(balance)s) is less than transfer amount (%(amount)s)."` | `Entity.can_pay` | |
+| VC9 | Amount positive | `amount > 0` | `ValidationError` | `"Amount should be positive, got …"` | `AmountCleanMixin` | `InternalTransferCreateTest.test_amount_zero_raises_validation_error` · `test_amount_negative_raises_validation_error` |
+| VC10 | Officer is staff | `officer.is_staff` | `ValidationError` | `"Officer should be a staff user."` | `OfficerMixin` | `InternalTransferCreateTest.test_officer_user_must_be_staff` |
+| VC11 | Officer active | `officer.is_active` | `ValidationError` | `"Officer should be an active user."` | `OfficerMixin` | `InternalTransferCreateTest.test_officer_must_be_active` |
+| VC12 | Date not in a closed period (both entities) | no closed period contains `date` | `ValidationError` | `"Cannot create an operation whose date falls within a closed financial period."` | `Operation.clean()` | shared period suite (`OperationPeriodAssignmentTest.test_operation_in_closed_period_raises`) |
+| VC13 | A covering financial period exists | `period_entity` has a period containing `date` | `ValidationError` | `"Cannot create an operation: no financial period covers this operation's date."` | `Operation.save()` | shared period suite (`OperationPeriodAssignmentTest.test_operation_raises_when_no_open_period`) |
+| VC14 | Balance checked at create (source pays) | `payment_source_fund.can_pay(amount)` | `ValidationError` | `"Insufficient funds: source fund balance (%(balance)s) is less than transfer amount (%(amount)s)."` | `Entity.can_pay` | `InternalTransferCreateTest.test_source_insufficient_balance_raises_validation_error` |
 | VC15 | Tx entity-type contract | `source.is_virtual == False` and `target.is_virtual == False` | `ValidationError` | `"Transaction type '…' has invalid entity types: …"` | `Transaction.create()` | implied by VC1–VC4 (model clean blocks first) |
 | VC16 | Tx operation-type allowed | document is `INTERNAL_TRANSFER` | `ValidationError` | `"Transaction type '…' is not allowed for operation '…'."` | `Transaction.create()` | implied by VC1–VC4 |
-| VC17 | Source ≠ destination | distinct internal persons | `ValidationError` | `"Source and target funds must be different."` | `Transaction.clean()` + picker excludes URL person | structural (picker excludes the URL person) |
+| VC17 | Source ≠ destination | distinct internal persons | `ValidationError` | `"Source and target funds must be different."` | `Transaction.clean()` + picker excludes URL person | structural (picker excludes the URL person — `InternalTransferGetRelatedEntitiesTest.test_excludes_url_entity_itself`) |
 
 #### 5.1.2 Success effects
 
 | # | Effect | Detail / invariant | Implemented by | Verified by |
 |---|--------|--------------------|----------------|-------------|
-| SC1 | Issuance tx created | 1 × `INTERNAL_TRANSFER_ISSUANCE`, amount `== op.amount`, `source → destination` | `LinkedIssuanceTransactionMixin.save()` | |
+| SC1 | Issuance tx created | 1 × `INTERNAL_TRANSFER_ISSUANCE`, amount `== op.amount`, `source → destination` | `LinkedIssuanceTransactionMixin.save()` | `InternalTransferCreateTest.test_creates_issuance_and_payment_transactions` |
 | SC2 | Payment tx created | 1 × `INTERNAL_TRANSFER_PAYMENT`, amount `== op.amount`, `source → destination` | `LinkedPaymentTransactionMixin.save()` | same as SC1 |
 | SC3 | Tx amounts equal op amount | both txs `amount == op.amount` | transaction creation | `InternalTransferCreateTest.test_transaction_amounts_equal_operation_amount` |
-| SC4 | Tx fund direction | both txs `source=source`, `target=destination` | | |
-| SC5 | Fully settled immediately | `amount_settled == amount`, `remaining == 0`, `is_fully_settled` | `LinkedPaymentTransactionMixin` | |
-| SC6 | Source fund ▼ amount | `source.balance` decreases by `amount` | `Entity.balance_at` | |
-| SC7 | Destination fund ▲ amount | `destination.balance` increases by `amount` | `Entity.balance_at` | |
+| SC4 | Tx fund direction | both txs `source=source`, `target=destination` | | `InternalTransferCreateTest.test_transaction_funds_are_correct` |
+| SC5 | Fully settled immediately | `amount_settled == amount`, `remaining == 0`, `is_fully_settled` | `LinkedPaymentTransactionMixin` | `InternalTransferCreateTest.test_is_fully_settled_immediately` |
+| SC6 | Source fund ▼ amount | `source.balance` decreases by `amount` | `Entity.balance_at` | `InternalTransferCreateTest.test_source_balance_decreases_after_transfer` |
+| SC7 | Destination fund ▲ amount | `destination.balance` increases by `amount` | `Entity.balance_at` | `InternalTransferCreateTest.test_destination_balance_increases_after_transfer` |
 | SC8 | No invoice / no movements | `has_invoice=False`; no invoice items; no movement lines | `has_invoice=False` | config flag (`has_invoice=False`); no ledger/movement machinery in `post_save_tasks` |
-| SC9 | Period auto-assigned | `period` = the source's covering period (open period auto-created at entity creation) | `Operation.save()` + `Entity.save()` | covered by shared period suite |
+| SC9 | Period auto-assigned | `period` = the source's covering period (open period auto-created at entity creation) | `Operation.save()` + `Entity.save()` | shared period suite (`OperationPeriodAssignmentTest`) |
 
 ### 5.2 `reverse`
 
@@ -195,8 +195,8 @@ Entry points: model `op.reverse(officer, date, reason)` or view `operation_rever
 
 | # | Branch | Pass condition | Failure outcome | Error (on failure) | Enforced by | Pinned by test |
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
-| VR1 | Not already reversed | `reversed_by is None` | `ValidationError` | `"The transaction is already reversed."` | `ReversableModel._validate_can_be_reversed` + view guard | |
-| VR2 | Not itself a reversal | `reversal_of is None` | `ValidationError` | `"You can't reverse this record as it is a reversal of …"` | `ReversableModel._validate_can_be_reversed` + view guard | |
+| VR1 | Not already reversed | `reversed_by is None` | `ValidationError` | `"The transaction is already reversed."` | `ReversableModel._validate_can_be_reversed` + view guard | `InternalTransferReversalTest.test_cannot_reverse_already_reversed_operation` |
+| VR2 | Not itself a reversal | `reversal_of is None` | `ValidationError` | `"You can't reverse this record as it is a reversal of …"` | `ReversableModel._validate_can_be_reversed` + view guard | `InternalTransferReversalTest.test_cannot_reverse_a_reversal` |
 | VR3 | No explicit txs to reverse | all txs are implicit (one-shot issuance + payment) | `ValidationError` (would require manual reversal) | `"You can't reverse this object as it has non-reversed transactions…"` | `ReversableModel._requires_transaction_reversal` + `Operation._implicit_reversable_transaction_types` | implied by successful reverse |
 | VR4 | No non-reversed adjustments | n/a — Internal Transfer is not adjustable | never fails | — | `is_adjustable=False` | n/a |
 | VR5 | Reason required | `POST['reversal_reason']` non-empty | view redirect + message | `"A reason for reversal is required."` | `operation_reverse_view` | view contract (see §8) |
@@ -205,17 +205,17 @@ Entry points: model `op.reverse(officer, date, reason)` or view `operation_rever
 
 | # | Effect | Detail / invariant | Implemented by | Verified by |
 |---|--------|--------------------|----------------|-------------|
-| SR1 | Reversal record created | cloned op, `reversal_of = original` | `ReversableModel.reverse()` | |
-| SR2 | Original marked reversed | `original.reversed_by = reversal` | `ReversableModel.reverse()` | |
-| SR3 | Reversal inherits identity | `amount`, `source`, `destination` copied | `ReversableModel._get_reverse_kwargs` | |
-| SR4 | Counter-tx for issuance | `destination → source`, same amount, same type, `reversal_of=original` | `Transaction.reverse()` | |
-| SR5 | Counter-tx for payment | `destination → source`, same amount, same type, `reversal_of=original` | same as SR4 | |
-| SR6 | Counter-txs preserve type + amount | `counter.type == original.type`, `counter.amount == original.amount` | same as SR4 | |
-| SR7 | Reversal op owns no txs | `reversal.get_all_transactions().count() == 0` (save skips tx creation for reversals) | `LinkedIssuanceTransactionMixin.save()` | |
-| SR8 | Source + destination restored | both balances back to pre-create baseline | `balance_at` | |
+| SR1 | Reversal record created | cloned op, `reversal_of = original` | `ReversableModel.reverse()` | `InternalTransferReversalTest.test_reverse_creates_reversal_operation` |
+| SR2 | Original marked reversed | `original.reversed_by = reversal` | `ReversableModel.reverse()` | `InternalTransferReversalTest.test_reverse_marks_original_as_reversed` |
+| SR3 | Reversal inherits identity | `amount`, `source`, `destination` copied | `ReversableModel._get_reverse_kwargs` | `InternalTransferReversalTest.test_reverse_inherits_amount_source_destination` · `test_reversal_is_reversal` |
+| SR4 | Counter-tx for issuance | `destination → source`, same amount, same type, `reversal_of=original` | `Transaction.reverse()` | `InternalTransferReversalTest.test_reverse_creates_counter_transactions` |
+| SR5 | Counter-tx for payment | `destination → source`, same amount, same type, `reversal_of=original` | same as SR4 | `InternalTransferReversalTest.test_reverse_creates_counter_transactions` |
+| SR6 | Counter-txs preserve type + amount | `counter.type == original.type`, `counter.amount == original.amount` | same as SR4 | `InternalTransferReversalTest.test_reverse_counter_transactions_flip_funds` · `test_reverse_counter_transactions_preserve_type` |
+| SR7 | Reversal op owns no txs | `reversal.get_all_transactions().count() == 0` (save skips tx creation for reversals) | `LinkedIssuanceTransactionMixin.save()` | implied by counter-tx tests (reversal created via `reverse()`) |
+| SR8 | Source + destination restored | both balances back to pre-create baseline | `balance_at` | `InternalTransferReversalTest.test_source_balance_restored_after_reversal` · `test_destination_balance_restored_after_reversal` |
 | SR9 | Settlement state cleared | `amount_settled == 0`, `is_fully_settled == False` | `amount_settled` | `InternalTransferReversalTest.test_settlement_state_cleared_after_reversal` |
 | SR10 | Reason flows to reversal | `reversal.description` contains the reason | `ReversableModel.reverse()` | `InternalTransferReversalTest.test_reversal_description_contains_reason` |
-| SR11 | Differential invariant | create + reverse leaves the whole world unchanged (balances, payables, receivables, ledger) | whole engine | |
+| SR11 | Differential invariant | create + reverse leaves the whole world unchanged (balances, payables, receivables, ledger) | whole engine | `InternalTransferReversalTest.test_create_then_reverse_leaves_world_unchanged` |
 
 ### 5.3 `pay` (one-shot guard)
 
@@ -224,7 +224,7 @@ There is **no standalone pay action** for Internal Transfer:
 | Branch | Behavior | Enforced by | Pinned by test |
 |--------|----------|-------------|----------------|
 | `process_payment()` called | no-op (returns immediately — `can_pay=False`) | `process_payment` | n/a (covered by `can_pay=False`) |
-| `create_payment_transaction()` called after create | `ValidationError` — one-shot allows a single payment only, amount must equal `op.amount` (balance re-checked first, VC14) | `create_payment_transaction` | |
+| `create_payment_transaction()` called after create | `ValidationError` — one-shot allows a single payment only, amount must equal `op.amount` (balance re-checked first, VC14) | `create_payment_transaction` | `InternalTransferCreateTest.test_one_shot_prevents_second_payment` |
 
 ### 5.4 Immutability
 
@@ -232,9 +232,9 @@ There is **no standalone pay action** for Internal Transfer:
 
 | Branch | Enforced by | Pinned by test |
 |--------|-------------|----------------|
-| `source` changed after save | `ImmutableMixin.save()` | |
-| `destination` changed after save | `ImmutableMixin.save()` | |
-| `amount` changed after save | `ImmutableMixin.save()` | |
+| `source` changed after save | `ImmutableMixin.save()` | `InternalTransferCreateTest.test_source_is_immutable` |
+| `destination` changed after save | `ImmutableMixin.save()` | `InternalTransferCreateTest.test_destination_is_immutable` |
+| `amount` changed after save | `ImmutableMixin.save()` | `InternalTransferCreateTest.test_amount_is_immutable` |
 
 ---
 

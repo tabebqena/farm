@@ -143,29 +143,29 @@ Entry points: model `CapitalLossOperation.save()` (tests) or the evaluation view
 
 | # | Branch | Pass condition | Failure outcome | Error (on failure) | Enforced by | Pinned by test |
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
-| VC1 | Source is a non-system project | `source.is_project` (system/world rejected) | `ValidationError` | `"Capital Loss source must be a Project entity."` | `clean_source` | |
-| VC2 | Destination is System | `destination.is_system` | `ValidationError` | `"Capital Loss destination must be the System entity."` | `clean_destination` | |
-| VC3 | Source entity active | `source.active` | `ValidationError` | `"Entity '%(name)s' must be active…"` | `Operation.clean()` | |
+| VC1 | Source is a non-system project | `source.is_project` (system/world rejected) | `ValidationError` | `"Capital Loss source must be a Project entity."` | `clean_source` | `CapitalLossCreateTest.test_source_system_entity_raises_validation_error` |
+| VC2 | Destination is System | `destination.is_system` | `ValidationError` | `"Capital Loss destination must be the System entity."` | `clean_destination` | `CapitalLossCreateTest.test_destination_must_be_system_entity` · `test_destination_world_entity_raises_validation_error` |
+| VC3 | Source entity active | `source.active` | `ValidationError` | `"Entity '%(name)s' must be active…"` | `Operation.clean()` | `CapitalLossCreateTest.test_source_project_must_be_active` |
 | VC4 | Destination entity active | `destination.active` | `ValidationError` | same as VC3 | `Operation.clean()` | structural (System is always active) |
-| VC5 | Amount positive | `amount > 0` | `ValidationError` | `"Amount should be positive, got …"` | `AmountCleanMixin` | |
-| VC6 | Officer is staff + active | `officer.is_staff` and `officer.is_active` | `ValidationError` | officer errors | `OfficerMixin` | |
-| VC7 | Date not in a closed period (both entities) | no closed period contains `date` | `ValidationError` | `"Cannot create an operation whose date falls within a closed financial period."` | `Operation.clean()` | period suite |
-| VC8 | A covering financial period exists | `period_entity` has a period containing `date` | `ValidationError` | `"Cannot create an operation: no financial period covers this operation's date."` | `Operation.save()` | covered by period suite |
-| VC9 | Material delta | `abs(delta) ≥ 0.01` | no operation recorded | `"No material change — no operation recorded."` | `EvaluationCreateView` | |
-| VC10 | Ownership — product belongs to source project | `product.entity == source project` | `ValidationError` | `"Product '%(p)s' does not belong to '%(entity)s' and cannot be evaluated."` | `EvaluationCreateView` + `save_inventory` | |
+| VC5 | Amount positive | `amount > 0` | `ValidationError` | `"Amount should be positive, got …"` | `AmountCleanMixin` | `CapitalLossCreateTest.test_amount_zero_raises_validation_error` · `test_amount_negative_raises_validation_error` |
+| VC6 | Officer is staff + active | `officer.is_staff` and `officer.is_active` | `ValidationError` | officer errors | `OfficerMixin` | `CapitalLossCreateTest.test_officer_user_must_be_staff` · `test_officer_must_be_active` |
+| VC7 | Date not in a closed period (both entities) | no closed period contains `date` | `ValidationError` | `"Cannot create an operation whose date falls within a closed financial period."` | `Operation.clean()` | shared period suite (`OperationPeriodAssignmentTest.test_operation_in_closed_period_raises`) |
+| VC8 | A covering financial period exists | `period_entity` has a period containing `date` | `ValidationError` | `"Cannot create an operation: no financial period covers this operation's date."` | `Operation.save()` | shared period suite (`OperationPeriodAssignmentTest.test_operation_raises_when_no_open_period`) |
+| VC9 | Material delta | `abs(delta) ≥ 0.01` | no operation recorded | `"No material change — no operation recorded."` | `EvaluationCreateView` | view contract (see §8) |
+| VC10 | Ownership — product belongs to source project | `product.entity == source project` | `ValidationError` | `"Product '%(p)s' does not belong to '%(entity)s' and cannot be evaluated."` | `EvaluationCreateView` + `save_inventory` | `EvaluationOwnershipTest.test_evaluation_form_restricts_products_to_owned_entity` · `test_evaluation_post_rejects_other_project_product` · `test_evaluation_post_accepts_owned_product_form` |
 
 #### 5.1.2 Success effects
 
 | # | Effect | Detail / invariant | Implemented by | Verified by |
 |---|--------|--------------------|----------------|-------------|
-| SC1 | No transactions created | `get_all_transactions().count() == 0` (no issuance, no payment) | (no transaction mixins) | |
-| SC2 | No settlement machinery | `amount_settled`/`is_fully_settled`/`create_payment_transaction` absent | (no payment mixin) | |
-| SC3 | No cash flow — project fund unchanged | `project.balance` unchanged by the loss (even a zero-balance or deficit project) | `Entity.balance_at` | |
-| SC4 | Inventory value ▼ | `Product.current_value`/`inventory_value` decreases by the loss (`capital_delta`) | `capital_delta()` + `Product.current_value` | |
-| SC5 | Value-only — no movement line | the loss creates a `ProductCapitalValuation` row linked to the product but **no** `InvoiceItem` and **no** `InventoryMovementLine` | `CapitalLossOperation.add_valuation` + `ProductCapitalValuation` | |
-| SC6 | Product stays ACTIVE | the loss is a value write-down, not a status transition | `Product.status` | |
-| SC7 | Period auto-assigned | `period` = the project's covering period | `Operation.save()` | covered by period suite |
-| SC8 | profit_loss unchanged | the loss is not an accounting transaction | `Entity.profit_loss` | |
+| SC1 | No transactions created | `get_all_transactions().count() == 0` (no issuance, no payment) | (no transaction mixins) | `CapitalLossCreateTest.test_save_creates_no_transactions` |
+| SC2 | No settlement machinery | `amount_settled`/`is_fully_settled`/`create_payment_transaction` absent | (no payment mixin) | `CapitalLossCreateTest.test_period_is_assigned_and_no_settlement_machinery` |
+| SC3 | No cash flow — project fund unchanged | `project.balance` unchanged by the loss (even a zero-balance or deficit project) | `Entity.balance_at` | `CapitalLossCreateTest.test_project_fund_unchanged_by_loss_amount` · `test_zero_balance_project_can_record_capital_loss` · `test_loss_larger_than_balance_is_allowed_non_cash` · `test_loss_making_project_can_record_further_losses` |
+| SC4 | Inventory value ▼ | `Product.current_value`/`inventory_value` decreases by the loss (`capital_delta`) | `capital_delta()` + `Product.current_value` | `ProductCapitalValuationModelTest.test_movement_state_value_falls_by_loss` |
+| SC5 | Value-only — no movement line | the loss creates a `ProductCapitalValuation` row linked to the product but **no** `InvoiceItem` and **no** `InventoryMovementLine` | `CapitalLossOperation.add_valuation` + `ProductCapitalValuation` | `CapitalLossCreateTest.test_capital_loss_is_value_only_no_movement_line` · `ProductCapitalValuationModelTest.test_loss_requires_negative_amount` |
+| SC6 | Product stays ACTIVE | the loss is a value write-down, not a status transition | `Product.status` | `CapitalLossReversalProductStatusTest.test_loss_and_reversal_keep_product_active` · `ProductTest.test_status_active_after_capital_loss` |
+| SC7 | Period auto-assigned | `period` = the project's covering period | `Operation.save()` | shared period suite (`OperationPeriodAssignmentTest`) |
+| SC8 | profit_loss unchanged | the loss is not an accounting transaction | `Entity.profit_loss` | structural (no accounting tx — see `OperationMixinSeparationTest`) |
 
 ### 5.2 `reverse`
 
@@ -175,8 +175,8 @@ Entry points: model `op.reverse(officer, date, reason)` or view `operation_rever
 
 | # | Branch | Pass condition | Failure outcome | Error (on failure) | Enforced by | Pinned by test |
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
-| VR1 | Not already reversed | `reversed_by is None` | `ValidationError` | `"The transaction is already reversed."` | `ReversableModel._validate_can_be_reversed` + view guard | |
-| VR2 | Not itself a reversal | `reversal_of is None` | `ValidationError` | `"You can't reverse this record as it is a reversal of …"` | `ReversableModel._validate_can_be_reversed` + view guard | |
+| VR1 | Not already reversed | `reversed_by is None` | `ValidationError` | `"The transaction is already reversed."` | `ReversableModel._validate_can_be_reversed` + view guard | `CapitalLossReversalTest.test_cannot_reverse_already_reversed_operation` |
+| VR2 | Not itself a reversal | `reversal_of is None` | `ValidationError` | `"You can't reverse this record as it is a reversal of …"` | `ReversableModel._validate_can_be_reversed` + view guard | `CapitalLossReversalTest.test_cannot_reverse_a_reversal` |
 | VR3 | No non-reversed adjustments | n/a — Capital Loss is not adjustable | never fails | — | `is_adjustable=False` | n/a |
 | VR4 | Reason required | `POST['reversal_reason']` non-empty | view redirect + message | `"A reason for reversal is required."` | `operation_reverse_view` | view contract (see §8) |
 
@@ -184,14 +184,14 @@ Entry points: model `op.reverse(officer, date, reason)` or view `operation_rever
 
 | # | Effect | Detail / invariant | Implemented by | Verified by |
 |---|--------|--------------------|----------------|-------------|
-| SR1 | Reversal record created | cloned op, `reversal_of = original` | `ReversableModel.reverse()` | |
-| SR2 | Original marked reversed | `original.reversed_by = reversal` | `ReversableModel.reverse()` | |
-| SR3 | Reversal inherits identity | `amount`, `source`, `destination` copied; `is_reversal=True`, `is_reversed=False` | `ReversableModel._get_reverse_kwargs` | |
-| SR4 | No counter-transactions | neither the original nor its reversal owns any `Transaction` | (no transaction mixins) | |
-| SR5 | Inventory value restored | the reversed loss is excluded from `capital_delta()` (filtered on `reversed_by__isnull=True`) → `inventory_value()` returns to baseline | `capital_delta` | |
-| SR6 | Product stays ACTIVE | the reversal is a value write-up back to baseline, not a status transition | `Product.status` | |
-| SR7 | Fund unchanged after reversal | `project.balance` unchanged | `Entity.balance_at` | |
-| SR8 | Differential invariant | create + reverse leaves the whole world unchanged (balances, payables, receivables, ledger, inventory value) | whole engine | shared engine invariant |
+| SR1 | Reversal record created | cloned op, `reversal_of = original` | `ReversableModel.reverse()` | `CapitalLossReversalTest.test_reverse_creates_reversal_operation` |
+| SR2 | Original marked reversed | `original.reversed_by = reversal` | `ReversableModel.reverse()` | `CapitalLossReversalTest.test_reverse_marks_original_as_reversed` |
+| SR3 | Reversal inherits identity | `amount`, `source`, `destination` copied; `is_reversal=True`, `is_reversed=False` | `ReversableModel._get_reverse_kwargs` | `CapitalLossReversalTest.test_reverse_inherits_amount_source_destination` · `test_reversal_is_reversal` |
+| SR4 | No counter-transactions | neither the original nor its reversal owns any `Transaction` | (no transaction mixins) | `CapitalLossReversalTest.test_reverse_creates_no_transactions` |
+| SR5 | Inventory value restored | the reversed loss is excluded from `capital_delta()` (filtered on `reversed_by__isnull=True`) → `inventory_value()` returns to baseline | `capital_delta` | `ProductCapitalValuationModelTest.test_reverse_restores_value_to_baseline` · `test_reverse_restores_inventory_value` |
+| SR6 | Product stays ACTIVE | the reversal is a value write-up back to baseline, not a status transition | `Product.status` | `CapitalLossReversalProductStatusTest.test_loss_and_reversal_keep_product_active` |
+| SR7 | Fund unchanged after reversal | `project.balance` unchanged | `Entity.balance_at` | `CapitalLossReversalTest.test_project_fund_unchanged_after_reversal` |
+| SR8 | Differential invariant | create + reverse leaves the whole world unchanged (balances, payables, receivables, ledger, inventory value) | whole engine | `CapitalLossReversalTest.test_create_then_reverse_leaves_world_unchanged` |
 
 ### 5.3 `pay`
 
@@ -260,15 +260,21 @@ reachable.
 
 | Area | Test method | Branch(es) |
 |------|-------------|------------|
-| No transactions | | SC1 |
-| No settlement machinery | | SC2 |
-| Source validation | | VC1 |
-| Destination validation | | VC2 |
-| Amount | | VC5 |
-| No cash flow / fund unchanged (deficit allowed) | | SC3 |
-| Inventory value ▼ | | SC4 |
-| Value-only (no movement line) | `ProductCapitalValuationModelTest.test_loss_requires_negative_amount` + capital-loss value-only test | SC5 |
-| Product stays ACTIVE | | SC6, SR6 |
-| Period assigned | | SC7 |
-| Reversal — no counter-txs | | SR4 |
-| Valuation restored on reverse | | SR5 |
+| No transactions | `CapitalLossCreateTest.test_save_creates_no_transactions` | SC1 |
+| No settlement machinery | `CapitalLossCreateTest.test_period_is_assigned_and_no_settlement_machinery` | SC2 |
+| Source validation | `CapitalLossCreateTest.test_source_system_entity_raises_validation_error` · `test_source_project_must_be_active` | VC1, VC3 |
+| Destination validation | `CapitalLossCreateTest.test_destination_must_be_system_entity` · `test_destination_world_entity_raises_validation_error` | VC2 |
+| Amount | `CapitalLossCreateTest.test_amount_zero_raises_validation_error` · `test_amount_negative_raises_validation_error` | VC5 |
+| Officer | `CapitalLossCreateTest.test_officer_user_must_be_staff` · `test_officer_must_be_active` | VC6 |
+| Ownership (evaluation) | `EvaluationOwnershipTest.test_evaluation_post_rejects_other_project_product` · `test_evaluation_post_accepts_owned_product_form` | VC10 |
+| No cash flow / fund unchanged (deficit allowed) | `CapitalLossCreateTest.test_project_fund_unchanged_by_loss_amount` · `test_zero_balance_project_can_record_capital_loss` · `test_loss_larger_than_balance_is_allowed_non_cash` · `test_loss_making_project_can_record_further_losses` | SC3 |
+| Inventory value ▼ | `ProductCapitalValuationModelTest.test_movement_state_value_falls_by_loss` | SC4 |
+| Value-only (no movement line) | `CapitalLossCreateTest.test_capital_loss_is_value_only_no_movement_line` · `ProductCapitalValuationModelTest.test_loss_requires_negative_amount` | SC5 |
+| Product stays ACTIVE | `CapitalLossReversalProductStatusTest.test_loss_and_reversal_keep_product_active` · `ProductTest.test_status_active_after_capital_loss` | SC6, SR6 |
+| Period assigned | shared period suite (`OperationPeriodAssignmentTest`) | SC7 |
+| Reversal — no counter-txs | `CapitalLossReversalTest.test_reverse_creates_no_transactions` | SR4 |
+| Valuation restored on reverse | `ProductCapitalValuationModelTest.test_reverse_restores_value_to_baseline` · `test_reverse_restores_inventory_value` | SR5 |
+| Differential invariant | `CapitalLossReversalTest.test_create_then_reverse_leaves_world_unchanged` | SR8 |
+| Reverse constraints | `CapitalLossReversalTest.test_cannot_reverse_already_reversed_operation` · `test_cannot_reverse_a_reversal` | VR1, VR2 |
+| Immutability | `CapitalLossCreateTest.test_source_is_immutable` · `test_destination_is_immutable` · `test_amount_is_immutable` | IM1–IM3 |
+| Can't be paid | `CapitalLossCreateTest.test_cannot_be_paid` · `test_check_balance_on_payment_is_disabled` | BP1 |

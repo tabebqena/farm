@@ -175,34 +175,34 @@ Entry points: model `LoanOperation.save()` (tests) or `Operation.create()` (view
 
 | # | Branch | Pass condition | Failure outcome | Error (on failure) | Enforced by | Pinned by test |
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
-| VC1 | Source (creditor) is Person or Project | `source.is_person or source.is_project` | `ValidationError` | `"Loan source (creditor) must be a Person or Project entity."` | `clean_source` | |
-| VC2 | Destination (debtor) is Person or Project | `destination.is_person or destination.is_project` | `ValidationError` | `"Loan destination (debtor) must be a Person or Project entity."` | `clean_destination` | |
-| VC3 | Source entity active | `source.active` | `ValidationError` | `"Entity '%(name)s' must be active…"` | `Operation.clean()` | |
-| VC4 | Destination entity active | `destination.active` | `ValidationError` | same as VC3 | `Operation.clean()` | |
-| VC5 | Source fund active | `payment_source_fund.active` | `ValidationError` | `"The Payment source entity should be active."` | `SourceFundMixin` | merged with VC3 |
+| VC1 | Source (creditor) is Person or Project | `source.is_person or source.is_project` | `ValidationError` | `"Loan source (creditor) must be a Person or Project entity."` | `clean_source` | `LoanCreateTest.test_source_can_be_person_or_project` · `test_source_vendor_person_is_still_a_valid_creditor` · `test_source_system_entity_raises_validation_error` · `test_source_world_entity_raises_validation_error` |
+| VC2 | Destination (debtor) is Person or Project | `destination.is_person or destination.is_project` | `ValidationError` | `"Loan destination (debtor) must be a Person or Project entity."` | `clean_destination` | `LoanCreateTest.test_project_as_creditor_person_as_debtor` · `test_destination_world_entity_raises_validation_error` · `test_destination_system_entity_raises_validation_error` |
+| VC3 | Source entity active | `source.active` | `ValidationError` | `"Entity '%(name)s' must be active…"` | `Operation.clean()` | `LoanCreateTest.test_source_must_be_active` |
+| VC4 | Destination entity active | `destination.active` | `ValidationError` | same as VC3 | `Operation.clean()` | `LoanCreateTest.test_destination_must_be_active` |
+| VC5 | Source fund active | `payment_source_fund.active` | `ValidationError` | `"The Payment source entity should be active."` | `SourceFundMixin` | `LoanCreateTest.test_source_fund_must_be_active` |
 | VC6 | Target fund active | `payment_target_fund.active` | `ValidationError` | `"The Payment target entity should be active."` | `TargetFundMixin` | merged with VC4 |
-| VC7 | Amount positive | `amount > 0` | `ValidationError` | `"Amount should be positive, got …"` | `AmountCleanMixin` | |
-| VC8 | Officer is staff | `officer.is_staff` | `ValidationError` | `"Officer should be a staff user."` | `OfficerMixin` | |
-| VC9 | Officer active | `officer.is_active` | `ValidationError` | `"Officer should be an active user."` | `OfficerMixin` | |
-| VC10 | Date not in a closed period (both entities) | no closed period contains `date` | `ValidationError` | `"Cannot create an operation whose date falls within a closed financial period."` | `Operation.clean()` | covered by period suite |
-| VC11 | A covering financial period exists | `period_entity` has a period containing `date` | `ValidationError` | `"Cannot create an operation: no financial period covers this operation's date."` | `Operation.save()` | covered by period suite |
-| VC12 | Balance exempt at create | issuance is unguarded; balance check deferred to each disbursement | never fails at create | — | `check_balance_on_payment=True` (only at pay) | |
+| VC7 | Amount positive | `amount > 0` | `ValidationError` | `"Amount should be positive, got …"` | `AmountCleanMixin` | `LoanCreateTest.test_amount_zero_raises_validation_error` · `test_amount_negative_raises_validation_error` |
+| VC8 | Officer is staff | `officer.is_staff` | `ValidationError` | `"Officer should be a staff user."` | `OfficerMixin` | `LoanCreateTest.test_officer_user_must_be_staff` |
+| VC9 | Officer active | `officer.is_active` | `ValidationError` | `"Officer should be an active user."` | `OfficerMixin` | `LoanCreateTest.test_officer_must_be_active` |
+| VC10 | Date not in a closed period (both entities) | no closed period contains `date` | `ValidationError` | `"Cannot create an operation whose date falls within a closed financial period."` | `Operation.clean()` | shared period suite (`OperationPeriodAssignmentTest.test_operation_in_closed_period_raises`) |
+| VC11 | A covering financial period exists | `period_entity` has a period containing `date` | `ValidationError` | `"Cannot create an operation: no financial period covers this operation's date."` | `Operation.save()` | shared period suite (`OperationPeriodAssignmentTest.test_operation_raises_when_no_open_period`) |
+| VC12 | Balance exempt at create | issuance is unguarded; balance check deferred to each disbursement | never fails at create | — | `check_balance_on_payment=True` (only at pay) | `LoanCreateTest.test_check_balance_on_payment_is_enabled` (guard deferred to pay) |
 | VC13 | Tx entity-type contract | both sides non-virtual (Person or Project) | `ValidationError` | `"Transaction type '…' has invalid entity types: …"` | `Transaction.create()` | implied by VC1/VC2 (model clean blocks first) |
 | VC14 | Tx operation-type allowed | document is `LOAN` | `ValidationError` | `"Transaction type '…' is not allowed for operation '…'."` | `Transaction.create()` | implied by VC1/VC2 |
-| VC15 | Source ≠ destination | `source_id != destination_id` | `ValidationError` | `"Loan source (creditor) and destination (debtor) must be different entities."` | `clean()` | |
+| VC15 | Source ≠ destination | `source_id != destination_id` | `ValidationError` | `"Loan source (creditor) and destination (debtor) must be different entities."` | `clean()` | `LoanCreateTest.test_source_and_destination_must_be_different` |
 
 #### 5.1.2 Success effects
 
 | # | Effect | Detail / invariant | Implemented by | Verified by |
 |---|--------|--------------------|----------------|-------------|
-| SC1 | Issuance tx created | 1 × `LOAN_ISSUANCE`, amount `== op.amount`, `creditor → debtor` (non-cash memo) | `LinkedIssuanceTransactionMixin.save()` | |
-| SC2 | Issuance direction | `source=creditor`, `target=debtor` | transaction creation | |
-| SC3 | Issuance amount equals op amount | `tx.amount == op.amount` | transaction creation | |
-| SC4 | No payment on save | multi-stage: only `LOAN_ISSUANCE` exists; disbursements happen later via **pay** | `_is_one_shot_operation=False` | (asserts only `LOAN_ISSUANCE: 1`) |
+| SC1 | Issuance tx created | 1 × `LOAN_ISSUANCE`, amount `== op.amount`, `creditor → debtor` (non-cash memo) | `LinkedIssuanceTransactionMixin.save()` | `LoanCreateTest.test_creates_issuance_transaction_on_save` |
+| SC2 | Issuance direction | `source=creditor`, `target=debtor` | transaction creation | `LoanCreateTest.test_issuance_transaction_direction_is_creditor_to_debtor` |
+| SC3 | Issuance amount equals op amount | `tx.amount == op.amount` | transaction creation | `LoanCreateTest.test_issuance_transaction_amount_matches_operation` |
+| SC4 | No payment on save | multi-stage: only `LOAN_ISSUANCE` exists; disbursements happen later via **pay** | `_is_one_shot_operation=False` | `LoanCreateTest.test_creates_issuance_transaction_on_save` (asserts only `LOAN_ISSUANCE: 1`) |
 | SC5 | No balance effect at create | issuance is a non-payment type; no fund/receivable/payable change | issuance_types (`LOAN_ISSUANCE`) | module contract |
-| SC6 | Not repayable before disbursement | `amount_remaining_to_repay == 0` with no `LOAN_PAYMENT` | `repayable_amount` cap | |
-| SC7 | `creditor`/`debtor` aliases | `creditor == source`, `debtor == destination` | | |
-| SC8 | Person or Project allowed on either side | any combination of Person/Project accepted | `clean_source`/`clean_destination` | |
+| SC6 | Not repayable before disbursement | `amount_remaining_to_repay == 0` with no `LOAN_PAYMENT` | `repayable_amount` cap | `LoanCreateTest.test_amount_remaining_to_repay_is_zero_without_disbursement` |
+| SC7 | `creditor`/`debtor` aliases | `creditor == source`, `debtor == destination` | | `LoanCreateTest.test_creditor_property` · `test_debtor_property` |
+| SC8 | Person or Project allowed on either side | any combination of Person/Project accepted | `clean_source`/`clean_destination` | `LoanCreateTest.test_source_can_be_person_or_project` · `test_project_as_creditor_person_as_debtor` |
 
 ### 5.2 `pay` (disbursement)
 
@@ -212,23 +212,23 @@ Entry point: model `op.create_payment_transaction(amount, officer, date)` or vie
 
 | # | Branch | Pass condition | Failure outcome | Error (on failure) | Enforced by | Pinned by test |
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
-| VP1 | Balance enforced per disbursement | `payment_source_fund.can_pay(amount)` | `ValidationError` | `"Insufficient funds: fund balance (%(balance)s) is less than the payment amount (%(amount)s)."` | `create_payment_transaction()` | |
-| VP2 | Amount > 0 | `amount > 0` | `ValidationError` | `"The amount should be more than 0"` | `validate_settlement_amount` | n/a (shared engine) |
-| VP3 | Amount ≤ remaining | `amount <= amount_remaining_to_settle` | `ValidationError` | `"The paid amount %(amount)s exceeds the remaining: %(remaining)s"` | `validate_settlement_amount` | over-payment guard (shared engine) |
-| VP4 | Partial disbursements allowed | unlimited (`max_payment_transaction_count=-1`) | never fails | — | | |
-| VP5 | Closed-period guard on payment date | governing period open on `date` | `ValidationError` | `"Cannot record a payment dated within a closed financial period."` | `create_payment_transaction()` | covered by period suite |
+| VP1 | Balance enforced per disbursement | `payment_source_fund.can_pay(amount)` | `ValidationError` | `"Insufficient funds: fund balance (%(balance)s) is less than the payment amount (%(amount)s)."` | `create_payment_transaction()` | config `LoanCreateTest.test_check_balance_on_payment_is_enabled`; guard shared with payable ops (`ExpensePaymentTest.test_payment_blocked_when_project_fund_has_insufficient_balance`) |
+| VP2 | Amount > 0 | `amount > 0` | `ValidationError` | `"The amount should be more than 0"` | `validate_settlement_amount` | shared engine (`LoanDisbursementTest` positive-path) |
+| VP3 | Amount ≤ remaining | `amount <= amount_remaining_to_settle` | `ValidationError` | `"The paid amount %(amount)s exceeds the remaining: %(remaining)s"` | `validate_settlement_amount` | over-payment guard (shared engine — `ExpensePaymentTest.test_payment_exceeding_operation_amount_raises_validation_error`) |
+| VP4 | Partial disbursements allowed | unlimited (`max_payment_transaction_count=-1`) | never fails | — | | `LoanDisbursementTest.test_multiple_payment_disbursements_allowed` |
+| VP5 | Closed-period guard on payment date | governing period open on `date` | `ValidationError` | `"Cannot record a payment dated within a closed financial period."` | `create_payment_transaction()` | shared period suite (`DownstreamClosedPeriodGuardTest.test_payment_rejected_in_closed_period`) |
 
 #### 5.2.2 Success effects
 
 | # | Effect | Detail / invariant | Implemented by | Verified by |
 |---|--------|--------------------|----------------|-------------|
-| SP1 | `LOAN_PAYMENT` created | `creditor.fund → debtor.fund`, type `LOAN_PAYMENT` | `create_payment_transaction()` | |
-| SP2 | Payment direction | `source=creditor`, `target=debtor` | payment source/target funds | |
-| SP3 | Creditor fund ▼ amount | `creditor.balance` decreases by `amount` | `Entity.balance_at` | |
-| SP4 | Debtor fund ▲ amount | `debtor.balance` increases by `amount` | `Entity.balance_at` | |
-| SP5 | Debtor payables ▲ | `debtor.payables` increases by `amount` | payables derivation | |
-| SP6 | Creditor receivables ▲ | `creditor.receivables` increases by `amount` | receivables derivation | |
-| SP7 | Other obligation buckets zero | creditor payables & debtor receivables stay `0` | obligation derivation | |
+| SP1 | `LOAN_PAYMENT` created | `creditor.fund → debtor.fund`, type `LOAN_PAYMENT` | `create_payment_transaction()` | `LoanDisbursementTest.test_payment_creates_loan_payment_transaction` |
+| SP2 | Payment direction | `source=creditor`, `target=debtor` | payment source/target funds | `LoanDisbursementTest.test_payment_transaction_direction_is_creditor_to_debtor` |
+| SP3 | Creditor fund ▼ amount | `creditor.balance` decreases by `amount` | `Entity.balance_at` | `LoanDisbursementTest.test_creditor_fund_decreases_after_payment` |
+| SP4 | Debtor fund ▲ amount | `debtor.balance` increases by `amount` | `Entity.balance_at` | `LoanDisbursementTest.test_debtor_fund_increases_after_payment` |
+| SP5 | Debtor payables ▲ | `debtor.payables` increases by `amount` | payables derivation | `LoanDisbursementTest.test_payment_increases_debtor_payables` |
+| SP6 | Creditor receivables ▲ | `creditor.receivables` increases by `amount` | receivables derivation | `LoanDisbursementTest.test_payment_increases_creditor_receivables` |
+| SP7 | Other obligation buckets zero | creditor payables & debtor receivables stay `0` | obligation derivation | `LoanDisbursementTest.test_payment_leaves_other_obligation_buckets_zero` |
 | SP8 | `amount_settled` ↑ | settlement grows by the disbursed amount | `amount_settled` | implied by SP3/SP4 + coverage manifest SE3/SE4 |
 
 ### 5.3 `repay`
@@ -239,25 +239,25 @@ Entry point: model `op.create_repayment_transaction(amount, officer, date)` or v
 
 | # | Branch | Pass condition | Failure outcome | Error (on failure) | Enforced by | Pinned by test |
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
-| VRp1 | Amount > 0 | `amount > 0` | `ValidationError` | `"The amount should be more than 0"` | `validate_repayement_amount` | |
-| VRp2 | Amount ≤ remaining | `amount <= amount_remaining_to_repay` | `ValidationError` | `"The paid amount %(amount)s exceeds the remaining: %(remaining)s"` | `validate_repayement_amount` | |
-| VRp3 | Capped by disbursed amount | `amount <= repayable_amount == min(total, amount_settled)` | `ValidationError` | same as VRp2 | `repayable_amount` | |
-| VRp4 | Closed-period guard on repayment date | governing period open on `date` | `ValidationError` | `"Cannot record a repayment dated within a closed financial period."` | `create_repayment_transaction()` | covered by period suite |
+| VRp1 | Amount > 0 | `amount > 0` | `ValidationError` | `"The amount should be more than 0"` | `validate_repayement_amount` | `LoanRepaymentTest.test_zero_repayment_raises_validation_error` |
+| VRp2 | Amount ≤ remaining | `amount <= amount_remaining_to_repay` | `ValidationError` | `"The paid amount %(amount)s exceeds the remaining: %(remaining)s"` | `validate_repayement_amount` | `LoanRepaymentTest.test_repayment_exceeding_remaining_balance_raises_validation_error` · `test_partial_repayment_then_over_repayment_raises_validation_error` |
+| VRp3 | Capped by disbursed amount | `amount <= repayable_amount == min(total, amount_settled)` | `ValidationError` | same as VRp2 | `repayable_amount` | `LoanRepaymentTest.test_repayment_blocked_when_no_disbursement` · `test_amount_remaining_to_repay_reflects_disbursed_cap` · `test_repayment_cannot_exceed_total_disbursed` |
+| VRp4 | Closed-period guard on repayment date | governing period open on `date` | `ValidationError` | `"Cannot record a repayment dated within a closed financial period."` | `create_repayment_transaction()` | shared period suite (`DownstreamClosedPeriodGuardTest.test_repayment_rejected_in_closed_period`) |
 
 #### 5.3.2 Success effects
 
 | # | Effect | Detail / invariant | Implemented by | Verified by |
 |---|--------|--------------------|----------------|-------------|
-| SRp1 | `LOAN_REPAYMENT` created | `debtor.fund → creditor.fund`, type `LOAN_REPAYMENT` | `create_repayment_transaction()` | |
-| SRp2 | Repayment direction | `source=debtor`, `target=creditor` | repayment source/target funds | |
-| SRp3 | Debtor fund ▼ amount | `debtor.balance` decreases by `amount` | `Entity.balance_at` | |
-| SRp4 | Creditor fund ▲ amount | `creditor.balance` increases by `amount` | `Entity.balance_at` | |
-| SRp5 | Debtor payables ▼ | `debtor.payables` decreases by `amount` | payables derivation | |
-| SRp6 | Creditor receivables ▼ | `creditor.receivables` decreases by `amount` | receivables derivation | |
-| SRp7 | `amount_remaining_to_repay` ▼ | remaining decreases by `amount` | `amount_remaining_to_repay` | |
-| SRp8 | Multiple repayments accumulate | remaining sums all active repayments | `amount_repayed` | |
-| SRp9 | Full repayment → `is_fully_repayed` | `amount_repayed == repayable_amount`, remaining `0` | `is_fully_repayed` | |
-| SRp10 | Differential invariant (repay + reverse) | repay then reverse the repayment returns to the advance-only state | whole engine | |
+| SRp1 | `LOAN_REPAYMENT` created | `debtor.fund → creditor.fund`, type `LOAN_REPAYMENT` | `create_repayment_transaction()` | `LoanRepaymentTest.test_repayment_creates_loan_repayment_transaction` |
+| SRp2 | Repayment direction | `source=debtor`, `target=creditor` | repayment source/target funds | `LoanRepaymentTest.test_repayment_transaction_direction_is_debtor_to_creditor` |
+| SRp3 | Debtor fund ▼ amount | `debtor.balance` decreases by `amount` | `Entity.balance_at` | `LoanRepaymentTest.test_debtor_fund_decreases_after_repayment` |
+| SRp4 | Creditor fund ▲ amount | `creditor.balance` increases by `amount` | `Entity.balance_at` | `LoanRepaymentTest.test_creditor_fund_increases_after_repayment` |
+| SRp5 | Debtor payables ▼ | `debtor.payables` decreases by `amount` | payables derivation | `LoanRepaymentTest.test_repayment_decreases_debtor_payables` |
+| SRp6 | Creditor receivables ▼ | `creditor.receivables` decreases by `amount` | receivables derivation | `LoanRepaymentTest.test_repayment_decreases_creditor_receivables` |
+| SRp7 | `amount_remaining_to_repay` ▼ | remaining decreases by `amount` | `amount_remaining_to_repay` | `LoanRepaymentTest.test_amount_remaining_to_repay_decreases_after_repayment` |
+| SRp8 | Multiple repayments accumulate | remaining sums all active repayments | `amount_repayed` | `LoanRepaymentTest.test_multiple_repayments_accumulate` |
+| SRp9 | Full repayment → `is_fully_repayed` | `amount_repayed == repayable_amount`, remaining `0` | `is_fully_repayed` | `LoanRepaymentTest.test_full_repayment_marks_as_fully_repayed` |
+| SRp10 | Differential invariant (repay + reverse) | repay then reverse the repayment returns to the advance-only state | whole engine | `LoanRepaymentTest.test_repay_then_reverse_repayment_returns_to_advance_state` |
 
 ### 5.4 Individual transaction reversal (pay / repay)
 
@@ -265,7 +265,7 @@ The **operation-level** reverse is distinct from reversing an individual `LOAN_P
 
 | # | Branch | Behavior | Enforced by | Pinned by test |
 |---|--------|----------|-------------|----------------|
-| TR1 | Repayment tx reversed | `amount_repayed` ↓, `is_fully_repayed` unset, `amount_remaining_to_repay` restored; debtor ▲, creditor ▼; debtor payables ▲, creditor receivables ▲ | `Transaction.reverse()` | |
+| TR1 | Repayment tx reversed | `amount_repayed` ↓, `is_fully_repayed` unset, `amount_remaining_to_repay` restored; debtor ▲, creditor ▼; debtor payables ▲, creditor receivables ▲ | `Transaction.reverse()` | `LoanRepaymentTest.test_full_repayment_reversed_restores_remaining_balance` · `test_partial_repayment_reversed_restores_remaining_balance` · `test_only_reversed_repayment_is_net_out` |
 | TR2 | Payment tx reversed | returns balance to creditor, decreases debtor; debtor payables ▼, creditor receivables ▼ | `Transaction.reverse()` | engine-level (shared) |
 | TR3 | Asymmetric reversal allowed | reversing more payment txs than repayments is allowed — can introduce inconsistency (negative receivables/payables are permitted) | engine-level | documented behavior |
 
@@ -277,24 +277,24 @@ Entry point: model `op.reverse(officer, date, reason)` or view `operation_revers
 
 | # | Branch | Pass condition | Failure outcome | Error (on failure) | Enforced by | Pinned by test |
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
-| VR1 | Not already reversed | `reversed_by is None` | `ValidationError` | `"The transaction is already reversed."` | `ReversableModel._validate_can_be_reversed` + view guard | |
-| VR2 | Not itself a reversal | `reversal_of is None` | `ValidationError` | `"You can't reverse this record as it is a reversal of …"` | `ReversableModel._validate_can_be_reversed` + view guard | |
-| VR3 | No non-reversed disbursements | no active `LOAN_PAYMENT` tx | `ValidationError` | `"You can't reverse this object as it has non-reversed transactions…"` | `ReversableModel._requires_transaction_reversal` + `_reversable_transaction_types` | |
-| VR4 | No outstanding repayments | no active `LOAN_REPAYMENT` tx | `ValidationError` | same as VR3 | `_requires_transaction_reversal()` | |
+| VR1 | Not already reversed | `reversed_by is None` | `ValidationError` | `"The transaction is already reversed."` | `ReversableModel._validate_can_be_reversed` + view guard | `LoanReversalTest.test_cannot_reverse_already_reversed_operation` |
+| VR2 | Not itself a reversal | `reversal_of is None` | `ValidationError` | `"You can't reverse this record as it is a reversal of …"` | `ReversableModel._validate_can_be_reversed` + view guard | `LoanReversalTest.test_cannot_reverse_a_reversal` |
+| VR3 | No non-reversed disbursements | no active `LOAN_PAYMENT` tx | `ValidationError` | `"You can't reverse this object as it has non-reversed transactions…"` | `ReversableModel._requires_transaction_reversal` + `_reversable_transaction_types` | `LoanReversalTest.test_reversal_blocked_when_payment_disbursement_exists` |
+| VR4 | No outstanding repayments | no active `LOAN_REPAYMENT` tx | `ValidationError` | same as VR3 | `_requires_transaction_reversal()` | `LoanReversalTest.test_reversal_blocked_when_repayment_exists` · `test_reversal_still_blocked_after_repayment_reversed` |
 | VR5 | Reason required | `POST['reversal_reason']` non-empty | view redirect + message | `"A reason for reversal is required."` | `operation_reverse_view` | view contract (see §8) |
 
 #### 5.5.2 Success effects
 
 | # | Effect | Detail / invariant | Implemented by | Verified by |
 |---|--------|--------------------|----------------|-------------|
-| SR1 | Reversal record created | cloned op, `reversal_of = original` | `ReversableModel.reverse()` | |
-| SR2 | Original marked reversed | `original.reversed_by = reversal` | `ReversableModel.reverse()` | |
-| SR3 | Reversal is a reversal, not reversed | `reversal.is_reversal`, `not reversal.is_reversed` | `ReversableModel` | |
-| SR4 | Reversal inherits identity | `amount`, `source`, `destination` copied | `ReversableModel._get_reverse_kwargs` | |
-| SR5 | Counter-tx for issuance only | 1 × reversed `LOAN_ISSUANCE`; payments/repayments must be cleared manually | `_implicit_reversable_transaction_types` | |
-| SR6 | Counter-tx flips funds | `counter.source = original.target`, `counter.target = original.source`, same amount | `Transaction.reverse()` | |
-| SR7 | Obligations remain zero | issuance reversal creates no payables/receivables | obligation derivation | |
-| SR8 | Differential invariant | create + reverse leaves the whole world unchanged (balances, payables, receivables, ledger) | whole engine | |
+| SR1 | Reversal record created | cloned op, `reversal_of = original` | `ReversableModel.reverse()` | `LoanReversalTest.test_reverse_creates_reversal_operation` |
+| SR2 | Original marked reversed | `original.reversed_by = reversal` | `ReversableModel.reverse()` | `LoanReversalTest.test_reverse_marks_original_as_reversed` |
+| SR3 | Reversal is a reversal, not reversed | `reversal.is_reversal`, `not reversal.is_reversed` | `ReversableModel` | `LoanReversalTest.test_reversal_is_reversal` |
+| SR4 | Reversal inherits identity | `amount`, `source`, `destination` copied | `ReversableModel._get_reverse_kwargs` | `LoanReversalTest.test_reverse_inherits_amount_source_destination` |
+| SR5 | Counter-tx for issuance only | 1 × reversed `LOAN_ISSUANCE`; payments/repayments must be cleared manually | `_implicit_reversable_transaction_types` | `LoanReversalTest.test_reverse_creates_counter_issuance_transaction` |
+| SR6 | Counter-tx flips funds | `counter.source = original.target`, `counter.target = original.source`, same amount | `Transaction.reverse()` | `LoanReversalTest.test_reverse_counter_transaction_flips_funds` |
+| SR7 | Obligations remain zero | issuance reversal creates no payables/receivables | obligation derivation | `LoanReversalTest.test_reverse_issuance_leaves_obligations_zero` |
+| SR8 | Differential invariant | create + reverse leaves the whole world unchanged (balances, payables, receivables, ledger) | whole engine | `LoanReversalTest.test_create_then_reverse_leaves_world_unchanged` |
 
 ### 5.6 Immutability
 
@@ -302,9 +302,9 @@ Entry point: model `op.reverse(officer, date, reason)` or view `operation_revers
 
 | Branch | Enforced by | Pinned by test |
 |--------|-------------|----------------|
-| `source` changed after save | `ImmutableMixin.save()` | |
-| `destination` changed after save | `ImmutableMixin.save()` | |
-| `amount` changed after save | `ImmutableMixin.save()` | |
+| `source` changed after save | `ImmutableMixin.save()` | `LoanCreateTest.test_source_is_immutable` |
+| `destination` changed after save | `ImmutableMixin.save()` | `LoanCreateTest.test_destination_is_immutable` |
+| `amount` changed after save | `ImmutableMixin.save()` | `LoanCreateTest.test_amount_is_immutable` |
 
 ---
 
@@ -372,46 +372,46 @@ Entry point: model `op.reverse(officer, date, reason)` or view `operation_revers
 
 | Area | Test method | Branch(es) |
 |------|-------------|------------|
-| Issuance tx | | SC1, SC4 |
-| Issuance direction | | SC2 |
-| Issuance amount | | SC3 |
-| Repay cap pre-disbursement | | SC6, VC12 |
-| Aliases | | SC7 |
-| Side combinations | | SC8 |
-| Active entities | | VC3–VC6 |
-| Side type exclusion | | VC1, VC2 |
-| Distinctness | | VC15 |
-| Amount | | VC7 |
-| Officer | | VC8, VC9 |
-| Immutability | | IM1–IM3 |
-| Balance check flag | | VC12, VP1 |
-| Payment tx | | SP1 |
-| Payment direction | | SP2 |
-| Creditor ▼ | | SP3 |
-| Debtor ▲ | | SP4 |
-| Multiple disbursements | | VP4 |
-| Payables ▲ | | SP5 |
-| Receivables ▲ | | SP6 |
-| Other buckets zero | | SP7 |
-| Repayment tx | | SRp1 |
-| Repayment direction | | SRp2 |
-| Remaining ▼ | | SRp7 |
-| Multiple repayments | | SRp8 |
-| Full repayment | | SRp9 |
-| Debtor ▼ | | SRp3 |
-| Creditor ▲ | | SRp4 |
-| Payables ▼ | | SRp5 |
-| Receivables ▼ | | SRp6 |
-| No-disbursement block | | VRp3, SC6 |
-| Disbursed cap | | VRp3 |
-| Over-repayment | | VRp2, VRp1 |
-| Repay differential | | SRp10, TR1 |
-| Repayment reversal restores state | | TR1 |
-| Reverse happy path | | SR1–SR4 |
-| Counter-tx | | SR5, SR6 |
-| Obligations zero | | SR7 |
-| Reverse differential | | SR8 |
-| Reverse blocked by disbursement | | VR3 |
-| Reverse blocked by repayment | | VR4 |
-| Reverse constraints | | VR1, VR2 |
+| Issuance tx | `LoanCreateTest.test_creates_issuance_transaction_on_save` | SC1, SC4 |
+| Issuance direction | `LoanCreateTest.test_issuance_transaction_direction_is_creditor_to_debtor` | SC2 |
+| Issuance amount | `LoanCreateTest.test_issuance_transaction_amount_matches_operation` | SC3 |
+| Repay cap pre-disbursement | `LoanCreateTest.test_amount_remaining_to_repay_is_zero_without_disbursement` | SC6, VC12 |
+| Aliases | `LoanCreateTest.test_creditor_property` · `test_debtor_property` | SC7 |
+| Side combinations | `LoanCreateTest.test_source_can_be_person_or_project` · `test_project_as_creditor_person_as_debtor` | SC8 |
+| Active entities | `LoanCreateTest.test_source_must_be_active` · `test_source_fund_must_be_active` · `test_destination_must_be_active` | VC3–VC6 |
+| Side type exclusion | `LoanCreateTest.test_source_system_entity_raises_validation_error` · `test_source_world_entity_raises_validation_error` · `test_destination_world_entity_raises_validation_error` · `test_destination_system_entity_raises_validation_error` | VC1, VC2 |
+| Distinctness | `LoanCreateTest.test_source_and_destination_must_be_different` | VC15 |
+| Amount | `LoanCreateTest.test_amount_zero_raises_validation_error` · `test_amount_negative_raises_validation_error` | VC7 |
+| Officer | `LoanCreateTest.test_officer_user_must_be_staff` · `test_officer_must_be_active` | VC8, VC9 |
+| Immutability | `LoanCreateTest.test_source_is_immutable` · `test_destination_is_immutable` · `test_amount_is_immutable` | IM1–IM3 |
+| Balance check flag | `LoanCreateTest.test_check_balance_on_payment_is_enabled` | VC12, VP1 |
+| Payment tx | `LoanDisbursementTest.test_payment_creates_loan_payment_transaction` | SP1 |
+| Payment direction | `LoanDisbursementTest.test_payment_transaction_direction_is_creditor_to_debtor` | SP2 |
+| Creditor ▼ | `LoanDisbursementTest.test_creditor_fund_decreases_after_payment` | SP3 |
+| Debtor ▲ | `LoanDisbursementTest.test_debtor_fund_increases_after_payment` | SP4 |
+| Multiple disbursements | `LoanDisbursementTest.test_multiple_payment_disbursements_allowed` | VP4 |
+| Payables ▲ | `LoanDisbursementTest.test_payment_increases_debtor_payables` | SP5 |
+| Receivables ▲ | `LoanDisbursementTest.test_payment_increases_creditor_receivables` | SP6 |
+| Other buckets zero | `LoanDisbursementTest.test_payment_leaves_other_obligation_buckets_zero` | SP7 |
+| Repayment tx | `LoanRepaymentTest.test_repayment_creates_loan_repayment_transaction` | SRp1 |
+| Repayment direction | `LoanRepaymentTest.test_repayment_transaction_direction_is_debtor_to_creditor` | SRp2 |
+| Remaining ▼ | `LoanRepaymentTest.test_amount_remaining_to_repay_decreases_after_repayment` | SRp7 |
+| Multiple repayments | `LoanRepaymentTest.test_multiple_repayments_accumulate` | SRp8 |
+| Full repayment | `LoanRepaymentTest.test_full_repayment_marks_as_fully_repayed` | SRp9 |
+| Debtor ▼ | `LoanRepaymentTest.test_debtor_fund_decreases_after_repayment` | SRp3 |
+| Creditor ▲ | `LoanRepaymentTest.test_creditor_fund_increases_after_repayment` | SRp4 |
+| Payables ▼ | `LoanRepaymentTest.test_repayment_decreases_debtor_payables` | SRp5 |
+| Receivables ▼ | `LoanRepaymentTest.test_repayment_decreases_creditor_receivables` | SRp6 |
+| No-disbursement block | `LoanRepaymentTest.test_repayment_blocked_when_no_disbursement` | VRp3, SC6 |
+| Disbursed cap | `LoanRepaymentTest.test_amount_remaining_to_repay_reflects_disbursed_cap` · `test_repayment_cannot_exceed_total_disbursed` | VRp3 |
+| Over-repayment | `LoanRepaymentTest.test_repayment_exceeding_remaining_balance_raises_validation_error` · `test_partial_repayment_then_over_repayment_raises_validation_error` · `test_zero_repayment_raises_validation_error` | VRp2, VRp1 |
+| Repay differential | `LoanRepaymentTest.test_repay_then_reverse_repayment_returns_to_advance_state` | SRp10, TR1 |
+| Repayment reversal restores state | `LoanRepaymentTest.test_full_repayment_reversed_restores_remaining_balance` · `test_partial_repayment_reversed_restores_remaining_balance` · `test_only_reversed_repayment_is_net_out` | TR1 |
+| Reverse happy path | `LoanReversalTest.test_reverse_creates_reversal_operation` · `test_reverse_marks_original_as_reversed` · `test_reversal_is_reversal` · `test_reverse_inherits_amount_source_destination` | SR1–SR4 |
+| Counter-tx | `LoanReversalTest.test_reverse_creates_counter_issuance_transaction` · `test_reverse_counter_transaction_flips_funds` | SR5, SR6 |
+| Obligations zero | `LoanReversalTest.test_reverse_issuance_leaves_obligations_zero` | SR7 |
+| Reverse differential | `LoanReversalTest.test_create_then_reverse_leaves_world_unchanged` | SR8 |
+| Reverse blocked by disbursement | `LoanReversalTest.test_reversal_blocked_when_payment_disbursement_exists` | VR3 |
+| Reverse blocked by repayment | `LoanReversalTest.test_reversal_blocked_when_repayment_exists` · `test_reversal_still_blocked_after_repayment_reversed` | VR4 |
+| Reverse constraints | `LoanReversalTest.test_cannot_reverse_already_reversed_operation` · `test_cannot_reverse_a_reversal` | VR1, VR2 |
 

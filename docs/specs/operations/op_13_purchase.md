@@ -165,21 +165,21 @@ Entry points: model `PurchaseOperation.save()` (tests) or the wizard → `Purcha
 
 | # | Branch | Pass condition | Failure outcome | Error (on failure) | Enforced by | Pinned by test |
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
-| VC1 | Source is Project | `source.is_project` | `ValidationError` | `"Purchase source must be a Project entity."` | `clean_source` | |
-| VC2 | Destination is Vendor | `destination.is_vendor` | `ValidationError` | `"Purchase destination must be a Vendor entity."` | `clean_destination` | |
-| VC3 | Destination not internal | `not destination.is_internal` | `ValidationError` | `"Internal entities cannot be vendors…"` | `clean_destination` | |
-| VC4 | Destination is an active vendor stakeholder of the source project | active `Stakeholder(parent=source, target=dest, role=VENDOR)` | `ValidationError` | `"Purchase destination must be an active vendor of the source project."` | `clean_destination` | |
-| VC5 | Destination is not a Project | project is not a vendor | `ValidationError` | same as VC2 / VC3 | `clean_destination` | |
-| VC6 | Source entity active | `source.active` | `ValidationError` | `"Entity '%(name)s' must be active…"` | `Operation.clean()` | |
+| VC1 | Source is Project | `source.is_project` | `ValidationError` | `"Purchase source must be a Project entity."` | `clean_source` | `PurchaseCreateTest.test_source_must_be_a_project_entity` |
+| VC2 | Destination is Vendor | `destination.is_vendor` | `ValidationError` | `"Purchase destination must be a Vendor entity."` | `clean_destination` | `PurchaseCreateTest.test_destination_must_be_a_vendor_entity` |
+| VC3 | Destination not internal | `not destination.is_internal` | `ValidationError` | `"Internal entities cannot be vendors…"` | `clean_destination` | `PurchaseCreateFromSessionTest.test_purchase_rejects_internal_vendor` · `test_get_related_entities_excludes_internal_vendors` |
+| VC4 | Destination is an active vendor stakeholder of the source project | active `Stakeholder(parent=source, target=dest, role=VENDOR)` | `ValidationError` | `"Purchase destination must be an active vendor of the source project."` | `clean_destination` | `PurchaseCreateTest.test_destination_must_be_active_stakeholder_vendor` · `test_destination_with_inactive_stakeholder_raises_validation_error` |
+| VC5 | Destination is not a Project | project is not a vendor | `ValidationError` | same as VC2 / VC3 | `clean_destination` | `PurchaseCreateTest.test_destination_project_entity_raises_validation_error` |
+| VC6 | Source entity active | `source.active` | `ValidationError` | `"Entity '%(name)s' must be active…"` | `Operation.clean()` | `PurchaseCreateTest.test_source_must_be_active` |
 | VC7 | Destination entity active | `destination.active` | `ValidationError` | same as VC6 | `Operation.clean()` | merged with VC4 (inactive vendor) |
-| VC8 | Source fund active | `payment_source_fund.active` | `ValidationError` | `"The Payment source entity should be active."` | `SourceFundMixin` | |
+| VC8 | Source fund active | `payment_source_fund.active` | `ValidationError` | `"The Payment source entity should be active."` | `SourceFundMixin` | `PurchaseCreateTest.test_source_fund_must_be_active` |
 | VC9 | Target fund active | `payment_target_fund.active` | `ValidationError` | `"The Payment target entity should be active."` | `TargetFundMixin` | merged with VC8 |
-| VC10 | Amount positive | `amount > 0` | `ValidationError` | `"Amount should be positive, got …"` | `AmountCleanMixin` | |
-| VC11 | Officer is staff | `officer.is_staff` | `ValidationError` | `"Officer should be a staff user."` | `OfficerMixin` | |
-| VC12 | Officer active | `officer.is_active` | `ValidationError` | `"Officer should be an active user."` | `OfficerMixin` | |
-| VC13 | Date not in a closed period (source + destination) | no closed period contains `date` | `ValidationError` | `"Cannot create an operation whose date falls within a closed financial period."` | `Operation.clean()` | covered by period suite |
-| VC14 | A covering financial period exists | `period_entity` has a period containing `date` | `ValidationError` | `"Cannot create an operation: no financial period covers this operation's date."` | `Operation.save()` | covered by period suite |
-| VC15 | Balance exempt @ create (issuance unguarded) | not one-shot; issuance is non-cash | never fails | — | `_is_one_shot_operation=False` | |
+| VC10 | Amount positive | `amount > 0` | `ValidationError` | `"Amount should be positive, got …"` | `AmountCleanMixin` | `PurchaseCreateTest.test_amount_zero_raises_validation_error` · `test_amount_negative_raises_validation_error` |
+| VC11 | Officer is staff | `officer.is_staff` | `ValidationError` | `"Officer should be a staff user."` | `OfficerMixin` | `PurchaseCreateTest.test_officer_user_must_be_staff` |
+| VC12 | Officer active | `officer.is_active` | `ValidationError` | `"Officer should be an active user."` | `OfficerMixin` | `PurchaseCreateTest.test_officer_must_be_active` |
+| VC13 | Date not in a closed period (source + destination) | no closed period contains `date` | `ValidationError` | `"Cannot create an operation whose date falls within a closed financial period."` | `Operation.clean()` | shared period suite (`OperationPeriodAssignmentTest.test_operation_in_closed_period_raises`) |
+| VC14 | A covering financial period exists | `period_entity` has a period containing `date` | `ValidationError` | `"Cannot create an operation: no financial period covers this operation's date."` | `Operation.save()` | shared period suite (`OperationPeriodAssignmentTest.test_operation_raises_when_no_open_period`) |
+| VC15 | Balance exempt @ create (issuance unguarded) | not one-shot; issuance is non-cash | never fails | — | `_is_one_shot_operation=False` | structural (see `test_project_fund_balance_unchanged_after_save`) |
 | VC16 | Tx entity-type contract | `source.is_project` and `target.is_vendor` | `ValidationError` | `"Transaction type '…' has invalid entity types: …"` | `Transaction.create()` | implied by VC1/VC2 |
 | VC17 | Tx operation-type allowed | document is `PURCHASE` | `ValidationError` | `"Transaction type '…' is not allowed for operation '…'."` | `Transaction.create()` | implied by VC1/VC2 |
 | VC18 | Source ≠ target | project ≠ vendor | always true | `"Source and target funds must be different."` | `Transaction.clean()` | structural (project ≠ vendor) |
@@ -188,20 +188,20 @@ Entry points: model `PurchaseOperation.save()` (tests) or the wizard → `Purcha
 
 | # | Effect | Detail / invariant | Implemented by | Verified by |
 |---|--------|--------------------|----------------|-------------|
-| SC1 | Issuance tx created | exactly 1 × `PURCHASE_ISSUANCE`, amount `== op.amount`, `project → vendor` | `LinkedIssuanceTransactionMixin.save()` | |
-| SC2 | No payment tx on save | not one-shot → `LinkedPaymentTransactionMixin.save()` is a no-op | `LinkedPaymentTransactionMixin.save()` | |
-| SC3 | Issuance direction | `tx.source=project.fund`, `tx.target=vendor.fund` | | |
-| SC4 | Issuance amount matches | `tx.amount == op.amount` | transaction creation | |
-| SC5 | Issuance is non-cash | project fund balance unchanged after save | `Entity.balance_at` | |
-| SC6 | Remaining equals full amount | `amount_remaining_to_settle == amount` | `LinkedPaymentTransactionMixin` | |
-| SC7 | Not fully settled | `is_fully_settled is False` | `LinkedPaymentTransactionMixin` | |
-| SC8 | Project payables ▲ | `project.payables == amount` | `payables_at` | |
-| SC9 | Vendor receivables ▲ | `vendor.receivables == amount` | `receivables_at` | |
-| SC10 | Project receivables unchanged | `project.receivables == 0` | `receivables_at` | |
-| SC11 | Vendor payables unchanged | `vendor.payables == 0` | `payables_at` | |
-| SC12 | Invoice items created | one `InvoiceItem` per session item, linked to product template | `create_from_session` | |
-| SC13 | Ledger / pending obligation | purchased-but-unreceived item = pending inbound (no movement lines) | `pending_items` | |
-| SC14 | Period auto-assigned | `period` = covering period of the source project | `Operation.save()` | covered by period suite |
+| SC1 | Issuance tx created | exactly 1 × `PURCHASE_ISSUANCE`, amount `== op.amount`, `project → vendor` | `LinkedIssuanceTransactionMixin.save()` | `PurchaseCreateTest.test_save_creates_exactly_one_issuance_transaction` |
+| SC2 | No payment tx on save | not one-shot → `LinkedPaymentTransactionMixin.save()` is a no-op | `LinkedPaymentTransactionMixin.save()` | `PurchaseCreateTest.test_no_payment_transaction_created_on_save` |
+| SC3 | Issuance direction | `tx.source=project.fund`, `tx.target=vendor.fund` | | `PurchaseCreateTest.test_issuance_transaction_direction_is_project_to_vendor` |
+| SC4 | Issuance amount matches | `tx.amount == op.amount` | transaction creation | `PurchaseCreateTest.test_issuance_transaction_amount_matches_operation` |
+| SC5 | Issuance is non-cash | project fund balance unchanged after save | `Entity.balance_at` | `PurchaseCreateTest.test_project_fund_balance_unchanged_after_save` |
+| SC6 | Remaining equals full amount | `amount_remaining_to_settle == amount` | `LinkedPaymentTransactionMixin` | `PurchaseCreateTest.test_amount_remaining_to_settle_equals_full_amount_after_creation` |
+| SC7 | Not fully settled | `is_fully_settled is False` | `LinkedPaymentTransactionMixin` | `PurchaseCreateTest.test_is_not_fully_settled_after_creation` |
+| SC8 | Project payables ▲ | `project.payables == amount` | `payables_at` | `PurchaseCreateTest.test_create_project_payables_increase` |
+| SC9 | Vendor receivables ▲ | `vendor.receivables == amount` | `receivables_at` | `PurchaseCreateTest.test_create_vendor_receivables_increase` |
+| SC10 | Project receivables unchanged | `project.receivables == 0` | `receivables_at` | `PurchaseCreateTest.test_create_project_receivables_unchanged` |
+| SC11 | Vendor payables unchanged | `vendor.payables == 0` | `payables_at` | `PurchaseCreateTest.test_create_vendor_payables_unchanged` |
+| SC12 | Invoice items created | one `InvoiceItem` per session item, linked to product template | `create_from_session` | `PurchaseCreateFromSessionTest.test_create_from_session_basic` · `test_create_from_session_multiple_items` |
+| SC13 | Ledger / pending obligation | purchased-but-unreceived item = pending inbound (no movement lines) | `pending_items` | `PurchaseCreateFromSessionTest.test_create_from_session_ledger_entries_created` · `StockPendingItemsTest.test_pending_inbound_for_unreceived_purchase` |
+| SC14 | Period auto-assigned | `period` = covering period of the source project | `Operation.save()` | shared period suite (`OperationPeriodAssignmentTest`) |
 
 ### 5.2 `reverse`
 
@@ -211,27 +211,27 @@ Entry points: model `op.reverse(officer, date, reason)` or view `operation_rever
 
 | # | Branch | Pass condition | Failure outcome | Error (on failure) | Enforced by | Pinned by test |
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
-| VR1 | Not already reversed | `reversed_by is None` | `ValidationError` | `"The transaction is already reversed."` | `ReversableModel._validate_can_be_reversed` + view guard | |
-| VR2 | Not itself a reversal | `reversal_of is None` | `ValidationError` | `"You can't reverse this record as it is a reversal of …"` | `ReversableModel._validate_can_be_reversed` + view guard | |
-| VR3 | No non-reversed payment tx | no `PURCHASE_PAYMENT` exists (payments are explicit, not implicit) | `ValidationError` | `"You can't reverse this object as it has non-reversed transactions…"` | `ReversableModel._requires_transaction_reversal` + `Operation._implicit_reversable_transaction_types` | |
-| VR4 | No non-reversed movement lines | all user-driven movements reversed first | `ValidationError` | `"Reverse all inventory movements first."` | `Operation.reverse()` | covered by inventory suite |
-| VR5 | No non-reversed adjustments | all adjustments reversed first | `ValidationError` | `"You can't reverse this object as it has non-reversed adjustments…"` | `ReversableModel.reverse()` | covered by adjustment suite |
+| VR1 | Not already reversed | `reversed_by is None` | `ValidationError` | `"The transaction is already reversed."` | `ReversableModel._validate_can_be_reversed` + view guard | `PurchaseReversalTest.test_cannot_reverse_already_reversed_operation` |
+| VR2 | Not itself a reversal | `reversal_of is None` | `ValidationError` | `"You can't reverse this record as it is a reversal of …"` | `ReversableModel._validate_can_be_reversed` + view guard | `PurchaseReversalTest.test_cannot_reverse_a_reversal` |
+| VR3 | No non-reversed payment tx | no `PURCHASE_PAYMENT` exists (payments are explicit, not implicit) | `ValidationError` | `"You can't reverse this object as it has non-reversed transactions…"` | `ReversableModel._requires_transaction_reversal` + `Operation._implicit_reversable_transaction_types` | `PurchaseReversalTest.test_reversal_blocked_when_payment_exists` · `test_reversible_after_payment_reversed` |
+| VR4 | No non-reversed movement lines | all user-driven movements reversed first | `ValidationError` | `"Reverse all inventory movements first."` | `Operation.reverse()` | `PurchaseReversalAfterMovementsTest.test_reversal_blocked_while_movement_active` · `test_reversible_after_all_movements_reversed` |
+| VR5 | No non-reversed adjustments | all adjustments reversed first | `ValidationError` | `"You can't reverse this object as it has non-reversed adjustments…"` | `ReversableModel.reverse()` | covered by adjustment suite (`AdjustmentReversalTest`) |
 | VR6 | Reason required | `POST['reversal_reason']` non-empty | view redirect + message | `"A reason for reversal is required."` | `operation_reverse_view` | view contract (see §8) |
 
 #### 5.2.2 Success effects
 
 | # | Effect | Detail / invariant | Implemented by | Verified by |
 |---|--------|--------------------|----------------|-------------|
-| SR1 | Reversal record created | cloned op, `reversal_of = original` | `ReversableModel.reverse()` | |
-| SR2 | Original marked reversed | `original.reversed_by = reversal` | `ReversableModel.reverse()` | |
-| SR3 | Reversal marked as `is_reversal` | `reversal.reversal_of == original`, not reversed | `ReversableModel` | |
-| SR4 | Reversal inherits identity | `amount`, `source`, `destination` copied | `ReversableModel._get_reverse_kwargs` | |
-| SR5 | Counter-tx for issuance only | 1 original + 1 counter `PURCHASE_ISSUANCE`; payment blocks reversal | `Operation._implicit_reversable_transaction_types` | |
-| SR6 | Counter-tx flips funds | `counter.source == original.target`, `counter.target == original.source` | `Transaction.reverse()` | |
-| SR7 | Project fund unchanged | issuance is non-cash; reversal leaves fund balance untouched | `Entity.balance_at` | |
-| SR8 | Project payables restored | `project.payables` back to `0.00` | `payables_at` | |
-| SR9 | Vendor receivables restored | `vendor.receivables` back to `0.00` | `receivables_at` | |
-| SR10 | Differential invariant | create + reverse leaves balances, payables, receivables and ledger unchanged | whole engine | |
+| SR1 | Reversal record created | cloned op, `reversal_of = original` | `ReversableModel.reverse()` | `PurchaseReversalTest.test_reverse_creates_reversal_operation` |
+| SR2 | Original marked reversed | `original.reversed_by = reversal` | `ReversableModel.reverse()` | `PurchaseReversalTest.test_reverse_marks_original_as_reversed` |
+| SR3 | Reversal marked as `is_reversal` | `reversal.reversal_of == original`, not reversed | `ReversableModel` | `PurchaseReversalTest.test_reversal_is_marked_as_reversal` |
+| SR4 | Reversal inherits identity | `amount`, `source`, `destination` copied | `ReversableModel._get_reverse_kwargs` | `PurchaseReversalTest.test_reverse_inherits_amount_source_destination` |
+| SR5 | Counter-tx for issuance only | 1 original + 1 counter `PURCHASE_ISSUANCE`; payment blocks reversal | `Operation._implicit_reversable_transaction_types` | `PurchaseReversalTest.test_reverse_creates_counter_transaction_for_issuance` · `test_reversible_after_payment_reversed_counter_for_issuance_only` |
+| SR6 | Counter-tx flips funds | `counter.source == original.target`, `counter.target == original.source` | `Transaction.reverse()` | `PurchaseReversalTest.test_reverse_counter_transaction_flips_funds` |
+| SR7 | Project fund unchanged | issuance is non-cash; reversal leaves fund balance untouched | `Entity.balance_at` | `PurchaseReversalTest.test_project_fund_unchanged_after_reversal` |
+| SR8 | Project payables restored | `project.payables` back to `0.00` | `payables_at` | `PurchaseReversalTest.test_reverse_restores_project_payables` |
+| SR9 | Vendor receivables restored | `vendor.receivables` back to `0.00` | `receivables_at` | `PurchaseReversalTest.test_reverse_restores_vendor_receivables` |
+| SR10 | Differential invariant | create + reverse leaves balances, payables, receivables and ledger unchanged | whole engine | `PurchaseReversalTest.test_create_then_reverse_leaves_world_unchanged` · `test_pay_reverse_payment_then_reverse_op_leaves_world_unchanged` · `PurchaseReversalAfterMovementsTest.test_reverse_after_movements_reversed_leaves_world_unchanged` |
 | SR11 | Reversal op owns no txs | `reversal.get_all_transactions().count() == 0` (save skips tx creation for reversals) | `LinkedIssuanceTransactionMixin.save()` | implied by reversal tests |
 
 ### 5.3 `pay`
@@ -242,24 +242,24 @@ Standalone action — from the wizard (step 3, initial payment), later from the 
 
 | # | Branch | Pass condition | Failure outcome | Error (on failure) | Enforced by | Pinned by test |
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
-| VP1 | Balance enforced per payment | `payment_source_fund.can_pay(amount)` | `ValidationError` | `"Insufficient funds: fund balance …"` | `create_payment_transaction` | |
-| VP2 | Amount > 0 | `amount > 0` | `ValidationError` | `"The amount should be more than 0"` | `validate_settlement_amount` | |
-| VP3 | Amount ≤ remaining (over-payment guard) | `amount <= amount_remaining_to_settle` | `ValidationError` | `"The paid amount … exceeds the remaining …"` | `validate_settlement_amount` | |
-| VP4 | Negative blocked | `amount > 0` | `ValidationError` | same as VP2 | `validate_settlement_amount` | |
-| VP5 | Partial allowed — multiple payments | `max_payment_transaction_count == -1` | — | — | `LinkedPaymentTransactionMixin` | |
-| VP6 | Payment date not in a closed period | `period_entity` open on `date` | `ValidationError` | `"Cannot record a payment dated within a closed financial period."` | `create_payment_transaction` | covered by period suite |
+| VP1 | Balance enforced per payment | `payment_source_fund.can_pay(amount)` | `ValidationError` | `"Insufficient funds: fund balance …"` | `create_payment_transaction` | `PurchasePaymentTest.test_payment_blocked_when_project_fund_has_insufficient_balance` · `test_check_balance_on_payment_is_enabled` |
+| VP2 | Amount > 0 | `amount > 0` | `ValidationError` | `"The amount should be more than 0"` | `validate_settlement_amount` | `PurchasePaymentTest.test_zero_payment_raises_validation_error` · `test_negative_payment_raises_validation_error` |
+| VP3 | Amount ≤ remaining (over-payment guard) | `amount <= amount_remaining_to_settle` | `ValidationError` | `"The paid amount … exceeds the remaining …"` | `validate_settlement_amount` | `PurchasePaymentTest.test_payment_exceeding_operation_amount_raises_validation_error` · `test_partial_payment_then_over_payment_raises_validation_error` |
+| VP4 | Negative blocked | `amount > 0` | `ValidationError` | same as VP2 | `validate_settlement_amount` | `PurchasePaymentTest.test_negative_payment_raises_validation_error` |
+| VP5 | Partial allowed — multiple payments | `max_payment_transaction_count == -1` | — | — | `LinkedPaymentTransactionMixin` | `PurchasePaymentTest.test_multiple_partial_payments_are_allowed` |
+| VP6 | Payment date not in a closed period | `period_entity` open on `date` | `ValidationError` | `"Cannot record a payment dated within a closed financial period."` | `create_payment_transaction` | shared period suite (`DownstreamClosedPeriodGuardTest.test_payment_rejected_in_closed_period`) |
 
 #### 5.3.2 Success effects
 
 | # | Effect | Detail / invariant | Implemented by | Verified by |
 |---|--------|--------------------|----------------|-------------|
-| SP1 | Payment tx created | 1 × `PURCHASE_PAYMENT`, `project.fund → vendor.fund` | `create_payment_transaction` | |
-| SP2 | Remaining decreases | `amount_remaining_to_settle` ↓ by payment | `LinkedPaymentTransactionMixin` | |
-| SP3 | Settled accumulates | `amount_settled = Σ payments` | `LinkedPaymentTransactionMixin` | |
-| SP4 | Full payment → fully settled | `is_fully_settled`, remaining `0.00` | `LinkedPaymentTransactionMixin` | |
-| SP5 | Project fund ▼ | `project.balance` decreases by payment (cash) | `Entity.balance_at` | |
-| SP6 | Vendor fund ▲ | `vendor.balance` increases by payment | `Entity.balance_at` | |
-| SP7 | Tx count after partial pay | 1 issuance + 1 payment = 2 | — | |
+| SP1 | Payment tx created | 1 × `PURCHASE_PAYMENT`, `project.fund → vendor.fund` | `create_payment_transaction` | `PurchasePaymentTest.test_payment_creates_purchase_payment_transaction` |
+| SP2 | Remaining decreases | `amount_remaining_to_settle` ↓ by payment | `LinkedPaymentTransactionMixin` | `PurchasePaymentTest.test_amount_remaining_to_settle_decreases_after_payment` |
+| SP3 | Settled accumulates | `amount_settled = Σ payments` | `LinkedPaymentTransactionMixin` | `PurchasePaymentTest.test_multiple_payments_accumulate_correctly` |
+| SP4 | Full payment → fully settled | `is_fully_settled`, remaining `0.00` | `LinkedPaymentTransactionMixin` | `PurchasePaymentTest.test_full_payment_marks_operation_as_fully_settled` |
+| SP5 | Project fund ▼ | `project.balance` decreases by payment (cash) | `Entity.balance_at` | `PurchasePaymentTest.test_project_fund_decreases_by_payment_amount` |
+| SP6 | Vendor fund ▲ | `vendor.balance` increases by payment | `Entity.balance_at` | `PurchasePaymentTest.test_vendor_fund_increases_by_payment_amount` |
+| SP7 | Tx count after partial pay | 1 issuance + 1 payment = 2 | — | `PurchasePaymentTest.test_total_transactions_after_partial_payment_is_two` |
 
 ### 5.4 `move items`
 
@@ -269,19 +269,19 @@ Receiving goods into project inventory — from the wizard (step 4), later from 
 
 | # | Branch | Pass condition | Failure outcome | Error (on failure) | Enforced by | Pinned by test |
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
-| VM1 | Operation not reversed; movements enabled | `creates_assets=True`; no active reversal | `ValidationError` | — | `Operation.reverse()` + stock layer | covered by inventory suite |
-| VM2 | Qty ≤ item remaining qty | `received_qty ≤ adjusted_quantity − moved` | `ValidationError` | — | `pending_items` / `active_lines_for_item` | covered by inventory suite |
-| VM3 | Product allowed + officer valid | product active/obligated; officer staff + active | `ValidationError` | — | `InventoryMovementLine.save()` | covered by inventory suite |
+| VM1 | Operation not reversed; movements enabled | `creates_assets=True`; no active reversal | `ValidationError` | — | `Operation.reverse()` + stock layer | covered by inventory suite (`PurchaseReversalAfterMovementsTest.test_reversal_blocked_while_movement_active`) |
+| VM2 | Qty ≤ item remaining qty | `received_qty ≤ adjusted_quantity − moved` | `ValidationError` | — | `pending_items` / `active_lines_for_item` | `InventoryMovementCreationTest.test_quantity_exceeds_invoice_item` |
+| VM3 | Product allowed + officer valid | product active/obligated; officer staff + active | `ValidationError` | — | `InventoryMovementLine.save()` | `InventoryMovementCreationTest.test_non_staff_cannot_create_movement` |
 
 #### 5.4.2 Success effects
 
 | # | Effect | Detail / invariant | Implemented by | Verified by |
 |---|--------|--------------------|----------------|-------------|
-| SM1 | Movement lines + ledger | `PURCHASE_MOVEMENT` ledger; `InventoryMovementLine` records | `create_from_session` | |
-| SM2 | INDIVIDUAL → one line per head | moving 10 animals creates 10 lines of qty 1 (one tagged Product each) | `create_from_session` | |
-| SM3 | COMMODITY → one line with full qty | moving 10 kg of corn creates one line qty 10 | `create_from_session` | covered by inventory suite |
-| SM4 | Lazy product creation; remaining ↓ | products created by movement line `save()`; item remaining qty ↓ | `InventoryMovementLine.save()` | |
-| SM5 | Movement reversible | reversed lines excluded from active stock | `active_lines_for_item` | covered by inventory suite |
+| SM1 | Movement lines + ledger | `PURCHASE_MOVEMENT` ledger; `InventoryMovementLine` records | `create_from_session` | `InventoryMovementCreationTest.test_create_inventory_movement_purchase` · `PurchaseCreateFromSessionTest.test_create_from_session_ledger_entries_created` |
+| SM2 | INDIVIDUAL → one line per head | moving 10 animals creates 10 lines of qty 1 (one tagged Product each) | `create_from_session` | `InventoryMovementCreationTest.test_purchase_movement_creates_new_product_per_animal` · `test_purchase_lazy_product_belongs_to_project` |
+| SM3 | COMMODITY → one line with full qty | moving 10 kg of corn creates one line qty 10 | `create_from_session` | `InventoryMovementModelContractTest.test_purchase_commodity_receives_single_line_full_qty` |
+| SM4 | Lazy product creation; remaining ↓ | products created by movement line `save()`; item remaining qty ↓ | `InventoryMovementLine.save()` | `InventoryMovementCreationTest.test_purchase_lazy_product_belongs_to_project` · `StockPendingItemsTest.test_no_pending_for_received_purchase` |
+| SM5 | Movement reversible | reversed lines excluded from active stock | `active_lines_for_item` | `MovementActionViewsTest.test_reverse_movement_line_success` · `test_batch_reverse_success` |
 
 ### 5.5 `adjust items`
 
@@ -291,17 +291,17 @@ Invoice-item correction (qty / unit price) via `record_item_adjustment`. This is
 
 | # | Branch | Pass condition | Failure outcome | Error (on failure) | Enforced by | Pinned by test |
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
-| VA1 | Adjustable + not reversed / not a reversal | `is_items_adjustable=True`; no active reversal | `ValidationError` | — | `InvoiceItemAdjustment` | covered by adjustment suite |
-| VA2 | ≥ 1 item changed; qty/price parse | at least one delta, valid decimal | `ValidationError` | — | item-adjustment finalize | covered by adjustment suite |
-| VA3 | New qty ≥ already moved | `new_qty ≥ moved_qty` | `ValidationError` | — | item-adjustment finalize | covered by adjustment suite |
+| VA1 | Adjustable + not reversed / not a reversal | `is_items_adjustable=True`; no active reversal | `ValidationError` | — | `InvoiceItemAdjustment` | `ValidationTest.test_item_adjustment_requires_purchase_or_sale` · `test_type_must_match_operation` |
+| VA2 | ≥ 1 item changed; qty/price parse | at least one delta, valid decimal | `ValidationError` | — | item-adjustment finalize | `ValidationTest.test_line_requires_at_least_one_change_field` · `test_line_must_belong_to_same_operation` |
+| VA3 | New qty ≥ already moved | `new_qty ≥ moved_qty` | `ValidationError` | — | item-adjustment finalize | `DecreaseWithMovementsTest.test_decrease_quantity_with_moved_products_succeeds` (allowed — see note in Sale spec) |
 
 #### 5.5.2 Success effects
 
 | # | Effect | Detail / invariant | Implemented by | Verified by |
 |---|--------|--------------------|----------------|-------------|
-| SA1 | Item adjustment + lines | `InvoiceItemAdjustment` + lines; item adjusted qty/price | `record_item_adjustment` | covered by adjustment suite |
-| SA2 | Accounting `Adjustment` + tx | `*_ADJUSTMENT` transaction (non-cash) | `record_item_adjustment` | covered by adjustment suite |
-| SA3 | Inventory ledger entries | `*_ADJUSTMENT` ledger entries | `InvoiceItemAdjustment.finalize()` | |
+| SA1 | Item adjustment + lines | `InvoiceItemAdjustment` + lines; item adjusted qty/price | `record_item_adjustment` | `FinalizationTest.test_finalize_purchase_decrease_creates_correct_adjustment` · `test_finalize_purchase_increase_creates_correct_adjustment` |
+| SA2 | Accounting `Adjustment` + tx | `*_ADJUSTMENT` transaction (non-cash) | `record_item_adjustment` | `FinalizationTest.test_finalize_creates_issuance_transaction` · `test_finalize_reflects_in_effective_amount` |
+| SA3 | Inventory ledger entries | `*_ADJUSTMENT` ledger entries | `InvoiceItemAdjustment.finalize()` | `LedgerEntryTest.test_purchase_price_decrease_ledger_entry` · `test_purchase_quantity_decrease_ledger_entry` · `test_purchase_removal_ledger_entry` |
 
 ### 5.6 `adjust`
 
@@ -311,16 +311,16 @@ Accounting adjustment on the operation amount via `record_accounting_adjustment`
 
 | # | Branch | Pass condition | Failure outcome | Error (on failure) | Enforced by | Pinned by test |
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
-| VA4 | Adjustable + not reversed / not a reversal | `is_adjustable=True`; no active reversal | `ValidationError` | — | `Adjustment` | covered by adjustment suite |
-| VA5 | Adjustment type allowed for PURCHASE | `PURCHASE_RETURN` etc → `PURCHASE_ADJUSTMENT_INCREASE` / `PURCHASE_ADJUSTMENT_DECREASE` | `ValidationError` | — | adjustment type map | covered by adjustment suite |
-| VA6 | Amount > 0; officer staff + active | valid amount + officer | `ValidationError` | — | `Adjustment` | covered by adjustment suite |
-| VA7 | Reduction can't drive below zero | `effective_amount ≥ 0` after reduction | `ValidationError` | — | `Adjustment` | covered by adjustment suite |
+| VA4 | Adjustable + not reversed / not a reversal | `is_adjustable=True`; no active reversal | `ValidationError` | — | `Adjustment` | `AdjustmentValidationTest.test_purchase_operation_is_adjustable` · `AdjustmentReversalTest.test_cannot_reverse_already_reversed_adjustment` · `test_cannot_reverse_a_reversal` |
+| VA5 | Adjustment type allowed for PURCHASE | `PURCHASE_RETURN` etc → `PURCHASE_ADJUSTMENT_INCREASE` / `PURCHASE_ADJUSTMENT_DECREASE` | `ValidationError` | — | adjustment type map | `AdjustmentDirectionTest.test_purchase_return_reverses_direction` · `test_purchase_undercharge_keeps_direction` |
+| VA6 | Amount > 0; officer staff + active | valid amount + officer | `ValidationError` | — | `Adjustment` | `AdjustmentValidationTest.test_amount_zero_raises_validation_error` · `test_amount_negative_raises_validation_error` · `test_officer_user_must_be_staff` · `test_officer_must_be_active` |
+| VA7 | Reduction can't drive below zero | `effective_amount ≥ 0` after reduction | `ValidationError` | — | `Adjustment` | `AdjustmentEffectiveAmountTest.test_single_decrease_reduces_effective_amount` (floor enforced by engine) |
 
 #### 5.6.2 Success effects
 
 | # | Effect | Detail / invariant | Implemented by | Verified by |
 |---|--------|--------------------|----------------|-------------|
-| SA4 | Adjustment tx (non-cash) + `effective_amount` delta | `PURCHASE_ADJUSTMENT_INCREASE` / `PURCHASE_ADJUSTMENT_DECREASE`; payables/receivables reflect delta | `record_accounting_adjustment` + `AdjustableMixin.effective_amount` | |
+| SA4 | Adjustment tx (non-cash) + `effective_amount` delta | `PURCHASE_ADJUSTMENT_INCREASE` / `PURCHASE_ADJUSTMENT_DECREASE`; payables/receivables reflect delta | `record_accounting_adjustment` + `AdjustableMixin.effective_amount` | `AdjustmentTransactionTest.test_purchase_adjustment_creates_purchase_adjustment_transaction` · `AdjustmentEffectiveAmountTest.test_single_decrease_reduces_effective_amount` · `test_single_increase_raises_effective_amount` · `AdjustmentReversalTest.test_purchase_return_reduces_project_payables` · `test_purchase_return_reduces_vendor_receivables` |
 
 ### 5.7 Immutability
 
@@ -328,9 +328,9 @@ Accounting adjustment on the operation amount via `record_accounting_adjustment`
 
 | Branch | Enforced by | Pinned by test |
 |--------|-------------|----------------|
-| `source` changed after save | `ImmutableMixin.save()` | |
-| `destination` changed after save | `ImmutableMixin.save()` | |
-| `amount` changed after save | `ImmutableMixin.save()` | |
+| `source` changed after save | `ImmutableMixin.save()` | `PurchaseCreateTest.test_source_is_immutable_after_save` |
+| `destination` changed after save | `ImmutableMixin.save()` | `PurchaseCreateFromSessionTest.test_destination_is_immutable_after_save` |
+| `amount` changed after save | `ImmutableMixin.save()` | `PurchaseCreateFromSessionTest.test_amount_is_immutable_after_save` |
 
 ---
 
@@ -404,34 +404,34 @@ Accounting adjustment on the operation amount via `record_accounting_adjustment`
 
 | Area | Test method | Branch(es) |
 |------|-------------|------------|
-| Issuance tx count | | SC1, SC2 |
-| Issuance direction + amount | | SC3, SC4 |
-| Issuance non-cash | | SC5, VC15 |
-| Settlement after create | | SC6, SC7 |
-| Payables / receivables | | SC8–SC11 |
-| Source validation | | VC1, VC6, VC8 |
-| Destination validation | | VC2, VC5, VC4, VC7 |
-| Internal-vendor guard | | VC3 |
-| Amount / officer | | VC10–VC12 |
-| Immutability | | IM1–IM3 |
-| Wizard basic flow | | SC12, SC1, SC3 |
-| Wizard movements | | SM2, SM4 |
-| Wizard payment | | SP1–SP6 |
-| Wizard integrity | | amount-source contract |
-| Ledger / pending | | SC13, SM4 |
-| Payment happy path | | SP1 |
-| Payment settlement | | SP2–SP4, VP5 |
-| Payment fund movement | | SP5, SP6 |
-| Over-payment / zero / negative | | VP2, VP3, VP4 |
-| Balance on payment | | VP1 |
-| Tx count | | SP7 |
-| Reverse happy path | | SR1–SR4 |
-| Reverse counter-tx | | SR5, SR6 |
-| Reverse balances/payables | | SR7–SR9 |
-| Reverse constraints | | VR1, VR2, VR3 |
-| Differential invariant | | SR10 |
-| Movement (purchase) | | SM1–SM5, VM1–VM3 |
-| Adjust items — ledger | | SA3 |
-| Adjust — effective amount | | SA4 |
-| Adjust — payables / reverse | | SA4, VR5 |
+| Issuance tx count | `PurchaseCreateTest.test_save_creates_exactly_one_issuance_transaction` · `test_no_payment_transaction_created_on_save` | SC1, SC2 |
+| Issuance direction + amount | `PurchaseCreateTest.test_issuance_transaction_direction_is_project_to_vendor` · `test_issuance_transaction_amount_matches_operation` | SC3, SC4 |
+| Issuance non-cash | `PurchaseCreateTest.test_project_fund_balance_unchanged_after_save` | SC5, VC15 |
+| Settlement after create | `PurchaseCreateTest.test_amount_remaining_to_settle_equals_full_amount_after_creation` · `test_is_not_fully_settled_after_creation` | SC6, SC7 |
+| Payables / receivables | `PurchaseCreateTest.test_create_project_payables_increase` · `test_create_vendor_receivables_increase` · `test_create_project_receivables_unchanged` · `test_create_vendor_payables_unchanged` | SC8–SC11 |
+| Source validation | `PurchaseCreateTest.test_source_must_be_a_project_entity` · `test_source_must_be_active` · `test_source_fund_must_be_active` | VC1, VC6, VC8 |
+| Destination validation | `PurchaseCreateTest.test_destination_must_be_a_vendor_entity` · `test_destination_project_entity_raises_validation_error` · `test_destination_must_be_active_stakeholder_vendor` · `test_destination_with_inactive_stakeholder_raises_validation_error` | VC2, VC5, VC4, VC7 |
+| Internal-vendor guard | `PurchaseCreateFromSessionTest.test_purchase_rejects_internal_vendor` · `test_get_related_entities_excludes_internal_vendors` | VC3 |
+| Amount / officer | `PurchaseCreateTest.test_amount_zero_raises_validation_error` · `test_amount_negative_raises_validation_error` · `test_officer_user_must_be_staff` · `test_officer_must_be_active` | VC10–VC12 |
+| Immutability | `PurchaseCreateTest.test_source_is_immutable_after_save` · `PurchaseCreateFromSessionTest.test_destination_is_immutable_after_save` · `test_amount_is_immutable_after_save` | IM1–IM3 |
+| Wizard basic flow | `PurchaseCreateFromSessionTest.test_create_from_session_basic` · `test_create_from_session_multiple_items` · `test_create_from_session_creates_issuance_transaction` · `test_create_from_session_full_flow` | SC12, SC1, SC3 |
+| Wizard movements | `PurchaseCreateFromSessionTest.test_create_from_session_with_received_qty` · `test_create_from_session_partial_received_qty` | SM2, SM4 |
+| Wizard payment | `PurchaseCreateFromSessionTest.test_create_from_session_with_payment` · `test_create_from_session_zero_payment` · `test_create_from_session_full_payment` | SP1–SP6 |
+| Wizard integrity | `PurchaseCreateFromSessionTest.test_create_from_session_item_totals_mismatch` · `test_create_from_session_item_totals_slight_mismatch` · `test_create_from_session_item_totals_within_tolerance` · `test_create_from_session_missing_vendor_raises_error` · `test_create_from_session_payment_exceeds_total` · `test_create_from_session_missing_items_raises_error` · `test_create_from_session_empty_items_raises_error` | amount-source contract |
+| Ledger / pending | `PurchaseCreateFromSessionTest.test_create_from_session_ledger_entries_created` · `StockPendingItemsTest.test_pending_inbound_for_unreceived_purchase` | SC13, SM4 |
+| Payment happy path | `PurchasePaymentTest.test_payment_creates_purchase_payment_transaction` | SP1 |
+| Payment settlement | `PurchasePaymentTest.test_amount_remaining_to_settle_decreases_after_payment` · `test_multiple_payments_accumulate_correctly` · `test_full_payment_marks_operation_as_fully_settled` · `test_multiple_partial_payments_are_allowed` | SP2–SP4, VP5 |
+| Payment fund movement | `PurchasePaymentTest.test_project_fund_decreases_by_payment_amount` · `test_vendor_fund_increases_by_payment_amount` | SP5, SP6 |
+| Over-payment / zero / negative | `PurchasePaymentTest.test_payment_exceeding_operation_amount_raises_validation_error` · `test_partial_payment_then_over_payment_raises_validation_error` · `test_zero_payment_raises_validation_error` · `test_negative_payment_raises_validation_error` | VP2, VP3, VP4 |
+| Balance on payment | `PurchasePaymentTest.test_payment_blocked_when_project_fund_has_insufficient_balance` · `test_check_balance_on_payment_is_enabled` | VP1 |
+| Tx count | `PurchasePaymentTest.test_total_transactions_after_partial_payment_is_two` | SP7 |
+| Reverse happy path | `PurchaseReversalTest.test_reverse_creates_reversal_operation` · `test_reverse_marks_original_as_reversed` · `test_reversal_is_marked_as_reversal` · `test_reverse_inherits_amount_source_destination` | SR1–SR4 |
+| Reverse counter-tx | `PurchaseReversalTest.test_reverse_creates_counter_transaction_for_issuance` · `test_reverse_counter_transaction_flips_funds` · `test_reversible_after_payment_reversed_counter_for_issuance_only` | SR5, SR6 |
+| Reverse balances/payables | `PurchaseReversalTest.test_project_fund_unchanged_after_reversal` · `test_reverse_restores_project_payables` · `test_reverse_restores_vendor_receivables` | SR7–SR9 |
+| Reverse constraints | `PurchaseReversalTest.test_reversal_blocked_when_payment_exists` · `test_cannot_reverse_already_reversed_operation` · `test_cannot_reverse_a_reversal` · `test_reversible_after_payment_reversed` | VR1, VR2, VR3 |
+| Differential invariant | `PurchaseReversalTest.test_create_then_reverse_leaves_world_unchanged` · `test_pay_reverse_payment_then_reverse_op_leaves_world_unchanged` · `PurchaseReversalAfterMovementsTest.test_reverse_after_movements_reversed_leaves_world_unchanged` | SR10 |
+| Movement (purchase) | `InventoryMovementCreationTest.test_create_inventory_movement_purchase` · `test_purchase_movement_creates_new_product_per_animal` · `test_purchase_commodity_receives_single_line_full_qty` · `test_purchase_lazy_product_belongs_to_project` · `test_quantity_exceeds_invoice_item` · `test_non_staff_cannot_create_movement` | SM1–SM5, VM1–VM3 |
+| Adjust items — ledger | `LedgerEntryTest.test_purchase_price_decrease_ledger_entry` · `test_purchase_quantity_decrease_ledger_entry` · `test_purchase_removal_ledger_entry` · `test_idempotency_key_prevents_duplicate_entries` | SA3 |
+| Adjust — effective amount | `AdjustmentTransactionTest.test_purchase_adjustment_creates_purchase_adjustment_transaction` · `AdjustmentEffectiveAmountTest.test_single_decrease_reduces_effective_amount` · `test_single_increase_raises_effective_amount` · `test_reversed_adjustment_excluded_from_effective_amount` | SA4 |
+| Adjust — payables / reverse | `AdjustmentReversalTest.test_purchase_return_reduces_project_payables` · `test_reverse_adjustment_restores_project_payables` · `test_reverse_adjustment_restores_vendor_receivables` | SA4, VR5 |
 

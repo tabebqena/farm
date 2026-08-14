@@ -167,20 +167,20 @@ Entry points: model `ExpenseOperation.save()` (tests) or `Operation.create()` (v
 
 | # | Branch | Pass condition | Failure outcome | Error (on failure) | Enforced by | Pinned by test |
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
-| VC1 | Source is Project | `source.is_project` | `ValidationError` | `"Expense source must be a Project entity."` | `clean_source` | |
-| VC2 | Destination is World | `destination.is_world` | `ValidationError` | `"Expense destination must be the World entity."` | `clean_destination` | |
-| VC3 | Source entity active | `source.active` | `ValidationError` | `"Entity '%(name)s' must be active…"` | `Operation.clean()` | |
+| VC1 | Source is Project | `source.is_project` | `ValidationError` | `"Expense source must be a Project entity."` | `clean_source` | `ExpenseCreateTest.test_source_must_be_a_project_entity` |
+| VC2 | Destination is World | `destination.is_world` | `ValidationError` | `"Expense destination must be the World entity."` | `clean_destination` | `ExpenseCreateTest.test_destination_must_be_world_entity` · `test_destination_person_entity_raises_validation_error` |
+| VC3 | Source entity active | `source.active` | `ValidationError` | `"Entity '%(name)s' must be active…"` | `Operation.clean()` | `ExpenseCreateTest.test_source_must_be_active` |
 | VC4 | Destination entity active | `destination.active` | `ValidationError` | same as VC3 | `Operation.clean()` | structural (world is always active) |
-| VC5 | Source fund active | `payment_source_fund.active` | `ValidationError` | `"The Payment source entity should be active."` | `SourceFundMixin` | |
+| VC5 | Source fund active | `payment_source_fund.active` | `ValidationError` | `"The Payment source entity should be active."` | `SourceFundMixin` | `ExpenseCreateTest.test_source_fund_must_be_active` |
 | VC6 | Target fund active | `payment_target_fund.active` | `ValidationError` | `"The Payment target entity should be active."` | `TargetFundMixin` | structural (world is always active) |
-| VC7 | Amount positive | `amount > 0` | `ValidationError` | `"Amount should be positive, got …"` | `AmountCleanMixin` | |
-| VC8 | Officer is staff | `officer.is_staff` | `ValidationError` | `"Officer should be a staff user."` | `OfficerMixin` | |
-| VC9 | Officer active | `officer.is_active` | `ValidationError` | `"Officer should be an active user."` | `OfficerMixin` | |
-| VC10 | Date not in a closed period (both entities) | no closed period contains `date` | `ValidationError` | `"Cannot create an operation whose date falls within a closed financial period."` | `Operation.clean()` | shared period suite |
-| VC11 | A covering financial period exists | `period_entity` has a period containing `date` | `ValidationError` | `"Cannot create an operation: no financial period covers this operation's date."` | `Operation.save()` | shared period suite |
-| VC12 | Issuance balance exempt | no balance check on create (not one-shot; no payment at save) | never fails | — | `_is_one_shot_operation=False`; issuance is non-cash | |
-| VC13 | Category required | `category_id` set | `ValidationError` | `"Category is required for this operation."` | `Operation.clean()` | |
-| VC14 | Category type is `EXPENSE` | `category.category_type == "EXPENSE"` | `ValidationError` | `"Category '%(category)s' is not a valid EXPENSE category…"` | `Operation.clean()` | |
+| VC7 | Amount positive | `amount > 0` | `ValidationError` | `"Amount should be positive, got …"` | `AmountCleanMixin` | `ExpenseCreateTest.test_amount_zero_raises_validation_error` · `test_amount_negative_raises_validation_error` |
+| VC8 | Officer is staff | `officer.is_staff` | `ValidationError` | `"Officer should be a staff user."` | `OfficerMixin` | `ExpenseCreateTest.test_officer_user_must_be_staff` |
+| VC9 | Officer active | `officer.is_active` | `ValidationError` | `"Officer should be an active user."` | `OfficerMixin` | `ExpenseCreateTest.test_officer_must_be_active` |
+| VC10 | Date not in a closed period (both entities) | no closed period contains `date` | `ValidationError` | `"Cannot create an operation whose date falls within a closed financial period."` | `Operation.clean()` | shared period suite (`OperationPeriodAssignmentTest.test_operation_in_closed_period_raises`) |
+| VC11 | A covering financial period exists | `period_entity` has a period containing `date` | `ValidationError` | `"Cannot create an operation: no financial period covers this operation's date."` | `Operation.save()` | shared period suite (`OperationPeriodAssignmentTest.test_operation_raises_when_no_open_period`) |
+| VC12 | Issuance balance exempt | no balance check on create (not one-shot; no payment at save) | never fails | — | `_is_one_shot_operation=False`; issuance is non-cash | structural (see `test_project_fund_balance_unchanged_after_save`) |
+| VC13 | Category required | `category_id` set | `ValidationError` | `"Category is required for this operation."` | `Operation.clean()` | `ExpenseCreateTest.test_category_required_missing_category_raises` |
+| VC14 | Category type is `EXPENSE` | `category.category_type == "EXPENSE"` | `ValidationError` | `"Category '%(category)s' is not a valid EXPENSE category…"` | `Operation.clean()` | `ExpenseCreateTest.test_category_must_be_expense_type` · `test_non_expense_category_type_is_distinct_from_expense` |
 | VC15 | Tx entity-type contract | `source.is_project` and `target.is_world` | `ValidationError` | `"Transaction type '…' has invalid entity types: …"` | `Transaction.create()` | implied by VC1/VC2 (model clean blocks first) |
 | VC16 | Tx operation-type allowed | document is `EXPENSE` | `ValidationError` | `"Transaction type '…' is not allowed for operation '…'."` | `Transaction.create()` | implied by VC1/VC2 |
 | VC17 | Source ≠ target | project ≠ world | always true | `"Source and target funds must be different."` | `Transaction.clean()` | structural (project ≠ world) |
@@ -189,18 +189,18 @@ Entry points: model `ExpenseOperation.save()` (tests) or `Operation.create()` (v
 
 | # | Effect | Detail / invariant | Implemented by | Verified by |
 |---|--------|--------------------|----------------|-------------|
-| SC1 | Issuance tx created | 1 × `EXPENSE_ISSUANCE`, amount `== op.amount`, `project → world` | `LinkedIssuanceTransactionMixin.save()` | |
-| SC2 | No payment on save | no `EXPENSE_PAYMENT` tx at save (not one-shot) | `_is_one_shot_operation=False` | |
-| SC3 | Tx amount equals op amount | issuance tx `amount == op.amount` | transaction creation | |
-| SC4 | Tx fund direction | issuance tx `source=project`, `target=world` | | |
-| SC5 | Non-cash issuance | project fund balance unchanged after save | issuance not a payment type (`payment_types()`) | |
-| SC6 | Remaining == full amount | `amount_remaining_to_settle == amount` after create | `LinkedPaymentTransactionMixin` | |
-| SC7 | Not fully settled | `is_fully_settled == False` after create | `amount_settled == 0` | |
-| SC8 | Project payables ▲ amount | `project.payables == amount` after create | `Entity.payables` | |
-| SC9 | Project receivables unchanged | `project.receivables == 0.00` | `Entity.receivables` | |
-| SC10 | Category stored on operation | `op.category == selected` after save | `category` FK + `Operation.clean()` | |
+| SC1 | Issuance tx created | 1 × `EXPENSE_ISSUANCE`, amount `== op.amount`, `project → world` | `LinkedIssuanceTransactionMixin.save()` | `ExpenseCreateTest.test_save_creates_exactly_one_issuance_transaction` |
+| SC2 | No payment on save | no `EXPENSE_PAYMENT` tx at save (not one-shot) | `_is_one_shot_operation=False` | `ExpenseCreateTest.test_no_payment_transaction_created_on_save` |
+| SC3 | Tx amount equals op amount | issuance tx `amount == op.amount` | transaction creation | `ExpenseCreateTest.test_issuance_transaction_amount_matches_operation` |
+| SC4 | Tx fund direction | issuance tx `source=project`, `target=world` | | `ExpenseCreateTest.test_issuance_transaction_direction_is_project_to_world` |
+| SC5 | Non-cash issuance | project fund balance unchanged after save | issuance not a payment type (`payment_types()`) | `ExpenseCreateTest.test_project_fund_balance_unchanged_after_save` |
+| SC6 | Remaining == full amount | `amount_remaining_to_settle == amount` after create | `LinkedPaymentTransactionMixin` | `ExpenseCreateTest.test_amount_remaining_to_settle_equals_full_amount_after_creation` |
+| SC7 | Not fully settled | `is_fully_settled == False` after create | `amount_settled == 0` | `ExpenseCreateTest.test_is_not_fully_settled_after_creation` |
+| SC8 | Project payables ▲ amount | `project.payables == amount` after create | `Entity.payables` | `ExpenseCreateTest.test_create_project_payables_increase` |
+| SC9 | Project receivables unchanged | `project.receivables == 0.00` | `Entity.receivables` | `ExpenseCreateTest.test_create_project_receivables_unchanged` |
+| SC10 | Category stored on operation | `op.category == selected` after save | `category` FK + `Operation.clean()` | `ExpenseCreateTest.test_expense_category_is_stored_on_operation` |
 | SC11 | No invoice / no movements | `has_invoice=False`; no invoice items; no movement lines | `has_invoice=False` | structural (covered by config flag) |
-| SC12 | Period auto-assigned | `period` = the project's covering period (open period auto-created at entity creation) | `Operation.save()` + `Entity.save()` | shared period suite |
+| SC12 | Period auto-assigned | `period` = the project's covering period (open period auto-created at entity creation) | `Operation.save()` + `Entity.save()` | shared period suite (`OperationPeriodAssignmentTest`) |
 
 ### 5.2 `pay`
 
@@ -210,23 +210,23 @@ Entry points: model `op.create_payment_transaction(amount, officer, date)` or vi
 
 | # | Branch | Pass condition | Failure outcome | Error (on failure) | Enforced by | Pinned by test |
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
-| VP1 | Balance enforced per payment | project fund balance ≥ payment amount | `ValidationError` | `"Insufficient balance…"` | `LinkedPaymentTransactionMixin.create_payment_transaction()` (`check_balance_on_payment=True`) | |
-| VP2 | Amount > 0 | `amount > 0` | `ValidationError` | `"Amount should be positive, got …"` | `AmountCleanMixin` | |
-| VP3 | Amount ≤ remaining (over-payment guard) | `amount ≤ amount_remaining_to_settle` | `ValidationError` | over-payment rejected | `LinkedPaymentTransactionMixin` | |
-| VP4 | Partial allowed | multiple payments accumulate | — | — | `is_partially_payable=True`, `max_payment_transaction_count=-1` | |
+| VP1 | Balance enforced per payment | project fund balance ≥ payment amount | `ValidationError` | `"Insufficient balance…"` | `LinkedPaymentTransactionMixin.create_payment_transaction()` (`check_balance_on_payment=True`) | `ExpensePaymentTest.test_payment_blocked_when_project_fund_has_insufficient_balance` · `test_check_balance_on_payment_is_enabled` |
+| VP2 | Amount > 0 | `amount > 0` | `ValidationError` | `"Amount should be positive, got …"` | `AmountCleanMixin` | `ExpensePaymentTest.test_zero_payment_raises_validation_error` · `test_negative_payment_raises_validation_error` |
+| VP3 | Amount ≤ remaining (over-payment guard) | `amount ≤ amount_remaining_to_settle` | `ValidationError` | over-payment rejected | `LinkedPaymentTransactionMixin` | `ExpensePaymentTest.test_payment_exceeding_operation_amount_raises_validation_error` · `test_partial_payment_then_over_payment_raises_validation_error` |
+| VP4 | Partial allowed | multiple payments accumulate | — | — | `is_partially_payable=True`, `max_payment_transaction_count=-1` | `ExpensePaymentTest.test_multiple_partial_payments_are_allowed` |
 | VP5 | Tx entity/op-type contract | `source.is_project`, `target.is_world`, document is `EXPENSE` | `ValidationError` | tx-type guards | `Transaction.create()` + maps / | implied by model clean |
 
 #### 5.2.2 Success effects
 
 | # | Effect | Detail / invariant | Implemented by | Verified by |
 |---|--------|--------------------|----------------|-------------|
-| SP1 | Payment tx created | 1 × `EXPENSE_PAYMENT`, `project → world` | `create_payment_transaction` | |
-| SP2 | Tx direction | `source=project`, `target=world` | | |
-| SP3 | Project fund ▼ amount | `project.balance` decreases by payment amount | `Entity.balance_at` | |
-| SP4 | Remaining ▼ | `amount_remaining_to_settle` decreases by payment | `amount_settled` | |
-| SP5 | Settled ▲ | `amount_settled` accumulates | `amount_settled` | |
-| SP6 | Fully settled at full payment | `amount_settled == amount`, `remaining == 0`, `is_fully_settled` | `LinkedPaymentTransactionMixin` | |
-| SP7 | Tx count = issuance + payments | 1 issuance + N payments | transaction creation | |
+| SP1 | Payment tx created | 1 × `EXPENSE_PAYMENT`, `project → world` | `create_payment_transaction` | `ExpensePaymentTest.test_payment_creates_expense_payment_transaction` |
+| SP2 | Tx direction | `source=project`, `target=world` | | `ExpensePaymentTest.test_payment_transaction_direction_is_project_to_world` |
+| SP3 | Project fund ▼ amount | `project.balance` decreases by payment amount | `Entity.balance_at` | `ExpensePaymentTest.test_project_fund_decreases_by_payment_amount` |
+| SP4 | Remaining ▼ | `amount_remaining_to_settle` decreases by payment | `amount_settled` | `ExpensePaymentTest.test_amount_remaining_to_settle_decreases_after_payment` |
+| SP5 | Settled ▲ | `amount_settled` accumulates | `amount_settled` | `ExpensePaymentTest.test_multiple_payments_accumulate_correctly` |
+| SP6 | Fully settled at full payment | `amount_settled == amount`, `remaining == 0`, `is_fully_settled` | `LinkedPaymentTransactionMixin` | `ExpensePaymentTest.test_full_payment_marks_operation_as_fully_settled` |
+| SP7 | Tx count = issuance + payments | 1 issuance + N payments | transaction creation | `ExpensePaymentTest.test_total_transactions_after_partial_payment_is_two` |
 
 ### 5.3 `adjust`
 
@@ -236,21 +236,21 @@ Entry points: model `Adjustment` (shared engine for PURCHASE/SALE/EXPENSE) or vi
 
 | # | Branch | Pass condition | Failure outcome | Error (on failure) | Enforced by | Pinned by test |
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
-| VA1 | Operation is adjustable | `operation_type` in {PURCHASE, SALE, EXPENSE} | `ValidationError` | non-adjustable op rejected | `Adjustment.clean()` | |
-| VA2 | General types require a reason | `reason` set for GENERAL_* types | `ValidationError` | missing reason rejected | `Adjustment.clean()` | |
-| VA3 | Amount positive | `amount > 0` | `ValidationError` | `"Amount should be positive, got …"` | `AmountCleanMixin` | |
-| VA4 | Officer staff + active | `officer.is_staff` and `officer.is_active` | `ValidationError` | officer guards | `OfficerMixin` | |
-| VA5 | Not reversed / not a reversal | `reversed_by is None` and `reversal_of is None` | `ValidationError` | reversal guards | `ReversableModel` | shared adjustment reversal tests |
-| VA6 | Immutability | `operation`/`type`/`amount` unchanged after save | `ValidationError` | `ImmutableMixin` | `ImmutableMixin` | |
+| VA1 | Operation is adjustable | `operation_type` in {PURCHASE, SALE, EXPENSE} | `ValidationError` | non-adjustable op rejected | `Adjustment.clean()` | `AdjustmentValidationTest.test_non_adjustable_operation_type_raises_validation_error` (EXPENSE adjustable via `AdjustmentTransactionTest.test_expense_adjustment_creates_expense_adjustment_transaction`) |
+| VA2 | General types require a reason | `reason` set for GENERAL_* types | `ValidationError` | missing reason rejected | `Adjustment.clean()` | `AdjustmentValidationTest.test_general_reduction_without_reason_raises_validation_error` · `test_general_increase_without_reason_raises_validation_error` · `test_general_reduction_with_reason_saves_ok` · `test_non_general_type_without_reason_saves_ok` |
+| VA3 | Amount positive | `amount > 0` | `ValidationError` | `"Amount should be positive, got …"` | `AmountCleanMixin` | `AdjustmentValidationTest.test_amount_zero_raises_validation_error` · `test_amount_negative_raises_validation_error` |
+| VA4 | Officer staff + active | `officer.is_staff` and `officer.is_active` | `ValidationError` | officer guards | `OfficerMixin` | `AdjustmentValidationTest.test_officer_user_must_be_staff` · `test_officer_must_be_active` |
+| VA5 | Not reversed / not a reversal | `reversed_by is None` and `reversal_of is None` | `ValidationError` | reversal guards | `ReversableModel` | `AdjustmentReversalTest.test_cannot_reverse_already_reversed_adjustment` · `test_cannot_reverse_a_reversal` |
+| VA6 | Immutability | `operation`/`type`/`amount` unchanged after save | `ValidationError` | `ImmutableMixin` | `ImmutableMixin` | `AdjustmentImmutabilityTest.test_operation_is_immutable_after_save` · `test_type_is_immutable_after_save` · `test_amount_is_immutable_after_save` |
 
 #### 5.3.2 Success effects
 
 | # | Effect | Detail / invariant | Implemented by | Verified by |
 |---|--------|--------------------|----------------|-------------|
-| SA1 | Adjustment tx created | `EXPENSE_ADJUSTMENT_INCREASE` / `EXPENSE_ADJUSTMENT_DECREASE` (non-cash) | `Adjustment` + maps / | |
-| SA2 | Direction per type | increase `project → world`; decrease `world → project` | / | shared direction suite |
-| SA3 | `effective_amount` delta | ▲ for increase, ▼ for decrease, excluding reversed adjustments | `AdjustableMixin` | |
-| SA4 | Payables follow adjustment | decrease reduces project payables; reversed adjustment restores | `Entity.payables` | shared SE4 suite |
+| SA1 | Adjustment tx created | `EXPENSE_ADJUSTMENT_INCREASE` / `EXPENSE_ADJUSTMENT_DECREASE` (non-cash) | `Adjustment` + maps / | `AdjustmentTransactionTest.test_expense_adjustment_creates_expense_adjustment_transaction` |
+| SA2 | Direction per type | increase `project → world`; decrease `world → project` | / | `AdjustmentDirectionTest` (shared direction suite) |
+| SA3 | `effective_amount` delta | ▲ for increase, ▼ for decrease, excluding reversed adjustments | `AdjustableMixin` | `AdjustmentEffectiveAmountTest.test_single_decrease_reduces_effective_amount` · `test_single_increase_raises_effective_amount` · `test_mixed_adjustments_combine_correctly` · `test_reversed_adjustment_excluded_from_effective_amount` |
+| SA4 | Payables follow adjustment | decrease reduces project payables; reversed adjustment restores | `Entity.payables` | `AdjustmentReversalTest.test_purchase_return_reduces_project_payables` · `test_reverse_adjustment_restores_project_payables` (shared engine) |
 
 ### 5.4 `reverse`
 
@@ -260,9 +260,9 @@ Entry points: model `op.reverse(officer, date, reason)` or view `operation_rever
 
 | # | Branch | Pass condition | Failure outcome | Error (on failure) | Enforced by | Pinned by test |
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
-| VR1 | Not already reversed | `reversed_by is None` | `ValidationError` | `"The transaction is already reversed."` | `ReversableModel._validate_can_be_reversed` + view guard | |
-| VR2 | Not itself a reversal | `reversal_of is None` | `ValidationError` | `"You can't reverse this record as it is a reversal of …"` | `ReversableModel._validate_can_be_reversed` + view guard | |
-| VR3 | No non-reversed payment txs | no `EXPENSE_PAYMENT` exists (payments are explicit, not implicit) | `ValidationError` | `"You can't reverse this object as it has non-reversed transactions…"` | `ReversableModel._requires_transaction_reversal` + `Operation._implicit_reversable_transaction_types` | |
+| VR1 | Not already reversed | `reversed_by is None` | `ValidationError` | `"The transaction is already reversed."` | `ReversableModel._validate_can_be_reversed` + view guard | `ExpenseReversalTest.test_cannot_reverse_already_reversed_operation` |
+| VR2 | Not itself a reversal | `reversal_of is None` | `ValidationError` | `"You can't reverse this record as it is a reversal of …"` | `ReversableModel._validate_can_be_reversed` + view guard | `ExpenseReversalTest.test_cannot_reverse_a_reversal` |
+| VR3 | No non-reversed payment txs | no `EXPENSE_PAYMENT` exists (payments are explicit, not implicit) | `ValidationError` | `"You can't reverse this object as it has non-reversed transactions…"` | `ReversableModel._requires_transaction_reversal` + `Operation._implicit_reversable_transaction_types` | `ExpenseReversalTest.test_reversal_blocked_when_payment_exists` |
 | VR4 | No non-reversed adjustments | no active adjustments on the operation | `ValidationError` | adjustment guard on reverse | `Operation.reverse()` | shared engine (implied — no dedicated expense test) |
 | VR5 | Reason required | `POST['reversal_reason']` non-empty | view redirect + message | `"A reason for reversal is required."` | `operation_reverse_view` | view contract (see §8) |
 
@@ -270,16 +270,16 @@ Entry points: model `op.reverse(officer, date, reason)` or view `operation_rever
 
 | # | Effect | Detail / invariant | Implemented by | Verified by |
 |---|--------|--------------------|----------------|-------------|
-| SR1 | Reversal record created | cloned op, `reversal_of = original` | `ReversableModel.reverse()` | |
-| SR2 | Original marked reversed | `original.reversed_by = reversal` | `ReversableModel.reverse()` | |
-| SR3 | Reversal marked `is_reversal` | `reversal.is_reversal`, not `is_reversed` | `ReversableModel.reverse()` | |
-| SR4 | Reversal inherits identity | `amount`, `source`, `destination` copied | `ReversableModel._get_reverse_kwargs` | |
-| SR5 | Counter-tx for issuance only | 1 counter-`EXPENSE_ISSUANCE` (payments block reversal; issuance is the only implicit tx) | `Operation._implicit_reversable_transaction_types` + `Transaction.reverse()` | |
-| SR6 | Counter-tx flips funds | counter: `world → project`, same amount, `reversal_of=original` | `Transaction.reverse()` | |
-| SR7 | Project fund unchanged after reversal | issuance is non-cash → no balance change | `balance_at` | |
-| SR8 | Payables restored | `project.payables` back to `0.00` | `Entity.payables` | |
-| SR9 | Receivables unchanged | `project.receivables == 0.00` after reversal | `Entity.receivables` | |
-| SR10 | Differential invariant | create + reverse leaves the whole world unchanged (balances, payables, receivables, ledger) | whole engine | |
+| SR1 | Reversal record created | cloned op, `reversal_of = original` | `ReversableModel.reverse()` | `ExpenseReversalTest.test_reverse_creates_reversal_operation` |
+| SR2 | Original marked reversed | `original.reversed_by = reversal` | `ReversableModel.reverse()` | `ExpenseReversalTest.test_reverse_marks_original_as_reversed` |
+| SR3 | Reversal marked `is_reversal` | `reversal.is_reversal`, not `is_reversed` | `ReversableModel.reverse()` | `ExpenseReversalTest.test_reversal_is_marked_as_reversal` |
+| SR4 | Reversal inherits identity | `amount`, `source`, `destination` copied | `ReversableModel._get_reverse_kwargs` | `ExpenseReversalTest.test_reverse_inherits_amount_source_destination` |
+| SR5 | Counter-tx for issuance only | 1 counter-`EXPENSE_ISSUANCE` (payments block reversal; issuance is the only implicit tx) | `Operation._implicit_reversable_transaction_types` + `Transaction.reverse()` | `ExpenseReversalTest.test_reverse_creates_counter_transaction_for_issuance` |
+| SR6 | Counter-tx flips funds | counter: `world → project`, same amount, `reversal_of=original` | `Transaction.reverse()` | `ExpenseReversalTest.test_reverse_counter_transaction_flips_funds` |
+| SR7 | Project fund unchanged after reversal | issuance is non-cash → no balance change | `balance_at` | `ExpenseReversalTest.test_project_fund_unchanged_after_reversal` |
+| SR8 | Payables restored | `project.payables` back to `0.00` | `Entity.payables` | `ExpenseReversalTest.test_reverse_restores_project_payables` |
+| SR9 | Receivables unchanged | `project.receivables == 0.00` after reversal | `Entity.receivables` | `ExpenseReversalTest.test_reverse_project_receivables_unchanged` |
+| SR10 | Differential invariant | create + reverse leaves the whole world unchanged (balances, payables, receivables, ledger) | whole engine | `ExpenseReversalTest.test_create_then_reverse_leaves_world_unchanged` |
 
 ### 5.5 Immutability
 
@@ -287,9 +287,9 @@ Entry points: model `op.reverse(officer, date, reason)` or view `operation_rever
 
 | Branch | Enforced by | Pinned by test |
 |--------|-------------|----------------|
-| `source` changed after save | `ImmutableMixin.save()` | |
-| `destination` changed after save | `ImmutableMixin.save()` | |
-| `amount` changed after save | `ImmutableMixin.save()` | |
+| `source` changed after save | `ImmutableMixin.save()` | `ExpenseCreateTest.test_source_is_immutable_after_save` |
+| `destination` changed after save | `ImmutableMixin.save()` | `ExpenseCreateTest.test_destination_is_immutable_after_save` |
+| `amount` changed after save | `ImmutableMixin.save()` | `ExpenseCreateTest.test_amount_is_immutable_after_save` |
 
 ---
 
@@ -356,45 +356,45 @@ Entry points: model `op.reverse(officer, date, reason)` or view `operation_rever
 
 | Area | Test method | Branch(es) |
 |------|-------------|------------|
-| Tx creation + counts | | SC1 |
-| No payment on save | | SC2 |
-| Tx amount | | SC3 |
-| Tx direction | | SC4 |
-| Non-cash issuance | | SC5, VC12 |
-| Settlement after create | | SC6, SC7 |
-| Payables/receivables | | SC8, SC9 |
-| Category config | | config |
-| Category creation/type | | config |
-| Category required | | VC13 |
-| Category type enforced | | VC14 |
-| Category stored | | SC10 |
-| Non-category op unaffected | | VC13 (negative) |
-| Source/dest validation | | VC1, VC2 |
-| Active entities/funds | | VC3, VC5 |
-| Amount | | VC7 |
-| Officer | | VC8, VC9 |
-| Immutability | | IM1–IM3 |
-| Payment tx | | SP1, SP2 |
-| Remaining/settled | | SP4, SP5 |
-| Partial payments | | VP4 |
-| Full payment | | SP6 |
-| Fund movement | | SP3 |
-| Tx count | | SP7 |
-| Over-payment guard | | VP3 |
-| Zero/negative payment | | VP2 |
-| Balance guard | | VP1 |
-| Reverse happy path | | SR1–SR4 |
-| Counter-tx for issuance only | | SR5 |
-| Counter-tx flips funds | | SR6 |
-| Fund unchanged after reverse | | SR7 |
-| Payables restored | | SR8, SR9 |
-| Differential invariant | | SR10 |
-| Reverse blocked by payment | | VR3 |
-| Reverse constraints | | VR1, VR2 |
-| Adjust tx | | SA1, VA1 |
-| Adjust validation | | VA1, VA2 |
-| Adjust amount/officer | | VA3, VA4 |
-| Adjust direction | | SA2 |
-| Effective amount | | SA3 |
-| Adjust immutability | | VA6 |
+| Tx creation + counts | `ExpenseCreateTest.test_save_creates_exactly_one_issuance_transaction` | SC1 |
+| No payment on save | `ExpenseCreateTest.test_no_payment_transaction_created_on_save` | SC2 |
+| Tx amount | `ExpenseCreateTest.test_issuance_transaction_amount_matches_operation` | SC3 |
+| Tx direction | `ExpenseCreateTest.test_issuance_transaction_direction_is_project_to_world` | SC4 |
+| Non-cash issuance | `ExpenseCreateTest.test_project_fund_balance_unchanged_after_save` | SC5, VC12 |
+| Settlement after create | `ExpenseCreateTest.test_amount_remaining_to_settle_equals_full_amount_after_creation` · `test_is_not_fully_settled_after_creation` | SC6, SC7 |
+| Payables/receivables | `ExpenseCreateTest.test_create_project_payables_increase` · `test_create_project_receivables_unchanged` | SC8, SC9 |
+| Category config | `ExpenseCreateTest.test_has_category_config_is_true` · `test_category_required_config_is_true` | config |
+| Category creation/type | `ExpenseCreateTest.test_expense_category_can_be_created_with_expense_type` · `test_non_expense_category_type_is_distinct_from_expense` | config |
+| Category required | `ExpenseCreateTest.test_category_required_missing_category_raises` | VC13 |
+| Category type enforced | `ExpenseCreateTest.test_category_must_be_expense_type` | VC14 |
+| Category stored | `ExpenseCreateTest.test_expense_category_is_stored_on_operation` | SC10 |
+| Non-category op unaffected | `ExpenseCreateTest.test_non_category_operation_does_not_require_category` | VC13 (negative) |
+| Source/dest validation | `ExpenseCreateTest.test_source_must_be_a_project_entity` · `test_destination_must_be_world_entity` · `test_destination_person_entity_raises_validation_error` | VC1, VC2 |
+| Active entities/funds | `ExpenseCreateTest.test_source_must_be_active` · `test_source_fund_must_be_active` | VC3, VC5 |
+| Amount | `ExpenseCreateTest.test_amount_zero_raises_validation_error` · `test_amount_negative_raises_validation_error` | VC7 |
+| Officer | `ExpenseCreateTest.test_officer_user_must_be_staff` · `test_officer_must_be_active` | VC8, VC9 |
+| Immutability | `ExpenseCreateTest.test_source_is_immutable_after_save` · `test_destination_is_immutable_after_save` · `test_amount_is_immutable_after_save` | IM1–IM3 |
+| Payment tx | `ExpensePaymentTest.test_payment_creates_expense_payment_transaction` · `test_payment_transaction_direction_is_project_to_world` | SP1, SP2 |
+| Remaining/settled | `ExpensePaymentTest.test_amount_remaining_to_settle_decreases_after_payment` · `test_multiple_payments_accumulate_correctly` | SP4, SP5 |
+| Partial payments | `ExpensePaymentTest.test_multiple_partial_payments_are_allowed` | VP4 |
+| Full payment | `ExpensePaymentTest.test_full_payment_marks_operation_as_fully_settled` | SP6 |
+| Fund movement | `ExpensePaymentTest.test_project_fund_decreases_by_payment_amount` | SP3 |
+| Tx count | `ExpensePaymentTest.test_total_transactions_after_partial_payment_is_two` | SP7 |
+| Over-payment guard | `ExpensePaymentTest.test_payment_exceeding_operation_amount_raises_validation_error` · `test_partial_payment_then_over_payment_raises_validation_error` | VP3 |
+| Zero/negative payment | `ExpensePaymentTest.test_zero_payment_raises_validation_error` · `test_negative_payment_raises_validation_error` | VP2 |
+| Balance guard | `ExpensePaymentTest.test_payment_blocked_when_project_fund_has_insufficient_balance` · `test_check_balance_on_payment_is_enabled` | VP1 |
+| Reverse happy path | `ExpenseReversalTest.test_reverse_creates_reversal_operation` · `test_reverse_marks_original_as_reversed` · `test_reversal_is_marked_as_reversal` · `test_reverse_inherits_amount_source_destination` | SR1–SR4 |
+| Counter-tx for issuance only | `ExpenseReversalTest.test_reverse_creates_counter_transaction_for_issuance` | SR5 |
+| Counter-tx flips funds | `ExpenseReversalTest.test_reverse_counter_transaction_flips_funds` | SR6 |
+| Fund unchanged after reverse | `ExpenseReversalTest.test_project_fund_unchanged_after_reversal` | SR7 |
+| Payables restored | `ExpenseReversalTest.test_reverse_restores_project_payables` · `test_reverse_project_receivables_unchanged` | SR8, SR9 |
+| Differential invariant | `ExpenseReversalTest.test_create_then_reverse_leaves_world_unchanged` | SR10 |
+| Reverse blocked by payment | `ExpenseReversalTest.test_reversal_blocked_when_payment_exists` | VR3 |
+| Reverse constraints | `ExpenseReversalTest.test_cannot_reverse_already_reversed_operation` · `test_cannot_reverse_a_reversal` | VR1, VR2 |
+| Adjust tx | `AdjustmentTransactionTest.test_expense_adjustment_creates_expense_adjustment_transaction` | SA1, VA1 |
+| Adjust validation | `AdjustmentValidationTest.test_non_adjustable_operation_type_raises_validation_error` · `test_general_reduction_without_reason_raises_validation_error` · `test_general_increase_without_reason_raises_validation_error` · `test_general_reduction_with_reason_saves_ok` · `test_non_general_type_without_reason_saves_ok` | VA1, VA2 |
+| Adjust amount/officer | `AdjustmentValidationTest.test_amount_zero_raises_validation_error` · `test_amount_negative_raises_validation_error` · `test_officer_user_must_be_staff` · `test_officer_must_be_active` | VA3, VA4 |
+| Adjust direction | `AdjustmentDirectionTest` | SA2 |
+| Effective amount | `AdjustmentEffectiveAmountTest.test_single_decrease_reduces_effective_amount` · `test_single_increase_raises_effective_amount` · `test_mixed_adjustments_combine_correctly` · `test_reversed_adjustment_excluded_from_effective_amount` | SA3 |
+| Adjust immutability | `AdjustmentImmutabilityTest.test_operation_is_immutable_after_save` · `test_type_is_immutable_after_save` · `test_amount_is_immutable_after_save` | VA6 |
 

@@ -62,3 +62,50 @@ branch registry cannot drift:
 - Targeted runs of every touched test file: OK.
 - Full suite: `python3 manage.py test --parallel=10 --keepdb` →
   **1373 tests, OK** (was 1339).
+
+---
+
+## Coverage-documentation completion pass (docs only — 2026-08-14)
+
+Follow-up pass to make the **documented** coverage of `docs/specs/operations/`
+complete and verifiable, so the spec's §10 "Test coverage matrix" and the
+"Pinned by test" / "Verified by" columns are fully populated with **real** test
+method names (plain names, `ClassName.method` — no markdown links).
+
+### What was done
+
+- Filled every previously-empty **"Pinned by test"** / **"Verified by"** cell in the
+  validation/effect tables **and** every empty **§10 "Test method"** cell for:
+  `op_1` (Cash Injection), `op_2` (Cash Withdrawal), `op_3` (Project Funding),
+  `op_4` (Project Refund), `op_5` (Capital Gain), `op_6` (Capital Loss),
+  `op_8` (Loan), `op_11` (Worker Advance), `op_12` (Expense),
+  `op_13` (Purchase), `op_14` (Sale), `op_15` (Correction Credit/Debit),
+  `op_19` (Consumption).
+- Completed `op_7` (Internal Transfer) — its §10 matrix was already complete;
+  the per-branch validation/effect pins were added for consistency.
+- `op_17` (Birth) and `op_18` (Death) were already fully pinned — untouched.
+- Shared branches (period contract, tx engine, adjustment engine, inventory
+  guards) now cite the shared suites explicitly
+  (`OperationPeriodAssignmentTest`, `DownstreamClosedPeriodGuardTest`,
+  `AdjustmentValidationTest`/`AdjustmentReversalTest`/`AdjustmentEffectiveAmountTest`,
+  `InventoryMovementCreationTest`, `ProductCapitalValuationModelTest`, …).
+- No **new** tests were required: the existing suite already covered every
+  branch; the gap was in the **documentation** of that coverage, not in code.
+- Fixed two stale class-name references to the real classes
+  (`ValidationTest` for invoice-item adjustment validation; the commodity
+  single-line movement test lives on `InventoryMovementModelContractTest`).
+
+### Verification
+
+- Automated checker (`/tmp/verify_spec_refs.py`) parsed **every**
+  `ClassName.test_method` reference in `docs/specs/operations/` and confirmed
+  all **699** resolve to a real test class + method in the suite; all bare
+  `test_…` references resolve to real test methods (remaining bare tokens are
+  test **file** names, allowed by the plain-name convention).
+- `python3 manage.py check` → no issues.
+- Full suite: `python3 manage.py test --parallel=10 --keepdb` →
+  **1432 tests run**; the only failures are pre-existing Selenium **UI**
+  `ui_tests.operations.test_cash_injection` LiveServer login-timeout cases
+  (headless-browser environment), unrelated to this docs-only pass. All
+  operation model/view suites and `CoverageManifestTest` pass.
+- Temporary test-output files under `tmp/` were removed after review.
