@@ -105,12 +105,13 @@ The tables below **register every file that implements this operation**. The spe
 
 ### 2.7 Tests
 
-| Concern | Test file |
-|---------|-----------|
-| Create branches (config, validation, no transactions, no settlement machinery, movement lines, status DEAD, period assigned) | |
-| Reverse branches (reversal record, no counter-tx, auto lines reversed, ledger negation, status DEAD→ACTIVE) | |
-| `can_die` gating + animal-template rules | |
-| Coverage manifest (executable branch registry) | |
+| Concern | Test file (plain name) |
+|---------|------------------------|
+| Create branches (config, validation, no transactions, no settlement machinery, movement lines, status DEAD, period assigned) | `test_death_death_create` (`DeathCreateTest`, `DeathCreateInventoryTest`) |
+| Reverse branches (reversal record, no counter-tx, auto lines reversed, ledger negation, status DEAD→ACTIVE) | `test_death_death_reversal` (`DeathReversalTest`) |
+| `can_die` gating + animal-template rules | `test_death_death_create` (`DeathCreateInventoryTest.test_non_animal_template_rejected_for_death`), shared `test_animal_attributes` (`AcceptsOperationGatingTest`) |
+| View contract — create route + reverse reason (VR6) | `test_views_death_create_and_reverse` (`DeathCreateViewTest`, `DeathReverseViewTest`) |
+| Coverage manifest (executable branch registry) | `test_coverage_manifest` (`CoverageManifestTest`) |
 
 ---
 
@@ -263,26 +264,28 @@ does not exist on the class). Payment-related code is never reachable.
 
 ## 10. Test coverage matrix
 
-| Area | Test method | Branch(es) |
-|------|-------------|------------|
-| Config flags | | flags |
-| No transactions | | SC1, SC2 |
-| Auto outbound lines | | SC3 |
-| Status DEAD | | SC4, SC8 |
-| Inventory value drops once | | SC5, SC9 |
-| Period assigned | | SC6, SC10 |
-| Fund balance unchanged | | SC7 |
-| Source validation | | VC1, VC3 |
-| Destination validation | | VC2 |
-| Amount | | VC5 |
-| Officer | | VC6, VC7 |
-| `can_die` gating | | VC10 |
-| Product status eligible (ACTIVE) | | VC12 |
-| Reverse happy path | | SR1, SR2 |
-| No counter-txs | | SR4 |
-| Auto lines reversed | | SR5 |
-| Ledger negation | | SR6 |
-| Status restored ACTIVE | | SR7 |
-| Reverse constraints | | VR1, VR2 |
+| Area | Test method (plain name) | Branch(es) |
+|------|--------------------------|------------|
+| Config flags | `DeathCreateTest.test_has_category_config_is_false`, `test_category_required_config_is_false`, `test_can_pay_config_is_false`, `test_is_one_shot_operation_config_is_false`, `test_is_partially_payable_config_is_false` | flags |
+| No transactions | `DeathCreateTest.test_save_creates_no_transactions`, `test_period_is_assigned_and_no_settlement_machinery` | SC1, SC2 |
+| Auto outbound lines | `DeathCreateInventoryTest.test_create_auto_creates_outbound_movement_line`, `test_create_movement_line_uses_selected_product`, `test_create_multiple_items_each_get_a_movement_line` | SC3 |
+| Status DEAD | `DeathCreateInventoryTest.test_create_marks_product_dead`; `DeathReversalTest.test_death_moves_product_to_dead_status` | SC4, SC8 |
+| Inventory value drops once | `DeathCreateInventoryTest.test_create_drops_inventory_value_once`, `test_create_drops_movement_state_to_zero` | SC5, SC9 |
+| Period assigned | `DeathCreateTest.test_period_is_assigned_and_no_settlement_machinery` | SC6, SC10 |
+| Fund balance unchanged | `DeathCreateInventoryTest.test_create_does_not_drain_fund_balance`, `test_create_leaves_payables_receivables_unchanged` | SC7 |
+| Source validation | `DeathCreateTest.test_source_must_be_a_project_entity`, `test_source_world_entity_raises_validation_error`, `test_source_system_entity_raises_validation_error`, `test_source_must_be_active` | VC1, VC3 |
+| Destination validation | `DeathCreateTest.test_destination_must_be_system_entity`, `test_destination_person_entity_raises_validation_error` | VC2 |
+| Amount | `DeathCreateTest.test_amount_zero_raises_validation_error`, `test_amount_negative_raises_validation_error` | VC5 |
+| Officer | `DeathCreateTest.test_officer_must_be_a_staff_user`, `test_officer_must_be_active` | VC6, VC7 |
+| `can_die` gating | `DeathCreateInventoryTest.test_non_animal_template_rejected_for_death` (death flow); shared `AcceptsOperationGatingTest.test_death_gated_by_can_die` (template) | VC10 |
+| Product status eligible (ACTIVE) | shared `test_product` (`test_validate_active_raises_for_sold_product`, `test_validate_active_raises_for_dead_product`, `test_validate_active_raises_for_removed_product`) | VC12 |
+| Reverse happy path | `DeathReversalTest.test_reverse_creates_reversal_record`, `test_reverse_marks_original_as_reversed` | SR1, SR2 |
+| No counter-txs | `DeathReversalTest.test_reverse_creates_no_transactions` | SR4 |
+| Auto lines reversed | `DeathReversalTest.test_reverse_reverses_auto_movement_lines` | SR5 |
+| Ledger negation | `DeathReversalTest.test_reverse_negates_ledger_entries`, `test_reverse_movement_ledger_negation_exact_set` | SR6 |
+| Status restored ACTIVE | `DeathReversalTest.test_reversed_product_returns_to_active_status` | SR7 |
+| Reverse constraints | `DeathReversalTest.test_cannot_reverse_already_reversed_operation`, `test_cannot_reverse_a_reversal` | VR1, VR2 |
 | Reversal dependency guard | defensive — shared guard pinned via SALE/CONSUMPTION partial-outbound tests (see §5.2.1 VR4) | VR4 |
+| Differential invariant | `DeathReversalTest.test_create_then_reverse_leaves_world_unchanged` | SR8 |
+| View — create + reverse reason | `DeathCreateViewTest.test_get_death_create_renders_death_form`, `test_post_death_create_creates_death_with_movement`; `DeathReverseViewTest.test_reverse_view_rejects_missing_reason`, `test_reverse_view_with_reason_reverses_and_flows_reason` | §8, VR6 |
 
