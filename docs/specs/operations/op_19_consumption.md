@@ -10,6 +10,7 @@
 > Where code and spec disagree, the spec states the *intended* behavior — fix the code, not the spec.
 > See [`_OPERATION_SPEC_TEMPLATE.md`](_OPERATION_SPEC_TEMPLATE.md) for the shared structure and
 > [`op_1_cash_injection.md`](op_1_cash_injection.md) for a fully worked example.
+> The physical movement layer a consumption writes to (auto outbound lines, status CONSUMED, quick-consume shortcut) is the [`stock.md`](../features/stock.md) contract — keep that spec in sync when this operation's movement behavior changes.
 
 ---
 

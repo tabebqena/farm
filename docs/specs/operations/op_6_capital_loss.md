@@ -10,6 +10,7 @@
 > Where code and spec disagree, the spec states the *intended* behavior — fix the code, not the spec.
 > See [`_OPERATION_SPEC_TEMPLATE.md`](_OPERATION_SPEC_TEMPLATE.md) for the shared structure and
 > [`op_1_cash_injection.md`](op_1_cash_injection.md) for a fully worked example.
+> The inventory value this operation lowers is the movement-based [`stock.md`](../features/stock.md) contract (`capital_delta` → `movement_state["value"]`) — keep that spec in sync when this operation's valuation behavior changes.
 
 ---
 
