@@ -20,8 +20,6 @@ from apps.app_inventory.tests.general import (
 )
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import ConsumptionOperation, PurchaseOperation
-from apps.app_operation.tests.base import assert_tx_types
-from apps.app_transaction.transaction_type import TransactionType
 
 
 class ConsumptionCreateTest(TestCase):
@@ -201,36 +199,31 @@ class ConsumptionCreateTest(TestCase):
         product.validate_active(allow_reversal=True)
 
     # ------------------------------------------------------------------
-    # One-shot transaction behaviour (unchanged)
+    # No accounting transactions — Consumption is a stock event
     # ------------------------------------------------------------------
 
-    def test_create_creates_issuance_and_payment_transactions(self):
+    def test_create_creates_no_transactions(self):
         product = self._make_moved_product()
         op = self._consume(product)
 
-        assert_tx_types(
-            self,
-            op,
-            {
-                TransactionType.CONSUMPTION_ISSUANCE: 1,
-                TransactionType.CONSUMPTION_PAYMENT: 1,
-            },
-        )
+        self.assertEqual(op.get_all_transactions().count(), 0)
 
-    def test_create_is_fully_settled(self):
+    def test_period_is_assigned_and_no_settlement_machinery(self):
         product = self._make_moved_product(qty=Decimal("2.00"), price=Decimal("50.00"))
         op = self._consume(product, qty=Decimal("2.00"), price=Decimal("50.00"))
 
-        self.assertEqual(op.amount_settled, Decimal("100.00"))
-        self.assertTrue(op.is_fully_settled)
-        self.assertEqual(op.amount_remaining_to_settle, Decimal("0.00"))
+        self.assertIsNotNone(op.period, "A covering financial period is assigned")
+        self.assertFalse(hasattr(op, "amount_settled"))
+        self.assertFalse(hasattr(op, "is_fully_settled"))
+        self.assertFalse(hasattr(op, "create_payment_transaction"))
 
     # ------------------------------------------------------------------
-    # COGS / P&L behaviour (Option B)
+    # Inventory-value behaviour (no longer affects profit_loss directly)
     # ------------------------------------------------------------------
 
-    def test_create_reduces_profit_loss(self):
-        """Consumption reduces Entity.profit_loss() as COGS in the consumption period."""
+    def test_create_does_not_change_profit_loss(self):
+        """Consumption is not an accounting transaction — profit_loss() is
+        unchanged; the consumed value leaves via inventory value instead."""
         product = self._make_moved_product()
         profit_before = self.project_entity.profit_loss()
 
@@ -238,8 +231,8 @@ class ConsumptionCreateTest(TestCase):
 
         self.assertEqual(
             self.project_entity.profit_loss(),
-            profit_before - Decimal("500.00"),
-            "Consumed feed/medicine must appear as COGS and reduce project profit.",
+            profit_before,
+            "Consumption must not change profit_loss() (it is a stock event).",
         )
 
     def test_create_does_not_drain_fund_balance(self):

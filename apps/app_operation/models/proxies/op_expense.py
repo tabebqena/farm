@@ -1,10 +1,10 @@
 from django.core.exceptions import ValidationError
 
-from apps.app_operation.models.operation import Operation
+from apps.app_operation.models.operation import AdjustableTransactionMixin, Operation
 from apps.app_transaction.transaction_type import TransactionType
 
 
-class ExpenseOperation(Operation):
+class ExpenseOperation(AdjustableTransactionMixin, Operation):
     _issuance_transaction_type = TransactionType.EXPENSE_ISSUANCE
     _payment_transaction_type = TransactionType.EXPENSE_PAYMENT
 

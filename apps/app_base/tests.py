@@ -172,15 +172,16 @@ class TransactionAutoCreationTests(TestCase):
         self.system = _get_or_create_system()
         self.entity = _make_entity("Test Entity", EntityType.PROJECT)
 
-    def test_capital_gain_creates_transaction(self):
-        """CapitalGainOperation should auto-create transaction"""
+    def test_correction_credit_creates_transaction(self):
+        """CorrectionCreditOperation should auto-create transaction"""
         from apps.app_transaction.models import Transaction
+        from apps.app_operation.models.proxies import CorrectionCreditOperation
 
-        operation = CapitalGainOperation.objects.create(
+        operation = CorrectionCreditOperation.objects.create(
             source=self.system,
             destination=self.entity,
             amount=Decimal("1000"),
-            operation_type=OperationType.CAPITAL_GAIN,
+            operation_type=OperationType.CORRECTION_CREDIT,
             date=timezone.now().date(),
             officer=self.officer,
             description="Test",

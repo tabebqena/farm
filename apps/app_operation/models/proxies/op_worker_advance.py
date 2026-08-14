@@ -1,10 +1,10 @@
 from django.core.exceptions import ValidationError
 
-from apps.app_operation.models.operation import Operation
+from apps.app_operation.models.operation import Operation, RepayableTransactionMixin
 from apps.app_transaction.transaction_type import TransactionType
 
 
-class WorkerAdvanceOperation(Operation):
+class WorkerAdvanceOperation(RepayableTransactionMixin, Operation):
     _issuance_transaction_type = TransactionType.WORKER_ADVANCE_ISSUANCE
     _payment_transaction_type = TransactionType.WORKER_ADVANCE_PAYMENT
     _repayment_transaction_type = TransactionType.WORKER_ADVANCE_REPAYMENT

@@ -62,20 +62,26 @@ def operation_list_view(request, person_pk):
 
         if op.has_repayment:
             kind = "repayed"
-            paid = op.amount_repayed or Decimal("0.00")
-            remaining = op.amount_remaining_to_repay or Decimal("0.00")
-            fully_settled = bool(op.is_fully_repayed)
+            paid = getattr(op, "amount_repayed", None) or Decimal("0.00")
+            remaining = getattr(op, "amount_remaining_to_repay", None) or Decimal(
+                "0.00"
+            )
+            fully_settled = bool(getattr(op, "is_fully_repayed", False))
         elif op.is_partially_payable:
             kind = "paid"
-            paid = op.amount_settled or Decimal("0.00")
-            remaining = op.amount_remaining_to_settle or Decimal("0.00")
-            fully_settled = bool(op.is_fully_settled)
+            paid = getattr(op, "amount_settled", None) or Decimal("0.00")
+            remaining = getattr(op, "amount_remaining_to_settle", None) or Decimal(
+                "0.00"
+            )
+            fully_settled = bool(getattr(op, "is_fully_settled", False))
         else:
             # One-shot operations settle fully at creation (reversal voids it).
+            # Non-accounting operations (Birth/Death/Consumption/Capital) have no
+            # settlement mixin — guard the access and treat them as fully settled.
             kind = "one_shot"
-            paid = op.amount_settled or total
+            paid = getattr(op, "amount_settled", None) or total
             remaining = Decimal("0.00")
-            fully_settled = bool(op.is_fully_settled)
+            fully_settled = bool(getattr(op, "is_fully_settled", True))
 
         if remaining < Decimal("0.00"):
             remaining = Decimal("0.00")

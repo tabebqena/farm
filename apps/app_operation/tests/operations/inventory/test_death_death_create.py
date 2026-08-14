@@ -8,8 +8,6 @@ from django.test import TestCase
 from apps.app_entity.models import Entity, EntityType
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import DeathOperation
-from apps.app_operation.tests.base import assert_tx_types
-from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
 
@@ -84,66 +82,32 @@ class DeathCreateTest(TestCase):
     def test_can_pay_config_is_false(self):
         self.assertFalse(DeathOperation.can_pay)
 
-    def test_is_one_shot_operation_config_is_true(self):
-        self.assertTrue(DeathOperation._is_one_shot_operation)
+    def test_is_one_shot_operation_config_is_false(self):
+        """No payment mixin → the one-shot flag is not set for Death."""
+        self.assertFalse(DeathOperation._is_one_shot_operation)
 
     def test_is_partially_payable_config_is_false(self):
         self.assertFalse(DeathOperation.is_partially_payable)
 
     # ------------------------------------------------------------------
-    # Happy path — issuance + payment auto-created on save
+    # No accounting transactions — Death is a stock event
     # ------------------------------------------------------------------
 
-    def test_save_creates_issuance_and_payment_transactions(self):
+    def test_save_creates_no_transactions(self):
         op = self._make_op()
         op.save()
 
         self.assertIsNotNone(op.pk)
+        self.assertEqual(op.get_all_transactions().count(), 0)
 
-        assert_tx_types(
-            self,
-            op,
-            {
-                TransactionType.DEATH_ISSUANCE: 1,
-                TransactionType.DEATH_PAYMENT: 1,
-            },
-        )
-
-    def test_save_creates_exactly_one_issuance_and_one_payment(self):
-        op = self._make_op()
-        op.save()
-
-        assert_tx_types(
-            self,
-            op,
-            {
-                TransactionType.DEATH_ISSUANCE: 1,
-                TransactionType.DEATH_PAYMENT: 1,
-            },
-        )
-
-    def test_transaction_direction_is_project_to_system(self):
-        op = self._make_op()
-        op.save()
-
-        for tx in op.get_all_transactions():
-            self.assertEqual(tx.source, self.project_entity)
-            self.assertEqual(tx.target, self.system_entity)
-
-    def test_transaction_amounts_match_operation(self):
-        op = self._make_op(amount=Decimal("750.00"))
-        op.save()
-
-        for tx in op.get_all_transactions():
-            self.assertEqual(tx.amount, Decimal("750.00"))
-
-    def test_is_fully_settled_after_creation(self):
+    def test_period_is_assigned_and_no_settlement_machinery(self):
         op = self._make_op(amount=Decimal("500.00"))
         op.save()
 
-        self.assertEqual(op.amount_settled, Decimal("500.00"))
-        self.assertTrue(op.is_fully_settled)
-        self.assertEqual(op.amount_remaining_to_settle, Decimal("0.00"))
+        self.assertIsNotNone(op.period, "A covering financial period is assigned")
+        self.assertFalse(hasattr(op, "amount_settled"))
+        self.assertFalse(hasattr(op, "is_fully_settled"))
+        self.assertFalse(hasattr(op, "create_payment_transaction"))
 
     # ------------------------------------------------------------------
     # Source validation — must be a Project entity

@@ -1,4 +1,3 @@
-from collections import Counter
 from datetime import date
 from decimal import Decimal
 
@@ -21,7 +20,6 @@ from apps.app_inventory.tests.general import (
 )
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import ConsumptionOperation, PurchaseOperation
-from apps.app_transaction.transaction_type import TransactionType
 
 
 class ConsumptionReversalTest(TestCase):
@@ -141,21 +139,12 @@ class ConsumptionReversalTest(TestCase):
         state = movement_state(product, as_of=date.today())
         self.assertEqual(state["quantity"], Decimal("5.00"))
 
-    def test_reverse_creates_counter_transactions(self):
+    def test_reverse_creates_no_transactions(self):
         op, _ = self._make_consumed()
         op.reverse(officer=self.officer_user, reason="test reversal")
 
-        counter = op.get_all_transactions().filter(reversal_of__isnull=False)
-        self.assertEqual(counter.count(), 2)
-        self.assertEqual(
-            dict(
-                Counter(counter.values_list("type", flat=True))
-            ),
-            {
-                TransactionType.CONSUMPTION_ISSUANCE: 1,
-                TransactionType.CONSUMPTION_PAYMENT: 1,
-            },
-        )
+        self.assertEqual(op.get_all_transactions().count(), 0)
+        self.assertEqual(op.reversed_by.get_all_transactions().count(), 0)
 
     def test_reverse_movement_ledger_negation_exact_set(self):
         """Every CONSUMPTION movement line must have an exact reversal
@@ -184,11 +173,12 @@ class ConsumptionReversalTest(TestCase):
         self.assertEqual(product.status, Product.Status.ACTIVE)
 
     # ------------------------------------------------------------------
-    # COGS / P&L behaviour (Option B)
+    # Inventory-value behaviour (no longer affects profit_loss directly)
     # ------------------------------------------------------------------
 
-    def test_reverse_restores_profit_loss(self):
-        """Reversing a consumption must negate its COGS effect and restore profit."""
+    def test_reverse_does_not_change_profit_loss(self):
+        """Reversing a consumption must not change profit_loss() — the value
+        effect flows through inventory value instead."""
         op, _ = self._make_consumed()
         profit_with_consumption = self.project_entity.profit_loss()
 
@@ -196,8 +186,8 @@ class ConsumptionReversalTest(TestCase):
 
         self.assertEqual(
             self.project_entity.profit_loss(),
-            profit_with_consumption + Decimal("500.00"),
-            "A reversed consumption must no longer reduce profit.",
+            profit_with_consumption,
+            "Reversing a consumption must not change profit_loss().",
         )
 
     def test_reverse_keeps_fund_balance_unchanged(self):

@@ -544,12 +544,15 @@ class Entity(ImmutableMixin, BaseModel):
         P&L for a project fund, driven entirely by issuance/adjustment transactions.
 
         Income  (target=fund): SALE_ISSUANCE, PURCHASE_ISSUANCE (project as vendor),
-                               CAPITAL_GAIN_ISSUANCE, CORRECTION_CREDIT_ISSUANCE,
+                               CORRECTION_CREDIT_ISSUANCE,
                                plus SALE/PURCHASE adjustment INCREASE; minus DECREASE.
-        Costs   (source=fund): PURCHASE_ISSUANCE, EXPENSE_ISSUANCE, CAPITAL_LOSS_ISSUANCE,
+        Costs   (source=fund): PURCHASE_ISSUANCE, EXPENSE_ISSUANCE,
                                CORRECTION_DEBIT_ISSUANCE, SALE_ISSUANCE (project as client),
-                               CONSUMPTION_ISSUANCE (consumed feed/medicine as COGS),
                                plus PURCHASE/SALE/EXPENSE adjustment INCREASE; minus DECREASE.
+
+        Capital Gain / Loss and Consumption are NOT accounting transactions anymore:
+        they are stock events whose P&L effect flows through inventory value
+        (`stock.inventory_value()` / `FinancialPeriod.end_assets`) instead of P&L.
 
         Reversal transactions are negated so that cross-period reversals land in the
         correct period with the correct sign.
@@ -598,7 +601,6 @@ class Entity(ImmutableMixin, BaseModel):
                 target=fund,
                 type__in=[
                     TransactionType.SALE_ISSUANCE,
-                    TransactionType.CAPITAL_GAIN_ISSUANCE,
                     TransactionType.CORRECTION_CREDIT_ISSUANCE,
                     TransactionType.PURCHASE_ISSUANCE,  # project as vendor
                     TransactionType.SALE_ADJUSTMENT_INCREASE,
@@ -624,26 +626,12 @@ class Entity(ImmutableMixin, BaseModel):
                 type__in=[
                     TransactionType.PURCHASE_ISSUANCE,
                     TransactionType.EXPENSE_ISSUANCE,
-                    TransactionType.CAPITAL_LOSS_ISSUANCE,
                     TransactionType.CORRECTION_DEBIT_ISSUANCE,
                     TransactionType.SALE_ISSUANCE,  # project as client
-                    TransactionType.CONSUMPTION_ISSUANCE,  # consumed feed/medicine as COGS
                     TransactionType.PURCHASE_ADJUSTMENT_INCREASE,
                     TransactionType.SALE_ADJUSTMENT_INCREASE,  # project as client
                     TransactionType.EXPENSE_ADJUSTMENT_INCREASE,
                 ],
-                **tx_valid,
-            )
-        )
-        # A reversal of a consumption issuance is a mirror transaction
-        # (source↔target swapped), so it lands here as target=fund with
-        # CONSUMPTION_ISSUANCE and reversal_of set. `_signed_sum` negates
-        # reversals, so adding this sum offsets the original COGS and restores
-        # profit when a consumption is reversed.
-        costs += _signed_sum(
-            Transaction.objects.filter(
-                target=fund,
-                type__in=[TransactionType.CONSUMPTION_ISSUANCE],
                 **tx_valid,
             )
         )

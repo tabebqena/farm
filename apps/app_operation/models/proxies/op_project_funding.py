@@ -1,11 +1,11 @@
 from django.core.exceptions import ValidationError
 
 from apps.app_entity.models import EntityType
-from apps.app_operation.models.operation import Operation
+from apps.app_operation.models.operation import Operation, TransactionMixin
 from apps.app_transaction.transaction_type import TransactionType
 
 
-class ProjectFundingOperation(Operation):
+class ProjectFundingOperation(TransactionMixin, Operation):
     _issuance_transaction_type = TransactionType.PROJECT_FUNDING_ISSUANCE
     _payment_transaction_type = TransactionType.PROJECT_FUNDING_PAYMENT
 

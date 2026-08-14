@@ -545,7 +545,7 @@ COVERAGE_MANIFEST: dict[tuple[str, str, str], str] = {
     # ------------------------------------------------------------------ BIRTH
     ("BIRTH", "create", "SE2"): _path(
         f"{_OPS_TESTS}.birth.test_birth_birth_create",
-        "BirthCreateTest", "test_save_creates_issuance_and_payment_transactions"),
+        "BirthCreateTest", "test_save_creates_no_transactions"),
     ("BIRTH", "create", "SE5"): _path(
         f"{_OPS_TESTS}.birth.test_birth_birth_create",
         "BirthCreateTest", "test_create_writes_movement_and_issuance_ledger_entries"),
@@ -560,7 +560,7 @@ COVERAGE_MANIFEST: dict[tuple[str, str, str], str] = {
         "BirthReversalTest", "test_reverse_creates_reversal_record"),
     ("BIRTH", "reverse", "SE2"): _path(
         f"{_OPS_TESTS}.birth.test_birth_birth_reversal",
-        "BirthReversalTest", "test_reverse_creates_counter_transactions"),
+        "BirthReversalTest", "test_reverse_creates_no_transactions"),
     ("BIRTH", "reverse", "SE5"): _path(
         f"{_OPS_TESTS}.birth.test_birth_birth_reversal",
         "BirthReversalTest", "test_reverse_movement_ledger_negation_exact_set"),
@@ -577,13 +577,13 @@ COVERAGE_MANIFEST: dict[tuple[str, str, str], str] = {
     # ------------------------------------------------------------------ DEATH
     ("DEATH", "create", "SE2"): _path(
         f"{_OPS_TESTS}.inventory.test_death_death_create",
-        "DeathCreateTest", "test_save_creates_issuance_and_payment_transactions"),
+        "DeathCreateTest", "test_save_creates_no_transactions"),
     ("DEATH", "reverse", "SE1"): _path(
         f"{_OPS_TESTS}.inventory.test_death_death_reversal",
         "DeathReversalTest", "test_reverse_creates_reversal_record"),
     ("DEATH", "reverse", "SE2"): _path(
         f"{_OPS_TESTS}.inventory.test_death_death_reversal",
-        "DeathReversalTest", "test_reverse_creates_counter_transactions"),
+        "DeathReversalTest", "test_reverse_creates_no_transactions"),
     ("DEATH", "reverse", "SE5"): _path(
         f"{_OPS_TESTS}.inventory.test_death_death_reversal",
         "DeathReversalTest", "test_reverse_movement_ledger_negation_exact_set"),
@@ -600,7 +600,7 @@ COVERAGE_MANIFEST: dict[tuple[str, str, str], str] = {
     # ------------------------------------------------------------ CONSUMPTION
     ("CONSUMPTION", "create", "SE2"): _path(
         f"{_OPS_TESTS}.inventory.test_consumption_consumption_create",
-        "ConsumptionCreateTest", "test_create_creates_issuance_and_payment_transactions"),
+        "ConsumptionCreateTest", "test_create_creates_no_transactions"),
     ("CONSUMPTION", "create", "SE5"): _path(
         f"{_OPS_TESTS}.inventory.test_consumption_consumption_create",
         "ConsumptionCreateTest", "test_create_writes_movement_and_issuance_ledger_entries"),
@@ -615,7 +615,7 @@ COVERAGE_MANIFEST: dict[tuple[str, str, str], str] = {
         "ConsumptionReversalTest", "test_reverse_creates_reversal_record"),
     ("CONSUMPTION", "reverse", "SE2"): _path(
         f"{_OPS_TESTS}.inventory.test_consumption_consumption_reversal",
-        "ConsumptionReversalTest", "test_reverse_creates_counter_transactions"),
+        "ConsumptionReversalTest", "test_reverse_creates_no_transactions"),
     ("CONSUMPTION", "reverse", "SE5"): _path(
         f"{_OPS_TESTS}.inventory.test_consumption_consumption_reversal",
         "ConsumptionReversalTest", "test_reverse_movement_ledger_negation_exact_set"),
@@ -632,7 +632,7 @@ COVERAGE_MANIFEST: dict[tuple[str, str, str], str] = {
     # ------------------------------------------------------------ CAPITAL_GAIN
     ("CAPITAL_GAIN", "create", "SE2"): _path(
         f"{_OPS_TESTS}.capital.test_capital_gain_capital_gain_create",
-        "CapitalGainCreateTest", "test_creates_issuance_and_payment_transactions"),
+        "CapitalGainCreateTest", "test_save_creates_no_transactions"),
     ("CAPITAL_GAIN", "create", "SE3"): _path(
         f"{_OPS_TESTS}.capital.test_capital_gain_capital_gain_create",
         "CapitalGainCreateTest", "test_project_fund_unchanged_by_gain_amount"),
@@ -641,7 +641,7 @@ COVERAGE_MANIFEST: dict[tuple[str, str, str], str] = {
         "CapitalGainReversalTest", "test_reverse_creates_reversal_operation"),
     ("CAPITAL_GAIN", "reverse", "SE2"): _path(
         f"{_OPS_TESTS}.capital.test_capital_gain_capital_gain_reversal",
-        "CapitalGainReversalTest", "test_reverse_creates_counter_transactions"),
+        "CapitalGainReversalTest", "test_reverse_creates_no_transactions"),
     ("CAPITAL_GAIN", "reverse", "SE3"): _path(
         f"{_OPS_TESTS}.capital.test_capital_gain_capital_gain_reversal",
         "CapitalGainReversalTest", "test_project_fund_unchanged_after_reversal"),
@@ -655,7 +655,7 @@ COVERAGE_MANIFEST: dict[tuple[str, str, str], str] = {
     # ------------------------------------------------------------ CAPITAL_LOSS
     ("CAPITAL_LOSS", "create", "SE2"): _path(
         f"{_OPS_TESTS}.capital.test_capital_loss_capital_loss_create",
-        "CapitalLossCreateTest", "test_creates_issuance_and_payment_transactions"),
+        "CapitalLossCreateTest", "test_save_creates_no_transactions"),
     ("CAPITAL_LOSS", "create", "SE3"): _path(
         f"{_OPS_TESTS}.capital.test_capital_loss_capital_loss_create",
         "CapitalLossCreateTest", "test_project_fund_unchanged_by_loss_amount"),
@@ -664,7 +664,7 @@ COVERAGE_MANIFEST: dict[tuple[str, str, str], str] = {
         "CapitalLossReversalTest", "test_reverse_creates_reversal_operation"),
     ("CAPITAL_LOSS", "reverse", "SE2"): _path(
         f"{_OPS_TESTS}.capital.test_capital_loss_capital_loss_reversal",
-        "CapitalLossReversalTest", "test_reverse_creates_counter_transactions"),
+        "CapitalLossReversalTest", "test_reverse_creates_no_transactions"),
     ("CAPITAL_LOSS", "reverse", "SE3"): _path(
         f"{_OPS_TESTS}.capital.test_capital_loss_capital_loss_reversal",
         "CapitalLossReversalTest", "test_project_fund_unchanged_after_reversal"),
@@ -917,7 +917,7 @@ COVERAGE_MANIFEST: dict[tuple[str, str, str], str] = {
         "EntityObligationRepaymentReversalTests", "test_reversed_repayment_does_not_create_phantom_payables"),
     ("CAPITAL_GAIN", "create", "SE2+auto"): _path(
         f"{_TXN_TESTS}",
-        "TransactionAutoCreationTests", "test_capital_gain_creates_issuance_transaction"),
+        "TransactionAutoCreationTests", "test_correction_credit_creates_transactions"),
 }
 
 

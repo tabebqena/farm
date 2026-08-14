@@ -1,10 +1,10 @@
 from django.core.exceptions import ValidationError
 
-from apps.app_operation.models.operation import Operation
+from apps.app_operation.models.operation import Operation, TransactionMixin
 from apps.app_transaction.transaction_type import TransactionType
 
 
-class CashWithdrawalOperation(Operation):
+class CashWithdrawalOperation(TransactionMixin, Operation):
     _issuance_transaction_type = TransactionType.CAPITAL_WITHDRAWAL_ISSUANCE
     _payment_transaction_type = TransactionType.CAPITAL_WITHDRAWAL_PAYMENT
 

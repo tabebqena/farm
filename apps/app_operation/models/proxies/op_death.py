@@ -1,7 +1,6 @@
 from django.core.exceptions import ValidationError
 
 from apps.app_operation.models.operation import Operation
-from apps.app_transaction.transaction_type import TransactionType
 
 
 class DeathOperation(Operation):
@@ -15,9 +14,6 @@ class DeathOperation(Operation):
     rather than merely devalued.
     """
 
-    _issuance_transaction_type = TransactionType.DEATH_ISSUANCE
-    _payment_transaction_type = TransactionType.DEATH_PAYMENT
-
     url_str = "death"
     label = "Death"
     _source_role = "url"
@@ -27,22 +23,12 @@ class DeathOperation(Operation):
     is_partially_payable = False
     has_category = False
     category_required = False
-    _is_one_shot_operation = True
     has_repayment = False
-    max_payment_transaction_count = 1
     has_invoice = True
 
     class Meta:
         proxy = True
         verbose_name = "Death"
-
-    @property
-    def payment_source_fund(self):
-        return self.source  # project absorbing the write-off
-
-    @property
-    def payment_target_fund(self):
-        return self.destination  # system entity — exempt from balance validation
 
     def clean_source(self):
         if not self.source.is_project:

@@ -1,7 +1,7 @@
 # Death — Operation Contract
 
-**Epic:** Inventory / Livestock — One-Shot
-**Type:** One-shot, auto-settled, removes assets (`has_invoice=True`)
+**Epic:** Inventory / Livestock — One-Shot (stock event)
+**Type:** Stock event (no accounting transactions), removes assets (`has_invoice=True`)
 **Actions:** `create`, `move items` (auto), `reverse`
 **Contract status:** v2 (widened) — all branches recorded, business logic registered, test coverage mapped.
 
@@ -31,13 +31,9 @@
 
 | Flag | Value | Meaning |
 |------|-------|---------|
-| `_issuance_transaction_type` | `DEATH_ISSUANCE` | issuance tx created on save |
-| `_payment_transaction_type` | `DEATH_PAYMENT` | payment tx created on save (one-shot) — **non-cash bookkeeping** |
-| `_is_one_shot_operation` | `True` | payment fires at create; no standalone pay action |
-| `can_pay` | `False` | `process_payment()` is a no-op |
-| `is_partially_payable` | `False` | payment must equal amount (one-shot) |
-| `max_payment_transaction_count` | `1` | exactly one payment tx ever |
-| `check_balance_on_payment` | `False` | write-off — no fund-balance check at create |
+| `can_pay` | `False` | no payment action |
+| `is_partially_payable` | `False` | n/a (no settlement) |
+| `check_balance_on_payment` | `False` | n/a (no payment) |
 | `has_category` / `category_required` | `False` | no financial category |
 | `has_repayment` | `False` | no repayment action |
 | `has_invoice` | `True` | invoice items (selected existing products) + auto inventory movements |
@@ -65,26 +61,20 @@ The tables below **register every file that implements this operation**. The spe
 | Immutability of `source`/`destination`/`amount`/`period` | `ImmutableMixin` + `_immutable_fields` |
 | Amount must be > 0 | `AmountCleanMixin` |
 | Officer must be staff + active | `OfficerMixin` |
-| Source fund exists + active | `SourceFundMixin` |
-| Target fund exists + active | `TargetFundMixin` |
-| Issuance tx creation on save | `LinkedIssuanceTransactionMixin` |
-| One-shot payment tx creation + settlement (`amount_settled`, `is_fully_settled`) | `LinkedPaymentTransactionMixin` |
-| Reversal mechanics (clone, `reversal_of`, implicit tx reversal, guards) | `ReversableModel` + `Operation.reverse()` |
+| Reversal mechanics (clone, `reversal_of`, guards) | `ReversableModel` + `Operation.reverse()` |
+| Effective amount == amount (not adjustable) | `Operation.effective_amount` (base fallback) |
 
 ### 2.3 Transaction layer
 
 | Concern | Implementing code |
 |---------|-------------------|
-| `Transaction` model + `create()` (entity-type + operation-type guards) + `reverse()` | |
-| `DEATH_ISSUANCE` (project → system, no balance) | |
-| `DEATH_PAYMENT` (project → system, **non-cash — excluded from `payment_types()`**) | |
+| **None** — Death creates no `Transaction` rows | (no transaction mixins inherited) |
 
 ### 2.4 Entity / balance layer
 
 | Concern | Implementing code |
 |---------|-------------------|
-| Balance derivation (payment types only — `DEATH_PAYMENT` excluded, so a death never drains a fund balance) | `Entity.balance_at` |
-| Virtual/system-entity payment exemption | `Entity.can_pay` |
+| Fund balance never affected (no payment) | `Entity.balance_at` (no Death tx types are payment types) |
 | Open financial period auto-created on entity creation | `Entity.save()` |
 
 ### 2.5 Inventory layer (death-specific)
@@ -125,33 +115,17 @@ The tables below **register every file that implements this operation**. The spe
 
 ## 3. Money flow & entities
 
-- **Source (payer):** the **Project** entity in the URL (`is_project=True`). Its fund is the source fund; the project owns the dead asset.
-- **Destination (receiver):** the single **System** entity (`is_system=True`). Virtual — never balance-checked, exempt from fund-balance validation (`payment_target_fund`).
-- **Transaction flow** (both on create, project → system):
-
-| # | Type | Direction | Balance effect |
-|---|------|-----------|----------------|
-| 1 | `DEATH_ISSUANCE` | `project.fund → system.fund` | none (issuance, not a payment type) |
-| 2 | `DEATH_PAYMENT` | `project.fund → system.fund` | **none** — non-cash bookkeeping, **excluded from `payment_types()`** |
-
-- **Payment source fund:** `self.source` (project)
-- **Payment target fund:** `self.destination` (system)
-> **No cash flow.** A death reduces the project's `end_assets` **exactly once**, via movement-based inventory value (the dead animal's carried cost, `inventory_value()`). `DEATH_PAYMENT` is non-cash — it never drains the project's fund balance (not in `payment_types()`, so no balance/payable/receivable effect).
+- **Source (role):** the **Project** entity in the URL (`is_project=True`). It owns the dead asset.
+- **Destination (role):** the single **System** entity (`is_system=True`). Virtual.
+- **No transactions are created.** A death reduces the project's `end_assets` **exactly once**, via movement-based inventory value (the dead animal's carried cost, `inventory_value()`). The project's fund balance, payables and receivables are never affected.
 
 ---
 
 ## 4. Settlement model
 
-Derived from `LinkedPaymentTransactionMixin` using payment-type transactions only (note: `DEATH_PAYMENT` is **not** a payment type for balance purposes, but it *is* the one-shot settlement transaction for this operation):
-
-| Property | After create | After reverse |
-|----------|--------------|---------------|
-| `amount_settled` | `== amount` | `0.00` |
-| `total_settlable_amount` (`effective_amount`) | `== amount` (no adjustments) | unchanged |
-| `amount_remaining_to_settle` | `0.00` | `== amount` |
-| `is_fully_settled` | `True` | `False` |
-
-Because the operation is one-shot and never adjustable, settlement is **immediate and terminal** — there is no standalone `pay` action.
+There is **no settlement model** — Death does not inherit the payment/settlement machinery.
+`amount_settled`, `is_fully_settled`, `amount_remaining_to_settle`, `payment_transactions` do
+**not** exist on a `DeathOperation`. The operation's value lives in inventory.
 
 ---
 
@@ -159,7 +133,7 @@ Because the operation is one-shot and never adjustable, settlement is **immediat
 
 ### 5.1 `create`
 
-Entry points: model `DeathOperation.save()` (tests) or `Operation.create()` (view). Both converge on `save()` → `full_clean()` → `post_save_tasks` (issuance tx, then payment tx), then the invoice formset → `save_inventory()` → `_auto_create_inventory_movements()`.
+Entry points: model `DeathOperation.save()` (tests) or `Operation.create()` (view). Both converge on `save()` → `full_clean()`, then the invoice formset → `save_inventory()` → `_auto_create_inventory_movements()`.
 
 #### 5.1.1 Validation branches
 
@@ -169,19 +143,13 @@ Entry points: model `DeathOperation.save()` (tests) or `Operation.create()` (vie
 | VC2 | Destination is System | `destination.is_system` | `ValidationError` | `"Death destination must be the System entity."` | `clean_destination` | |
 | VC3 | Source entity active | `source.active` | `ValidationError` | `"Entity '%(name)s' must be active…"` | `Operation.clean()` | |
 | VC4 | Destination entity active | `destination.active` | `ValidationError` | same as VC3 | `Operation.clean()` | shared engine suite |
-| VC5 | Source fund active | `payment_source_fund.active` | `ValidationError` | `"The Payment source entity should be active."` | `SourceFundMixin` | shared engine suite |
-| VC6 | Target fund active | `payment_target_fund.active` | `ValidationError` | `"The Payment target entity should be active."` | `TargetFundMixin` | shared engine suite |
-| VC7 | Amount positive | `amount > 0` | `ValidationError` | `"Amount should be positive, got …"` | `AmountCleanMixin` | |
-| VC8 | Officer is staff | `officer.is_staff` | `ValidationError` | `"Officer should be a staff user."` | `OfficerMixin` | |
-| VC9 | Officer active | `officer.is_active` | `ValidationError` | `"Officer should be an active user."` | `OfficerMixin` | shared engine suite |
-| VC10 | Date not in a closed period (both entities) | no closed period contains `date` | `ValidationError` | `"Cannot create an operation whose date falls within a closed financial period."` | `Operation.clean()` | period suite |
-| VC11 | A covering financial period exists | `period_entity` has a period containing `date` | `ValidationError` | `"Cannot create an operation: no financial period covers this operation's date."` | `Operation.save()` | period suite |
-| VC12 | Balance exempt (write-off) | no balance check | never fails | — | `check_balance_on_payment=False` | structural (`can_pay`-less one-shot) |
-| VC13 | Tx entity-type contract | `source.is_project` and `target.is_system` | `ValidationError` | `"Transaction type '…' has invalid entity types: …"` | `Transaction.create()` | implied by VC1/VC2 (model clean blocks first) |
-| VC14 | Tx operation-type allowed | document is `DEATH` | `ValidationError` | `"Transaction type '…' is not allowed for operation '…'."` | `Transaction.create()` | implied by VC1/VC2 |
-| VC15 | Source ≠ target | project ≠ system | always true | `"Source and target funds must be different."` | `Transaction.clean()` | structural (project ≠ system) |
-| VC16 | Template is die-able ANIMAL | `nature == ANIMAL` **and** `can_die=True` | `ValidationError` | template rejected by `accepts_operation(DEATH)` | `ProductTemplate.accepts_operation` | |
-| VC17 | Product linked (must be an existing asset) | `selected_product` present on the invoice item | form/`ValidationError` | missing-product error | `InvoiceItemSelectFormSet` + `save_inventory` | implied by create flow |
+| VC5 | Amount positive | `amount > 0` | `ValidationError` | `"Amount should be positive, got …"` | `AmountCleanMixin` | |
+| VC6 | Officer is staff | `officer.is_staff` | `ValidationError` | `"Officer should be a staff user."` | `OfficerMixin` | |
+| VC7 | Officer active | `officer.is_active` | `ValidationError` | `"Officer should be an active user."` | `OfficerMixin` | shared engine suite |
+| VC8 | Date not in a closed period (both entities) | no closed period contains `date` | `ValidationError` | `"Cannot create an operation whose date falls within a closed financial period."` | `Operation.clean()` | period suite |
+| VC9 | A covering financial period exists | `period_entity` has a period containing `date` | `ValidationError` | `"Cannot create an operation: no financial period covers this operation's date."` | `Operation.save()` | period suite |
+| VC10 | Template is die-able ANIMAL | `nature == ANIMAL` **and** `can_die=True` | `ValidationError` | template rejected by `accepts_operation(DEATH)` | `ProductTemplate.accepts_operation` | |
+| VC11 | Product linked (must be an existing asset) | `selected_product` present on the invoice item | form/`ValidationError` | missing-product error | `InvoiceItemSelectFormSet` + `save_inventory` | implied by create flow |
 | VC18 | Ownership — product belongs to source project | `selected.entity == inventory_owner_entity` | `ValidationError` | `"Product '%(p)s' does not belong to '%(entity)s' and cannot be used in this operation."` | `save_inventory` | shared inventory suite |
 | VC19 | Availability — quantity ≤ on-hand | `quantity ≤ movement_state(product).quantity` | `ValidationError` | availability error | `InventoryMovementLine.clean` + `_auto_create_inventory_movements` | shared inventory suite |
 | VC20 | Unit consistency | quantity is a multiple of `product_template.minimum_quantity` | `ValidationError` | unit-step error | inventory form / movement clean | shared inventory suite |
@@ -190,13 +158,13 @@ Entry points: model `DeathOperation.save()` (tests) or `Operation.create()` (vie
 
 | # | Effect | Detail / invariant | Implemented by | Verified by |
 |---|--------|--------------------|----------------|-------------|
-| SC1 | Issuance tx created | 1 × `DEATH_ISSUANCE`, amount `== op.amount`, `project → system` | `LinkedIssuanceTransactionMixin.save()` | |
-| SC2 | Payment tx created (non-cash) | 1 × `DEATH_PAYMENT`, amount `== op.amount`, `project → system`; **not** a `payment_types()` type → no balance/payable/receivable effect | `LinkedPaymentTransactionMixin.save()` | |
-| SC3 | Tx amounts equal op amount | both txs `amount == op.amount` | transaction creation | |
-| SC4 | Tx fund direction | both txs `source=project`, `target=system` | | |
-| SC5 | Fully settled immediately | `amount_settled == amount`, `remaining == 0`, `is_fully_settled` | `LinkedPaymentTransactionMixin` | |
-| SC6 | No cash flow | project fund balance unchanged (payment non-cash); system (virtual) ▲ in bookkeeping only | `payment_types()` exclusion + `Entity.balance_at` | differential invariant |
-| SC7 | Auto outbound movement lines | one movement line per item at item qty, valued at the product's carried cost | `_auto_create_inventory_movements` | (setup) |
+| SC1 | No transactions created | `get_all_transactions().count() == 0` (no issuance, no payment) | (no transaction mixins) | |
+| SC2 | No settlement machinery | `amount_settled`/`is_fully_settled`/`create_payment_transaction` absent | (no payment mixin) | |
+| SC3 | Auto outbound movement lines | one movement line per item at item qty, valued at the product's carried cost | `_auto_create_inventory_movements` | (setup) |
+| SC4 | Status DEAD | the written-off product `status == DEAD` | `Product.status` | |
+| SC5 | Inventory value drops once | `inventory_value()` decreases by the carried cost | `movement_state` + `inventory_value` | |
+| SC6 | Period auto-assigned | `period` = the project's covering period | `Operation.save()` | covered by period suite |
+| SC7 | Fund balance unchanged | `balance_at()` unaffected (no payment) | `Entity.balance_at` | |
 | SC8 | Product status DEAD | the written-off product's movement-based `status == DEAD` | `Product.status` | |
 | SC9 | Inventory value decreased once | `movement_state(product)` → net outbound; `inventory_value()` drops by the dead value; `end_assets` ▼ once (via inventory, not cash) | `movement_state` + `inventory_value` | (baseline before reversal) |
 | SC10 | Period auto-assigned | `period` = the project's covering period (open period auto-created at entity creation) | `Operation.save()` + `Entity.save()` | covered by period suite |
@@ -288,13 +256,13 @@ There is **no standalone pay action** for Death:
 
 **create — validation:** VC1 source=project · VC2 dest=system · VC3 source active · VC4 dest active · VC5 source fund active · VC6 target fund active · VC7 amount>0 · VC8 officer staff · VC9 officer active · VC10 not closed-period · VC11 covering period exists · VC12 balance exempt · VC13 tx entity-type · VC14 tx op-type · VC15 source≠target · VC16 die-able ANIMAL (`can_die`) · VC17 product linked · VC18 ownership · VC19 availability ≤ on-hand · VC20 unit multiple
 
-**create — effects:** SC1 issuance tx · SC2 non-cash payment tx · SC3 amounts equal · SC4 direction project→system · SC5 settled immediately · SC6 no cash flow · SC7 auto outbound lines · SC8 status DEAD · SC9 inventory value ▼ once · SC10 period assigned
+**create — effects:** SC1 no transactions · SC2 no settlement machinery · SC3 auto outbound lines · SC4 status DEAD · SC5 inventory value ▼ once · SC6 period assigned · SC7 fund balance unchanged
 
 **reverse — validation:** VR1 not reversed · VR2 not a reversal · VR3 no explicit txs · VR4 reversal dependency guard · VR5 no adjustments (n/a) · VR6 reason required (view)
 
-**reverse — effects:** SR1 reversal record · SR2 original reversed · SR3 identity copied · SR4 issuance counter-tx · SR5 payment counter-tx · SR6 type/amount preserved · SR7 auto lines reversed · SR8 ledger negated · SR9 status restored to ACTIVE · SR10 reversal owns no txs · SR11 differential invariant
+**reverse — effects:** SR1 reversal record · SR2 original reversed · SR3 identity copied · SR4 no counter-txs · SR5 auto lines reversed · SR6 ledger negated · SR7 status restored to ACTIVE · SR8 differential invariant
 
-**pay / immutability:** BP1 `process_payment` no-op · BP2 `create_payment_transaction` blocked after create · IM1/IM2/IM3 source/destination/amount immutable
+**immutability:** IM1/IM2/IM3 source/destination/amount immutable
 
 ---
 

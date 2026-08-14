@@ -2,9 +2,9 @@
 
 A single POST from the stock detail page must create the full consumption
 pipeline by reusing ``ConsumptionOperation.create(...)``:
-ConsumptionOperation + invoice item + auto movement line +
-``CONSUMPTION_ISSUANCE`` + ``CONSUMPTION_PAYMENT`` transactions +
-``CONSUMPTION_MOVEMENT`` movement line, and mark the product ``CONSUMED``.
+ConsumptionOperation + invoice item + auto movement line (no Transactions —
+Consumption is a stock event, not an accounting operation), and mark the
+product ``CONSUMED``.
 """
 
 from datetime import date
@@ -30,8 +30,6 @@ from apps.app_inventory.tests.general import (
 from apps.app_operation.models.operation import Operation
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import PurchaseOperation
-from apps.app_operation.tests.base import assert_tx_types
-from apps.app_transaction.transaction_type import TransactionType
 
 
 class QuickConsumeFromStockTest(TestCase):
@@ -130,15 +128,8 @@ class QuickConsumeFromStockTest(TestCase):
         self.assertEqual(ml.product, product)
         self.assertEqual(ml.quantity, Decimal("5.00"))
 
-        # Issuance + payment transactions
-        assert_tx_types(
-            self,
-            op,
-            {
-                TransactionType.CONSUMPTION_ISSUANCE: 1,
-                TransactionType.CONSUMPTION_PAYMENT: 1,
-            },
-        )
+        # Consumption is a stock event — NO transactions are created.
+        self.assertEqual(op.get_all_transactions().count(), 0)
 
         # The movement line is the physical event: stock state is fully written off.
         state = movement_state(product, as_of=date.today())

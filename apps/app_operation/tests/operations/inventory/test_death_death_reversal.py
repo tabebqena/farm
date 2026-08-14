@@ -1,4 +1,3 @@
-from collections import Counter
 from datetime import date
 from decimal import Decimal
 
@@ -21,7 +20,6 @@ from apps.app_inventory.tests.general import (
 )
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import DeathOperation, PurchaseOperation
-from apps.app_transaction.transaction_type import TransactionType
 
 
 class DeathReversalTest(TestCase):
@@ -121,22 +119,16 @@ class DeathReversalTest(TestCase):
         self.assertEqual(op.reversed_by, reversal)
 
     # ------------------------------------------------------------------
-    # SE2 — counter transactions
+    # No accounting transactions
     # ------------------------------------------------------------------
 
-    def test_reverse_creates_counter_transactions(self):
+    def test_reverse_creates_no_transactions(self):
+        """Reversing a death must NOT create any counter-transactions."""
         op, _ = self._make_dead()
         op.reverse(officer=self.officer_user, reason="test reversal")
 
-        counter = op.get_all_transactions().filter(reversal_of__isnull=False)
-        self.assertEqual(counter.count(), 2)
-        self.assertEqual(
-            dict(Counter(counter.values_list("type", flat=True))),
-            {
-                TransactionType.DEATH_ISSUANCE: 1,
-                TransactionType.DEATH_PAYMENT: 1,
-            },
-        )
+        self.assertEqual(op.get_all_transactions().count(), 0)
+        self.assertEqual(op.reversed_by.get_all_transactions().count(), 0)
 
     # ------------------------------------------------------------------
     # SE6 — movement lines reversed

@@ -8,8 +8,6 @@ from django.test import TestCase
 from apps.app_entity.models import Entity, EntityType
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import CapitalGainOperation
-from apps.app_operation.tests.base import assert_tx_types
-from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
 
@@ -39,50 +37,28 @@ class CapitalGainCreateTest(TestCase):
         return CapitalGainOperation(**defaults)
 
     # ------------------------------------------------------------------
-    # Happy path
+    # No accounting transactions — Capital Gain is a stock event
     # ------------------------------------------------------------------
 
-    def test_creates_issuance_and_payment_transactions(self):
+    def test_save_creates_no_transactions(self):
         op = self._make_op()
         op.save()
 
         self.assertIsNotNone(op.pk)
+        self.assertEqual(op.get_all_transactions().count(), 0)
 
-        assert_tx_types(
-            self,
-            op,
-            {
-                TransactionType.CAPITAL_GAIN_ISSUANCE: 1,
-                TransactionType.CAPITAL_GAIN_PAYMENT: 1,
-            },
-        )
-
-    def test_transaction_amounts_match_operation(self):
-        op = self._make_op(amount=Decimal("300.00"))
-        op.save()
-
-        for tx in op.get_all_transactions():
-            self.assertEqual(tx.amount, Decimal("300.00"))
-
-    def test_transaction_funds_are_correct(self):
-        op = self._make_op()
-        op.save()
-
-        for tx in op.get_all_transactions():
-            self.assertEqual(tx.source, self.system_entity)
-            self.assertEqual(tx.target, self.project_entity)
-
-    def test_is_fully_settled_after_creation(self):
+    def test_period_is_assigned_and_no_settlement_machinery(self):
         op = self._make_op(amount=Decimal("500.00"))
         op.save()
 
-        self.assertEqual(op.amount_settled, Decimal("500.00"))
-        self.assertTrue(op.is_fully_settled)
-        self.assertEqual(op.amount_remaining_to_settle, Decimal("0.00"))
+        self.assertIsNotNone(op.period, "A covering financial period is assigned")
+        self.assertFalse(hasattr(op, "amount_settled"))
+        self.assertFalse(hasattr(op, "is_fully_settled"))
+        self.assertFalse(hasattr(op, "create_payment_transaction"))
 
     def test_project_fund_unchanged_by_gain_amount(self):
-        """A capital gain is non-cash — the fund balance is not inflated; the
-        gain is reflected in movement-based inventory and in profit_loss."""
+        """A capital gain is non-cash and non-accounting — the fund balance is
+        not inflated; the gain is reflected in movement-based inventory value."""
         balance_before = self.project_entity.balance
 
         op = self._make_op(amount=Decimal("750.00"))
@@ -201,19 +177,14 @@ class CapitalGainCreateTest(TestCase):
             op.save()
 
     # ------------------------------------------------------------------
-    # One-shot constraint
+    # No payment machinery
     # ------------------------------------------------------------------
 
-    def test_one_shot_prevents_second_payment(self):
+    def test_cannot_be_paid(self):
+        """Capital Gain has no payment machinery — no standalone pay action."""
         op = self._make_op()
         op.save()
-
-        with self.assertRaises(ValidationError):
-            op.create_payment_transaction(
-                amount=op.amount,
-                officer=self.officer_user,
-                date=date.today(),
-            )
+        self.assertFalse(hasattr(op, "create_payment_transaction"))
 
     # ------------------------------------------------------------------
     # check_balance_on_payment

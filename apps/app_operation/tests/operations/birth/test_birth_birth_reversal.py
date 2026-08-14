@@ -1,4 +1,3 @@
-from collections import Counter
 from datetime import date
 from decimal import Decimal
 
@@ -15,15 +14,14 @@ from apps.app_inventory.models import (
 from apps.app_inventory.stock import movement_state
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import BirthOperation
-from apps.app_operation.tests.base import assert_tx_types
-from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
 
 
 class BirthReversalTest(TestCase):
     """Reversing a birth reverses its auto-created movement lines and negates
-    the ledger while the reversal record and counter-transactions are created."""
+    the ledger while the reversal record is created. No transactions are
+    created (Birth is a stock event, not an accounting operation)."""
 
     def setUp(self):
         self.system_entity = Entity.create(EntityType.SYSTEM)
@@ -87,22 +85,14 @@ class BirthReversalTest(TestCase):
         self.assertTrue(op.is_reversed)
         self.assertEqual(op.reversed_by, reversal)
 
-    def test_reverse_creates_counter_transactions(self):
+    def test_reverse_creates_no_transactions(self):
+        """Reversing a birth must NOT create any counter-transactions."""
         op, _ = self._make_born()
         op.reverse(officer=self.officer_user, reason="test reversal")
 
-        # 2 originals + 2 counter-transactions, one per type
-        counter = op.get_all_transactions().filter(reversal_of__isnull=False)
-        self.assertEqual(counter.count(), 2)
-        self.assertEqual(
-            dict(
-                Counter(counter.values_list("type", flat=True))
-            ),
-            {
-                TransactionType.BIRTH_ISSUANCE: 1,
-                TransactionType.BIRTH_PAYMENT: 1,
-            },
-        )
+        self.assertEqual(op.get_all_transactions().count(), 0)
+        reversal = op.reversed_by
+        self.assertEqual(reversal.get_all_transactions().count(), 0)
 
     def test_reverse_reverses_auto_movement_lines(self):
         op, product = self._make_born()

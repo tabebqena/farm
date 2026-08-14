@@ -1,7 +1,7 @@
 # Capital Gain — Operation Contract
 
-**Epic:** 10.2 — Miscellaneous One-Shot Operations
-**Type:** One-shot, auto-settled
+**Epic:** 10.2 — Miscellaneous One-Shot Operations (stock event)
+**Type:** Stock event (no accounting transactions), value-only
 **Actions:** `create`, `reverse`
 **Contract status:** v2 (widened) — all branches recorded, business logic registered, test coverage mapped.
 
@@ -32,13 +32,9 @@
 
 | Flag | Value | Meaning |
 |------|-------|---------|
-| `_issuance_transaction_type` | `CAPITAL_GAIN_ISSUANCE` | issuance tx created on save |
-| `_payment_transaction_type` | `CAPITAL_GAIN_PAYMENT` | payment tx created on save (one-shot) |
-| `_is_one_shot_operation` | `True` | payment fires at create; no standalone pay action |
-| `can_pay` | `False` | `process_payment()` is a no-op |
-| `is_partially_payable` | `False` | payment must equal amount (one-shot) |
-| `max_payment_transaction_count` | `1` | exactly one payment tx ever |
-| `check_balance_on_payment` | `False` | no fund-balance gate — the System payer is exempt |
+| `can_pay` | `False` | no payment action |
+| `is_partially_payable` | `False` | n/a (no settlement) |
+| `check_balance_on_payment` | `False` | n/a (no payment) |
 | `has_category` / `category_required` | `False` | no financial category |
 | `has_repayment` | `False` | no repayment action |
 | `has_invoice` | `True` | links the gain to an existing owned product via an invoice item |
@@ -124,14 +120,9 @@ The tables below **register every file that implements this operation**. The spe
 
 ## 3. Money flow & entities
 
-- **Source (payer):** the single **System** entity (`is_system=True`). Virtual — never balance-checked, exempt from payment balance checks.
-- **Destination (receiver):** the **Project** entity in the URL (`is_project=True`, `_dest_role="url"`). Its fund is the target fund; the project must be `active=True`.
-- **Transaction flow** (both on create, system → project):
-
-| # | Type | Direction | Balance effect |
-|---|------|-----------|----------------|
-| 1 | `CAPITAL_GAIN_ISSUANCE` | `system.fund → project.fund` | none (issuance, not a payment type) |
-| 2 | `CAPITAL_GAIN_PAYMENT` | `system.fund → project.fund` | **none** — non-cash bookkeeping: `CAPITAL_GAIN_PAYMENT` is **excluded** from `payment_types()`, so the project's fund balance never changes |
+- **Source (role):** the single **System** entity (`is_system=True`). Virtual.
+- **Destination (role):** the **Project** entity in the URL (`is_project=True`, `_dest_role="url"`). It must be `active=True`.
+- **No transactions are created.** The gain is **value-only**: it increases the linked product's movement-based inventory value (`capital_delta` → `inventory_value()`) without changing quantity, fund balance, payables or receivables.
 
 - **Payment source fund:** `self.source` (system)
 - **Payment target fund:** `self.destination` (project)
@@ -141,14 +132,9 @@ The tables below **register every file that implements this operation**. The spe
 
 ## 4. Settlement model
 
-Derived from `LinkedPaymentTransactionMixin` using payment-type transactions only:
-
-| Property | After create | After reverse |
-|----------|--------------|---------------|
-| `amount_settled` | `== amount` | `0.00` |
-| `total_settlable_amount` (`effective_amount`) | `== amount` (no adjustments) | unchanged |
-| `amount_remaining_to_settle` | `0.00` | `== amount` |
-| `is_fully_settled` | `True` | `False` |
+There is **no settlement model** — Capital Gain does not inherit the payment/settlement
+machinery. `amount_settled`, `is_fully_settled`, `amount_remaining_to_settle`,
+`payment_transactions` do **not** exist on a `CapitalGainOperation`. The gain is value-only.
 
 Because the operation is one-shot and never adjustable, settlement is **immediate and terminal** — there is no standalone `pay` action.
 
@@ -188,12 +174,12 @@ Entry points: model `CapitalGainOperation.save()` (tests) or `Operation.create()
 | # | Effect | Detail / invariant | Implemented by | Verified by |
 |---|--------|--------------------|----------------|-------------|
 | SC1 | Issuance tx created | 1 × `CAPITAL_GAIN_ISSUANCE`, amount `== op.amount`, `system → project` | `LinkedIssuanceTransactionMixin.save()` | |
-| SC2 | Payment tx created | 1 × `CAPITAL_GAIN_PAYMENT`, amount `== op.amount`, `system → project` | `LinkedPaymentTransactionMixin.save()` | same as SC1 |
-| SC3 | Tx amounts equal op amount | both txs `amount == op.amount` | transaction creation | |
-| SC4 | Tx fund direction | both txs `source=system`, `target=project` | | |
-| SC5 | Fully settled immediately | `amount_settled == amount`, `remaining == 0`, `is_fully_settled` | `LinkedPaymentTransactionMixin` | |
-| SC6 | No cash flow — project fund unchanged | `project.balance` unchanged by the gain | `CAPITAL_GAIN_PAYMENT ∉ payment_types()` → `Entity.balance_at` | |
-| SC7 | Inventory value ▲ | `Product.current_value`/`inventory_value` increases by the gain (`capital_delta`) | `capital_delta()` + `Product.current_value` | |
+| SC2 | No transactions created | `get_all_transactions().count() == 0` (no issuance, no payment) | (no transaction mixins) | |
+| SC3 | No settlement machinery | `amount_settled`/`is_fully_settled`/`create_payment_transaction` absent | (no payment mixin) | |
+| SC4 | No cash flow — project fund unchanged | `project.balance` unchanged by the gain | `Entity.balance_at` | |
+| SC5 | Inventory value ▲ | `Product.current_value`/`inventory_value` increases by the gain (`capital_delta`) | `capital_delta()` + `Product.current_value` | |
+| SC6 | Product stays ACTIVE | the gain is a value write-up, not a status transition | `Product.status` | |
+| SC7 | Period auto-assigned | `period` = the project's covering period | `Operation.save()` | covered by period suite |
 | SC8 | P&L income ▲ | `profit_loss()` counts `CAPITAL_GAIN_ISSUANCE` (target=fund) as income | `Entity.profit_loss()` | covered by SC7 period test (same tx drives P&L) |
 | SC9 | Value-only ledger | gain is value-only: **no** `InventoryMovementLine` created, quantity untouched | `creates_assets=False`, `can_create_movement=False` + `save_inventory` | |
 | SC10 | Product status unchanged | linked product stays `ACTIVE` (not SOLD/DEAD) | `save_inventory` links item only | |
@@ -293,7 +279,7 @@ There is **no standalone pay action** for Capital Gain:
 
 **create — validation:** VC1 source=system · VC2 dest=project · VC3 source active · VC4 dest active · VC5 source fund active · VC6 target fund active · VC7 amount>0 · VC8 officer staff · VC9 officer active · VC10 not closed-period · VC11 covering period exists · VC12 balance exempt · VC13 tx entity-type · VC14 tx op-type · VC15 source≠target · VC16 product ownership · VC17 product status eligible · VC18 template compatible
 
-**create — effects:** SC1 issuance tx · SC2 payment tx · SC3 amounts equal · SC4 direction system→project · SC5 settled immediately · SC6 no cash flow (fund unchanged) · SC7 inventory value ▲ · SC8 P&L income ▲ · SC9 value-only (no movement line) · SC10 product ACTIVE · SC11 no double count · SC12 period assigned
+**create — effects:** SC1 no issuance tx · SC2 no transactions · SC3 no settlement machinery · SC4 no cash flow (fund unchanged) · SC5 inventory value ▲ · SC6 product ACTIVE · SC7 period assigned · value-only (no movement line)
 
 **reverse — validation:** VR1 not reversed · VR2 not a reversal · VR3 no explicit txs · VR4 no adjustments (n/a) · VR5 reason required (view)
 

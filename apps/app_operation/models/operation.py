@@ -33,11 +33,7 @@ logger = logging.getLogger(__name__)
 
 class Operation(
     ImmutableMixin,
-    AdjustableMixin,
     AmountCleanMixin,
-    LinkedIssuanceTransactionMixin,
-    LinkedPaymentTransactionMixin,
-    LinkedRePaymentTransactionMixin,
     OfficerMixin,
     ReversableModel,
     BaseModel,
@@ -462,18 +458,22 @@ class Operation(
     @property
     def _reversable_transaction_types(self) -> List[TransactionType]:
         rv = []
-        if self._issuance_transaction_type:
+        # Non-accounting operations (Birth / Death / Consumption / Capital)
+        # do not define *_transaction_type attrs — getattr keeps them empty.
+        if getattr(self, "_issuance_transaction_type", None):
             rv.append(self._issuance_transaction_type)
-        if self._payment_transaction_type:
+        if getattr(self, "_payment_transaction_type", None):
             rv.append(self._payment_transaction_type)
         return rv
 
     @property
     def _implicit_reversable_transaction_types(self) -> List[TransactionType]:
         rv = []
-        if self._issuance_transaction_type:
+        if getattr(self, "_issuance_transaction_type", None):
             rv.append(self._issuance_transaction_type)
-        if self._is_one_shot_operation and self._payment_transaction_type:
+        if getattr(self, "_is_one_shot_operation", False) and getattr(
+            self, "_payment_transaction_type", None
+        ):
             rv.append(self._payment_transaction_type)
         return rv
 
@@ -496,6 +496,17 @@ class Operation(
 
     def cast(self):
         return Operation.objects.cast(self)
+
+    @property
+    def effective_amount(self):
+        """
+        Effective amount for the non-accounting operations (Birth / Death /
+        Consumption / Capital Gain / Capital Loss): these are not adjustable, so
+        the effective amount is simply the operation ``amount``. Adjustable
+        operations (Purchase / Sale / Expense) override this via
+        ``AdjustableMixin`` to include their active adjustments.
+        """
+        return self.amount
 
     # ------------------------------------------------------------------
     # Validation
@@ -1119,3 +1130,29 @@ class Operation(
             f"Operation {self.operation_type}: "
             f"{self.amount} from {self.source} to {self.destination}"
         )
+
+
+# --------------------------------------------------------------------------
+# Mixin stacks for accounting-capable operations
+#
+# ``Operation`` is intentionally lean: Birth / Death / Consumption / Capital
+# Gain / Capital Loss are stock events, not accounting operations, so they do
+# not inherit the transaction / settlement / repayment / adjustment machinery.
+# The accounting-capable proxies instead compose the relevant mixins through
+# the plain (non-model) mixin stacks below and keep a single concrete parent
+# (``Operation``), so no extra tables are created (all proxies stay ``proxy=True``).
+# --------------------------------------------------------------------------
+
+
+class TransactionMixin(
+    LinkedIssuanceTransactionMixin, LinkedPaymentTransactionMixin
+):
+    """Issuance + payment transaction behavior (all accounting operations)."""
+
+
+class AdjustableTransactionMixin(AdjustableMixin, TransactionMixin):
+    """Adds accounting / item adjustment behavior (Purchase, Sale, Expense)."""
+
+
+class RepayableTransactionMixin(LinkedRePaymentTransactionMixin, TransactionMixin):
+    """Adds repayment behavior (Loan, Worker Advance)."""

@@ -87,8 +87,19 @@ def operation_detail_view(request, pk):
             "operation_id": operation.pk,
         },
     ):
-        paid_amount = float(operation.amount_settled)
-        outstanding_balance = float(operation.amount_remaining_to_settle)
+        # The non-accounting operations (Birth / Death / Consumption / Capital
+        # Gain / Capital Loss) do not track settlement — they are fully settled
+        # at their amount. Only accounting operations expose the settlement mixin
+        # members, so guard every access.
+        has_settlement = hasattr(operation, "amount_settled")
+        paid_amount = float(
+            operation.amount_settled if has_settlement else operation.amount
+        )
+        outstanding_balance = float(
+            operation.amount_remaining_to_settle
+            if has_settlement
+            else Decimal("0.00")
+        )
         DebugContext.log(
             "Payment balance computed",
             {
@@ -111,7 +122,7 @@ def operation_detail_view(request, pk):
 
         overpayment_amount = float(
             operation.amount_settled - operation.total_settlable_amount
-            if operation.is_overpayed_settled
+            if has_settlement and operation.is_overpayed_settled
             else Decimal("0.00")
         )
         DebugContext.log(
@@ -124,7 +135,7 @@ def operation_detail_view(request, pk):
 
         over_repayment_amount = float(
             operation.amount_repayed - operation.repayable_amount
-            if operation.is_overpaid_repayed
+            if getattr(operation, "is_overpaid_repayed", False)
             else Decimal("0.00")
         )
         DebugContext.log(
@@ -185,18 +196,29 @@ def operation_detail_view(request, pk):
     context = {
         "operation": operation,
         "transactions": transactions,
-        "payment_transactions": operation.payment_transactions,
+        "payment_transactions": (
+            operation.payment_transactions
+            if has_settlement
+            else operation.get_all_transactions().none()
+        ),
         "items": items,
         "items_data": items_data,
         "adjustments": adjustments,
         "item_adjustments": item_adjustments,
         "is_reversed": operation.is_reversed,
-        "is_one_shot_operation": operation._is_one_shot_operation,
+        # Non-accounting operations have no standalone pay/settle action — render
+        # them as one-shot (settled at creation) so the payment UI is hidden.
+        "is_one_shot_operation": operation._is_one_shot_operation
+        or not has_settlement,
         "paid_amount": paid_amount,
         "outstanding_balance": outstanding_balance,
         "net_adjustment": net_adjustment,
         "overpayment_amount": overpayment_amount,
-        "repayment_transactions": operation.repayment_transactions,
+        "repayment_transactions": (
+            operation.repayment_transactions
+            if getattr(operation, "has_repayment", False)
+            else operation.get_all_transactions().none()
+        ),
         "over_repayment_amount": over_repayment_amount,
         "currency": getattr(settings, "CURRENCY_SYMBOL", "$"),
     }

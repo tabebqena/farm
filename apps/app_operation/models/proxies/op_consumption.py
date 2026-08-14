@@ -1,7 +1,6 @@
 from django.core.exceptions import ValidationError
 
 from apps.app_operation.models.operation import Operation
-from apps.app_transaction.transaction_type import TransactionType
 
 
 class ConsumptionOperation(Operation):
@@ -12,9 +11,6 @@ class ConsumptionOperation(Operation):
     cash flow — the project's asset value is written off to the system entity.
     The invoice item links to the existing product/asset being consumed.
     """
-
-    _issuance_transaction_type = TransactionType.CONSUMPTION_ISSUANCE
-    _payment_transaction_type = TransactionType.CONSUMPTION_PAYMENT
 
     url_str = "consumption"
     label = "Consumption"
@@ -27,21 +23,11 @@ class ConsumptionOperation(Operation):
     category_required = False
     has_invoice = True
     creates_assets = False
-    _is_one_shot_operation = True
     has_repayment = False
-    max_payment_transaction_count = 1
 
     class Meta:
         proxy = True
         verbose_name = "Consumption"
-
-    @property
-    def payment_source_fund(self):
-        return self.source  # project absorbing the write-off
-
-    @property
-    def payment_target_fund(self):
-        return self.destination  # system entity — exempt from balance validation
 
     @property
     def project(self):

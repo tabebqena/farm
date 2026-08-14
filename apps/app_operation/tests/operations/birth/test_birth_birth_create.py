@@ -14,8 +14,6 @@ from apps.app_inventory.models import (
 from apps.app_inventory.stock import movement_state
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import BirthOperation
-from apps.app_operation.tests.base import assert_tx_types
-from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
 
@@ -24,9 +22,11 @@ class BirthCreateTest(TestCase):
     """Dedicated tests for Birth operation creation.
 
     A birth records a new animal/batch entering the project's inventory with
-    no cash flow — the System entity issues the asset value on the project's
-    behalf.  One-shot: issuance + payment fire on save; an inbound movement
-    line is auto-created and the product is created lazily (ACTIVE).
+    no cash flow.  Birth is a stock event, NOT an accounting operation: it
+    creates NO Transaction rows, has no payment/settlement machinery, and is
+    still assigned to a financial period (and blocked inside a closed one).
+    An inbound movement line is auto-created and the product is created
+    lazily (ACTIVE).
     """
 
     def setUp(self):
@@ -88,8 +88,9 @@ class BirthCreateTest(TestCase):
     def test_can_pay_config_is_false(self):
         self.assertFalse(BirthOperation.can_pay)
 
-    def test_is_one_shot_operation_config_is_true(self):
-        self.assertTrue(BirthOperation._is_one_shot_operation)
+    def test_is_one_shot_operation_config_is_false(self):
+        """No payment mixin → the one-shot flag is not set for Birth."""
+        self.assertFalse(BirthOperation._is_one_shot_operation)
 
     def test_is_partially_payable_config_is_false(self):
         self.assertFalse(BirthOperation.is_partially_payable)
@@ -102,42 +103,40 @@ class BirthCreateTest(TestCase):
         self.assertTrue(BirthOperation.creates_assets)
 
     # ------------------------------------------------------------------
-    # Happy path — issuance + payment auto-created on save
+    # No accounting transactions — Birth is a stock event
     # ------------------------------------------------------------------
 
-    def test_save_creates_issuance_and_payment_transactions(self):
+    def test_save_creates_no_transactions(self):
+        """A birth is a stock event: it must NOT create any Transaction."""
         op = self._birth()
 
         self.assertIsNotNone(op.pk)
+        self.assertEqual(op.get_all_transactions().count(), 0)
 
-        assert_tx_types(
-            self,
-            op,
-            {
-                TransactionType.BIRTH_ISSUANCE: 1,
-                TransactionType.BIRTH_PAYMENT: 1,
-            },
-        )
-
-    def test_transaction_direction_is_system_to_project(self):
+    def test_no_settlement_or_payment_machinery(self):
+        """Birth does not inherit the payment/settlement/repayment members."""
         op = self._birth()
+        for member in (
+            "amount_settled",
+            "is_fully_settled",
+            "amount_remaining_to_settle",
+            "create_payment_transaction",
+            "create_issuance_transaction",
+            "payment_transactions",
+            "repayable_amount",
+            "amount_repayed",
+        ):
+            self.assertFalse(hasattr(op, member), member)
 
-        for tx in op.get_all_transactions():
-            self.assertEqual(tx.source, self.system_entity)
-            self.assertEqual(tx.target, self.project_entity)
-
-    def test_transaction_amounts_match_operation(self):
-        op = self._birth(qty=Decimal("3.00"), price=Decimal("150.00"))
-
-        for tx in op.get_all_transactions():
-            self.assertEqual(tx.amount, Decimal("450.00"))
-
-    def test_is_fully_settled_after_creation(self):
+    def test_period_is_assigned_on_creation(self):
+        """Birth still respects financial periods — a covering period is assigned."""
         op = self._birth()
+        self.assertIsNotNone(op.period, "A covering financial period must be assigned")
 
-        self.assertEqual(op.amount_settled, Decimal("500.00"))
-        self.assertTrue(op.is_fully_settled)
-        self.assertEqual(op.amount_remaining_to_settle, Decimal("0.00"))
+    def test_effective_amount_equals_amount(self):
+        """Not adjustable → the effective amount is the plain amount."""
+        op = self._birth()
+        self.assertEqual(op.effective_amount, op.amount)
 
     # ------------------------------------------------------------------
     # Source validation — must be the System entity
@@ -285,12 +284,7 @@ class BirthCreateTest(TestCase):
     # One-shot constraint
     # ------------------------------------------------------------------
 
-    def test_one_shot_prevents_second_payment(self):
+    def test_cannot_be_paid(self):
+        """Birth has no payment machinery — no standalone pay action exists."""
         op = self._birth()
-
-        with self.assertRaises(ValidationError):
-            op.create_payment_transaction(
-                amount=op.amount,
-                officer=self.officer_user,
-                date=date.today(),
-            )
+        self.assertFalse(hasattr(op, "create_payment_transaction"))

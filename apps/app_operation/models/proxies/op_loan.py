@@ -3,11 +3,11 @@ from typing import List
 from django.core.exceptions import ValidationError
 
 from apps.app_entity.models import EntityType
-from apps.app_operation.models.operation import Operation
+from apps.app_operation.models.operation import Operation, RepayableTransactionMixin
 from apps.app_transaction.transaction_type import TransactionType
 
 
-class LoanOperation(Operation):
+class LoanOperation(RepayableTransactionMixin, Operation):
     _issuance_transaction_type = TransactionType.LOAN_ISSUANCE
     _payment_transaction_type = TransactionType.LOAN_PAYMENT
     _repayment_transaction_type = TransactionType.LOAN_REPAYMENT

@@ -6,11 +6,11 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils.translation import gettext as _
 
-from apps.app_operation.models.operation import Operation
+from apps.app_operation.models.operation import AdjustableTransactionMixin, Operation
 from apps.app_transaction.transaction_type import TransactionType
 
 
-class SaleOperation(Operation):
+class SaleOperation(AdjustableTransactionMixin, Operation):
     _issuance_transaction_type = TransactionType.SALE_ISSUANCE
     _payment_transaction_type = TransactionType.SALE_COLLECTION
 

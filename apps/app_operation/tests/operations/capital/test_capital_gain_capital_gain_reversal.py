@@ -13,7 +13,6 @@ from apps.app_operation.tests.base import (
     assert_derived_state_unchanged,
     snapshot_derived_state,
 )
-from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
 
@@ -69,31 +68,11 @@ class CapitalGainReversalTest(TestCase):
         self.assertEqual(reversal.source, self.op.source)
         self.assertEqual(reversal.destination, self.op.destination)
 
-    def test_reverse_creates_counter_transactions(self):
+    def test_reverse_creates_no_transactions(self):
+        """Reversing a capital gain must NOT create any counter-transactions."""
         self.op.reverse(officer=self.officer_user)
-
-        original_txs = self.op.get_all_transactions()
-        self.assertEqual(original_txs.count(), 4)  # 2 original + 2 counter-transactions
-
-        reversed_txs = original_txs.filter(reversal_of__isnull=False)
-        self.assertEqual(reversed_txs.count(), 2)
-
-    def test_reverse_counter_transactions_flip_funds(self):
-        self.op.reverse(officer=self.officer_user)
-
-        original_txs = self.op.get_all_transactions().filter(reversal_of__isnull=True)
-        for tx in original_txs:
-            counter = tx.reversed_by
-            self.assertEqual(counter.source, tx.target)
-            self.assertEqual(counter.target, tx.source)
-            self.assertEqual(counter.amount, tx.amount)
-
-    def test_reverse_counter_transactions_preserve_type(self):
-        self.op.reverse(officer=self.officer_user)
-
-        original_txs = self.op.get_all_transactions().filter(reversal_of__isnull=True)
-        for tx in original_txs:
-            self.assertEqual(tx.reversed_by.type, tx.type)
+        self.assertEqual(self.op.get_all_transactions().count(), 0)
+        self.assertEqual(self.op.reversed_by.get_all_transactions().count(), 0)
 
     def test_project_fund_unchanged_after_reversal(self):
         """A capital gain is non-cash, so reversing it must not change the fund."""

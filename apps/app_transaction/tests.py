@@ -16,7 +16,6 @@ from django.utils import timezone
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import (
-    CapitalGainOperation,
     PurchaseOperation,
     CashInjectionOperation,
     CorrectionCreditOperation,
@@ -100,13 +99,13 @@ class TransactionAutoCreationTests(TestCase):
         _make_vendor_stakeholder(self.entity_a, self.entity_b)
         _inject_funds(self.entity_a, Decimal("5000"), self.officer)
 
-    def test_capital_gain_creates_issuance_transaction(self):
-        """CapitalGainOperation should auto-create transaction(s)"""
-        operation = CapitalGainOperation.objects.create(
+    def test_correction_credit_creates_transactions(self):
+        """CorrectionCreditOperation should auto-create transaction(s)"""
+        operation = CorrectionCreditOperation.objects.create(
             source=self.system,
             destination=self.entity_a,
             amount=Decimal("1000"),
-            operation_type=OperationType.CAPITAL_GAIN,
+            operation_type=OperationType.CORRECTION_CREDIT,
             date=timezone.now().date(),
             officer=self.officer,
             description="Test injection",
@@ -117,8 +116,8 @@ class TransactionAutoCreationTests(TestCase):
             self,
             operation,
             {
-                TransactionType.CAPITAL_GAIN_ISSUANCE: 1,
-                TransactionType.CAPITAL_GAIN_PAYMENT: 1,
+                TransactionType.CORRECTION_CREDIT_ISSUANCE: 1,
+                TransactionType.CORRECTION_CREDIT_PAYMENT: 1,
             },
         )
         amounts = Transaction.objects.filter(
@@ -185,11 +184,11 @@ class TransactionPropertiesTests(TestCase):
         self.entity_a = _make_entity("Entity A", EntityType.PROJECT)
 
         # Create an operation that generates a transaction
-        self.operation = CapitalGainOperation.objects.create(
+        self.operation = CorrectionCreditOperation.objects.create(
             source=self.system,
             destination=self.entity_a,
             amount=Decimal("1000"),
-            operation_type=OperationType.CAPITAL_GAIN,
+            operation_type=OperationType.CORRECTION_CREDIT,
             date=timezone.now().date(),
             officer=self.officer,
             description="Test",
@@ -242,11 +241,11 @@ class TransactionImmutabilityTests(TestCase):
         self.entity_a = _make_entity("Entity A", EntityType.PROJECT)
         self.entity_b = _make_entity("Entity B", EntityType.PERSON)
 
-        self.operation = CapitalGainOperation.objects.create(
+        self.operation = CorrectionCreditOperation.objects.create(
             source=self.system,
             destination=self.entity_a,
             amount=Decimal("1000"),
-            operation_type=OperationType.CAPITAL_GAIN,
+            operation_type=OperationType.CORRECTION_CREDIT,
             date=timezone.now().date(),
             officer=self.officer,
             description="Test",
@@ -368,11 +367,11 @@ class TransactionReversalTests(TestCase):
         self.system = _get_or_create_system()
         self.entity_a = _make_entity("Entity A", EntityType.PROJECT)
 
-        self.operation = CapitalGainOperation.objects.create(
+        self.operation = CorrectionCreditOperation.objects.create(
             source=self.system,
             destination=self.entity_a,
             amount=Decimal("1000"),
-            operation_type=OperationType.CAPITAL_GAIN,
+            operation_type=OperationType.CORRECTION_CREDIT,
             date=timezone.now().date(),
             officer=self.officer,
             description="Test",
@@ -460,11 +459,11 @@ class TransactionGenericForeignKeyTests(TestCase):
         self.system = _get_or_create_system()
         self.entity_a = _make_entity("Entity A", EntityType.PROJECT)
 
-        self.operation = CapitalGainOperation.objects.create(
+        self.operation = CorrectionCreditOperation.objects.create(
             source=self.system,
             destination=self.entity_a,
             amount=Decimal("1000"),
-            operation_type=OperationType.CAPITAL_GAIN,
+            operation_type=OperationType.CORRECTION_CREDIT,
             date=timezone.now().date(),
             officer=self.officer,
             description="Test",
@@ -482,7 +481,7 @@ class TransactionGenericForeignKeyTests(TestCase):
         """Transaction should link to correct ContentType"""
         tx = Transaction.objects.filter(object_id=self.operation.pk).first()
         self.assertIsNotNone(tx)
-        expected_ct = ContentType.objects.get_for_model(CapitalGainOperation)
+        expected_ct = ContentType.objects.get_for_model(CorrectionCreditOperation)
 
         self.assertEqual(tx.content_type, expected_ct)
 
