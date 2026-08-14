@@ -60,33 +60,3 @@ adjustments, inventory, and evaluations.
 | Stock (movement-based inventory) | [stock.md](features/stock.md) |
 | Inventory Ledger | [inventory_ledger.md](features/inventory_ledger.md) |
 | Financial Reports | [financial_reports.md](features/financial_reports.md) |
-
----
-
-## Known Bugs (fix before anything else)
-
-| # | File | Bug | Fix |
-|---|------|-----|-----|
-| 1 | `app_adjustment/apps.py` | `name = "app_adjustment"` | → `"apps.app_adjustment"` ✓ fixed |
-| 2 | `app_evaluation/apps.py` | `name = "app_evaluation"` | → `"apps.app_evaluation"` ✓ fixed |
-| 3 | `app_transaction/models.py` | `Transaction.clean()` blocks all ops | ✓ fixed (guard removed) |
-| 4 | `reversal_alert.html` line 12 | `elif operation.is_reversed` | → `elif operation.is_reversal` ✓ fixed |
-| 5 | `entity_detail.html` | `entity.perosn` typo | → `entity.person` ✓ fixed |
-| 6 | `app_invoice/models.py` | `from app_base.models` wrong import | → `from apps.app_base.models` |
-| 7 | `app_invoice/models.py` | `FK("Operation")` wrong label | → `FK("app_operation.Operation")` |
-| 8 | `app_evaluation/models.py` | `FK("Product")` — model doesn't exist | Create `Product` in `app_inventory` |
-
----
-
-## Suggested Start Order
-
-```
-Done:    Bug fixes 1–5 → python manage.py check passes
-Done:    All 14 operation models + tests
-Done:    DistributionPlan + ShareholderAllocation models + tests
-Done:    Financial Period model + tests
-Done:    Adjustment model + tests
-Next:    Epic 3 (Inventory + Invoice) → Epic 4 (Evaluation + Product)
-Then:    Epic 1.3 (Ledger history UI) + Epics 2, 5, 6 UI work
-Future:  Epic 7 (Reporting)
-```
