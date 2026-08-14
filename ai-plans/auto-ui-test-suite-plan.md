@@ -17,6 +17,43 @@
 
 ---
 
+## 0. Implementation status (2026-08-14)
+
+**Implemented and green (44 UI tests, `python3 manage.py test ui_tests --keepdb`):**
+
+- **Harness** — `ui_tests/base.py` (`UiTestCase(LiveServerTestCase)`):
+  Selenium/headless-Chrome, real-login helper, stable form/amount/select helpers
+  (handles the `AmountInputFormatter` visible+hidden amount twin), visible-text
+  assertions (CSS-transform aware), pay/repay/reverse/create clause helpers,
+  screenshot + HTML artifacts on failure in `test_screenshots/`.
+  `selenium==4.47.0` added to `requirements.txt`.
+- **Registry** — `ui_tests/manifest.py` (`UI_CLAUSE_MANIFEST`) + a drift-guard
+  consistency test; new spec clauses without a UI test fail the build.
+- **op_1 Cash Injection** — `ui_tests/operations/test_cash_injection.py` (VC1,
+  VC7, SC6, VR5, SR8, SR9 + login smoke).
+- **One-shot ops** — `ui_tests/operations/test_one_shot_operations.py`
+  (op_2 Cash Withdrawal, op_3 Project Funding, op_4 Project Refund,
+  op_7 Internal Transfer, op_15 Correction Credit/Debit): SC/VC/VR5/SR clauses.
+- **Payable ops** — `ui_tests/operations/test_payable_operations.py`
+  (op_8 Loan, op_11 Worker Advance): SC + A6/A7 pay/repay + VR5.
+- **Global** — `ui_tests/global/` (auth: wrong password / `next=` redirect;
+  cross-cutting: root redirect, custom 404, EN→AR switch; entities: list + detail
+  balance).
+
+**Not yet implemented (tracked as gaps; the harness pattern is established):**
+
+- op_5 / op_6 Capital Gain & Loss (product-evaluation flow via
+  `/<pk>/evaluate/<product_pk>/`).
+- op_12 Expense (requires financial-category setup on the project).
+- op_13 Purchase / op_14 Sale (multi-step wizard + invoice formsets + movements).
+- op_17 Birth / op_18 Death / op_19 Consumption (product templates + movements).
+- Feature specs: stock, adjustment (UI section is open in the spec), financial
+  period.
+- Remaining global flows: project setup wizard, stakeholders, profile edit,
+  admin load.
+
+---
+
 ## 1. Guiding principles
 
 - **Specs are the single source of truth** (repo rule: *where code and spec

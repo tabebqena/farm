@@ -243,24 +243,24 @@ class UiTestCase(LiveServerTestCase):
         el.send_keys(str(value))
         return el
 
-    def fill_amount(self, value):
-        """Fill the visible amount input and its hidden ``name="amount"`` twin.
+    def fill_amount(self, value, name="amount"):
+        """Fill a formatter-managed amount input (visible + hidden name twin).
 
-        AmountInputFormatter (amount-input-formatter.js) converts the server-rendered
-        number input into a visible text input (keeps ``#id_total_amount``, drops the
-        name) plus a hidden input that keeps ``name="amount"`` for POST. Setting both
-        via JS is deterministic — typing through the formatter's listener proved
-        unreliable in headless Chrome.
+        AmountInputFormatter (amount-input-formatter.js) converts any
+        ``input.amount-input`` into a visible text input (drops the name, keeps
+        ``data-original-name``) plus a hidden input that keeps the original name for
+        POST. Setting both via JS is deterministic — typing through the formatter's
+        listener proved unreliable in headless Chrome.
         """
         self.driver.execute_script(
-            f"var value={value};"+
-            "var visible=document.getElementById('id_total_amount');"
-            "var hidden=document.querySelector('input[name=\"amount\"]');"
-            "if(visible){visible.value=value;"
+            "var hidden=document.querySelector('input[name=\"%(name)s\"]');"
+            "var visible=document.querySelector("
+            "'input[data-original-name=\"%(name)s\"]');"
+            "if(visible){visible.value=arguments[0];"
             "visible.dispatchEvent(new Event('input',{bubbles:true}));"
             "visible.dispatchEvent(new Event('change',{bubbles:true}));}"
-            "if(hidden){hidden.value=value;}",
-            # str(value),
+            "if(hidden){hidden.value=arguments[0];}" % {"name": name},
+            str(value),
         )
         return self
 
@@ -353,6 +353,24 @@ class UiTestCase(LiveServerTestCase):
     def reverse_operation(self, op, reason="UI test reversal"):
         self.goto("operation_reverse_view", op.pk)
         self.driver.find_element(By.NAME, "reversal_reason").send_keys(reason)
+        self.click_submit()
+        self.wait_for_url_contains("detail")
+        return self
+
+    def record_payment(self, op, amount, note="UI payment"):
+        """Record a payment (A6) on ``op`` via the standalone payment form."""
+        self.goto("record_transaction_payment", op.pk)
+        self.fill_amount(f"{amount:.2f}")
+        self.fill("note", note)
+        self.click_submit()
+        self.wait_for_url_contains("detail")
+        return self
+
+    def record_repayment(self, op, amount, note="UI repayment"):
+        """Record a repayment (A7) on ``op`` via the standalone repayment form."""
+        self.goto("record_transaction_repayment", op.pk)
+        self.fill_amount(f"{amount:.2f}")
+        self.fill("note", note)
         self.click_submit()
         self.wait_for_url_contains("detail")
         return self
