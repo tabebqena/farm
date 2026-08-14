@@ -3,14 +3,13 @@
 **Epic:** 10.2 — Miscellaneous One-Shot Operations (stock event)
 **Type:** Stock event (no accounting transactions), value-only
 **Actions:** `create`, `reverse`
-**Contract status:** v2 (widened) — all branches recorded, business logic registered, test coverage mapped.
+**Contract status:** v3 — Capital Gain is a **stock event**, not an accounting operation: it creates **no** `Transaction` rows, has no payment/settlement machinery, and is still assigned to a financial period (and blocked inside a closed one). It is **value-only** — it raises the linked product's movement-based inventory value without changing quantity, fund balance or `profit_loss()`.
 
 > **Primary source of contract.** This document is the authoritative contract for the **Capital Gain** operation.
-> Every clause below names its implementing code (model → mixin → transaction → view) and its pinning test — as plain names, never links, so renames do not break the spec.
+> Every clause below names its implementing code (model → mixin → view) and its pinning test — as plain names, never links, so renames do not break the spec.
 > Where code and spec disagree, the spec states the *intended* behavior — fix the code, not the spec.
-> Other operations follow the same structure — see [`_OPERATION_SPEC_TEMPLATE.md`](_OPERATION_SPEC_TEMPLATE.md).
->
-> **Purpose.** Capital Gain records a **value write-up** of an asset already owned by the project (e.g. a calf's re-valuation to its current market price). It is a **non-cash, inventory-value-only** operation: it never moves real money and never changes the project's fund balance.
+> See [`_OPERATION_SPEC_TEMPLATE.md`](_OPERATION_SPEC_TEMPLATE.md) for the shared structure and
+> [`op_1_cash_injection.md`](op_1_cash_injection.md) for a fully worked example.
 
 ---
 
@@ -22,7 +21,6 @@
 | Proxy class | `CapitalGainOperation` | |
 | URL slug | `"capital-gain"` | |
 | Label | `"Capital Gain Issuance"` | |
-| Theme | `danger` / `bi-box-arrow-up-right` (defaults) | |
 | Source role | `system` | |
 | Destination role | `url` (must be a Project) | |
 | Registered in | `PROXY_MAP` | |
@@ -37,9 +35,13 @@
 | `check_balance_on_payment` | `False` | n/a (no payment) |
 | `has_category` / `category_required` | `False` | no financial category |
 | `has_repayment` | `False` | no repayment action |
-| `has_invoice` | `True` | links the gain to an existing owned product via an invoice item |
-| `creates_assets` / `can_create_movement` | `False` | value-only — **no** `InventoryMovementLine` is created |
-| `is_adjustable` / `is_items_adjustable` | `False` | not adjustable |
+| `has_invoice` | `True` | links the gain to an existing owned product via an invoice item (value-only — no movement line) |
+
+> **No accounting mixins.** `CapitalGainOperation` inherits only `ImmutableMixin`,
+> `AmountCleanMixin`, `OfficerMixin`, `ReversableModel`, `BaseModel` (via the lean `Operation`
+> base). It does **not** inherit `LinkedIssuanceTransactionMixin`, `LinkedPaymentTransactionMixin`,
+> `LinkedRePaymentTransactionMixin` or `AdjustableMixin` — so no transactions, no settlement,
+> no repayment, no adjustments, no P&L entry in `profit_loss()`.
 
 ---
 
@@ -51,9 +53,9 @@ The tables below **register every file that implements this operation**. The spe
 
 | Concern | Implementing code |
 |---------|-------------------|
-| Proxy class + type-specific config + `clean_source`/`clean_destination` + `payment_source_fund`/`payment_target_fund` | |
+| Proxy class + type-specific config + `clean_source`/`clean_destination` | |
 | Proxy registry / URL→class resolution | |
-| Shared `Operation` engine (`clean`, `save`, `reverse`, `create`, `resolve_request`, period assignment, reversable tx types, inventory-owner helpers) | |
+| Shared `Operation` engine (`clean`, `save`, `reverse`, `create`, `resolve_request`, `save_inventory`, period assignment, reversable tx types) | |
 | Operation type enum | |
 
 ### 2.2 Core engine (mixins / base)
@@ -63,57 +65,52 @@ The tables below **register every file that implements this operation**. The spe
 | Immutability of `source`/`destination`/`amount`/`period` | `ImmutableMixin` + `_immutable_fields` |
 | Amount must be > 0 | `AmountCleanMixin` |
 | Officer must be staff + active | `OfficerMixin` |
-| Source fund exists + active | `SourceFundMixin` |
-| Target fund exists + active | `TargetFundMixin` |
-| Issuance tx creation on save | `LinkedIssuanceTransactionMixin` |
-| One-shot payment tx creation + settlement (`amount_settled`, `is_fully_settled`) | `LinkedPaymentTransactionMixin` |
-| One-shot / single-payment guard | `LinkedPaymentTransactionMixin.create_payment_transaction()` |
-| Reversal mechanics (clone, `reversal_of`, implicit tx reversal, guards) | `ReversableModel` + `Operation.reverse()` |
+| Reversal mechanics (clone, `reversal_of`, guards) | `ReversableModel` + `Operation.reverse()` |
+| Effective amount == amount (not adjustable) | `Operation.effective_amount` (base fallback) |
 
 ### 2.3 Transaction layer
 
 | Concern | Implementing code |
 |---------|-------------------|
-| `Transaction` model + `create()` (entity-type + operation-type guards) + `reverse()` | |
-| `CAPITAL_GAIN_ISSUANCE` (system → project, issuance) | |
-| `CAPITAL_GAIN_PAYMENT` (system → project, **non-cash**) | **excluded** from |
+| **None** — Capital Gain creates no `Transaction` rows | (no transaction mixins inherited) |
 
 ### 2.4 Entity / balance layer
 
 | Concern | Implementing code |
 |---------|-------------------|
-| Project balance = incoming payment txs − outgoing payment txs (payment-types only) | `Entity.balance_at` |
-| System (virtual) never balance-checked | `Entity.can_pay` |
+| Fund balance never affected (no payment) | `Entity.balance_at` (no Capital Gain tx types) |
+| P&L not affected — value flows through inventory | `Entity.profit_loss` (Capital Gain no longer a cost/income) |
 | Open financial period auto-created on entity creation | `Entity.save()` |
-| P&L income — `CAPITAL_GAIN_ISSUANCE` (target = fund) | `Entity.profit_loss()` |
-| Movement-based inventory value includes `capital_delta` (gain/loss) | `capital_delta()` + `movement_state()` |
 
-### 2.5 View / UI layer
+### 2.5 Inventory layer (capital-specific)
 
 | Concern | Implementing code |
 |---------|-------------------|
-| Dedicated create view (Product Evaluation) | `EvaluationCreateView` |
-| Evaluation form (product picker, new unit price, ownership-restricted queryset) | `EvaluationForm` |
-| Valuation-delta computation → picks `CapitalGainOperation` / `CapitalLossOperation` | `EvaluationCreateView.post()` |
-| Generic create view (secondary path, list links commented out) | `OperationCreateView` |
+| Ownership guard: the evaluated product belongs to the destination project | `save_inventory` + evaluation view |
+| Value-only: links the product to the invoice item; **no** movement line is created | `save_inventory` |
+| Valuation delta: `(new_unit_price − current_unit_price) × quantity` | `Product.compute_valuation_delta` |
+| Inventory value ▲: `capital_delta()` adds the gain to `movement_state(...)["value"]` / `inventory_value()` | `capital_delta` + `movement_state` |
+| Product status unchanged (stays ACTIVE — a gain is a value write-up, not a status transition) | `Product.status` |
+
+### 2.6 View / UI layer
+
+| Concern | Implementing code |
+|---------|-------------------|
+| Evaluation create view (computes the delta and creates the gain) | `EvaluationCreateView` |
 | POST parsing/validation | `OperationDataValidator` |
 | Reverse view (reason required) | `operation_reverse_view` |
-| Detail view (aggregate amount + reversal action; per-transaction list hidden — one-shot) | `operation_detail_view` |
+| Detail view (aggregate amount + reversal action; no payment/settlement UI) | `operation_detail_view` |
 | URL: `/<pk>/evaluate/<product_pk>/` | |
-| URL: `/<pk>/<op_type>/create` (secondary) | |
 | URL: `/<pk>/reverse/` | |
 | URL: `/<pk>/detail/` | |
-| Templates | ; entry button; operation-list links commented out |
+| Templates | |
 
-### 2.6 Tests
+### 2.7 Tests
 
 | Concern | Test file |
 |---------|-----------|
-| Create branches | |
-| Reverse branches | |
-| Inventory valuation / status | |
-| Period valuation (single count) | |
-| Evaluation ownership guard | |
+| Create branches (validation, no transactions, value ▲, product ACTIVE, period assigned) | |
+| Reverse branches (reversal record, no counter-tx, value restored, product stays ACTIVE) | |
 | Coverage manifest (executable branch registry) | |
 
 ---
@@ -122,11 +119,7 @@ The tables below **register every file that implements this operation**. The spe
 
 - **Source (role):** the single **System** entity (`is_system=True`). Virtual.
 - **Destination (role):** the **Project** entity in the URL (`is_project=True`, `_dest_role="url"`). It must be `active=True`.
-- **No transactions are created.** The gain is **value-only**: it increases the linked product's movement-based inventory value (`capital_delta` → `inventory_value()`) without changing quantity, fund balance, payables or receivables.
-
-- **Payment source fund:** `self.source` (system)
-- **Payment target fund:** `self.destination` (project)
-> **No cash flow.** The gain is carried entirely by inventory valuation — `capital_delta()` adds `quantity × unit_price` for each **active** (non-reversed) `CAPITAL_GAIN` invoice item on the linked product.
+- **No transactions are created.** The gain is **value-only**: it increases the linked product's movement-based inventory value (`capital_delta` → `inventory_value()`), without changing quantity, fund balance, payables, receivables or `profit_loss()`.
 
 ---
 
@@ -136,15 +129,14 @@ There is **no settlement model** — Capital Gain does not inherit the payment/s
 machinery. `amount_settled`, `is_fully_settled`, `amount_remaining_to_settle`,
 `payment_transactions` do **not** exist on a `CapitalGainOperation`. The gain is value-only.
 
-Because the operation is one-shot and never adjustable, settlement is **immediate and terminal** — there is no standalone `pay` action.
-
 ---
 
 ## 5. Actions
 
 ### 5.1 `create`
 
-Entry points: model `CapitalGainOperation.save()` (tests) or `Operation.create()` (view). Both converge on `save()` → `full_clean()` → `post_save_tasks` (issuance tx, then payment tx). Through the UI, the entry point is `EvaluationCreateView.post()`, which computes the valuation delta and calls `Operation.create()` on the proxy.
+Entry points: model `CapitalGainOperation.save()` (tests) or the evaluation view
+(`EvaluationCreateView.post()` computes the delta and calls `Operation.create()` on the proxy).
 
 #### 5.1.1 Validation branches
 
@@ -152,39 +144,27 @@ Entry points: model `CapitalGainOperation.save()` (tests) or `Operation.create()
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
 | VC1 | Source is System | `source.is_system` | `ValidationError` | `"Capital Gain source must be the System entity."` | `clean_source` | |
 | VC2 | Destination is Project | `destination.is_project` | `ValidationError` | `"Capital Gain destination must be a Project entity."` | `clean_destination` | |
-| VC3 | Source entity active | `source.active` | `ValidationError` | `"Entity '%(name)s' must be active…"` | `Operation.clean()` | structural (System is always active) |
+| VC3 | Source entity active | `source.active` | `ValidationError` | `"Entity '%(name)s' must be active…"` | `Operation.clean()` | |
 | VC4 | Destination entity active | `destination.active` | `ValidationError` | same as VC3 | `Operation.clean()` | |
-| VC5 | Source fund active | `payment_source_fund.active` | `ValidationError` | `"The Payment source entity should be active."` | `SourceFundMixin` | structural (System is always active) |
-| VC6 | Target fund active | `payment_target_fund.active` | `ValidationError` | `"The Payment target entity should be active."` | `TargetFundMixin` | merged with VC4 |
-| VC7 | Amount positive | `amount > 0` | `ValidationError` | `"Amount should be positive, got …"` | `AmountCleanMixin` | |
-| VC8 | Officer is staff | `officer.is_staff` | `ValidationError` | `"Officer should be a staff user."` | `OfficerMixin` | |
-| VC9 | Officer active | `officer.is_active` | `ValidationError` | `"Officer should be an active user."` | `OfficerMixin` | |
-| VC10 | Date not in a closed period (both entities) | no closed period contains `date` | `ValidationError` | `"Cannot create an operation whose date falls within a closed financial period."` | `Operation.clean()` | covered by period suite |
-| VC11 | A covering financial period exists | `period_entity` has a period containing `date` | `ValidationError` | `"Cannot create an operation: no financial period covers this operation's date."` | `Operation.save()` | covered by period suite |
-| VC12 | Balance exempt (system payer) | no balance check | never fails | — | `check_balance_on_payment=False` | |
-| VC13 | Tx entity-type contract | `source.is_system` and `target.is_project` | `ValidationError` | `"Transaction type '…' has invalid entity types: …"` | `Transaction.create()` | implied by VC1/VC2 (model clean blocks first) |
-| VC14 | Tx operation-type allowed | document is `CAPITAL_GAIN` | `ValidationError` | `"Transaction type '…' is not allowed for operation '…'."` | `Transaction.create()` | implied by VC1/VC2 |
-| VC15 | Source ≠ target | system ≠ project | always true | `"Source and target funds must be different."` | `Transaction.clean()` | structural (system ≠ project) |
-| VC16 | Product ownership (UI) | product belongs to the evaluated project | `ValidationError` / form rejects | `"Product '…' does not belong to '…' and cannot be evaluated."` | `EvaluationForm` + `EvaluationCreateView.post()` + `Operation.save_inventory()` | |
-| VC17 | Product status eligible | product not SOLD/DEAD/CONSUMED/REMOVED | `ValidationError` | `"Product '…' has status … and cannot be used in new operations."` | `Product.validate_active()` + `Operation.save_inventory()` | |
-| VC18 | Product template compatible | template `accepts_operation("CAPITAL_GAIN")` | `ValidationError` | nature↔operation incompatibility | `ProductTemplate.accepts_operation()` | structural (allowed for all natures) |
+| VC5 | Amount positive | `amount > 0` | `ValidationError` | `"Amount should be positive, got …"` | `AmountCleanMixin` | |
+| VC6 | Officer is staff + active | `officer.is_staff` and `officer.is_active` | `ValidationError` | officer errors | `OfficerMixin` | |
+| VC7 | Date not in a closed period (both entities) | no closed period contains `date` | `ValidationError` | `"Cannot create an operation whose date falls within a closed financial period."` | `Operation.clean()` | period suite |
+| VC8 | A covering financial period exists | `period_entity` has a period containing `date` | `ValidationError` | `"Cannot create an operation: no financial period covers this operation's date."` | `Operation.save()` | covered by period suite |
+| VC9 | Material delta | `abs(delta) ≥ 0.01` | no operation recorded | `"No material change — no operation recorded."` | `EvaluationCreateView` | |
+| VC10 | Ownership — product belongs to destination project | `product.entity == destination project` | `ValidationError` | `"Product '%(p)s' does not belong to '%(entity)s' and cannot be evaluated."` | `EvaluationCreateView` + `save_inventory` | |
 
 #### 5.1.2 Success effects
 
 | # | Effect | Detail / invariant | Implemented by | Verified by |
 |---|--------|--------------------|----------------|-------------|
-| SC1 | Issuance tx created | 1 × `CAPITAL_GAIN_ISSUANCE`, amount `== op.amount`, `system → project` | `LinkedIssuanceTransactionMixin.save()` | |
-| SC2 | No transactions created | `get_all_transactions().count() == 0` (no issuance, no payment) | (no transaction mixins) | |
-| SC3 | No settlement machinery | `amount_settled`/`is_fully_settled`/`create_payment_transaction` absent | (no payment mixin) | |
-| SC4 | No cash flow — project fund unchanged | `project.balance` unchanged by the gain | `Entity.balance_at` | |
-| SC5 | Inventory value ▲ | `Product.current_value`/`inventory_value` increases by the gain (`capital_delta`) | `capital_delta()` + `Product.current_value` | |
+| SC1 | No transactions created | `get_all_transactions().count() == 0` (no issuance, no payment) | (no transaction mixins) | |
+| SC2 | No settlement machinery | `amount_settled`/`is_fully_settled`/`create_payment_transaction` absent | (no payment mixin) | |
+| SC3 | No cash flow — project fund unchanged | `project.balance` unchanged by the gain | `Entity.balance_at` | |
+| SC4 | Inventory value ▲ | `Product.current_value`/`inventory_value` increases by the gain (`capital_delta`) | `capital_delta()` + `Product.current_value` | |
+| SC5 | Value-only — no movement line | the gain creates an invoice item linked to the product but **no** `InventoryMovementLine` | `save_inventory` | |
 | SC6 | Product stays ACTIVE | the gain is a value write-up, not a status transition | `Product.status` | |
 | SC7 | Period auto-assigned | `period` = the project's covering period | `Operation.save()` | covered by period suite |
-| SC8 | P&L income ▲ | `profit_loss()` counts `CAPITAL_GAIN_ISSUANCE` (target=fund) as income | `Entity.profit_loss()` | covered by SC7 period test (same tx drives P&L) |
-| SC9 | Value-only ledger | gain is value-only: **no** `InventoryMovementLine` created, quantity untouched | `creates_assets=False`, `can_create_movement=False` + `save_inventory` | |
-| SC10 | Product status unchanged | linked product stays `ACTIVE` (not SOLD/DEAD) | `save_inventory` links item only | |
-| SC11 | No double count | `end_assets` increase `==` recognized gain (counted once in inventory, once in P&L; never in cash balance) | `period.end_assets` | |
-| SC12 | Period auto-assigned | `period` = the project's covering period (open period auto-created at entity creation) | `Operation.save()` + `Entity.save()` | covered by period suite |
+| SC8 | profit_loss unchanged | the gain is not an accounting transaction | `Entity.profit_loss` | |
 
 ### 5.2 `reverse`
 
@@ -196,9 +176,8 @@ Entry points: model `op.reverse(officer, date, reason)` or view `operation_rever
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
 | VR1 | Not already reversed | `reversed_by is None` | `ValidationError` | `"The transaction is already reversed."` | `ReversableModel._validate_can_be_reversed` + view guard | |
 | VR2 | Not itself a reversal | `reversal_of is None` | `ValidationError` | `"You can't reverse this record as it is a reversal of …"` | `ReversableModel._validate_can_be_reversed` + view guard | |
-| VR3 | No explicit txs to reverse | all txs are implicit (one-shot issuance + payment) | `ValidationError` (would require manual reversal) | `"You can't reverse this object as it has non-reversed transactions…"` | `ReversableModel._requires_transaction_reversal` + `Operation._implicit_reversable_transaction_types` | implied by successful reverse |
-| VR4 | No non-reversed adjustments | n/a — Capital Gain is not adjustable | never fails | — | `is_adjustable=False` | n/a |
-| VR5 | Reason required | `POST['reversal_reason']` non-empty | view redirect + message | `"A reason for reversal is required."` | `operation_reverse_view` | view contract (see §8) |
+| VR3 | No non-reversed adjustments | n/a — Capital Gain is not adjustable | never fails | — | `is_adjustable=False` | n/a |
+| VR4 | Reason required | `POST['reversal_reason']` non-empty | view redirect + message | `"A reason for reversal is required."` | `operation_reverse_view` | view contract (see §8) |
 
 #### 5.2.2 Success effects
 
@@ -207,53 +186,39 @@ Entry points: model `op.reverse(officer, date, reason)` or view `operation_rever
 | SR1 | Reversal record created | cloned op, `reversal_of = original` | `ReversableModel.reverse()` | |
 | SR2 | Original marked reversed | `original.reversed_by = reversal` | `ReversableModel.reverse()` | |
 | SR3 | Reversal inherits identity | `amount`, `source`, `destination` copied; `is_reversal=True`, `is_reversed=False` | `ReversableModel._get_reverse_kwargs` | |
-| SR4 | Counter-tx for issuance | `project → system`, same amount, same type, `reversal_of=original` | `Transaction.reverse()` | |
-| SR5 | Counter-tx for payment | `project → system`, same amount, same type, `reversal_of=original` | same as SR4 | |
-| SR6 | Counter-txs preserve type + amount | `counter.type == original.type`, `counter.amount == original.amount` | same as SR4 | |
-| SR7 | Reversal op owns no txs | `reversal.get_all_transactions().count() == 0` (save skips tx creation for reversals) | `LinkedIssuanceTransactionMixin.save()` | covered by reversal suite (implicit) |
-| SR8 | Project fund unchanged after reversal | `project.balance` unchanged (gain is non-cash) | `balance_at` | |
-| SR9 | Settlement state cleared | `amount_settled == 0`, `is_fully_settled == False` | `amount_settled` | covered by reversal suite (implicit) |
-| SR10 | Reason flows to reversal | `reversal.description` contains the reason | `ReversableModel.reverse()` | covered by shared engine |
-| SR11 | Differential invariant | create + reverse leaves the whole world unchanged (balances, payables, receivables, ledger) | whole engine | |
-| SR12 | Product status stays ACTIVE through reversal | value write-up is not a status transition; reversal does not mutate the product | `save_inventory` / reversal path | |
+| SR4 | No counter-transactions | neither the original nor its reversal owns any `Transaction` | (no transaction mixins) | |
+| SR5 | Inventory value restored | the reversed gain is excluded from `capital_delta()` (filtered on `reversed_by__isnull=True`) → `inventory_value()` returns to baseline | `capital_delta` | |
+| SR6 | Product stays ACTIVE | the reversal is a value write-down back to baseline, not a status transition | `Product.status` | |
+| SR7 | Fund unchanged after reversal | `project.balance` unchanged | `Entity.balance_at` | |
+| SR8 | Differential invariant | create + reverse leaves the whole world unchanged (balances, payables, receivables, ledger, inventory value) | whole engine | shared engine invariant |
 
-### 5.3 `pay` (one-shot guard)
+### 5.3 `pay`
 
-There is **no standalone pay action** for Capital Gain:
-
-| Branch | Behavior | Enforced by | Pinned by test |
-|--------|----------|-------------|----------------|
-| `process_payment()` called | no-op (returns immediately — `can_pay=False`) | `process_payment` | n/a (covered by `can_pay=False`) |
-| `create_payment_transaction()` called after create | `ValidationError` — one-shot allows a single payment only, amount must equal `op.amount` | `create_payment_transaction` | |
+There is **no pay action** for Capital Gain — it has no payment machinery at all
+(`create_payment_transaction` does not exist on the class). Payment-related code is never
+reachable.
 
 ### 5.4 Immutability
 
-`source`, `destination`, `amount` (and `period`) **cannot be changed after save** — enforced by `ImmutableMixin` via `_immutable_fields`.
-
-| Branch | Enforced by | Pinned by test |
-|--------|-------------|----------------|
-| `source` changed after save | `ImmutableMixin.save()` | |
-| `destination` changed after save | `ImmutableMixin.save()` | |
-| `amount` changed after save | `ImmutableMixin.save()` | |
+`source`, `destination`, `amount` (and `period`) **cannot be changed after save** — enforced by `ImmutableMixin` via `_immutable_fields`. Shared with every operation (see [`op_1`](op_1_cash_injection.md) §5.4).
 
 ---
 
 ## 6. Period & financial-period contract
 
-- Every real (non-system) entity gets an **open** period on creation (start = creation date, `end_date=None`) — `Entity.save()`.
-- The operation's governing entity (`period_entity`) is the **destination project** (`_dest_role = "url"`) — `Operation.period_entity`.
-- On create, `period` is auto-assigned to the covering period; if none covers the date, creation fails (VC11).
-- New operations dated inside a **closed** period are rejected (VC10).
+- Every real (non-world/system) entity gets an **open** period on creation (start = creation date, `end_date=None`) — `Entity.save()`.
+- The operation's governing entity (`period_entity`) is the **destination project** (`_dest_role = "url"`) — `Operation.period_entity`. The System (virtual) has no periods and is exempt.
+- On create, `period` is auto-assigned to the covering period; if none covers the date, creation fails (VC8).
+- New operations dated inside a **closed** period are rejected (VC7).
 - Reversals are **exempt** from the closed-period and covering-period checks and may land in a different open period (`_reverse_period`).
 
 ---
 
 ## 7. Entity roles & balance contract
 
-- Project is the only allowed destination; System the only allowed source — enforced at model (VC1/VC2) and transaction (VC13) layers.
-- `project.balance` is derived exclusively from **payment-type** transactions (`balance_at`); `CAPITAL_GAIN_PAYMENT` is **not** a payment type, so the gain never inflates the project's fund balance.
-- System is **virtual**: `can_pay` always returns `True`, so gains are never blocked by fund balance (VC12).
-- Inventory value carries the gain via `capital_delta()` (only **non-reversed** capital ops count), so the gain appears exactly once in movement-based valuation — never in the cash balance (SC11).
+- System is the only allowed source; Project the only allowed destination — enforced at model (VC1/VC2).
+- No transactions → the project's fund balance, payables and receivables are **never** affected by a gain.
+- The gain is value-only: it raises `inventory_value()` (via `capital_delta`) and therefore `FinancialPeriod.end_assets`; it is **not** recognized in `profit_loss()`.
 
 ---
 
@@ -261,31 +226,29 @@ There is **no standalone pay action** for Capital Gain:
 
 | Concern | Behavior |
 |---------|----------|
-| Primary create route | `GET/POST /<project_pk>/evaluate/<product_pk>/` → `EvaluationCreateView`; also `/<pk>/evaluate/` without a product |
-| Entry point | **"Record Evaluation"** button on the product's stock detail page, restricted to `ACTIVE` products |
-| Form | `EvaluationForm` — product picker (ownership-restricted to the project's products), `new_unit_price` (`min 0.01`), date, notes |
-| Direction selection | computed from `delta = (new_unit_price − current_unit_price) × quantity`: `delta > 0 → CapitalGainOperation`, `delta < 0 → CapitalLossOperation`, ` | delta | < 0.01 → no operation` (`post()`) |
-| Source selection | locked to the single **System** entity (`_source_role="system"`, resolved by `resolve_request`); no picker |
-| Destination selection | the **Project** from the URL (`_dest_role="url"`); no secondary-entity field |
-| Amount | derived from the invoice item (`quantity × | Δ unit price | `) created by the evaluation view |
+| Create route | `GET/POST /<project_pk>/evaluate/<product_pk>/` → `EvaluationCreateView` |
+| Product | the evaluated product (owned by the project), with its current value shown |
+| Delta | `(new_unit_price − current_unit_price) × quantity`; no material change (< 0.01) records nothing (VC9) |
 | Category | hidden (no category) |
-| Secondary create route | `/<pk>/<op_type>/create` with `op_type="capital-gain"` exists (`OperationCreateView`), but the operation-list links are **commented out** |
-| Detail | `operation_detail_view` — shows the operation total + settlement status + reversal action; the individual issuance/payment transactions are hidden (one-shot — two identical amounts would confuse users) |
+| Amount | the absolute valuation delta, validated > 0 at model |
+| POST parsing | `OperationDataValidator` — date format, description, category (n/a), `amount_paid` (n/a, forced 0) |
+| List entry | not in the operations-list "New Operation" dropdown — entered from the stock detail "Record Evaluation" button |
+| Detail | `operation_detail_view` — shows the operation total + reversal action; **no** payment/settlement sections (rendered as one-shot) |
 | Reverse | `operation_reverse_view` — `POST` requires `reversal_reason`; guards already-reversed / is-reversal (VR1/VR2) |
 
 ---
 
 ## 9. Branch catalog (all possible branches)
 
-**create — validation:** VC1 source=system · VC2 dest=project · VC3 source active · VC4 dest active · VC5 source fund active · VC6 target fund active · VC7 amount>0 · VC8 officer staff · VC9 officer active · VC10 not closed-period · VC11 covering period exists · VC12 balance exempt · VC13 tx entity-type · VC14 tx op-type · VC15 source≠target · VC16 product ownership · VC17 product status eligible · VC18 template compatible
+**create — validation:** VC1 source=system · VC2 dest=project · VC3 source active · VC4 dest active · VC5 amount>0 · VC6 officer staff+active · VC7 not closed-period · VC8 covering period exists · VC9 material delta · VC10 product ownership
 
-**create — effects:** SC1 no issuance tx · SC2 no transactions · SC3 no settlement machinery · SC4 no cash flow (fund unchanged) · SC5 inventory value ▲ · SC6 product ACTIVE · SC7 period assigned · value-only (no movement line)
+**create — effects:** SC1 no transactions · SC2 no settlement machinery · SC3 no cash flow (fund unchanged) · SC4 inventory value ▲ · SC5 value-only (no movement line) · SC6 product ACTIVE · SC7 period assigned · SC8 profit_loss unchanged
 
-**reverse — validation:** VR1 not reversed · VR2 not a reversal · VR3 no explicit txs · VR4 no adjustments (n/a) · VR5 reason required (view)
+**reverse — validation:** VR1 not reversed · VR2 not a reversal · VR3 no adjustments (n/a) · VR4 reason required (view)
 
-**reverse — effects:** SR1 reversal record · SR2 original reversed · SR3 identity copied · SR4 issuance counter-tx · SR5 payment counter-tx · SR6 type/amount preserved · SR7 reversal owns no txs · SR8 fund unchanged after reversal · SR9 settlement cleared · SR10 reason in description · SR11 differential invariant · SR12 product stays ACTIVE
+**reverse — effects:** SR1 reversal record · SR2 original reversed · SR3 identity copied · SR4 no counter-txs · SR5 inventory value restored · SR6 product stays ACTIVE · SR7 fund unchanged · SR8 differential invariant
 
-**pay / immutability:** BP1 `process_payment` no-op · BP2 `create_payment_transaction` blocked after create · IM1/IM2/IM3 source/destination/amount immutable
+**immutability:** IM1/IM2/IM3 source/destination/amount immutable
 
 ---
 
@@ -293,27 +256,15 @@ There is **no standalone pay action** for Capital Gain:
 
 | Area | Test method | Branch(es) |
 |------|-------------|------------|
-| Tx creation + counts | | SC1, SC2 |
-| Tx amounts | | SC3 |
-| Tx direction | | SC4 |
-| Settlement | | SC5 |
-| Non-cash (fund unchanged) | | SC6 |
+| No transactions | | SC1 |
+| No settlement machinery | | SC2 |
 | Source validation | | VC1 |
 | Destination validation | | VC2, VC4 |
-| Amount | | VC7 |
-| Officer | | VC8, VC9 |
-| Immutability | | IM1–IM3 |
-| One-shot guard | | BP2 |
-| Balance exempt | | VC12 |
-| Reverse happy path | | SR1–SR3 |
-| Counter txs | | SR4–SR6 |
-| Non-cash after reversal | | SR8 |
-| Reverse constraints | | VR1, VR2 |
-| Differential invariant | | SR11 |
-| Value-only, product ACTIVE (create + reverse) | | SC9, SC10, SR12 |
-| Inventory valuation (capital_delta) | | SC7 |
-| Product status ACTIVE | | SC10 |
-| Single-count valuation | | SC7, SC11 |
-| Evaluation ownership guard | | VC16, VC17 |
-
----
+| Amount | | VC5 |
+| No cash flow / fund unchanged | | SC3 |
+| Inventory value ▲ | | SC4 |
+| Value-only (no movement line) | | SC5 |
+| Product stays ACTIVE | | SC6, SR6 |
+| Period assigned | | SC7 |
+| Reversal — no counter-txs | | SR4 |
+| Valuation restored on reverse | | SR5 |
