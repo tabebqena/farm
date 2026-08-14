@@ -141,36 +141,36 @@ Entry points: model `DeathOperation.save()` (tests) or `Operation.create()` (vie
 
 | # | Branch | Pass condition | Failure outcome | Error (on failure) | Enforced by | Pinned by test |
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
-| VC1 | Source is Project | `source.is_project` | `ValidationError` | `"Death source must be a Project entity."` | `clean_source` | |
-| VC2 | Destination is System | `destination.is_system` | `ValidationError` | `"Death destination must be the System entity."` | `clean_destination` | |
-| VC3 | Source entity active | `source.active` | `ValidationError` | `"Entity '%(name)s' must be active…"` | `Operation.clean()` | |
+| VC1 | Source is Project | `source.is_project` | `ValidationError` | `"Death source must be a Project entity."` | `clean_source` | `DeathCreateTest.test_source_must_be_a_project_entity`, `test_source_world_entity_raises_validation_error`, `test_source_system_entity_raises_validation_error` |
+| VC2 | Destination is System | `destination.is_system` | `ValidationError` | `"Death destination must be the System entity."` | `clean_destination` | `DeathCreateTest.test_destination_must_be_system_entity`, `test_destination_person_entity_raises_validation_error` |
+| VC3 | Source entity active | `source.active` | `ValidationError` | `"Entity '%(name)s' must be active…"` | `Operation.clean()` | `DeathCreateTest.test_source_must_be_active` |
 | VC4 | Destination entity active | `destination.active` | `ValidationError` | same as VC3 | `Operation.clean()` | shared engine suite |
-| VC5 | Amount positive | `amount > 0` | `ValidationError` | `"Amount should be positive, got …"` | `AmountCleanMixin` | |
-| VC6 | Officer is staff | `officer.is_staff` | `ValidationError` | `"Officer should be a staff user."` | `OfficerMixin` | |
-| VC7 | Officer active | `officer.is_active` | `ValidationError` | `"Officer should be an active user."` | `OfficerMixin` | shared engine suite |
+| VC5 | Amount positive | `amount > 0` | `ValidationError` | `"Amount should be positive, got …"` | `AmountCleanMixin` | `DeathCreateTest.test_amount_zero_raises_validation_error`, `test_amount_negative_raises_validation_error` |
+| VC6 | Officer is staff | `officer.is_staff` | `ValidationError` | `"Officer should be a staff user."` | `OfficerMixin` | `DeathCreateTest.test_officer_must_be_a_staff_user` |
+| VC7 | Officer active | `officer.is_active` | `ValidationError` | `"Officer should be an active user."` | `OfficerMixin` | `DeathCreateTest.test_officer_must_be_active` |
 | VC8 | Date not in a closed period (both entities) | no closed period contains `date` | `ValidationError` | `"Cannot create an operation whose date falls within a closed financial period."` | `Operation.clean()` | period suite |
 | VC9 | A covering financial period exists | `period_entity` has a period containing `date` | `ValidationError` | `"Cannot create an operation: no financial period covers this operation's date."` | `Operation.save()` | period suite |
-| VC10 | Template is die-able ANIMAL | `nature == ANIMAL` **and** `can_die=True` | `ValidationError` | template rejected by `accepts_operation(DEATH)` | `ProductTemplate.accepts_operation` | |
-| VC11 | Product linked (must be an existing asset) | `selected_product` present on the invoice item | form/`ValidationError` | missing-product error | `InvoiceItemSelectFormSet` + `save_inventory` | implied by create flow |
-| VC12 | Product status eligible — ACTIVE (not SOLD/DEAD/CONSUMED/REMOVED) | `Product.status == ACTIVE` | `ValidationError` | `"Product '%(id)s' has status %(status)s and cannot be used in new operations."` | `Product.validate_active` + `save_inventory` | shared inventory suite |
+| VC10 | Template is die-able ANIMAL | `nature == ANIMAL` **and** `can_die=True` | `ValidationError` | template rejected by `accepts_operation(DEATH)` | `ProductTemplate.accepts_operation` | `DeathCreateInventoryTest.test_non_animal_template_rejected_for_death` (flow); shared `AcceptsOperationGatingTest.test_death_gated_by_can_die` (template) |
+| VC11 | Product linked (must be an existing asset) | `selected_product` present on the invoice item | form/`ValidationError` | missing-product error | `InvoiceItemSelectFormSet` + `save_inventory` | `DeathCreateInventoryTest.test_create_movement_line_uses_selected_product` |
+| VC12 | Product status eligible — ACTIVE (not SOLD/DEAD/CONSUMED/REMOVED) | `Product.status == ACTIVE` | `ValidationError` | `"Product '%(id)s' has status %(status)s and cannot be used in new operations."` | `Product.validate_active` + `save_inventory` | shared `test_product` (`test_validate_active_raises_for_dead_product`) |
 | VC18 | Ownership — product belongs to source project | `selected.entity == inventory_owner_entity` | `ValidationError` | `"Product '%(p)s' does not belong to '%(entity)s' and cannot be used in this operation."` | `save_inventory` | shared inventory suite |
-| VC19 | Availability — quantity ≤ on-hand | `quantity ≤ movement_state(product).quantity` | `ValidationError` | availability error | `InventoryMovementLine.clean` + `_auto_create_inventory_movements` | shared inventory suite |
+| VC19 | Availability — quantity ≤ on-hand | `quantity ≤ movement_state(product).quantity` | `ValidationError` | availability error | `InventoryMovementLine.clean` + `_auto_create_inventory_movements` | shared `test_inventory_movement` (`test_death_movement_rejects_qty_beyond_on_hand`) |
 | VC20 | Unit consistency | quantity is a multiple of `product_template.minimum_quantity` | `ValidationError` | unit-step error | inventory form / movement clean | shared inventory suite |
 
 #### 5.1.2 Success effects
 
 | # | Effect | Detail / invariant | Implemented by | Verified by |
 |---|--------|--------------------|----------------|-------------|
-| SC1 | No transactions created | `get_all_transactions().count() == 0` (no issuance, no payment) | (no transaction mixins) | |
-| SC2 | No settlement machinery | `amount_settled`/`is_fully_settled`/`create_payment_transaction` absent | (no payment mixin) | |
-| SC3 | Auto outbound movement lines | one movement line per item at item qty, valued at the product's carried cost | `_auto_create_inventory_movements` | (setup) |
-| SC4 | Status DEAD | the written-off product `status == DEAD` | `Product.status` | |
-| SC5 | Inventory value drops once | `inventory_value()` decreases by the carried cost | `movement_state` + `inventory_value` | |
-| SC6 | Period auto-assigned | `period` = the project's covering period | `Operation.save()` | covered by period suite |
-| SC7 | Fund balance unchanged | `balance_at()` unaffected (no payment) | `Entity.balance_at` | |
-| SC8 | Product status DEAD | the written-off product's movement-based `status == DEAD` | `Product.status` | |
-| SC9 | Inventory value decreased once | `movement_state(product)` → net outbound; `inventory_value()` drops by the dead value; `end_assets` ▼ once (via inventory, not cash) | `movement_state` + `inventory_value` | (baseline before reversal) |
-| SC10 | Period auto-assigned | `period` = the project's covering period (open period auto-created at entity creation) | `Operation.save()` + `Entity.save()` | covered by period suite |
+| SC1 | No transactions created | `get_all_transactions().count() == 0` (no issuance, no payment) | (no transaction mixins) | `DeathCreateTest.test_save_creates_no_transactions` |
+| SC2 | No settlement machinery | `amount_settled`/`is_fully_settled`/`create_payment_transaction` absent | (no payment mixin) | `DeathCreateTest.test_period_is_assigned_and_no_settlement_machinery` |
+| SC3 | Auto outbound movement lines | one movement line per item at item qty, valued at the product's carried cost | `_auto_create_inventory_movements` | `DeathCreateInventoryTest.test_create_auto_creates_outbound_movement_line`, `test_create_multiple_items_each_get_a_movement_line` |
+| SC4 | Status DEAD | the written-off product `status == DEAD` | `Product.status` | `DeathCreateInventoryTest.test_create_marks_product_dead` |
+| SC5 | Inventory value drops once | `inventory_value()` decreases by the carried cost | `movement_state` + `inventory_value` | `DeathCreateInventoryTest.test_create_drops_inventory_value_once`, `test_create_drops_movement_state_to_zero` |
+| SC6 | Period auto-assigned | `period` = the project's covering period | `Operation.save()` | `DeathCreateTest.test_period_is_assigned_and_no_settlement_machinery` |
+| SC7 | Fund balance unchanged | `balance_at()` unaffected (no payment) | `Entity.balance_at` | `DeathCreateInventoryTest.test_create_does_not_drain_fund_balance`, `test_create_leaves_payables_receivables_unchanged` |
+| SC8 | Product status DEAD | the written-off product's movement-based `status == DEAD` | `Product.status` | `DeathCreateInventoryTest.test_create_marks_product_dead` |
+| SC9 | Inventory value decreased once | `movement_state(product)` → net outbound; `inventory_value()` drops by the dead value; `end_assets` ▼ once (via inventory, not cash) | `movement_state` + `inventory_value` | `DeathCreateInventoryTest.test_create_drops_inventory_value_once` |
+| SC10 | Period auto-assigned | `period` = the project's covering period (open period auto-created at entity creation) | `Operation.save()` + `Entity.save()` | `DeathCreateTest.test_period_is_assigned_and_no_settlement_machinery` |
 
 ### 5.2 `reverse`
 
@@ -180,25 +180,25 @@ Entry points: model `op.reverse(officer, date, reason)` or view `operation_rever
 
 | # | Branch | Pass condition | Failure outcome | Error (on failure) | Enforced by | Pinned by test |
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
-| VR1 | Not already reversed | `reversed_by is None` | `ValidationError` | `"The transaction is already reversed."` | `ReversableModel._validate_can_be_reversed` + view guard | |
-| VR2 | Not itself a reversal | `reversal_of is None` | `ValidationError` | `"You can't reverse this record as it is a reversal of …"` | `ReversableModel._validate_can_be_reversed` + view guard | |
-| VR3 | No explicit txs to reverse | Death creates no transactions, so `_reversable_transaction_types`/`_implicit_reversable_transaction_types` are empty and `_requires_transaction_reversal` returns `False` | never fails | — | `Operation._reversable_transaction_types` (`getattr`-guarded) + `ReversableModel._requires_transaction_reversal` | implied by successful reverse |
+| VR1 | Not already reversed | `reversed_by is None` | `ValidationError` | `"The transaction is already reversed."` | `ReversableModel._validate_can_be_reversed` + view guard | `DeathReversalTest.test_cannot_reverse_already_reversed_operation` |
+| VR2 | Not itself a reversal | `reversal_of is None` | `ValidationError` | `"You can't reverse this record as it is a reversal of …"` | `ReversableModel._validate_can_be_reversed` + view guard | `DeathReversalTest.test_cannot_reverse_a_reversal` |
+| VR3 | No explicit txs to reverse | Death creates no transactions, so `_reversable_transaction_types`/`_implicit_reversable_transaction_types` are empty and `_requires_transaction_reversal` returns `False` | never fails | — | `Operation._reversable_transaction_types` (`getattr`-guarded) + `ReversableModel._requires_transaction_reversal` | `DeathReversalTest.test_reverse_creates_no_transactions` |
 | VR4 | Reversal dependency guard | none of the dead products were moved again in a later non-reversed outbound op | `ValidationError` | `"Cannot reverse this operation: its products were moved again in a later operation."` | `Operation.reverse()` | **Defensive guard (unreachable via normal flows):** there is **no partial death** — a death always writes off the full on-hand quantity of the (INDIVIDUAL) animal, so the dead product becomes terminal (DEAD) and `Product.validate_active()` blocks any later outbound move. The shared guard code path is therefore pinned by the reachable **partial** outbound scenarios in the SALE and CONSUMPTION suites (`test_reversal_blocked_when_product_moved_again_in_later_sale` and `test_reversal_blocked_when_product_moved_again_in_later_consumption`) — the same `Operation.reverse()` clause. |
 | VR5 | No non-reversed adjustments | n/a — Death is not adjustable | never fails | — | `is_adjustable=False` | n/a |
-| VR6 | Reason required | `POST['reversal_reason']` non-empty | view redirect + message | `"A reason for reversal is required."` | `operation_reverse_view` | view contract (see §8) |
+| VR6 | Reason required | `POST['reversal_reason']` non-empty | view redirect + message | `"A reason for reversal is required."` | `operation_reverse_view` | `DeathReverseViewTest.test_reverse_view_rejects_missing_reason` |
 
 #### 5.2.2 Success effects
 
 | # | Effect | Detail / invariant | Implemented by | Verified by |
 |---|--------|--------------------|----------------|-------------|
-| SR1 | Reversal record created | cloned op, `reversal_of = original` | `ReversableModel.reverse()` | |
-| SR2 | Original marked reversed | `original.reversed_by = reversal` | `ReversableModel.reverse()` | |
+| SR1 | Reversal record created | cloned op, `reversal_of = original` | `ReversableModel.reverse()` | `DeathReversalTest.test_reverse_creates_reversal_record` |
+| SR2 | Original marked reversed | `original.reversed_by = reversal` | `ReversableModel.reverse()` | `DeathReversalTest.test_reverse_marks_original_as_reversed` |
 | SR3 | Reversal inherits identity | `amount`, `source`, `destination` copied | `ReversableModel._get_reverse_kwargs` | structural (same engine as [`op_1`](op_1_cash_injection.md) SR3) |
-| SR4 | No counter-transactions | neither the original nor its reversal owns any `Transaction` | (no transaction mixins) | |
-| SR5 | Auto movement lines reversed | one reversal line per original (equal qty, `reversal_of` link); originals preserved | `Operation.reverse()` → `line.reverse()` | |
-| SR6 | Ledger negated | the dead product's net presence restored to its pre-death on-hand (`qty`/`value` back to baseline) | `movement_state` | |
-| SR7 | Product status restored to ACTIVE | reversal-aware `Product.status` → `ACTIVE` (no resurrection of a dead stock item) | `Product.status` | |
-| SR8 | Differential invariant | create + reverse leaves the whole world unchanged (balances, payables, receivables, ledger, inventory value) | whole engine | shared engine invariant |
+| SR4 | No counter-transactions | neither the original nor its reversal owns any `Transaction` | (no transaction mixins) | `DeathReversalTest.test_reverse_creates_no_transactions` |
+| SR5 | Auto movement lines reversed | one reversal line per original (equal qty, `reversal_of` link); originals preserved | `Operation.reverse()` → `line.reverse()` | `DeathReversalTest.test_reverse_reverses_auto_movement_lines` |
+| SR6 | Ledger negated | the dead product's net presence restored to its pre-death on-hand (`qty`/`value` back to baseline) | `movement_state` | `DeathReversalTest.test_reverse_negates_ledger_entries`, `test_reverse_movement_ledger_negation_exact_set` |
+| SR7 | Product status restored to ACTIVE | reversal-aware `Product.status` → `ACTIVE` (no resurrection of a dead stock item) | `Product.status` | `DeathReversalTest.test_reversed_product_returns_to_active_status` |
+| SR8 | Differential invariant | create + reverse leaves the whole world unchanged (balances, payables, receivables, ledger, inventory value) | whole engine | `DeathReversalTest.test_create_then_reverse_leaves_world_unchanged` |
 
 ### 5.3 `pay`
 

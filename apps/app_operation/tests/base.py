@@ -590,6 +590,21 @@ COVERAGE_MANIFEST: dict[tuple[str, str, str], str] = {
     ("DEATH", "create", "SE2"): _path(
         f"{_OPS_TESTS}.inventory.test_death_death_create",
         "DeathCreateTest", "test_save_creates_no_transactions"),
+    ("DEATH", "create", "SC3"): _path(
+        f"{_OPS_TESTS}.inventory.test_death_death_create",
+        "DeathCreateInventoryTest", "test_create_auto_creates_outbound_movement_line"),
+    ("DEATH", "create", "SC5"): _path(
+        f"{_OPS_TESTS}.inventory.test_death_death_create",
+        "DeathCreateInventoryTest", "test_create_drops_inventory_value_once"),
+    ("DEATH", "create", "SC7"): _path(
+        f"{_OPS_TESTS}.inventory.test_death_death_create",
+        "DeathCreateInventoryTest", "test_create_does_not_drain_fund_balance"),
+    ("DEATH", "create", "VC7"): _path(
+        f"{_OPS_TESTS}.inventory.test_death_death_create",
+        "DeathCreateTest", "test_officer_must_be_active"),
+    ("DEATH", "create", "VC10"): _path(
+        f"{_OPS_TESTS}.inventory.test_death_death_create",
+        "DeathCreateInventoryTest", "test_non_animal_template_rejected_for_death"),
     ("DEATH", "reverse", "SE1"): _path(
         f"{_OPS_TESTS}.inventory.test_death_death_reversal",
         "DeathReversalTest", "test_reverse_creates_reversal_record"),
@@ -608,6 +623,18 @@ COVERAGE_MANIFEST: dict[tuple[str, str, str], str] = {
     ("DEATH", "reverse", "SE10"): _path(
         f"{_OPS_TESTS}.inventory.test_death_death_reversal",
         "DeathReversalTest", "test_cannot_reverse_already_reversed_operation"),
+    ("DEATH", "reverse", "VR1"): _path(
+        f"{_OPS_TESTS}.inventory.test_death_death_reversal",
+        "DeathReversalTest", "test_cannot_reverse_a_reversal"),
+    ("DEATH", "reverse", "differential"): _path(
+        f"{_OPS_TESTS}.inventory.test_death_death_reversal",
+        "DeathReversalTest", "test_create_then_reverse_leaves_world_unchanged"),
+    ("DEATH", "view", "VR6"): _path(
+        "apps.app_operation.tests.views.test_views_death_create_and_reverse",
+        "DeathReverseViewTest", "test_reverse_view_rejects_missing_reason"),
+    ("DEATH", "view", "SC3"): _path(
+        "apps.app_operation.tests.views.test_views_death_create_and_reverse",
+        "DeathCreateViewTest", "test_post_death_create_creates_death_with_movement"),
 
     # ------------------------------------------------------------ CONSUMPTION
     ("CONSUMPTION", "create", "SE2"): _path(

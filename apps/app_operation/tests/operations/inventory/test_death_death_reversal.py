@@ -45,8 +45,8 @@ class DeathReversalTest(TestCase):
             default_unit="Head",
         )
 
-    def _make_dead(self, qty=Decimal("5.00"), price=Decimal("100.00")):
-        """Create a physically-moved ACTIVE animal and record its death."""
+    def _make_moved_product(self, qty=Decimal("5.00"), price=Decimal("100.00")):
+        """Create a physically-moved ACTIVE animal owned by the project."""
         purchase = make_operation(
             self.project_entity,
             self.vendor,
@@ -71,7 +71,10 @@ class DeathReversalTest(TestCase):
             date=date.today(),
             officer=self.officer_user,
         )
+        return product
 
+    def _record_death(self, product, qty=Decimal("5.00"), price=Decimal("100.00")):
+        """Record a death against an existing product via the full create pipeline."""
         raw_post = {
             "items-TOTAL_FORMS": "1",
             "items-INITIAL_FORMS": "0",
@@ -84,7 +87,7 @@ class DeathReversalTest(TestCase):
             "items-0-selected_product": str(product.pk),
             "items-0-DELETE": "",
         }
-        op = DeathOperation.create(
+        return DeathOperation.create(
             operation_type=OperationType.DEATH,
             source=self.project_entity,
             destination=self.system_entity,
@@ -96,6 +99,11 @@ class DeathReversalTest(TestCase):
             raw_post=raw_post,
             project=self.project_entity,
         )
+
+    def _make_dead(self, qty=Decimal("5.00"), price=Decimal("100.00")):
+        """Create a physically-moved ACTIVE animal and record its death."""
+        product = self._make_moved_product(qty, price)
+        op = self._record_death(product, qty, price)
         return op, product
 
     # ------------------------------------------------------------------
@@ -223,3 +231,31 @@ class DeathReversalTest(TestCase):
 
         with self.assertRaises(ValidationError):
             reversal.reverse(officer=self.officer_user)
+
+    # ------------------------------------------------------------------
+    # SR8 — differential invariant: create + reverse leaves the world unchanged
+    # ------------------------------------------------------------------
+
+    def test_create_then_reverse_leaves_world_unchanged(self):
+        """SR8 — balances, payables, receivables and the ledger all return to
+        the pre-operation state after a full death create + reverse cycle.
+
+        The setup purchase is a permanent fixture (it moves the animal into the
+        project's stock), so the snapshot is taken after the purchase and
+        before the death — the death + reversal must leave that state intact."""
+        from apps.app_operation.tests.base import (
+            assert_derived_state_unchanged,
+            snapshot_derived_state,
+        )
+
+        product = self._make_moved_product(
+            qty=Decimal("5.00"), price=Decimal("100.00")
+        )
+        before = snapshot_derived_state()
+
+        op = self._record_death(
+            product, qty=Decimal("5.00"), price=Decimal("100.00")
+        )
+        op.reverse(officer=self.officer_user, reason="test reversal")
+
+        assert_derived_state_unchanged(self, before, msg="death create+reverse")
