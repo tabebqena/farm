@@ -94,6 +94,7 @@ The tables below **register every file that implements this operation**. The spe
 | Auto inbound movement lines + `Product` creation, status ACTIVE | (`Product.status` ) |
 | Identity: `INDIVIDUAL` tracking requires a unique tag per entity | `Product.Meta` (`UniqueConstraint(entity, unique_id)`), `next_tag` |
 | Movement-based valuation (`movement_state`, `inventory_value`) — born value carried **once** in inventory | `inventory_value`, `_INBOUND_TYPES` |
+| Reversal dependency guard — born products must still be ACTIVE to reverse the birth | `Operation.reverse()` |
 
 ### 2.6 View / UI layer
 
@@ -188,7 +189,8 @@ Entry points: model `op.reverse(officer, date, reason)` or view `operation_rever
 | VR1 | Not already reversed | `reversed_by is None` | `ValidationError` | `"The transaction is already reversed."` | `ReversableModel._validate_can_be_reversed` + view guard | |
 | VR2 | Not itself a reversal | `reversal_of is None` | `ValidationError` | `"You can't reverse this record as it is a reversal of …"` | `ReversableModel._validate_can_be_reversed` + view guard | |
 | VR3 | No non-reversed adjustments | n/a — Birth is not adjustable | never fails | — | `is_adjustable=False` | n/a |
-| VR4 | Reason required | `POST['reversal_reason']` non-empty | view redirect + message | `"A reason for reversal is required."` | `operation_reverse_view` | view contract (see §8) |
+| VR4 | Born products still ACTIVE | every born product's `status == ACTIVE` — none was moved again in a later non-reversed outbound op (SALE/DEATH/CONSUMPTION) | `ValidationError` | `"Cannot reverse this operation: its products were moved again in a later operation."` | `Operation.reverse()` (shared reversal dependency guard, extended to cover BIRTH) | **Intended behavior** — the reverse of a birth is valid only while the newborn is still ACTIVE in stock; once it has been sold/dead/consumed in a later operation the reversal would resurrect stock that no longer exists |
+| VR5 | Reason required | `POST['reversal_reason']` non-empty | view redirect + message | `"A reason for reversal is required."` | `operation_reverse_view` | view contract (see §8) |
 
 #### 5.2.2 Success effects
 
@@ -257,7 +259,7 @@ does not exist on the class). Payment-related code is never reachable.
 
 **create — effects:** SC1 no transactions · SC2 no settlement machinery · SC3 auto inbound lines · SC4 lazy product creation · SC5 status ACTIVE · SC6 newborn attributes · SC7 newborn template defaulted · SC8 inventory value ▲ once · SC9 period assigned · SC10 fund balance unchanged
 
-**reverse — validation:** VR1 not reversed · VR2 not a reversal · VR3 no adjustments (n/a) · VR4 reason required (view)
+**reverse — validation:** VR1 not reversed · VR2 not a reversal · VR3 no adjustments (n/a) · VR4 born products still ACTIVE · VR5 reason required (view)
 
 **reverse — effects:** SR1 reversal record · SR2 original reversed · SR3 identity copied · SR4 no counter-txs · SR5 auto lines reversed · SR6 ledger negated · SR7 born products REMOVED · SR8 differential invariant
 
@@ -282,3 +284,4 @@ does not exist on the class). Payment-related code is never reachable.
 | Ledger / movement state | | SC8 |
 | Period assigned | | SC9 |
 | Reversal — no counter-txs | | SR4 |
+| Reversal — born products still ACTIVE | | VR4 |
