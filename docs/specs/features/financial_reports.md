@@ -22,10 +22,10 @@ The reporting surface exposes **four accounting statements** plus **operational 
 | R2 | Payables | point-in-time | person + project | as of `dt` | `Entity.payables_at` |
 | R3 | Receivables | point-in-time | person + project | as of `dt` | `Entity.receivables_at` |
 | R4 | Inventory Value | point-in-time | project only | as of `dt` | `stock.inventory_value` |
-| R5 | Income Statement (P&L) | period | project only | `[start, end)` | `Entity.profit_loss` |
-| R6 | Balance Sheet | period-end snapshot | project only | `end_date` | `FinancialPeriod.end_assets` / `end_liabilities` / equity |
-| R7 | Cash Flow Statement | period | person + project | `[start, end)` | `FinancialPeriod.cash_in` / `cash_out` / `previous_balance` / `end_balance` |
-| R8 | Statement of Changes in Equity | period | person + project | `[start, end)` | derived — see §3.6 (not yet a dedicated page) |
+| R5 | Income Statement (P&L) | period | project only | `[start, end)` | `app_report.reporting.income_statement` (model: `Entity.profit_loss`) |
+| R6 | Balance Sheet | period-end snapshot | project only | `end_date` | `app_report.reporting.balance_sheet` (model: `FinancialPeriod.end_assets` / `end_liabilities`) |
+| R7 | Cash Flow Statement | period | person + project | `[start, end)` | `app_report.reporting.cash_flow` (model: `FinancialPeriod.cash_in` / `cash_out` / `previous_balance` / `end_balance`) |
+| R8 | Statement of Changes in Equity | period | person + project | `[start, end)` | `app_report.reporting.equity` |
 
 **Configuration / currency:**
 - Currency symbol: `settings.CURRENCY_SYMBOL` (default `"$"`) — every amount renders with this symbol.
@@ -82,6 +82,12 @@ The reporting surface exposes **four accounting statements** plus **operational 
 | Payment-transactions page (running balance) | `entity_payment_transactions_view` + `app_transaction/entity_payment_transactions.html` |
 | Payables page (running obligation) | `entity_payables_view` + `app_transaction/entity_payables.html` |
 | Receivables page (running obligation) | `entity_receivables_view` + `app_transaction/entity_receivables.html` |
+| Report hub | `reports_hub_view` + `app_report/report_hub.html` |
+| Income Statement page | `income_statement_view` + `app_report/income_statement.html` |
+| Balance Sheet page | `balance_sheet_view` + `app_report/balance_sheet.html` |
+| Cash Flow page | `cash_flow_view` + `app_report/cash_flow.html` |
+| Equity page | `equity_statement_view` + `app_report/equity_statement.html` |
+| Report computation helpers | `apps/app_report/reporting.py` |
 | Stock detail (project only) | `stock_detail` view + template |
 | URL wiring | `apps/app_transaction/urls.py`, `apps/app_operation/urls.py`, `apps/app_inventory/urls.py` |
 | Navigation entries | `apps/app_base/navigation.py` |
@@ -94,6 +100,7 @@ The reporting surface exposes **four accounting statements** plus **operational 
 | Payment transactions / payables / receivables pages | `apps/app_transaction/tests.py` (`EntityTransactionsViewTests`, `EntityPayablesViewTests`, `EntityReceivablesViewTests`) |
 | Period model metrics (balance, inventory, end_assets, end_liabilities) | `apps/app_operation/tests/period/test_period_model.py` |
 | Stock valuation | `apps/app_inventory/tests/test_stock.py` |
+| Report pages (hub + four statements) and computation helpers | `apps/app_report/tests.py` |
 
 ---
 
@@ -178,7 +185,7 @@ Every cash amount is an **aggregation over `Transaction` rows**; every stock amo
   - **Liabilities** = payables.
   - **Equity** = Assets − Liabilities (residual) = contributed capital + cumulative retained earnings (P&L).
 - **Current implementation (subset):** `FinancialPeriod.end_assets` = cash balance + inventory value + `outstanding_loan_credited` + `outstanding_worker_advance_paid` (**excludes trade receivables**); `end_liabilities` = `outstanding_loan_received` + `outstanding_worker_advance_received` (**excludes trade payables**). Trade payables/receivables are tracked separately (R2/R3) but not yet folded into the sheet. **Refinement for Epic 7:** fold `payables_at`/`receivables_at` into the sheet so Assets − Liabilities reconciles exactly to contributed capital + cumulative P&L.
-- **Status:** partial — `FinancialPeriod.end_assets` / `end_liabilities` implemented and surfaced in the period detail "Period Summary"; full reconciliation is a documented gap.
+- **Status:** implemented — `FinancialPeriod.end_assets` / `end_liabilities` stay on the period detail "Period Summary" (subset); the full reconciled sheet is rendered by `app_report.reporting.balance_sheet` on the Balance Sheet page (R6).
 
 ---
 
@@ -195,7 +202,7 @@ Every cash amount is an **aggregation over `Transaction` rows**; every stock amo
     - *Financing* — `CASH_INJECTION_PAYMENT`, `CAPITAL_WITHDRAWAL_PAYMENT`, `PROJECT_FUNDING_PAYMENT`, `PROJECT_REFUND_PAYMENT`, `LOAN_PAYMENT`, `LOAN_REPAYMENT`, `WORKER_ADVANCE_PAYMENT`, `WORKER_ADVANCE_REPAYMENT`, `INTERNAL_TRANSFER_PAYMENT`, `CORRECTION_CREDIT_PAYMENT`, `CORRECTION_DEBIT_PAYMENT`.
     - *Investing* — none today (Birth / Death / Capital Gain / Capital Loss are non-cash; value flows via inventory).
 - **Current implementation:** a **combined** `cash_in` / `cash_out` plus `previous_balance` / `end_balance`. The operating/investing/financing split is a **future refinement** (Epic 7).
-- **Status:** partial — `FinancialPeriod.cash_in` / `cash_out` / `previous_balance` / `end_balance` implemented and shown in the period detail "Cash & Balance" card.
+- **Status:** implemented — `FinancialPeriod.cash_in` / `cash_out` / `previous_balance` / `end_balance` shown in the period detail "Cash & Balance" card; the activity-split statement is rendered by `app_report.reporting.cash_flow` on the Cash Flow page (R7).
 
 ---
 
@@ -214,7 +221,7 @@ Every cash amount is an **aggregation over `Transaction` rows**; every stock amo
     - retained earnings = cumulative `profit_loss` over closed periods
     - distributions via `DistributionPlan` / `ShareholderAllocation` (models not yet present — future)
     - closing equity = Assets − Liabilities (R6).
-- **Status:** not implemented as a page. The inputs (balance, cash flows, P&L) all exist; the dedicated statement is a future Epic 7 deliverable.
+- **Status:** implemented — `app_report.reporting.equity` renders the statement on the Equity page (R8). Distributions via `DistributionPlan` / `ShareholderAllocation` remain a future Epic 7 deliverable.
 
 ---
 
@@ -287,8 +294,16 @@ Every cash amount is an **aggregation over `Transaction` rows**; every stock amo
 | Payment transactions page | summary cards (current balance, total incoming, total outgoing, count) + paginated table with direction and running balance |
 | Payables / receivables pages | summary (total increase, total decrease, current obligation) + paginated running-balance table |
 | Currency | `settings.CURRENCY_SYMBOL` on every page |
-| Navigation | entries for payment transactions, payables, receivables, periods, stock (project) |
-| Future (Epic 7) | dedicated Income Statement, Cash Flow, and Equity pages; operating/investing/financing split; full balance-sheet reconciliation |
+| Navigation | entries for payment transactions, payables, receivables, periods, stock (project), and Reports (hub + four statements) |
+| Report hub | `reports/<int:entity_pk>/` — cards for the available statements (project: all four; person: Cash Flow + Equity) plus the operational pages |
+| Income Statement page | `reports/<int:entity_pk>/income-statement/` — Revenue / Costs & Expenses / Net Profit with a `?period=` selector |
+| Balance Sheet page | `reports/<int:entity_pk>/balance-sheet/` — Assets / Liabilities / Equity with the reconciliation footer |
+| Cash Flow page | `reports/<int:entity_pk>/cash-flow/` — opening, operating / financing / investing, ending cash |
+| Equity page | `reports/<int:entity_pk>/equity/` — opening, contributions / withdrawals (person) or contributed capital + retained earnings (project), closing |
+| Entity detail | "Financial Reports" button links to the hub; period detail links to Income Statement / Balance Sheet / Cash Flow for that period |
+| Drill-downs | line items link to payables / receivables / payment transactions / stock / operations (see §3.4–§3.7) |
+| Print | statements hide navigation and controls under `@media print` |
+| Future (Epic 7) | profit-distribution equity line items; dashboard; export (PDF/CSV) |
 
 ---
 
@@ -302,11 +317,11 @@ Every cash amount is an **aggregation over `Transaction` rows**; every stock amo
 
 **R5 P&L:** income bucket (target=fund) vs cost bucket (source=fund) · reversal-negated signed sum · `[start, end)` date filter · non-project raises `ValueError` · capital gain/loss/consumption excluded (flow via inventory)
 
-**R6 Balance sheet:** assets = cash + inventory + receivables (incl. loans/advances given) · liabilities = payables (incl. loans/advances received) · equity = assets − liabilities · current impl = subset (no trade payables/receivables) — documented refinement
+**R6 Balance sheet:** assets = cash + inventory + receivables (incl. loans/advances given) · liabilities = payables (incl. loans/advances received) · equity = assets − liabilities · full sheet implemented in `app_report.reporting.balance_sheet`; `end_assets`/`end_liabilities` remain the period-detail subset
 
-**R7 Cash flow:** opening = `previous_balance` · in/out = payment types · closing = balance/end_balance · operating/investing/financing split future
+**R7 Cash flow:** opening = `previous_balance` · in/out = payment types · closing = balance/end_balance · operating/investing/financing split implemented in `app_report.reporting.cash_flow`
 
-**R8 Equity:** person = balance (injections − withdrawals) · project = contributed capital + retained earnings (− distributions, future)
+**R8 Equity:** person = balance (injections − withdrawals) · project = contributed capital + retained earnings (− distributions, future) · implemented in `app_report.reporting.equity`
 
 **R9–R12 operational views:** running balance/obligation over all rows (correct across pages) · totals · 25-per-page pagination · 404 for missing entity · auth required
 

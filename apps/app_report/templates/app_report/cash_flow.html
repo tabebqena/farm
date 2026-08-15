@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% block title %}{% trans 'Cash Flow Statement' %} - {{ entity.get_display_name }}{% endblock %}
+{% block extra_css %}{% include 'app_report/_report_styles.html' %}{% endblock %}
+{% block content %}
+<div class="container mt-4">
+  {% include 'app_report/_report_header.html' with statement_title=_('Cash Flow Statement') %}
+  {% if not period %}
+    <div class="alert alert-info">{% trans 'No financial period is available for this entity yet.' %}</div>
+  {% else %}
+  <div class="card border-0 shadow-sm">
+    <div class="card-body">
+      <table class="report-table">
+        <tbody>
+          <tr>
+            <td><a href="{% url 'entity_payment_transactions_list' entity.pk %}">{% trans 'Beginning cash' %}</a></td>
+            <td class="text-end">{{ statement.opening|floatformat:2 }}</td>
+          </tr>
+
+          <tr class="report-section"><th colspan="2">{% trans 'Operating activities' %}</th></tr>
+          <tr><td class="report-sub">{% trans 'Cash in' %}</td><td class="text-end text-success">{{ statement.operating.in|floatformat:2 }}</td></tr>
+          <tr><td class="report-sub">{% trans 'Cash out' %}</td><td class="text-end text-danger">{{ statement.operating.out|floatformat:2 }}</td></tr>
+          <tr class="report-total"><th class="report-sub">{% trans 'Net operating cash flow' %}</th><td class="text-end">{{ statement.operating.net|floatformat:2 }}</td></tr>
+
+          <tr class="report-section"><th colspan="2">{% trans 'Financing activities' %}</th></tr>
+          <tr><td class="report-sub">{% trans 'Cash in' %}</td><td class="text-end text-success">{{ statement.financing.in|floatformat:2 }}</td></tr>
+          <tr><td class="report-sub">{% trans 'Cash out' %}</td><td class="text-end text-danger">{{ statement.financing.out|floatformat:2 }}</td></tr>
+          <tr class="report-total"><th class="report-sub">{% trans 'Net financing cash flow' %}</th><td class="text-end">{{ statement.financing.net|floatformat:2 }}</td></tr>
+
+          <tr class="report-section"><th colspan="2">{% trans 'Investing activities' %}</th></tr>
+          <tr><td class="report-sub">{% trans 'Cash in' %}</td><td class="text-end text-success">{{ statement.investing.in|floatformat:2 }}</td></tr>
+          <tr><td class="report-sub">{% trans 'Cash out' %}</td><td class="text-end text-danger">{{ statement.investing.out|floatformat:2 }}</td></tr>
+          <tr class="report-total"><th class="report-sub">{% trans 'Net investing cash flow' %}</th><td class="text-end">{{ statement.investing.net|floatformat:2 }}</td></tr>
+
+          <tr class="report-total">
+            <th>{% trans 'Net increase / (decrease) in cash' %}</th>
+            <td class="text-end">
+              {% if statement.net_change >= 0 %}
+                <span class="text-success">+{{ statement.net_change|floatformat:2 }}</span>
+              {% else %}
+                <span class="text-danger">{{ statement.net_change|floatformat:2 }}</span>
+              {% endif %}
+            </td>
+          </tr>
+          <tr class="report-grand-total">
+            <th>{% trans 'Ending cash' %}</th>
+            <td class="text-end">{{ statement.closing|floatformat:2 }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

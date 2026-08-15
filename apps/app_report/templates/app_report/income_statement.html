@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% block title %}{% trans 'Income Statement' %} - {{ entity.get_display_name }}{% endblock %}
+{% block extra_css %}{% include 'app_report/_report_styles.html' %}{% endblock %}
+{% block content %}
+<div class="container mt-4">
+  {% include 'app_report/_report_header.html' with statement_title=_('Income Statement') %}
+  {% if not period %}
+    <div class="alert alert-info">{% trans 'No financial period is available for this entity yet.' %}</div>
+  {% else %}
+  <div class="card border-0 shadow-sm">
+    <div class="card-body">
+      <table class="report-table">
+        <tbody>
+          <tr class="report-section"><th colspan="2">{% trans 'Revenue' %}</th></tr>
+          {% for type, amount in statement.income.items %}
+            <tr>
+              <td><a href="{% url 'operation_list_view' entity.pk %}">{{ type|lower }}</a></td>
+              <td class="text-end">{{ amount|floatformat:2 }}</td>
+            </tr>
+          {% empty %}
+            <tr><td class="text-muted">—</td><td></td></tr>
+          {% endfor %}
+          {% if statement.income_decrease %}
+            <tr><th colspan="2" class="small text-muted report-sub">{% trans 'Less: revenue reductions' %}</th></tr>
+            {% for type, amount in statement.income_decrease.items %}
+              <tr>
+                <td class="report-sub"><a href="{% url 'operation_list_view' entity.pk %}">{{ type|lower }}</a></td>
+                <td class="text-end">{{ amount|floatformat:2 }}</td>
+              </tr>
+            {% endfor %}
+          {% endif %}
+          <tr class="report-total"><th>{% trans 'Total Revenue' %}</th><td class="text-end">{{ statement.income_total|floatformat:2 }}</td></tr>
+
+          <tr class="report-section"><th colspan="2">{% trans 'Costs & Expenses' %}</th></tr>
+          {% for type, amount in statement.costs.items %}
+            <tr>
+              <td><a href="{% url 'operation_list_view' entity.pk %}">{{ type|lower }}</a></td>
+              <td class="text-end">{{ amount|floatformat:2 }}</td>
+            </tr>
+          {% empty %}
+            <tr><td class="text-muted">—</td><td></td></tr>
+          {% endfor %}
+          {% if statement.costs_decrease %}
+            <tr><th colspan="2" class="small text-muted report-sub">{% trans 'Less: cost reductions' %}</th></tr>
+            {% for type, amount in statement.costs_decrease.items %}
+              <tr>
+                <td class="report-sub"><a href="{% url 'operation_list_view' entity.pk %}">{{ type|lower }}</a></td>
+                <td class="text-end">{{ amount|floatformat:2 }}</td>
+              </tr>
+            {% endfor %}
+          {% endif %}
+          <tr class="report-total"><th>{% trans 'Total Costs & Expenses' %}</th><td class="text-end">{{ statement.costs_total|floatformat:2 }}</td></tr>
+
+          <tr class="report-grand-total">
+            <th>{% trans 'Net Profit / (Loss)' %}</th>
+            <td class="text-end">
+              {% if statement.net >= 0 %}
+                <span class="text-success">+{{ statement.net|floatformat:2 }}</span>
+              {% else %}
+                <span class="text-danger">{{ statement.net|floatformat:2 }}</span>
+              {% endif %}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

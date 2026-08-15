@@ -35,6 +35,7 @@ urlpatterns += i18n_patterns(
     path("entities/operations/", include("apps.app_operation.urls")),
     path("transactions/", include("apps.app_transaction.urls")),
     path("inventory/", include("apps.app_inventory.urls")),
+    path("reports/", include("apps.app_report.urls")),
     path("auth/", include("apps.app_base.urls")),
     path("login/", LoginView.as_view(), name="login"),
     path("logout/", auth_views.LogoutView.as_view(), name="logout"),

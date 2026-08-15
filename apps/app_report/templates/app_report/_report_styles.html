@@ -1,0 +1,15 @@
+<style>
+  .report-table { border-collapse: collapse; width: 100%; }
+  .report-table th, .report-table td { padding: 0.45rem 0.75rem; vertical-align: top; }
+  .report-section th { border-top: 2px solid #dee2e6; text-transform: uppercase; font-size: 0.8rem; color: #6c757d; }
+  .report-total th, .report-total td { border-top: 1px solid #adb5bd; font-weight: 700; }
+  .report-grand-total th, .report-grand-total td {
+    border-top: 2px solid #212529; border-bottom: 2px solid #212529; font-weight: 700;
+  }
+  .report-sub { padding-inline-start: 1.5rem !important; }
+  @media print {
+    .no-print { display: none !important; }
+    nav.navbar, #topnav { display: none !important; }
+    body { background: #fff; }
+  }
+</style>

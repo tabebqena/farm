@@ -1,0 +1,119 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% block title %}{% trans 'Financial Reports' %} - {{ entity.get_display_name }}{% endblock %}
+{% block extra_css %}{% include 'app_report/_report_styles.html' %}{% endblock %}
+{% block content %}
+<div class="container mt-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4 pb-3 border-bottom py-4">
+    <span class="flex-grow-1">
+      <h2 class="fw-bold mb-0 me-3">{% trans 'Financial Reports' %}</h2>
+      <p class="text-muted mt-1 mb-0">
+        <a href="{% url 'entity_detail' entity.pk %}">{{ entity.name }}</a>
+        &middot; {% if entity.is_project %}{% trans 'Project' %}{% else %}{% trans 'Person' %}{% endif %}
+      </p>
+    </span>
+    <span class="d-flex align-items-center">
+      <a class="btn btn-outline-secondary" href="{% url 'entity_detail' entity.pk %}">
+        <i class="bi bi-arrow-left me-2"></i>{% trans 'Back to Entity' %}
+      </a>
+    </span>
+  </div>
+
+  {% if periods %}
+    <form method="get" class="mb-4 d-flex gap-2 align-items-center">
+      <label class="small text-muted fw-bold mb-0">{% trans 'Period' %}</label>
+      <select name="period" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+        {% for p in periods %}
+          <option value="{{ p.pk }}" {% if p.pk == period.pk %}selected{% endif %}>
+            {{ p.start_date|date:"Y-m-d" }} &rarr; {% if p.end_date %}{{ p.end_date|date:"Y-m-d" }}{% else %}{% trans 'Open' %}{% endif %}
+          </option>
+        {% endfor %}
+      </select>
+    </form>
+  {% endif %}
+
+  {% if not period %}
+    <div class="alert alert-info">{% trans 'No financial period is available for this entity yet.' %}</div>
+  {% endif %}
+
+  <div class="row g-3">
+    {% if entity.is_project %}
+      <div class="col-md-6 col-lg-4">
+        <a class="card text-decoration-none h-100 border-0 shadow-sm" href="{% url 'income_statement' entity.pk %}{% if period %}?period={{ period.pk }}{% endif %}">
+          <div class="card-body">
+            <div class="fs-4 text-primary mb-2"><i class="bi bi-graph-up-arrow"></i></div>
+            <h6 class="fw-bold mb-1">{% trans 'Income Statement' %}</h6>
+            <p class="small text-muted mb-0">{% trans 'Revenue, costs and net profit / loss for the period.' %}</p>
+          </div>
+        </a>
+      </div>
+      <div class="col-md-6 col-lg-4">
+        <a class="card text-decoration-none h-100 border-0 shadow-sm" href="{% url 'balance_sheet' entity.pk %}{% if period %}?period={{ period.pk }}{% endif %}">
+          <div class="card-body">
+            <div class="fs-4 text-primary mb-2"><i class="bi bi-columns-gap"></i></div>
+            <h6 class="fw-bold mb-1">{% trans 'Balance Sheet' %}</h6>
+            <p class="small text-muted mb-0">{% trans 'Assets, liabilities and equity as of the period end.' %}</p>
+          </div>
+        </a>
+      </div>
+    {% endif %}
+    <div class="col-md-6 col-lg-4">
+      <a class="card text-decoration-none h-100 border-0 shadow-sm" href="{% url 'cash_flow' entity.pk %}{% if period %}?period={{ period.pk }}{% endif %}">
+        <div class="card-body">
+          <div class="fs-4 text-primary mb-2"><i class="bi bi-arrow-left-right"></i></div>
+          <h6 class="fw-bold mb-1">{% trans 'Cash Flow Statement' %}</h6>
+          <p class="small text-muted mb-0">{% trans 'How cash moved during the period, by activity.' %}</p>
+        </div>
+      </a>
+    </div>
+    <div class="col-md-6 col-lg-4">
+      <a class="card text-decoration-none h-100 border-0 shadow-sm" href="{% url 'equity_statement' entity.pk %}{% if period %}?period={{ period.pk }}{% endif %}">
+        <div class="card-body">
+          <div class="fs-4 text-primary mb-2"><i class="bi bi-pie-chart"></i></div>
+          <h6 class="fw-bold mb-1">{% trans 'Statement of Changes in Equity' %}</h6>
+          <p class="small text-muted mb-0">{% trans 'How equity moved across the period.' %}</p>
+        </div>
+      </a>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+      <a class="card text-decoration-none h-100 border-0 shadow-sm" href="{% url 'entity_payment_transactions_list' entity.pk %}">
+        <div class="card-body">
+          <div class="fs-4 text-primary mb-2"><i class="bi bi-wallet2"></i></div>
+          <h6 class="fw-bold mb-1">{% trans 'Payment Transactions' %}</h6>
+          <p class="small text-muted mb-0">{% trans 'Cash-flow ledger with running balance.' %}</p>
+        </div>
+      </a>
+    </div>
+    <div class="col-md-6 col-lg-4">
+      <a class="card text-decoration-none h-100 border-0 shadow-sm" href="{% url 'entity_payables_list' entity.pk %}">
+        <div class="card-body">
+          <div class="fs-4 text-danger mb-2"><i class="bi bi-receipt"></i></div>
+          <h6 class="fw-bold mb-1">{% trans 'Payables' %}</h6>
+          <p class="small text-muted mb-0">{% trans 'Outstanding obligations owed by the entity.' %}</p>
+        </div>
+      </a>
+    </div>
+    <div class="col-md-6 col-lg-4">
+      <a class="card text-decoration-none h-100 border-0 shadow-sm" href="{% url 'entity_receivables_list' entity.pk %}">
+        <div class="card-body">
+          <div class="fs-4 text-success mb-2"><i class="bi bi-cash-coin"></i></div>
+          <h6 class="fw-bold mb-1">{% trans 'Receivables' %}</h6>
+          <p class="small text-muted mb-0">{% trans 'Outstanding amounts owed to the entity.' %}</p>
+        </div>
+      </a>
+    </div>
+    {% if entity.is_project %}
+      <div class="col-md-6 col-lg-4">
+        <a class="card text-decoration-none h-100 border-0 shadow-sm" href="{% url 'stock_detail' entity.pk %}">
+          <div class="card-body">
+            <div class="fs-4 text-primary mb-2"><i class="bi bi-archive"></i></div>
+            <h6 class="fw-bold mb-1">{% trans 'Stock Value' %}</h6>
+            <p class="small text-muted mb-0">{% trans 'Movement-based inventory value for the project.' %}</p>
+          </div>
+        </a>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

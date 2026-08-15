@@ -222,3 +222,29 @@ Capture output into `tmp/` and delete it after inspecting (per repo testing rule
 - Reversal rules come from the spec §6 (balance/P&L count reversals signed; payables/receivables
   exclude them). The helpers must mirror those rules exactly.
 - No data migrations; no changes to existing models.
+
+## Implemented (2026-08-15)
+- Created `apps/app_report` — `AppReportConfig` registered as `apps.app_report` in
+  `INSTALLED_APPS`; `farm/urls.py` includes it under `reports/`.
+- `apps/app_report/reporting.py`: `income_statement`, `balance_sheet`, `cash_flow`, `equity`
+  helpers using the spec's type buckets and reversal-aware signed sums.
+- `apps/app_report/views.py`: `reports_hub_view`, `income_statement_view`,
+  `balance_sheet_view`, `cash_flow_view`, `equity_statement_view` (`@login_required` +
+  `@debug_view`, `?period=` scope, project-only 403 for Income Statement / Balance Sheet).
+- Routes: `reports/<entity_pk>/`, `.../income-statement/`, `.../balance-sheet/`,
+  `.../cash-flow/`, `.../equity/`.
+- Templates under `apps/app_report/templates/app_report/`: `_report_styles.html`,
+  `_report_header.html`, `report_hub.html`, and the four statement pages — accounting-style
+  layouts with drill-down links and `@media print`.
+- `apps/app_base/navigation.py`: NAVIGATION_MAP entries for the hub + four statements and
+  "Reports" related links on entity detail, payment transactions, payables, receivables,
+  operations, and periods.
+- `entity_detail.html`: "Financial Reports" button. `period_detail.html`: Income Statement /
+  Balance Sheet / Cash Flow links for the period.
+- `apps/app_transaction/views.py` + `entity_payment_transactions.html`: optional `?type=`
+  filter with a banner (drill-downs); fixed the stray `12.` prefix on the template's first line.
+- Tests in `apps/app_report/tests.py` (22 tests). Spec updated in
+  `docs/specs/features/financial_reports.md` (§1, §2.4, §2.5, §3, §7, §8) marking R5–R8
+  implemented.
+- Verification: `manage.py check` clean; `apps.app_report` 22/22; affected suites
+  (app_transaction, entity-detail view, app_operation.period, app_base) 176/176.

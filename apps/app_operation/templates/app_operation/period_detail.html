@@ -219,6 +219,15 @@
       <a href="{% url 'period_ledger_view' period.pk %}" class="btn btn-outline-primary">
         <i class="bi bi-journal-text me-1"></i>{% trans 'View Ledger' %}
       </a>
+      <a href="{% url 'income_statement' entity.pk %}?period={{ period.pk }}" class="btn btn-outline-secondary">
+        <i class="bi bi-graph-up-arrow me-1"></i>{% trans 'Income Statement' %}
+      </a>
+      <a href="{% url 'balance_sheet' entity.pk %}?period={{ period.pk }}" class="btn btn-outline-secondary">
+        <i class="bi bi-columns-gap me-1"></i>{% trans 'Balance Sheet' %}
+      </a>
+      <a href="{% url 'cash_flow' entity.pk %}?period={{ period.pk }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left-right me-1"></i>{% trans 'Cash Flow' %}
+      </a>
       {% if not period.is_closed %}
         <a href="{% url 'period_close_view' period.pk %}" class="btn btn-warning">
           {% trans 'Close Period' %}

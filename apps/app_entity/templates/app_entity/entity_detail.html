@@ -51,6 +51,7 @@
     </span>
     <span class="d-flex align-items-center">
       <span class="ms-2 gap-2"><a class="btn btn-outline-secondary" href="{% url 'entity_payment_transactions_list' entity.pk %}"><i class="bi bi-arrow-left-right me-2"></i>{% trans 'Payment Transactions' %}</a></span>
+      <span class="ms-2 gap-2"><a class="btn btn-outline-secondary" href="{% url 'report_hub' entity.pk %}"><i class="bi bi-bar-chart-line me-2"></i>{% trans 'Financial Reports' %}</a></span>
       {% if entity.is_project %}
         <span class="ms-2 gap-2"><a class="btn btn-outline-secondary" href="{% url 'stock_detail' entity.pk %}"><i class="bi bi-archive me-2"></i>{% trans 'Stock' %}</a></span>
       {% endif %}

@@ -42,6 +42,7 @@ def entity_payment_transactions_view(request, entity_pk):
             "entity_name": entity.name,
         })
 
+        selected_type = request.GET.get("type", "").strip()
         transactions = (
             Transaction.objects.filter(
                 Q(source=entity) | Q(target=entity),
@@ -51,6 +52,8 @@ def entity_payment_transactions_view(request, entity_pk):
             .select_related("source", "target", "officer")
             .order_by("date", "pk")
         )
+        if selected_type in TransactionType.values:
+            transactions = transactions.filter(type=selected_type)
 
         # Annotate each transaction with its direction relative to this entity
         # and compute a running balance (incoming increases, outgoing decreases).
@@ -110,6 +113,7 @@ def entity_payment_transactions_view(request, entity_pk):
         "total_incoming": total_incoming,
         "total_outgoing": total_outgoing,
         "current_balance": entity.balance,
+        "selected_type": selected_type,
     }
     return render(request, "app_transaction/entity_payment_transactions.html", context)
 

@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% block title %}{% trans 'Balance Sheet' %} - {{ entity.get_display_name }}{% endblock %}
+{% block extra_css %}{% include 'app_report/_report_styles.html' %}{% endblock %}
+{% block content %}
+<div class="container mt-4">
+  {% include 'app_report/_report_header.html' with statement_title=_('Balance Sheet') %}
+  {% if not period %}
+    <div class="alert alert-info">{% trans 'No financial period is available for this entity yet.' %}</div>
+  {% else %}
+  <div class="card border-0 shadow-sm">
+    <div class="card-body">
+      <table class="report-table">
+        <tbody>
+          <tr class="report-section"><th colspan="2">{% trans 'Assets' %}</th></tr>
+          <tr>
+            <td><a href="{% url 'entity_payment_transactions_list' entity.pk %}">{% trans 'Cash & fund balance' %}</a></td>
+            <td class="text-end">{{ statement.cash|floatformat:2 }}</td>
+          </tr>
+          <tr>
+            <td><a href="{% url 'entity_receivables_list' entity.pk %}">{% trans 'Receivables' %}</a></td>
+            <td class="text-end">{{ statement.receivables|floatformat:2 }}</td>
+          </tr>
+          <tr>
+            <td><a href="{% url 'stock_detail' entity.pk %}">{% trans 'Inventory value' %}</a></td>
+            <td class="text-end">{{ statement.inventory|floatformat:2 }}</td>
+          </tr>
+          <tr class="report-total"><th>{% trans 'Total Assets' %}</th><td class="text-end">{{ statement.assets|floatformat:2 }}</td></tr>
+
+          <tr class="report-section"><th colspan="2">{% trans 'Liabilities' %}</th></tr>
+          <tr>
+            <td><a href="{% url 'entity_payables_list' entity.pk %}">{% trans 'Payables' %}</a></td>
+            <td class="text-end">{{ statement.payables|floatformat:2 }}</td>
+          </tr>
+          <tr class="report-total"><th>{% trans 'Total Liabilities' %}</th><td class="text-end">{{ statement.liabilities|floatformat:2 }}</td></tr>
+
+          <tr class="report-section"><th colspan="2">{% trans 'Equity' %}</th></tr>
+          <tr>
+            <td><a href="{% url 'equity_statement' entity.pk %}{% if period %}?period={{ period.pk }}{% endif %}">{% trans 'Equity (Assets &minus; Liabilities)' %}</a></td>
+            <td class="text-end">
+              {% if statement.equity >= 0 %}
+                <span class="text-success">{{ statement.equity|floatformat:2 }}</span>
+              {% else %}
+                <span class="text-danger">{{ statement.equity|floatformat:2 }}</span>
+              {% endif %}
+            </td>
+          </tr>
+
+          <tr class="report-grand-total">
+            <th>{% trans 'Total Assets = Total Liabilities + Total Equity' %}</th>
+            <td class="text-end">{{ statement.assets|floatformat:2 }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

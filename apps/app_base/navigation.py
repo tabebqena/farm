@@ -17,6 +17,7 @@ NAVIGATION_MAP = {
         "related": [
             ("Operations", "operation_list_view", {"person_pk": "pk"}),
             ("Periods", "period_list_view", {"entity_pk": "pk"}),
+            ("Reports", "report_hub", {"entity_pk": "pk"}),
             ("Edit", "person_edit", {"pk": "pk"}),
         ],
     },
@@ -28,6 +29,7 @@ NAVIGATION_MAP = {
             ("Entity", "entity_detail", {"pk": "entity_pk"}),
             ("Operations", "operation_list_view", {"person_pk": "entity_pk"}),
             ("Periods", "period_list_view", {"entity_pk": "entity_pk"}),
+            ("Reports", "report_hub", {"entity_pk": "entity_pk"}),
         ],
     },
     "entity_payables_list": {
@@ -38,6 +40,7 @@ NAVIGATION_MAP = {
             ("Entity", "entity_detail", {"pk": "entity_pk"}),
             ("Operations", "operation_list_view", {"person_pk": "entity_pk"}),
             ("Periods", "period_list_view", {"entity_pk": "entity_pk"}),
+            ("Reports", "report_hub", {"entity_pk": "entity_pk"}),
         ],
     },
     "entity_receivables_list": {
@@ -48,6 +51,49 @@ NAVIGATION_MAP = {
             ("Entity", "entity_detail", {"pk": "entity_pk"}),
             ("Operations", "operation_list_view", {"person_pk": "entity_pk"}),
             ("Periods", "period_list_view", {"entity_pk": "entity_pk"}),
+            ("Reports", "report_hub", {"entity_pk": "entity_pk"}),
+        ],
+    },
+    # Report views
+    "report_hub": {
+        "title": "Financial Reports",
+        "icon": "bi-bar-chart-line",
+        "parent": ("Entities", "entity_list"),
+        "related": [
+            ("Entity", "entity_detail", {"pk": "entity_pk"}),
+            ("Periods", "period_list_view", {"entity_pk": "entity_pk"}),
+        ],
+    },
+    "income_statement": {
+        "title": "Income Statement",
+        "icon": "bi-graph-up-arrow",
+        "parent": ("Reports", "report_hub", {"entity_pk": "entity_pk"}),
+        "related": [
+            ("Reports", "report_hub", {"entity_pk": "entity_pk"}),
+        ],
+    },
+    "balance_sheet": {
+        "title": "Balance Sheet",
+        "icon": "bi-columns-gap",
+        "parent": ("Reports", "report_hub", {"entity_pk": "entity_pk"}),
+        "related": [
+            ("Reports", "report_hub", {"entity_pk": "entity_pk"}),
+        ],
+    },
+    "cash_flow": {
+        "title": "Cash Flow",
+        "icon": "bi-arrow-left-right",
+        "parent": ("Reports", "report_hub", {"entity_pk": "entity_pk"}),
+        "related": [
+            ("Reports", "report_hub", {"entity_pk": "entity_pk"}),
+        ],
+    },
+    "equity_statement": {
+        "title": "Equity Statement",
+        "icon": "bi-pie-chart",
+        "parent": ("Reports", "report_hub", {"entity_pk": "entity_pk"}),
+        "related": [
+            ("Reports", "report_hub", {"entity_pk": "entity_pk"}),
         ],
     },
     "person_create": {
@@ -70,6 +116,7 @@ NAVIGATION_MAP = {
         "related": [
             ("Entity", "entity_detail", {"pk": "person_pk"}),
             ("Periods", "period_list_view", {"entity_pk": "person_pk"}),
+            ("Reports", "report_hub", {"entity_pk": "person_pk"}),
             ("Create Operation", "operation_create_view", {"pk": "person_pk"}),
         ],
     },
@@ -112,6 +159,7 @@ NAVIGATION_MAP = {
         "related": [
             ("Entity", "entity_detail", {"pk": "entity_pk"}),
             ("Operations", "operation_list_view", {"person_pk": "entity_pk"}),
+            ("Reports", "report_hub", {"entity_pk": "entity_pk"}),
             ("Create Period", "period_create_view", {"entity_pk": "entity_pk"}),
         ],
     },

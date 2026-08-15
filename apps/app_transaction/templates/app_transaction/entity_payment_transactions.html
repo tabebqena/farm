@@ -1,4 +1,4 @@
-12.{% extends 'base.html' %}
+{% extends 'base.html' %}
 {% load i18n %}
 
 {% block title %}
@@ -74,6 +74,12 @@
       <h5 class="mb-0 fw-bold"><i class="bi bi-arrow-left-right me-2"></i>{% trans 'Payment Transactions List' %}</h5>
       <span class="badge bg-secondary">{{ transactions|length }}</span>
     </div>
+    {% if selected_type %}
+      <div class="alert alert-info d-flex justify-content-between align-items-center mb-0 rounded-0 border-0">
+        <span>{% trans 'Filtered by type' %}: <strong>{{ selected_type }}</strong></span>
+        <a href="{% url 'entity_payment_transactions_list' entity.pk %}" class="btn btn-sm btn-outline-secondary">{% trans 'Clear filter' %}</a>
+      </div>
+    {% endif %}
     <div class="card-body p-0">
       {% if transactions %}
         <div class="table-responsive">
