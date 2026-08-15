@@ -18,7 +18,7 @@ from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import (
     PurchaseOperation,
     CashInjectionOperation,
-    CorrectionCreditOperation,
+    CorrectionOperation,
     WorkerAdvanceOperation,
 )
 from apps.app_operation.tests.base import assert_tx_types
@@ -66,13 +66,13 @@ def _get_or_create_system():
 
 
 def _inject_funds(entity, amount, officer):
-    """Add real cash funds to a project entity via CorrectionCreditOperation.
+    """Add real cash funds to a project entity via CorrectionOperation.
 
     A CapitalGain is non-cash (its *_PAYMENT is excluded from ``payment_types()``),
     so it cannot fund an entity's spendable balance.
     """
     system = _get_or_create_system()
-    CorrectionCreditOperation(
+    CorrectionOperation(
         source=system,
         destination=entity,
         amount=amount,
@@ -100,8 +100,8 @@ class TransactionAutoCreationTests(TestCase):
         _inject_funds(self.entity_a, Decimal("5000"), self.officer)
 
     def test_correction_credit_creates_transactions(self):
-        """CorrectionCreditOperation should auto-create transaction(s)"""
-        operation = CorrectionCreditOperation.objects.create(
+        """CorrectionOperation should auto-create transaction(s)"""
+        operation = CorrectionOperation.objects.create(
             source=self.system,
             destination=self.entity_a,
             amount=Decimal("1000"),
@@ -184,7 +184,7 @@ class TransactionPropertiesTests(TestCase):
         self.entity_a = _make_entity("Entity A", EntityType.PROJECT)
 
         # Create an operation that generates a transaction
-        self.operation = CorrectionCreditOperation.objects.create(
+        self.operation = CorrectionOperation.objects.create(
             source=self.system,
             destination=self.entity_a,
             amount=Decimal("1000"),
@@ -241,7 +241,7 @@ class TransactionImmutabilityTests(TestCase):
         self.entity_a = _make_entity("Entity A", EntityType.PROJECT)
         self.entity_b = _make_entity("Entity B", EntityType.PERSON)
 
-        self.operation = CorrectionCreditOperation.objects.create(
+        self.operation = CorrectionOperation.objects.create(
             source=self.system,
             destination=self.entity_a,
             amount=Decimal("1000"),
@@ -367,7 +367,7 @@ class TransactionReversalTests(TestCase):
         self.system = _get_or_create_system()
         self.entity_a = _make_entity("Entity A", EntityType.PROJECT)
 
-        self.operation = CorrectionCreditOperation.objects.create(
+        self.operation = CorrectionOperation.objects.create(
             source=self.system,
             destination=self.entity_a,
             amount=Decimal("1000"),
@@ -459,7 +459,7 @@ class TransactionGenericForeignKeyTests(TestCase):
         self.system = _get_or_create_system()
         self.entity_a = _make_entity("Entity A", EntityType.PROJECT)
 
-        self.operation = CorrectionCreditOperation.objects.create(
+        self.operation = CorrectionOperation.objects.create(
             source=self.system,
             destination=self.entity_a,
             amount=Decimal("1000"),
@@ -481,7 +481,7 @@ class TransactionGenericForeignKeyTests(TestCase):
         """Transaction should link to correct ContentType"""
         tx = Transaction.objects.filter(object_id=self.operation.pk).first()
         self.assertIsNotNone(tx)
-        expected_ct = ContentType.objects.get_for_model(CorrectionCreditOperation)
+        expected_ct = ContentType.objects.get_for_model(CorrectionOperation)
 
         self.assertEqual(tx.content_type, expected_ct)
 

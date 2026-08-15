@@ -9,7 +9,7 @@ from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderR
 from apps.app_inventory.models import InventoryMovementLine, Product, ProductTemplate
 from apps.app_inventory.stock import pending_items
 from apps.app_operation.models.operation_type import OperationType
-from apps.app_operation.models.proxies import CorrectionCreditOperation, PurchaseOperation
+from apps.app_operation.models.proxies import CorrectionOperation, PurchaseOperation
 from apps.app_operation.tests.base import assert_tx_types
 from apps.app_transaction.transaction_type import TransactionType
 
@@ -46,7 +46,7 @@ def _inject_project(system_entity, dest_entity, amount, officer_user):
     A CapitalGain is non-cash (its *_PAYMENT is excluded from payment_types()),
     so it cannot fund the project's spendable balance.
     """
-    CorrectionCreditOperation(
+    CorrectionOperation(
         source=system_entity,
         destination=dest_entity,
         amount=amount,

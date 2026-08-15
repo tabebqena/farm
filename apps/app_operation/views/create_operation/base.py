@@ -85,10 +85,21 @@ class OperationCreateView(View):
     # ---- lifecycle ----------------------------------------------------------
 
     def _setup_view(self, pk, request):
-        self.canonical_op_type = next(
-            t for t, c in PROXY_MAP.items() if c is self.proxy_cls
+        # A proxy may serve multiple operation types (e.g. CorrectionOperation
+        # serves both CORRECTION_CREDIT and CORRECTION_DEBIT), so resolve the
+        # canonical type from the URL slug when the proxy supports it; otherwise
+        # fall back to the single-type class match.
+        resolver = getattr(self.proxy_cls, "operation_type_for_url", None)
+        url_op_type = getattr(self, "url_op_type", None)
+        if resolver is not None and url_op_type:
+            self.canonical_op_type = resolver(url_op_type)
+        else:
+            self.canonical_op_type = next(
+                t for t, c in PROXY_MAP.items() if c is self.proxy_cls
+            )
+        self.data = self.proxy_cls.resolve_request(
+            pk, request, operation_type=self.canonical_op_type
         )
-        self.data = self.proxy_cls.resolve_request(pk, request)
         self.has_invoice = self.data.get("has_invoice", False)
         self.project = self.data["url_entity"]
 
@@ -121,6 +132,9 @@ class OperationCreateView(View):
                     )
                     return HttpResponseBadRequest(error_msg)
                 self.proxy_cls = proxy_cls
+                # Remember the URL slug so multi-type proxies can resolve the
+                # canonical operation type in _setup_view.
+                self.url_op_type = op_type
             # else: proxy_cls already set as class attribute on child class
 
             self._setup_view(kwargs["pk"], request)

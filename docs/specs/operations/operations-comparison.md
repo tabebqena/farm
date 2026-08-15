@@ -111,8 +111,8 @@ These guards are omitted from each per-operation action below for brevity; treat
 | 12 | EX | Expense | `ExpenseOperation` | [op_12](op_12_expense.md) |
 | 13 | PU | Purchase | `PurchaseOperation` | [op_13](op_13_purchase.md) |
 | 14 | SA | Sale | `SaleOperation` | [op_14](op_14_sale.md) |
-| 15 | CC | Correction Credit | `CorrectionCreditOperation` | [op_15](op_15_correction.md) |
-| 16 | CD | Correction Debit | `CorrectionDebitOperation` | [op_15](op_15_correction.md) |
+| 15 | CC | Correction Credit | `CorrectionOperation` | [op_15](op_15_correction.md) |
+| 16 | CD | Correction Debit | `CorrectionOperation` | [op_15](op_15_correction.md) |
 | 17 | BI | Birth | `BirthOperation` | [op_17](op_17_birth.md) |
 | 18 | DE | Death | `DeathOperation` | [op_18](op_18_death.md) |
 | 19 | CO | Consumption | `ConsumptionOperation` | [op_19](op_19_consumption.md) |
@@ -212,13 +212,13 @@ Actions: create, reverse, adjust, move items, adjust items, pay.
 - **adjust** — *Valid:* can_adjust; not reversed; type allowed for op; amount>0; officer staff + active; reduction can't drive below zero. *Effects:* `SALE_ADJUSTMENT_INCREASE` / `SALE_ADJUSTMENT_DECREASE` (non-cash); effective_amount delta.
 - **reverse** — *Valid:* blocked if collections; blocked if user movements; blocked if adjustments; reversal dependency guard. *Effects:* reversal record; counter-tx for issuance only; negated ledger; product status restored to ACTIVE.
 
-### 15. Correction Credit (CC) — `CorrectionCreditOperation` — [op_15](op_15_correction.md)
+### 15. Correction Credit (CC) — `CorrectionOperation` (type `CORRECTION_CREDIT`) — [op_15](op_15_correction.md)
 
 Actions: create, reverse.
 - **create** — *Valid:* source=system; dest=project; balance ✗ (system exempt); one-shot auto-settled. *Effects:* `CORRECTION_CREDIT_ISSUANCE` + `CORRECTION_CREDIT_PAYMENT`; immediately settled; ▼system → ▲project; no ledger; no movements.
 - **reverse** — *Valid:* (constants). *Effects:* reversal record; counter-tx for issuance + payment.
 
-### 16. Correction Debit (CD) — `CorrectionDebitOperation` — [op_15](op_15_correction.md)
+### 16. Correction Debit (CD) — `CorrectionOperation` (type `CORRECTION_DEBIT`) — [op_15](op_15_correction.md)
 
 Actions: create, reverse.
 - **create** — *Valid:* source=project; dest=system; balance ✗ (admin tool — can go into deficit); one-shot auto-settled. *Effects:* `CORRECTION_DEBIT_ISSUANCE` + `CORRECTION_DEBIT_PAYMENT`; immediately settled; ▼project → ▲system; no ledger; no movements.

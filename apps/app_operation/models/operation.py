@@ -190,7 +190,17 @@ class Operation(
     # ------------------------------------------------------------------
 
     @classmethod
-    def resolve_request(cls, url_pk, request) -> dict:
+    def _type_config(cls, operation_type=None) -> dict:
+        """
+        Per-type config overrides used by ``resolve_request`` for proxy classes
+        that serve multiple operation types (e.g. CorrectionOperation). The base
+        implementation returns ``{}`` — single-type proxies read their class attrs
+        directly.
+        """
+        return {}
+
+    @classmethod
+    def resolve_request(cls, url_pk, request, operation_type=None) -> dict:
         """
         Resolves a request into a unified config + entity dict.
         Call on the proxy class: e.g. PurchaseOperation.resolve_request(pk, request)
@@ -198,11 +208,12 @@ class Operation(
         from apps.app_entity.models import Entity, EntityType
         from farm.shortcuts import get_object_or_404
 
+        cfg = cls._type_config(operation_type)
         url_entity = get_object_or_404(
             Entity, pk=url_pk, error_message="Entity not found or has been deleted."
         )
-        source_role = cls._source_role
-        dest_role = cls._dest_role
+        source_role = cfg.get("_source_role", cls._source_role)
+        dest_role = cfg.get("_dest_role", cls._dest_role)
 
         world_entity = None
         if source_role == "world" or dest_role == "world":
@@ -235,8 +246,8 @@ class Operation(
 
         return {
             "proxy_cls": cls,
-            "label": cls.label,
-            "url_str": cls.url_str,
+            "label": cfg.get("label", cls.label),
+            "url_str": cfg.get("url_str", cls.url_str),
             "source": source_role,
             "dest": dest_role,
             "can_pay": cls.can_pay,
@@ -249,8 +260,8 @@ class Operation(
             "repayment_transaction_type": getattr(
                 cls, "_repayment_transaction_type", None
             ),
-            "theme_color": cls.theme_color,
-            "theme_icon": cls.theme_icon,
+            "theme_color": cfg.get("theme_color", cls.theme_color),
+            "theme_icon": cfg.get("theme_icon", cls.theme_icon),
             "url_entity": url_entity,
             "secondary_entity": secondary_entity,
             "source_entity": resolve(source_role),

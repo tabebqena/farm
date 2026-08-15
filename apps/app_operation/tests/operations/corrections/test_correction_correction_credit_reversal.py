@@ -9,8 +9,7 @@ from apps.app_entity.models import Entity, EntityType
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import (
     CapitalGainOperation,
-    CorrectionCreditOperation,
-    CorrectionDebitOperation,
+    CorrectionOperation,
 )
 from apps.app_operation.tests.base import (
     assert_derived_state_unchanged,
@@ -61,7 +60,7 @@ class CorrectionCreditReversalTest(TestCase):
         self.officer_user = _make_officer()
         self.project_entity = _make_project_entity()
 
-        self.op = CorrectionCreditOperation(
+        self.op = CorrectionOperation(
             source=self.system_entity,
             destination=self.project_entity,
             amount=Decimal("1000.00"),
@@ -172,7 +171,7 @@ class CorrectionCreditReversalTest(TestCase):
         pre-operation state after a full create + reverse cycle."""
         before = snapshot_derived_state()
 
-        op = CorrectionCreditOperation(
+        op = CorrectionOperation(
             source=self.system_entity,
             destination=self.project_entity,
             amount=Decimal("1000.00"),

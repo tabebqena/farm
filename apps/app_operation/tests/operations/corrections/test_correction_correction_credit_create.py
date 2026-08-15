@@ -9,8 +9,7 @@ from apps.app_entity.models import Entity, EntityType
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import (
     CapitalGainOperation,
-    CorrectionCreditOperation,
-    CorrectionDebitOperation,
+    CorrectionOperation,
 )
 from apps.app_operation.tests.base import assert_tx_types
 from apps.app_transaction.transaction_type import TransactionType
@@ -69,7 +68,7 @@ class CorrectionCreditCreateTest(TestCase):
             officer=self.officer_user,
         )
         defaults.update(kwargs)
-        return CorrectionCreditOperation(**defaults)
+        return CorrectionOperation(**defaults)
 
     # ------------------------------------------------------------------
     # Happy path
@@ -117,8 +116,8 @@ class CorrectionCreditCreateTest(TestCase):
         )
 
     def test_no_category_config(self):
-        self.assertFalse(CorrectionCreditOperation.has_category)
-        self.assertFalse(CorrectionCreditOperation.category_required)
+        self.assertFalse(CorrectionOperation.has_category)
+        self.assertFalse(CorrectionOperation.category_required)
 
     # ------------------------------------------------------------------
     # Source validation
@@ -238,7 +237,7 @@ class CorrectionCreditCreateTest(TestCase):
     # ------------------------------------------------------------------
 
     def test_can_pay_is_false(self):
-        self.assertFalse(CorrectionCreditOperation.can_pay)
+        self.assertFalse(CorrectionOperation.can_pay)
 
     def test_one_shot_prevents_second_payment(self):
         op = self._make_op()
@@ -257,7 +256,7 @@ class CorrectionCreditCreateTest(TestCase):
 
     def test_check_balance_on_payment_is_disabled(self):
         """Corrections bypass balance checks; admins need this to fix ledger errors."""
-        self.assertFalse(CorrectionCreditOperation.check_balance_on_payment)
+        self.assertFalse(CorrectionOperation.check_balance_on_payment)
 
 
 # ===========================================================================

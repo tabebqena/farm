@@ -23,7 +23,7 @@ from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderR
 from apps.app_inventory.tests.general import make_user
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import (
-    CorrectionCreditOperation,
+    CorrectionOperation,
     CashInjectionOperation,
     LoanOperation,
     PurchaseOperation,
@@ -38,13 +38,13 @@ def _get_or_create_system():
 
 
 def _inject_funds(entity, amount, officer):
-    """Add real cash funds to a project entity via a CorrectionCreditOperation.
+    """Add real cash funds to a project entity via a CorrectionOperation.
 
     A CapitalGain is non-cash (its *_PAYMENT is excluded from payment_types()),
     so it cannot fund the entity's spendable balance.
     """
     system = _get_or_create_system()
-    CorrectionCreditOperation(
+    CorrectionOperation(
         source=system,
         destination=entity,
         amount=amount,

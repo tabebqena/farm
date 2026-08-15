@@ -7,8 +7,7 @@ from .op_birth import BirthOperation
 from .op_consumption import ConsumptionOperation
 from .op_capital_gain import CapitalGainOperation
 from .op_death import DeathOperation
-from .op_correction_credit import CorrectionCreditOperation
-from .op_correction_debit import CorrectionDebitOperation
+from .op_correction import CorrectionOperation
 from .op_capital_loss import CapitalLossOperation
 from .op_cash_injection import CashInjectionOperation
 from .op_cash_withdrawal import CashWithdrawalOperation
@@ -35,16 +34,20 @@ PROXY_MAP: dict[str, type[Operation]] = {
     OperationType.DEATH: DeathOperation,
     OperationType.CAPITAL_GAIN: CapitalGainOperation,
     OperationType.CAPITAL_LOSS: CapitalLossOperation,
-    OperationType.CORRECTION_CREDIT: CorrectionCreditOperation,
-    OperationType.CORRECTION_DEBIT: CorrectionDebitOperation,
+    OperationType.CORRECTION_CREDIT: CorrectionOperation,
+    OperationType.CORRECTION_DEBIT: CorrectionOperation,
     OperationType.WORKER_ADVANCE: WorkerAdvanceOperation,
     OperationType.CONSUMPTION: ConsumptionOperation,
 }
 
-# Reverse lookup: url_str → proxy class
-_URL_MAP: dict[str, type[Operation]] = {
-    proxy_cls.url_str: proxy_cls for proxy_cls in PROXY_MAP.values()
-}
+# Reverse lookup: slug → proxy class. A single proxy may register several slugs
+# (e.g. CorrectionOperation serves both "correction-credit" and "correction-debit").
+_URL_MAP: dict[str, type[Operation]] = {}
+for _proxy_cls in PROXY_MAP.values():
+    _slugs = getattr(_proxy_cls, "url_strs", None) or (_proxy_cls.url_str,)
+    for _slug in _slugs:
+        if _slug:
+            _URL_MAP[_slug] = _proxy_cls
 
 
 def get_canonical_type(url_str: str) -> type[Operation] | None:
@@ -83,8 +86,7 @@ __all__ = [
     "CashWithdrawalOperation",
     "CapitalGainOperation",
     "CapitalLossOperation",
-    "CorrectionCreditOperation",
-    "CorrectionDebitOperation",
+    "CorrectionOperation",
     "ProjectFundingOperation",
     "ProjectRefundOperation",
     "InternalTransferOperation",

@@ -18,7 +18,7 @@ from django.test import TestCase
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
 from apps.app_inventory.models import Product
 from apps.app_operation.models.operation_type import OperationType
-from apps.app_operation.models.proxies import CashInjectionOperation, CorrectionCreditOperation
+from apps.app_operation.models.proxies import CashInjectionOperation, CorrectionOperation
 
 User = get_user_model()
 
@@ -81,7 +81,7 @@ def inject_project_fund(system, dest, amount, officer):
     """Seed a Project entity's fund with real cash via a CorrectionCredit
     (system -> project). A CapitalGain is non-cash (its *_PAYMENT is excluded
     from ``payment_types()``), so it cannot fund a project's spendable balance."""
-    CorrectionCreditOperation(
+    CorrectionOperation(
         source=system,
         destination=dest,
         amount=amount,

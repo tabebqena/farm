@@ -173,11 +173,11 @@ class TransactionAutoCreationTests(TestCase):
         self.entity = _make_entity("Test Entity", EntityType.PROJECT)
 
     def test_correction_credit_creates_transaction(self):
-        """CorrectionCreditOperation should auto-create transaction"""
+        """CorrectionOperation should auto-create transaction"""
         from apps.app_transaction.models import Transaction
-        from apps.app_operation.models.proxies import CorrectionCreditOperation
+        from apps.app_operation.models.proxies import CorrectionOperation
 
-        operation = CorrectionCreditOperation.objects.create(
+        operation = CorrectionOperation.objects.create(
             source=self.system,
             destination=self.entity,
             amount=Decimal("1000"),

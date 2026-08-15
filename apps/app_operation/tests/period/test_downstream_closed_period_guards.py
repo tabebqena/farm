@@ -20,7 +20,7 @@ from apps.app_inventory.tests.general import (
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.period import FinancialPeriod, is_date_in_closed_period
 from apps.app_operation.models.proxies import (
-    CorrectionCreditOperation,
+    CorrectionOperation,
     PurchaseOperation,
     WorkerAdvanceOperation,
 )
@@ -69,7 +69,7 @@ class DownstreamClosedPeriodGuardTest(TestCase):
 
     def _fund_project(self, amount=Decimal("1000.00")):
         """Give the project balance via a system → project Correction Credit."""
-        cc = CorrectionCreditOperation(
+        cc = CorrectionOperation(
             source=self.system,
             destination=self.project,
             amount=amount,

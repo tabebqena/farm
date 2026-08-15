@@ -99,7 +99,7 @@ def operation_reverse_view(request, pk):
 
                     DebugContext.success("Operation reversed successfully", {
                         "operation_id": operation.pk,
-                        "operation_type": config.label,
+                        "operation_type": operation.label,
                         "reversal_reason": reason[:100],
                     })
                     DebugContext.audit(
@@ -108,7 +108,7 @@ def operation_reverse_view(request, pk):
                         entity_id=operation.pk,
                         details={
                             "operation_type": operation.operation_type,
-                            "label": config.label,
+                            "label": operation.label,
                             "reason": reason,
                             "officer": officer.username,
                         },
@@ -116,7 +116,7 @@ def operation_reverse_view(request, pk):
                     )
 
                     messages.success(
-                        request, f"Successfully reversed {config.label} #{operation.pk}"
+                        request, f"Successfully reversed {operation.label} #{operation.pk}"
                     )
                     return redirect("operation_detail_view", pk=operation.pk)
                 except Exception as e:
@@ -141,7 +141,7 @@ def operation_reverse_view(request, pk):
 
     context = {
         "operation": operation,
-        "config": config,
+        "config": {"label": operation.label},
         "today": timezone.now(),
     }
     return render(request, "app_operation/reverse_form.html", context)

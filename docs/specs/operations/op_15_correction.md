@@ -5,7 +5,7 @@
 **Actions:** `create`, `reverse`
 **Contract status:** v2 (widened) — all branches recorded, business logic registered, test coverage mapped.
 
-> **Primary source of contract.** This document is the authoritative contract for the **Correction** operations — **Correction Credit** (CC) and **Correction Debit** (CD).
+> **Primary source of contract.** This document is the authoritative contract for the **Correction** operations — **Correction Credit** (CC) and **Correction Debit** (CD) — both served by a **single proxy class** `CorrectionOperation` that dispatches its per-type config on the row's `operation_type`.
 > Every clause below names its implementing code (model → mixin → transaction → view) and its pinning test — as plain names, never links, so renames do not break the spec.
 > Where code and spec disagree, the spec states the *intended* behavior — fix the code, not the spec.
 > Both variants are **admin-only tools** for fixing wrong calculations: neither has a category, neither is balance-gated, and both settle immediately on save.
@@ -18,13 +18,14 @@
 | Field | Correction Credit | Correction Debit | Defined in |
 |-------|-------------------|------------------|-----------|
 | Operation type | `OperationType.CORRECTION_CREDIT` | `OperationType.CORRECTION_DEBIT` | / |
-| Proxy class | `CorrectionCreditOperation` | `CorrectionDebitOperation` | / |
+| Proxy class | `CorrectionOperation` | `CorrectionOperation` | / |
 | URL slug | `"correction-credit"` | `"correction-debit"` | / |
 | Label | `"Correction Credit"` | `"Correction Debit"` | / |
 | Theme | `success` / `bi-patch-plus` | `danger` / `bi-patch-minus` | / |
 | Source role | `system` | `url` (must be a Project) | / |
 | Destination role | `url` (must be a Project) | `system` | / |
-| Registered in | `PROXY_MAP` | `PROXY_MAP` | / |
+| Registered in | `PROXY_MAP` (both types → `CorrectionOperation`) | `PROXY_MAP` (both types → `CorrectionOperation`) | / |
+| Config dispatch | per-type keys in `CorrectionOperation._VARIANT_CONFIG`, read on `operation_type` | same | / |
 | Cross-op reference | row CC | row CD | [`operations-comparison.md`](operations-comparison.md) |
 
 **Configuration flags:**
@@ -52,9 +53,9 @@ The tables below **register every file that implements this operation**. The spe
 
 | Concern | Implementing code |
 |---------|-------------------|
-| Credit proxy + config + `clean_source`/`clean_destination` | |
-| Debit proxy + config + `clean_source`/`clean_destination` | |
-| Proxy registry / URL→class resolution | |
+| Single merged proxy `CorrectionOperation` + `_VARIANT_CONFIG` (per-type: transaction types, url_str, label, roles, theme, verbose_name) | |
+| `clean_source`/`clean_destination` (dispatch on `operation_type`) | |
+| Proxy registry / URL→class + slug→operation-type resolution | |
 | Shared `Operation` engine (`clean`, `save`, `reverse`, `create`, `resolve_request`, period assignment, reversable tx types) | |
 | Operation type enum | |
 
@@ -164,7 +165,7 @@ Because both operations are one-shot and never adjustable, settlement is **immed
 
 ### 5.1 `create` — Correction Credit
 
-Entry points: model `CorrectionCreditOperation.save()` (tests) or `Operation.create()` (view). Both converge on `save()` → `full_clean()` → `post_save_tasks` (issuance tx, then payment tx).
+Entry points: model `CorrectionOperation.save()` with `operation_type=CORRECTION_CREDIT` (tests) or `Operation.create()` (view). Both converge on `save()` → `full_clean()` → `post_save_tasks` (issuance tx, then payment tx).
 
 #### 5.1.1 Validation branches (CC)
 
@@ -231,7 +232,7 @@ Entry points: model `op.reverse(officer, date, reason)` or view `operation_rever
 
 ### 5.3 `create` — Correction Debit
 
-Entry points: model `CorrectionDebitOperation.save()` (tests) or `Operation.create()` (view). Both converge on `save()` → `full_clean()` → `post_save_tasks` (issuance tx, then payment tx).
+Entry points: model `CorrectionOperation.save()` with `operation_type=CORRECTION_DEBIT` (tests) or `Operation.create()` (view). Both converge on `save()` → `full_clean()` → `post_save_tasks` (issuance tx, then payment tx).
 
 #### 5.3.1 Validation branches (CD)
 

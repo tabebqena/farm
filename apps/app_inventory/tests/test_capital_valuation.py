@@ -34,7 +34,7 @@ from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import (
     CapitalGainOperation,
     CapitalLossOperation,
-    CorrectionCreditOperation,
+    CorrectionOperation,
     PurchaseOperation,
 )
 
@@ -141,7 +141,7 @@ class ProductCapitalValuationModelTest(TestCase):
             self.system,
             self.project,
             self.officer,
-            CorrectionCreditOperation,
+            CorrectionOperation,
             OperationType.CORRECTION_CREDIT,
             amount=Decimal("100.00"),
         )
