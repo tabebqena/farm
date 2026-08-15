@@ -42,8 +42,9 @@
 | `can_create_movement` | `False` | no manual movement screen — the `can_create_movement` property is `True` only for PURCHASE/SALE; birth's inbound movements are auto-created via `save_inventory()` → `_auto_create_inventory_movements()` |
 
 > **No accounting mixins.** `BirthOperation` inherits only `ImmutableMixin`, `AmountCleanMixin`,
-> `OfficerMixin`, `ReversableModel`, `BaseModel` (via the lean `Operation` base). It does **not**
-> inherit `LinkedIssuanceTransactionMixin`, `LinkedPaymentTransactionMixin`,
+> `OfficerMixin`, `ReversableModel`, `BaseModel` (via the lean `Operation` base) plus the shared
+> `StockEventMixin` (non-accounting config) and `InventoryOperationMixin` (inventory engine).
+> It does **not** inherit `LinkedIssuanceTransactionMixin`, `LinkedPaymentTransactionMixin`,
 > `LinkedRePaymentTransactionMixin` or `AdjustableMixin` — so no transactions, no settlement,
 > no repayment, no adjustments.
 
@@ -59,7 +60,7 @@ The tables below **register every file that implements this operation**. The spe
 |---------|-------------------|
 | Proxy class + type-specific config + `clean_source`/`clean_destination` | |
 | Proxy registry / URL→class resolution | |
-| Shared `Operation` engine (`clean`, `save`, `reverse`, `create`, `resolve_request`, `save_inventory`, `_auto_create_inventory_movements`, period assignment, reversable tx types) | |
+| Shared `Operation` engine (`clean`, `save`, `reverse`, `create`, `resolve_request`, period assignment, reversable tx types) + `InventoryOperationMixin` (`save_inventory`, `_auto_create_inventory_movements`, inventory ownership helpers) | |
 | Operation type enum | |
 
 ### 2.2 Core engine (mixins / base)

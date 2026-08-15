@@ -52,7 +52,7 @@ The tables below **register every file that implements this operation**. The spe
 |---------|-------------------|
 | Proxy class + type-specific config + `clean_source`/`clean_destination` + payment funds | |
 | Proxy registry / URL→class resolution | |
-| Shared `Operation` engine (`clean`, `save`, `reverse`, `create`, `resolve_request`, `save_inventory`, `_auto_create_inventory_movements`, reversal dependency guard, period assignment, reversable tx types) | |
+| Shared `Operation` engine (`clean`, `save`, `reverse`, `create`, `resolve_request`, period assignment, reversable tx types) + `InventoryOperationMixin` (`save_inventory`, `_auto_create_inventory_movements`, reversal dependency guard, inventory ownership helpers); non-accounting config from `StockEventMixin` | |
 | Operation type enum | |
 
 ### 2.2 Core engine (mixins / base)

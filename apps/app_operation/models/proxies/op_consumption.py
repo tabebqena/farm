@@ -1,9 +1,9 @@
 from django.core.exceptions import ValidationError
 
-from apps.app_operation.models.operation import Operation
+from apps.app_operation.models.operation import Operation, StockEventMixin
 
 
-class ConsumptionOperation(Operation):
+class ConsumptionOperation(StockEventMixin, Operation):
     """
     Records internal consumption of a product we own.
 
@@ -16,14 +16,6 @@ class ConsumptionOperation(Operation):
     label = "Consumption"
     _source_role = "url"
     _dest_role = "system"
-    can_pay = False
-    check_balance_on_payment = False
-    is_partially_payable = False
-    has_category = False
-    category_required = False
-    has_invoice = True
-    creates_assets = False
-    has_repayment = False
 
     class Meta:
         proxy = True

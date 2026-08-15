@@ -8,7 +8,7 @@ retain theirs.
 """
 from django.test import SimpleTestCase
 
-from apps.app_operation.models.operation import Operation
+from apps.app_operation.models.operation import Operation, StockEventMixin
 from apps.app_operation.models.proxies import (
     BirthOperation,
     CapitalValuationOperation,
@@ -112,3 +112,60 @@ class OneShotOperationConfigTest(SimpleTestCase):
         self.assertTrue(hasattr(Operation, "is_one_shot"))
         # The concrete Operation defaults to non-one-shot.
         self.assertFalse(Operation._is_one_shot_operation)
+
+
+class StockEventMixinTest(SimpleTestCase):
+    """Stock-event proxies inherit their config from ``StockEventMixin``."""
+
+    STOCK_EVENTS = (
+        BirthOperation,
+        DeathOperation,
+        ConsumptionOperation,
+        CapitalValuationOperation,
+    )
+    INVOICE_STOCK_EVENTS = (BirthOperation, DeathOperation, ConsumptionOperation)
+
+    def test_stock_events_inherit_stock_event_mixin(self):
+        for cls in self.STOCK_EVENTS:
+            self.assertTrue(issubclass(cls, StockEventMixin), cls.__name__)
+
+    def test_stock_events_share_non_accounting_defaults(self):
+        for cls in self.STOCK_EVENTS:
+            self.assertFalse(cls.can_pay, cls.__name__)
+            self.assertFalse(cls.is_partially_payable, cls.__name__)
+            self.assertFalse(cls.check_balance_on_payment, cls.__name__)
+            self.assertFalse(cls.has_category, cls.__name__)
+            self.assertFalse(cls.category_required, cls.__name__)
+            self.assertFalse(cls.has_repayment, cls.__name__)
+
+    def test_invoice_stock_events_are_invoice_driven(self):
+        for cls in self.INVOICE_STOCK_EVENTS:
+            self.assertTrue(cls.has_invoice, cls.__name__)
+
+    def test_capital_valuation_is_value_only(self):
+        self.assertFalse(CapitalValuationOperation.has_invoice)
+        self.assertTrue(CapitalValuationOperation.has_capital_valuation)
+
+    def test_accounting_ops_are_not_stock_events(self):
+        for cls in (ExpenseOperation, LoanOperation, PurchaseOperation, SaleOperation):
+            self.assertFalse(issubclass(cls, StockEventMixin), cls.__name__)
+
+
+class InventoryOperationApiTest(SimpleTestCase):
+    """Every proxy exposes the inventory API via ``InventoryOperationMixin``."""
+
+    def test_operation_exposes_inventory_api(self):
+        for member in (
+            "inventory_owner_entity",
+            "inventory_receiving_entity",
+            "can_create_movement",
+            "save_inventory",
+            "_auto_create_inventory_movements",
+            "get_items_data",
+        ):
+            self.assertTrue(hasattr(Operation, member), member)
+
+    def test_stock_events_inherit_inventory_api(self):
+        for cls in StockEventMixinTest.STOCK_EVENTS:
+            for member in ("get_items_data", "save_inventory", "can_create_movement"):
+                self.assertTrue(hasattr(cls, member), f"{cls.__name__}.{member}")

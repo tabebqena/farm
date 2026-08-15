@@ -43,9 +43,10 @@
 
 > **No accounting mixins.** `ConsumptionOperation` inherits only `ImmutableMixin`,
 > `AmountCleanMixin`, `OfficerMixin`, `ReversableModel`, `BaseModel` (via the lean `Operation`
-> base). It does **not** inherit `LinkedIssuanceTransactionMixin`, `LinkedPaymentTransactionMixin`,
-> `LinkedRePaymentTransactionMixin` or `AdjustableMixin` — so no transactions, no settlement,
-> no repayment, no adjustments, no COGS in `profit_loss()`.
+> base) plus the shared `StockEventMixin` (non-accounting config) and `InventoryOperationMixin`
+> (inventory engine). It does **not** inherit `LinkedIssuanceTransactionMixin`,
+> `LinkedPaymentTransactionMixin`, `LinkedRePaymentTransactionMixin` or `AdjustableMixin` —
+> so no transactions, no settlement, no repayment, no adjustments, no COGS in `profit_loss()`.
 
 ---
 
@@ -59,7 +60,7 @@ The tables below **register every file that implements this operation**. The spe
 |---------|-------------------|
 | Proxy class + type-specific config + `clean_source`/`clean_destination` + `project` | |
 | Proxy registry / URL→class resolution | |
-| Shared `Operation` engine (`clean`, `save`, `reverse`, `create`, `resolve_request`, `save_inventory`, `_auto_create_inventory_movements`, reversal dependency guard, period assignment, reversable tx types) | |
+| Shared `Operation` engine (`clean`, `save`, `reverse`, `create`, `resolve_request`, period assignment, reversable tx types) + `InventoryOperationMixin` (`save_inventory`, `_auto_create_inventory_movements`, reversal dependency guard, inventory ownership helpers) | |
 | Operation type enum | |
 
 ### 2.2 Core engine (mixins / base)

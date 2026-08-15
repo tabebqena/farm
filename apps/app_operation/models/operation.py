@@ -32,10 +32,423 @@ logger = logging.getLogger(__name__)
 # TODO: Integrity check method
 
 
+class InventoryOperationMixin:
+    """Inventory-touching behavior shared by every ``Operation``.
+
+    Owns the inventory ownership mapping (``inventory_owner_entity`` /
+    ``inventory_receiving_entity``), manual-movement eligibility
+    (``can_create_movement``), invoice-item movement summaries
+    (``get_items_data``), auto movement creation for the stock events
+    (``save_inventory`` → ``_auto_create_inventory_movements``) and the
+    reversal inventory hooks. Non-inventory operations get neutral defaults
+    (None / False / empty), so inheriting this is safe for every proxy.
+    """
+
+    # ------------------------------------------------------------------
+    # Inventory ownership helpers
+    # ------------------------------------------------------------------
+
+    @property
+    def inventory_owner_entity(self):
+        """
+        The entity whose physical inventory is consumed by this operation's
+        movements — used to filter and validate stock selection.
+
+        Returns None for inbound (PURCHASE/BIRTH) and non-inventory operations.
+        """
+        from .operation_type import OperationType
+
+        if self.operation_type == OperationType.SALE:
+            # The selling project is the destination (source is the client).
+            return self.destination
+        if self.operation_type in (
+            OperationType.DEATH,
+            OperationType.CONSUMPTION,
+            OperationType.CAPITAL_LOSS,
+        ):
+            # The project whose assets are written off is the source.
+            return self.source
+        if self.operation_type == OperationType.CAPITAL_GAIN:
+            # The project whose assets gain value is the destination.
+            return self.destination
+        return None
+
+    @property
+    def inventory_receiving_entity(self):
+        """
+        The entity whose physical inventory receives the products created by
+        this operation's inbound movements (PURCHASE / BIRTH).
+
+        PURCHASE: the project is the source; BIRTH: the project is the
+        destination (the source is the System entity). Returns None for
+        non-inbound operations.
+        """
+        from .operation_type import OperationType
+
+        if self.operation_type == OperationType.BIRTH:
+            return self.destination
+        if self.operation_type == OperationType.PURCHASE:
+            return self.source
+        return None
+
+    @property
+    def can_create_movement(self) -> bool:
+        """Whether this operation supports manual inventory movements."""
+        from .operation_type import OperationType
+
+        return self.operation_type in (OperationType.PURCHASE, OperationType.SALE)
+
+    # ------------------------------------------------------------------
+    # Inventory / invoice helpers
+    # ------------------------------------------------------------------
+
+    def get_items_data(self):
+        """
+        Build a list of dicts with movement summaries for each invoice item.
+        Used by the detail view to display received/delivered quantities.
+
+        Each entry contains:
+        - item: the InvoiceItem instance
+        - moved_qty: total quantity moved (non-reversal lines)
+        - remaining_qty: quantity still to be moved
+        - is_fully_moved: True when remaining_qty <= 0
+        - is_inbound: True for PURCHASE (receiving), False for SALE (delivering)
+        - movement_lines: queryset of active (non-reversal) movement lines
+        - grouped_lines: all movement lines grouped by group_key, with net totals
+        """
+        from decimal import Decimal
+
+        from django.db.models import Sum
+
+        from apps.app_inventory.models import InventoryMovementLine
+        from apps.app_inventory.stock import active_lines_for_item
+
+        from .operation_type import OperationType
+
+        items = getattr(self, "_cached_items", None)
+        if items is None:
+            items = self.items.all()
+
+        items_data = []
+        is_inbound = self.operation_type == OperationType.PURCHASE
+
+        for item in items:
+            # Aggregate total moved quantity (only active, non-reversal lines —
+            # originals that have since been reversed no longer count).
+            active_lines = active_lines_for_item(item)
+            agg = active_lines.aggregate(total=Sum("quantity"))
+            moved_qty = agg["total"] or Decimal("0.00")
+            remaining_qty = item.adjusted_quantity - moved_qty
+
+            # Active movement lines (non-reversal, not reversed) for quick reference
+            movement_lines = active_lines.select_related("product")
+
+            # All movement lines including reversals, grouped by group_key
+            all_lines = InventoryMovementLine.objects.filter(
+                invoice_item=item,
+            ).select_related("product")
+
+            # Group by group_key (blank/empty group_key → "Individual")
+            groups = {}
+            for ml in all_lines:
+                key = ml.group_key or ""
+                if key not in groups:
+                    groups[key] = {"group_key": ml.group_key, "lines": []}
+                groups[key]["lines"].append(ml)
+
+            # Compute net totals per group
+            grouped_lines = []
+            for key, group in groups.items():
+                net_qty = Decimal("0.00")
+                for ml in group["lines"]:
+                    if ml.reversal_of_id:
+                        net_qty -= ml.quantity
+                    else:
+                        net_qty += ml.quantity
+                group["total_net_qty"] = net_qty
+                grouped_lines.append(group)
+
+            # Sort groups: non-empty group_keys first, then by net_qty desc
+            grouped_lines.sort(
+                key=lambda g: (0 if g["group_key"] else 1, -g["total_net_qty"])
+            )
+
+            items_data.append(
+                {
+                    "item": item,
+                    "moved_qty": moved_qty,
+                    "remaining_qty": remaining_qty,
+                    "is_fully_moved": remaining_qty <= Decimal("0.00"),
+                    "is_inbound": is_inbound,
+                    "movement_lines": movement_lines,
+                    "grouped_lines": grouped_lines,
+                }
+            )
+        return items_data
+
+    def save_inventory(self, bound_formset):
+        """
+        Called inside an atomic block after the formset is saved.
+
+        Creates the physical InventoryMovementLine records that stock queries
+        are built from (there is no separate ledger table anymore):
+
+        * BIRTH/DEATH/CONSUMPTION → auto-creates movement lines
+        * DEATH/CONSUMPTION → links the selected products to their items
+        * CAPITAL_GAIN/LOSS → NOT handled here — value-only; the capital proxy
+          records the product's signed valuation via ``add_valuation()``
+          (creates a ``ProductCapitalValuation`` row, never an InvoiceItem or
+          a movement line)
+        * PURCHASE/SALE    → no movement here (movement lines are
+          user-driven or created by the sale wizard later)
+
+        Products are created lazily at movement time, not at contract time.
+        """
+        from django.utils.translation import gettext as _
+
+        if self.operation_type in (
+            OperationType.BIRTH,
+            OperationType.DEATH,
+            OperationType.CONSUMPTION,
+        ):
+            self._auto_create_inventory_movements(bound_formset)
+
+        if self.operation_type in (
+            OperationType.DEATH,
+            OperationType.CONSUMPTION,
+        ):
+            # Build product_map: {invoice_item_pk: product} for operations
+            # where products are known at creation time
+            for form in bound_formset.forms:
+                item = form.instance
+                if not item.pk:
+                    continue
+                selected = form.cleaned_data.get("selected_product")
+                if selected:
+                    is_reversal = getattr(self, "reversal_of_id", None) is not None
+                    # A DEATH/CONSUMPTION auto-movement already made the selected
+                    # product terminal (movement-based status) before this point,
+                    # so allow the matching terminal status during validation
+                    # (via the same allow_adjustment hook the movement clean uses).
+                    allow_terminal = self.operation_type in (
+                        OperationType.DEATH,
+                        OperationType.CONSUMPTION,
+                    )
+                    selected.validate_active(
+                        allow_reversal=is_reversal, allow_adjustment=allow_terminal
+                    )
+                    # Ownership guard: the selected product must belong to the
+                    # entity whose inventory this operation consumes.
+                    owner = self.inventory_owner_entity
+                    if not is_reversal and owner is not None:
+                        if selected.entity_id != owner.id:
+                            raise ValidationError(
+                                _(
+                                    "Product '%(p)s' does not belong to '%(entity)s' "
+                                    "and cannot be used in this operation."
+                                )
+                                % {"p": selected, "entity": owner}
+                            )
+                    selected.invoice_items.add(item)
+
+    def _auto_create_inventory_movements(self, bound_formset):
+        """
+        Auto-create InventoryMovementLine records for BIRTH, DEATH and
+        CONSUMPTION operations.
+
+        BIRTH:       System entity → Project entity  (product created lazily)
+        DEATH:       Project entity → System entity  (product must already exist)
+        CONSUMPTION: Project entity → System entity  (product must already exist)
+
+        Every line is validated (``full_clean``) before save so the ownership
+        and availability guards also apply to these auto-created movements.
+        """
+        import uuid
+        from decimal import Decimal
+
+        from apps.app_inventory.models import (
+            InventoryMovementLine,
+            Product,
+            ProductTemplate,
+        )
+
+        group_key = uuid.uuid4().hex[:8]
+
+        # Concurrency: lock the selected products for the duration of this
+        # transaction so concurrent DEATH/CONSUMPTION on the same stock cannot
+        # both pass the availability check (SELECT ... FOR UPDATE; no-op on
+        # SQLite).
+        if self.operation_type in (OperationType.DEATH, OperationType.CONSUMPTION):
+            selected_ids = [
+                form.cleaned_data.get("selected_product").pk
+                for form in bound_formset.forms
+                if form.instance.pk and form.cleaned_data.get("selected_product")
+            ]
+            Product.lock_ids(selected_ids)
+
+        for form in bound_formset.forms:
+            item = form.instance
+            if not item.pk:
+                continue
+
+            kwargs = dict(
+                operation=self,
+                invoice_item=item,
+                quantity=item.quantity,
+                date=self.date,
+                officer=self.officer,
+                group_key=group_key,
+            )
+
+            if self.operation_type == OperationType.BIRTH:
+                if (
+                    item.product_template.tracking_mode
+                    == ProductTemplate.TrackingMode.INDIVIDUAL
+                ):
+                    # Forward the birth-specific attributes (mother, newborn
+                    # gender, birth date) to the lazily-created Product via
+                    # transient attributes, mirroring `_lazy_unique_id`.
+                    birth_attrs = {}
+                    if getattr(form, "is_birth", False):
+                        birth_attrs = {
+                            "_lazy_gender": form.cleaned_data.get("gender") or None,
+                            "_lazy_birth_date": form.cleaned_data.get("birth_date")
+                            or self.date,
+                            "_lazy_mother": form.cleaned_data.get("mother") or None,
+                        }
+                    # One line per head — each lazy-creates its own tagged
+                    # Product (e.g. 5 calves → 5 movement lines, 5 products).
+                    for head_idx in range(int(item.quantity)):
+                        line = InventoryMovementLine(
+                            operation=self,
+                            invoice_item=item,
+                            quantity=Decimal("1"),
+                            date=self.date,
+                            officer=self.officer,
+                            group_key=group_key,
+                        )
+                        for attr, value in birth_attrs.items():
+                            setattr(line, attr, value)
+                        line.full_clean()
+                        line.save()
+                    continue
+                # COMMODITY: product=None → created lazily by save()
+                line = InventoryMovementLine(**kwargs)
+            elif self.operation_type in (
+                OperationType.DEATH,
+                OperationType.CONSUMPTION,
+            ):
+                selected = form.cleaned_data.get("selected_product")
+                if not selected:
+                    continue
+                line = InventoryMovementLine(product=selected, **kwargs)
+            else:
+                continue
+
+            line.full_clean()
+            line.save()
+
+    # ------------------------------------------------------------------
+    # Reversal inventory hooks
+    # ------------------------------------------------------------------
+
+    def _validate_reversal_inventory_guards(self):
+        """Reversal dependency guard (called before ``super().reverse()``).
+
+        Do not reverse an operation whose products were moved again in a later
+        non-reversed operation. For the outbound ops (DEATH/CONSUMPTION/SALE)
+        the reversal would resurrect stock that has since been consumed/sold/
+        written off. For BIRTH (an inbound op) the reversal would push a
+        newborn's net presence negative once its born value was dispatched by
+        a later SALE/DEATH/CONSUMPTION, so the guard is extended to BIRTH too
+        (docs/specs/operations/op_17_birth.md §5.2.1 VR4).
+
+        Pinned by the reachable scenarios:
+          - Sale:  test_reversal_blocked_when_product_moved_again_in_later_sale
+          - Consumption: test_reversal_blocked_when_product_moved_again_in_later_consumption
+          - Birth: test_reversal_blocked_when_born_product_moved_again_in_later_death
+        Death cannot reach this branch via normal flows (no partial death — a
+        fully written-off product is terminal), so the DEATH case is defensive
+        (see docs/specs/operations/op_18_death.md §5.2.1 VR4).
+        """
+        from django.utils.translation import gettext as _
+
+        if type(self).has_invoice and self.operation_type in (
+            OperationType.BIRTH,
+            OperationType.DEATH,
+            OperationType.CONSUMPTION,
+            OperationType.SALE,
+        ):
+            from apps.app_inventory.models import InventoryMovementLine
+
+            product_ids = list(
+                self.movement_lines.filter(reversal_of__isnull=True).values_list(
+                    "product_id", flat=True
+                )
+            )
+            if product_ids:
+                downstream = (
+                    InventoryMovementLine.objects.filter(
+                        product_id__in=product_ids,
+                        reversal_of__isnull=True,
+                    )
+                    .exclude(operation=self)
+                    .filter(
+                        operation__operation_type__in=[
+                            OperationType.SALE,
+                            OperationType.DEATH,
+                            OperationType.CONSUMPTION,
+                        ]
+                    )
+                )
+                if downstream.exists():
+                    raise ValidationError(
+                        _(
+                            "Cannot reverse this operation: its products were "
+                            "moved again in a later operation."
+                        )
+                    )
+
+    def _reverse_inventory_movements(self, officer, date):
+        """Reverse the operation's inventory movements (called after reversal).
+
+        * PURCHASE / SALE — user-driven movements must be reversed by the user
+          first. Only *active* movement lines block reversal: an original that
+          has already been reversed (its mirror exists) and a reversal (mirror)
+          line itself are excluded, so reversing all movements unlocks the
+          operation reversal.
+        * BIRTH / DEATH / CONSUMPTION — auto-created movements are tightly
+          coupled to the operation, so each active line is reversed
+          automatically.
+        """
+        from django.utils.translation import gettext as _
+
+        if self.operation_type in (OperationType.PURCHASE, OperationType.SALE):
+            moved = self.movement_lines.filter(
+                reversal_of__isnull=True,
+                reversed_by__isnull=True,
+            ).exists()
+            if moved:
+                raise ValidationError(
+                    _(
+                        "Cannot reverse this operation. "
+                        "Reverse all inventory movements first."
+                    )
+                )
+        elif self.operation_type in (
+            OperationType.BIRTH,
+            OperationType.DEATH,
+            OperationType.CONSUMPTION,
+        ):
+            for line in self.movement_lines.filter(reversal_of__isnull=True):
+                line.reverse(officer=officer, date=date)
+
+
 class Operation(
     ImmutableMixin,
     AmountCleanMixin,
     OfficerMixin,
+    InventoryOperationMixin,
     ReversableModel,
     BaseModel,
 ):
@@ -108,62 +521,8 @@ class Operation(
     is_items_adjustable = False
 
     # ------------------------------------------------------------------
-    # Inventory ownership helpers
-    # ------------------------------------------------------------------
-
-    @property
-    def inventory_owner_entity(self):
-        """
-        The entity whose physical inventory is consumed by this operation's
-        movements — used to filter and validate stock selection.
-
-        Returns None for inbound (PURCHASE/BIRTH) and non-inventory operations.
-        """
-        from .operation_type import OperationType
-
-        if self.operation_type == OperationType.SALE:
-            # The selling project is the destination (source is the client).
-            return self.destination
-        if self.operation_type in (
-            OperationType.DEATH,
-            OperationType.CONSUMPTION,
-            OperationType.CAPITAL_LOSS,
-        ):
-            # The project whose assets are written off is the source.
-            return self.source
-        if self.operation_type == OperationType.CAPITAL_GAIN:
-            # The project whose assets gain value is the destination.
-            return self.destination
-        return None
-
-    @property
-    def inventory_receiving_entity(self):
-        """
-        The entity whose physical inventory receives the products created by
-        this operation's inbound movements (PURCHASE / BIRTH).
-
-        PURCHASE: the project is the source; BIRTH: the project is the
-        destination (the source is the System entity). Returns None for
-        non-inbound operations.
-        """
-        from .operation_type import OperationType
-
-        if self.operation_type == OperationType.BIRTH:
-            return self.destination
-        if self.operation_type == OperationType.PURCHASE:
-            return self.source
-        return None
-
-    # ------------------------------------------------------------------
     # Eligibility helpers
     # ------------------------------------------------------------------
-
-    @property
-    def can_create_movement(self) -> bool:
-        """Whether this operation supports inventory movements."""
-        from .operation_type import OperationType
-
-        return self.operation_type in (OperationType.PURCHASE, OperationType.SALE)
 
     @property
     def can_adjust(self) -> bool:
@@ -741,256 +1100,6 @@ class Operation(
                 % {"op_type": self.operation_type, "pk": self.pk},
             )
 
-    # ------------------------------------------------------------------
-    # Inventory / invoice helpers
-    # ------------------------------------------------------------------
-
-    def get_items_data(self):
-        """
-        Build a list of dicts with movement summaries for each invoice item.
-        Used by the detail view to display received/delivered quantities.
-
-        Each entry contains:
-        - item: the InvoiceItem instance
-        - moved_qty: total quantity moved (non-reversal lines)
-        - remaining_qty: quantity still to be moved
-        - is_fully_moved: True when remaining_qty <= 0
-        - is_inbound: True for PURCHASE (receiving), False for SALE (delivering)
-        - movement_lines: queryset of active (non-reversal) movement lines
-        - grouped_lines: all movement lines grouped by group_key, with net totals
-        """
-        from decimal import Decimal
-
-        from django.db.models import Sum
-
-        from apps.app_inventory.models import InventoryMovementLine
-        from apps.app_inventory.stock import active_lines_for_item
-
-        from .operation_type import OperationType
-
-        items = getattr(self, "_cached_items", None)
-        if items is None:
-            items = self.items.all()
-
-        items_data = []
-        is_inbound = self.operation_type == OperationType.PURCHASE
-
-        for item in items:
-            # Aggregate total moved quantity (only active, non-reversal lines —
-            # originals that have since been reversed no longer count).
-            active_lines = active_lines_for_item(item)
-            agg = active_lines.aggregate(total=Sum("quantity"))
-            moved_qty = agg["total"] or Decimal("0.00")
-            remaining_qty = item.adjusted_quantity - moved_qty
-
-            # Active movement lines (non-reversal, not reversed) for quick reference
-            movement_lines = active_lines.select_related("product")
-
-            # All movement lines including reversals, grouped by group_key
-            all_lines = InventoryMovementLine.objects.filter(
-                invoice_item=item,
-            ).select_related("product")
-
-            # Group by group_key (blank/empty group_key → "Individual")
-            groups = {}
-            for ml in all_lines:
-                key = ml.group_key or ""
-                if key not in groups:
-                    groups[key] = {"group_key": ml.group_key, "lines": []}
-                groups[key]["lines"].append(ml)
-
-            # Compute net totals per group
-            grouped_lines = []
-            for key, group in groups.items():
-                net_qty = Decimal("0.00")
-                for ml in group["lines"]:
-                    if ml.reversal_of_id:
-                        net_qty -= ml.quantity
-                    else:
-                        net_qty += ml.quantity
-                group["total_net_qty"] = net_qty
-                grouped_lines.append(group)
-
-            # Sort groups: non-empty group_keys first, then by net_qty desc
-            grouped_lines.sort(
-                key=lambda g: (0 if g["group_key"] else 1, -g["total_net_qty"])
-            )
-
-            items_data.append(
-                {
-                    "item": item,
-                    "moved_qty": moved_qty,
-                    "remaining_qty": remaining_qty,
-                    "is_fully_moved": remaining_qty <= Decimal("0.00"),
-                    "is_inbound": is_inbound,
-                    "movement_lines": movement_lines,
-                    "grouped_lines": grouped_lines,
-                }
-            )
-        return items_data
-
-    def save_inventory(self, bound_formset):
-        """
-        Called inside an atomic block after the formset is saved.
-
-        Creates the physical InventoryMovementLine records that stock queries
-        are built from (there is no separate ledger table anymore):
-
-        * BIRTH/DEATH/CONSUMPTION → auto-creates movement lines
-        * DEATH/CONSUMPTION → links the selected products to their items
-        * CAPITAL_GAIN/LOSS → NOT handled here — value-only; the capital proxy
-          records the product's signed valuation via ``add_valuation()``
-          (creates a ``ProductCapitalValuation`` row, never an InvoiceItem or
-          a movement line)
-        * PURCHASE/SALE    → no movement here (movement lines are
-          user-driven or created by the sale wizard later)
-
-        Products are created lazily at movement time, not at contract time.
-        """
-        from django.utils.translation import gettext as _
-
-        if self.operation_type in (
-            OperationType.BIRTH,
-            OperationType.DEATH,
-            OperationType.CONSUMPTION,
-        ):
-            self._auto_create_inventory_movements(bound_formset)
-
-        if self.operation_type in (
-            OperationType.DEATH,
-            OperationType.CONSUMPTION,
-        ):
-            # Build product_map: {invoice_item_pk: product} for operations
-            # where products are known at creation time
-            for form in bound_formset.forms:
-                item = form.instance
-                if not item.pk:
-                    continue
-                selected = form.cleaned_data.get("selected_product")
-                if selected:
-                    is_reversal = getattr(self, "reversal_of_id", None) is not None
-                    # A DEATH/CONSUMPTION auto-movement already made the selected
-                    # product terminal (movement-based status) before this point,
-                    # so allow the matching terminal status during validation
-                    # (via the same allow_adjustment hook the movement clean uses).
-                    allow_terminal = self.operation_type in (
-                        OperationType.DEATH,
-                        OperationType.CONSUMPTION,
-                    )
-                    selected.validate_active(
-                        allow_reversal=is_reversal, allow_adjustment=allow_terminal
-                    )
-                    # Ownership guard: the selected product must belong to the
-                    # entity whose inventory this operation consumes.
-                    owner = self.inventory_owner_entity
-                    if not is_reversal and owner is not None:
-                        if selected.entity_id != owner.id:
-                            raise ValidationError(
-                                _(
-                                    "Product '%(p)s' does not belong to '%(entity)s' "
-                                    "and cannot be used in this operation."
-                                )
-                                % {"p": selected, "entity": owner}
-                            )
-                    selected.invoice_items.add(item)
-
-    def _auto_create_inventory_movements(self, bound_formset):
-        """
-        Auto-create InventoryMovementLine records for BIRTH, DEATH and
-        CONSUMPTION operations.
-
-        BIRTH:       System entity → Project entity  (product created lazily)
-        DEATH:       Project entity → System entity  (product must already exist)
-        CONSUMPTION: Project entity → System entity  (product must already exist)
-
-        Every line is validated (``full_clean``) before save so the ownership
-        and availability guards also apply to these auto-created movements.
-        """
-        import uuid
-        from decimal import Decimal
-
-        from apps.app_inventory.models import (
-            InventoryMovementLine,
-            Product,
-            ProductTemplate,
-        )
-
-        group_key = uuid.uuid4().hex[:8]
-
-        # Concurrency: lock the selected products for the duration of this
-        # transaction so concurrent DEATH/CONSUMPTION on the same stock cannot
-        # both pass the availability check (SELECT ... FOR UPDATE; no-op on
-        # SQLite).
-        if self.operation_type in (OperationType.DEATH, OperationType.CONSUMPTION):
-            selected_ids = [
-                form.cleaned_data.get("selected_product").pk
-                for form in bound_formset.forms
-                if form.instance.pk and form.cleaned_data.get("selected_product")
-            ]
-            Product.lock_ids(selected_ids)
-
-        for form in bound_formset.forms:
-            item = form.instance
-            if not item.pk:
-                continue
-
-            kwargs = dict(
-                operation=self,
-                invoice_item=item,
-                quantity=item.quantity,
-                date=self.date,
-                officer=self.officer,
-                group_key=group_key,
-            )
-
-            if self.operation_type == OperationType.BIRTH:
-                if (
-                    item.product_template.tracking_mode
-                    == ProductTemplate.TrackingMode.INDIVIDUAL
-                ):
-                    # Forward the birth-specific attributes (mother, newborn
-                    # gender, birth date) to the lazily-created Product via
-                    # transient attributes, mirroring `_lazy_unique_id`.
-                    birth_attrs = {}
-                    if getattr(form, "is_birth", False):
-                        birth_attrs = {
-                            "_lazy_gender": form.cleaned_data.get("gender") or None,
-                            "_lazy_birth_date": form.cleaned_data.get("birth_date")
-                            or self.date,
-                            "_lazy_mother": form.cleaned_data.get("mother") or None,
-                        }
-                    # One line per head — each lazy-creates its own tagged
-                    # Product (e.g. 5 calves → 5 movement lines, 5 products).
-                    for head_idx in range(int(item.quantity)):
-                        line = InventoryMovementLine(
-                            operation=self,
-                            invoice_item=item,
-                            quantity=Decimal("1"),
-                            date=self.date,
-                            officer=self.officer,
-                            group_key=group_key,
-                        )
-                        for attr, value in birth_attrs.items():
-                            setattr(line, attr, value)
-                        line.full_clean()
-                        line.save()
-                    continue
-                # COMMODITY: product=None → created lazily by save()
-                line = InventoryMovementLine(**kwargs)
-            elif self.operation_type in (
-                OperationType.DEATH,
-                OperationType.CONSUMPTION,
-            ):
-                selected = form.cleaned_data.get("selected_product")
-                if not selected:
-                    continue
-                line = InventoryMovementLine(product=selected, **kwargs)
-            else:
-                continue
-
-            line.full_clean()
-            line.save()
-
     def delete(self, *args, **kwargs):
         """Delete operation with audit logging."""
         with DebugContext.section(
@@ -1042,87 +1151,20 @@ class Operation(
         )
 
         try:
-            # Reversal dependency guard: do not reverse an operation whose
-            # products were moved again in a later non-reversed operation.
-            # For the outbound ops (DEATH/CONSUMPTION/SALE) the reversal would
-            # resurrect stock that has since been consumed/sold/written off.
-            # For BIRTH (an inbound op) the reversal would push a newborn's net
-            # presence negative once its born value was dispatched by a later
-            # SALE/DEATH/CONSUMPTION, so the guard is extended to BIRTH too
-            # (docs/specs/operations/op_17_birth.md §5.2.1 VR4).
-            #
-            # Pinned by the reachable scenarios:
-            #   - Sale:  test_reversal_blocked_when_product_moved_again_in_later_sale
-            #   - Consumption: test_reversal_blocked_when_product_moved_again_in_later_consumption
-            #   - Birth: test_reversal_blocked_when_born_product_moved_again_in_later_death
-            # Death cannot reach this branch via normal flows (no partial death —
-            # a fully written-off product is terminal), so the DEATH case is
-            # defensive (see docs/specs/operations/op_18_death.md §5.2.1 VR4).
-            if type(self).has_invoice and self.operation_type in (
-                OperationType.BIRTH,
-                OperationType.DEATH,
-                OperationType.CONSUMPTION,
-                OperationType.SALE,
-            ):
-                from apps.app_inventory.models import InventoryMovementLine
-
-                product_ids = list(
-                    self.movement_lines.filter(reversal_of__isnull=True).values_list(
-                        "product_id", flat=True
-                    )
-                )
-                if product_ids:
-                    downstream = (
-                        InventoryMovementLine.objects.filter(
-                            product_id__in=product_ids,
-                            reversal_of__isnull=True,
-                        )
-                        .exclude(operation=self)
-                        .filter(
-                            operation__operation_type__in=[
-                                OperationType.SALE,
-                                OperationType.DEATH,
-                                OperationType.CONSUMPTION,
-                            ]
-                        )
-                    )
-                    if downstream.exists():
-                        raise ValidationError(
-                            _(
-                                "Cannot reverse this operation: its products were "
-                                "moved again in a later operation."
-                            )
-                        )
+            # Reversal dependency guard (inventory mixin): do not reverse an
+            # operation whose products were moved again in a later non-reversed
+            # outbound operation. The type dispatch lives with the other
+            # inventory logic in ``InventoryOperationMixin``.
+            self._validate_reversal_inventory_guards()
 
             reversal = super().reverse(officer=officer, date=date, reason=reason)
 
+            # Reverse the operation's inventory (inventory mixin): PURCHASE /
+            # SALE require the user to reverse user-driven movements first;
+            # BIRTH / DEATH / CONSUMPTION reverse their tightly-coupled
+            # auto-created movements automatically.
             if type(self).has_invoice:
-                if self.operation_type in (OperationType.PURCHASE, OperationType.SALE):
-                    # User-driven movements must be reversed by the user first.
-                    # Only *active* movement lines block reversal: an original
-                    # that has already been reversed (its mirror exists) and a
-                    # reversal (mirror) line itself are excluded, so reversing
-                    # all movements unlocks the operation reversal.
-                    moved = self.movement_lines.filter(
-                        reversal_of__isnull=True,
-                        reversed_by__isnull=True,
-                    ).exists()
-                    if moved:
-                        raise ValidationError(
-                            _(
-                                "Cannot reverse this operation. "
-                                "Reverse all inventory movements first."
-                            )
-                        )
-
-                elif self.operation_type in (
-                    OperationType.BIRTH,
-                    OperationType.DEATH,
-                    OperationType.CONSUMPTION,
-                ):
-                    # Auto-created movements are tightly coupled to the operation
-                    for line in self.movement_lines.filter(reversal_of__isnull=True):
-                        line.reverse(officer=officer, date=date)
+                self._reverse_inventory_movements(officer=officer, date=date)
 
             DebugContext.transaction_commit(
                 txn_id,
@@ -1203,3 +1245,22 @@ class AdjustableTransactionMixin(AdjustableMixin, TransactionMixin):
 
 class RepayableTransactionMixin(LinkedRePaymentTransactionMixin, TransactionMixin):
     """Adds repayment behavior (Loan, Worker Advance)."""
+
+
+class StockEventMixin:
+    """Stock-event operations — inventory-only, no accounting transactions.
+
+    Shared config for the auto-movement operations (Birth, Death, Consumption)
+    and the value-only capital valuations (Capital Gain / Capital Loss): never
+    payable, no category, no repayment. Invoice-driven by default —
+    ``CapitalValuationOperation`` overrides ``has_invoice = False`` because it
+    is value-only (a ``ProductCapitalValuation`` row, no invoice items).
+    """
+
+    can_pay = False
+    check_balance_on_payment = False
+    is_partially_payable = False
+    has_category = False
+    category_required = False
+    has_repayment = False
+    has_invoice = True

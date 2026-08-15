@@ -1,10 +1,10 @@
 from django.core.exceptions import ValidationError
 
-from apps.app_operation.models.operation import Operation
+from apps.app_operation.models.operation import Operation, StockEventMixin
 from apps.app_operation.models.operation_type import OperationType
 
 
-class CapitalValuationOperation(Operation):
+class CapitalValuationOperation(StockEventMixin, Operation):
     """Single proxy for Capital Gain (system -> project) and Capital Loss
     (project -> system).
 
@@ -14,13 +14,9 @@ class CapitalValuationOperation(Operation):
     two former proxies (CapitalGainOperation / CapitalLossOperation).
     """
 
-    # Shared config — identical for both variants.
-    can_pay = False
-    check_balance_on_payment = False
-    is_partially_payable = False
-    has_category = False
-    category_required = False
-    has_repayment = False
+    # Shared non-accounting config comes from ``StockEventMixin``; only the
+    # value-only overrides remain here (no invoice items — the valuation is a
+    # ``ProductCapitalValuation`` row, never an ``InvoiceItem``).
     has_invoice = False
     has_capital_valuation = True
 

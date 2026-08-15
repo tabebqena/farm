@@ -48,8 +48,10 @@
 
 > **No accounting mixins.** `CapitalValuationOperation` (the shared Capital Gain/Loss
 > proxy) inherits only `ImmutableMixin`, `AmountCleanMixin`, `OfficerMixin`,
-> `ReversableModel`, `BaseModel` (via the lean `Operation` base). It does **not** inherit
-> `LinkedIssuanceTransactionMixin`, `LinkedPaymentTransactionMixin`,
+> `ReversableModel`, `BaseModel` (via the lean `Operation` base) plus the shared
+> `StockEventMixin` (non-accounting config, with `has_invoice` overridden back to `False`
+> because the valuation is value-only) and `InventoryOperationMixin` (inventory engine).
+> It does **not** inherit `LinkedIssuanceTransactionMixin`, `LinkedPaymentTransactionMixin`,
 > `LinkedRePaymentTransactionMixin` or `AdjustableMixin` — so no transactions, no settlement,
 > no repayment, no adjustments, no P&L entry in `profit_loss()`.
 
@@ -65,7 +67,7 @@ The tables below **register every file that implements this operation**. The spe
 |---------|-------------------|
 | Proxy class + type-specific config + `clean_destination` | |
 | Proxy registry / URL→class resolution | |
-| Shared `Operation` engine (`clean`, `save`, `reverse`, `create`, `resolve_request`, `save_inventory`, period assignment, reversable tx types) | |
+| Shared `Operation` engine (`clean`, `save`, `reverse`, `create`, `resolve_request`, period assignment, reversable tx types) + `InventoryOperationMixin` (inventory ownership helpers, reversal guards) | |
 | Operation type enum | |
 
 ### 2.2 Core engine (mixins / base)

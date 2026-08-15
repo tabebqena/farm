@@ -1,9 +1,9 @@
 from django.core.exceptions import ValidationError
 
-from apps.app_operation.models.operation import Operation
+from apps.app_operation.models.operation import Operation, StockEventMixin
 
 
-class BirthOperation(Operation):
+class BirthOperation(StockEventMixin, Operation):
     """
     Records a livestock birth event.
 
@@ -18,13 +18,6 @@ class BirthOperation(Operation):
     label = "Birth"
     _source_role = "system"
     _dest_role = "url"
-    can_pay = False
-    check_balance_on_payment = False
-    is_partially_payable = False
-    has_category = False
-    category_required = False
-    has_repayment = False
-    has_invoice = True
     creates_assets = True
 
     class Meta:

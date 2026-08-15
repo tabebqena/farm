@@ -106,10 +106,11 @@ The tables below **register every file that implements the stock subsystem**. Th
 
 | Concern | Implementing code |
 |---------|-------------------|
-| Operation `inventory_owner_entity` / `inventory_receiving_entity` | `Operation` (app_operation) |
-| Auto movement on create (Birth/Death/Consumption) | `Operation.save_inventory` → [`_auto_create_inventory_movements`](../../../apps/app_operation/models/operation.py:874) |
+| Operation `inventory_owner_entity` / `inventory_receiving_entity` | `InventoryOperationMixin` (inherited by the lean `Operation` base, app_operation) |
+| Auto movement on create (Birth/Death/Consumption) | `InventoryOperationMixin.save_inventory` → [`_auto_create_inventory_movements`](../../../apps/app_operation/models/operation.py) |
 | Wizard Purchase/Sale movements | `create_from_session` (Purchase / Sale) |
-| Reversal dependency guard (outbound ops with later moves) | `Operation.reverse` |
+| Reversal dependency guard (outbound ops with later moves) | `InventoryOperationMixin._validate_reversal_inventory_guards` (called by `Operation.reverse`) |
+| Shared stock-event config (no payments / no category / no repayment / invoice-driven) | `StockEventMixin` (Birth / Death / Consumption / Capital) |
 
 ### 2.4 View / UI layer
 

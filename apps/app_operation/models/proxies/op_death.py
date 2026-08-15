@@ -1,9 +1,9 @@
 from django.core.exceptions import ValidationError
 
-from apps.app_operation.models.operation import Operation
+from apps.app_operation.models.operation import Operation, StockEventMixin
 
 
-class DeathOperation(Operation):
+class DeathOperation(StockEventMixin, Operation):
     """
     Records a livestock death event.
 
@@ -18,13 +18,6 @@ class DeathOperation(Operation):
     label = "Death"
     _source_role = "url"
     _dest_role = "system"
-    can_pay = False
-    check_balance_on_payment = False
-    is_partially_payable = False
-    has_category = False
-    category_required = False
-    has_repayment = False
-    has_invoice = True
 
     class Meta:
         proxy = True
