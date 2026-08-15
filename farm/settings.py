@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 import os
 from pathlib import Path
+import sys
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -92,12 +93,31 @@ WSGI_APPLICATION = "farm.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+if 'test' in sys.argv:
+    if "--parallel" in sys.argv and os.path.exists('/dev/shm'):
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': BASE_DIR / "db_test_placeholder.sqlite3", 
+                'TEST': {
+                    'NAME': '/dev/shm/test_parallel_db.sqlite3',
+                }
+            }
+        }
+    else:
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': ':memory:',
+            }
+        }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / "db.sqlite3",
+        }
     }
-}
 
 
 # Password validation
@@ -243,3 +263,37 @@ LOGGING = {
         },
     },
 }
+
+
+# ---------------------------------------------------------------------------
+# Test mode: maximize test execution speed
+# These overrides only apply when running `manage.py test`.
+# ---------------------------------------------------------------------------
+if "test" in sys.argv:
+    # PBKDF2 is deliberately slow for production security. Tests create many
+    # users, so swap in the fast MD5 hasher to avoid hashing overhead.
+    PASSWORD_HASHERS = [
+        "django.contrib.auth.hashers.MD5PasswordHasher",
+    ]
+
+    # Skip expensive password-strength checks during tests.
+    AUTH_PASSWORD_VALIDATORS = []
+
+    # Replace the verbose, file-backed logging config with a minimal console-only
+    # one (no RotatingFileHandler I/O, no per-query SQL debug logs).
+    LOGGING = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "simple": {"format": "{levelname} {asctime} {message}", "style": "{"},
+        },
+        "handlers": {
+            "console": {"class": "logging.StreamHandler", "formatter": "simple"},
+        },
+        "root": {"handlers": ["console"], "level": "WARNING"},
+        "loggers": {
+            "farm_debug": {"handlers": [], "level": "CRITICAL", "propagate": False},
+            "farm_audit": {"handlers": [], "level": "CRITICAL", "propagate": False},
+            "django.db.backends": {"handlers": [], "level": "CRITICAL", "propagate": False},
+        },
+    }

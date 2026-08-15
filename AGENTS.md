@@ -13,13 +13,19 @@
 - Preserve existing behavior unless the task is clearly a bug fix or feature change.
 
 ## Testing and verification
-- Use the existing test setup with `pytest` and Django settings from `pytest.ini`.
+- Use Django's built-in test runner: `manage.py test`. Settings auto-optimize
+  for speed (in-memory sqlite for serial runs, RAM-backed `/dev/shm` DB for
+  parallel runs, fast MD5 password hashing, reduced logging).
+- Fastest commands:
+  - `manage.py test --parallel=10 --keepdb` (reuse the test DB)
+  - `manage.py test --parallel=10` (run once after schema changes, then `--keepdb`)
 - Prefer running targeted tests for the area you changed before running the full suite.
 - Common verification commands:
-  - `pytest -q`
-  - `pytest <path-to-test-file-or-test>`
-  - `python manage.py check`
+  - `manage.py test <app.tests.module>`
+  - `manage.py check`
 - If a change affects models or business logic, add or update tests where appropriate.
+- Capture full test output into a temporary file under `tmp/` (repo root) for
+  checking errors, then delete the temp file when done.
 
 ## Repo-specific notes
 - The project depends on Django and related packages listed in `requirements.txt`.
