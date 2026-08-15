@@ -9,7 +9,7 @@ from apps.app_adjustment.models import Adjustment, AdjustmentType
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import (
-    CapitalGainOperation,
+    CapitalValuationOperation,
     ExpenseOperation,
     PurchaseOperation,
     SaleOperation,
@@ -70,7 +70,7 @@ def _make_client_stakeholder(project_entity, client_entity, active=True):
 
 
 def _inject_project(system_entity, dest_entity, amount, officer_user):
-    CapitalGainOperation(
+    CapitalValuationOperation(
         source=system_entity,
         destination=dest_entity,
         amount=amount,

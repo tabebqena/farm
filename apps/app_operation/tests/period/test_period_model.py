@@ -20,8 +20,8 @@ from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.period import FinancialPeriod
 from apps.app_operation.models.proxies import (
     BirthOperation,
-    CapitalGainOperation,
-    CapitalLossOperation,
+    CapitalValuationOperation,
+    CapitalValuationOperation,
     ConsumptionOperation,
     DeathOperation,
     PurchaseOperation,
@@ -442,7 +442,7 @@ class EndAssetsMovementValueTest(TestCase):
         assets_before = self.period.end_assets
 
         op = self._op(
-            CapitalGainOperation, OperationType.CAPITAL_GAIN, self.system, self.project,
+            CapitalValuationOperation, OperationType.CAPITAL_GAIN, self.system, self.project,
             Decimal("500.00"),
         )
         op.add_valuation(
@@ -465,7 +465,7 @@ class EndAssetsMovementValueTest(TestCase):
         assets_before = self.period.end_assets
 
         op = self._op(
-            CapitalLossOperation, OperationType.CAPITAL_LOSS, self.project, self.system,
+            CapitalValuationOperation, OperationType.CAPITAL_LOSS, self.project, self.system,
             Decimal("200.00"),
         )
         op.add_valuation(

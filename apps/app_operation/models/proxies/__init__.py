@@ -5,10 +5,9 @@ from apps.app_operation.models.operation_type import OperationType
 
 from .op_birth import BirthOperation
 from .op_consumption import ConsumptionOperation
-from .op_capital_gain import CapitalGainOperation
+from .op_capital_valuation import CapitalValuationOperation
 from .op_death import DeathOperation
 from .op_correction import CorrectionOperation
-from .op_capital_loss import CapitalLossOperation
 from .op_cash_injection import CashInjectionOperation
 from .op_cash_withdrawal import CashWithdrawalOperation
 from .op_expense import ExpenseOperation
@@ -32,8 +31,8 @@ PROXY_MAP: dict[str, type[Operation]] = {
     OperationType.EXPENSE: ExpenseOperation,
     OperationType.BIRTH: BirthOperation,
     OperationType.DEATH: DeathOperation,
-    OperationType.CAPITAL_GAIN: CapitalGainOperation,
-    OperationType.CAPITAL_LOSS: CapitalLossOperation,
+    OperationType.CAPITAL_GAIN: CapitalValuationOperation,
+    OperationType.CAPITAL_LOSS: CapitalValuationOperation,
     OperationType.CORRECTION_CREDIT: CorrectionOperation,
     OperationType.CORRECTION_DEBIT: CorrectionOperation,
     OperationType.WORKER_ADVANCE: WorkerAdvanceOperation,
@@ -84,8 +83,7 @@ __all__ = [
     "DeathOperation",
     "CashInjectionOperation",
     "CashWithdrawalOperation",
-    "CapitalGainOperation",
-    "CapitalLossOperation",
+    "CapitalValuationOperation",
     "CorrectionOperation",
     "ProjectFundingOperation",
     "ProjectRefundOperation",

@@ -8,7 +8,7 @@ from django.test import TestCase
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import (
-    CapitalGainOperation,
+    CapitalValuationOperation,
     SaleOperation,
     CashInjectionOperation,
 )
@@ -43,7 +43,7 @@ def _make_client_entity(name):
 
 def _inject_project(system_entity, dest_entity, amount, officer):
     """Seed a Project entity's fund via CapitalGain."""
-    CapitalGainOperation(
+    CapitalValuationOperation(
         source=system_entity,
         destination=dest_entity,
         amount=amount,

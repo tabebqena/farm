@@ -14,7 +14,7 @@ from apps.app_inventory.models import (
     ProductTemplate,
 )
 from apps.app_operation.models.operation_type import OperationType
-from apps.app_operation.models.proxies import CapitalLossOperation
+from apps.app_operation.models.proxies import CapitalValuationOperation
 
 User = get_user_model()
 
@@ -41,7 +41,7 @@ class CapitalLossCreateTest(TestCase):
             officer=self.officer_user,
         )
         defaults.update(kwargs)
-        return CapitalLossOperation(**defaults)
+        return CapitalValuationOperation(**defaults)
 
     # ------------------------------------------------------------------
     # No accounting transactions — Capital Loss is a stock event
@@ -201,7 +201,7 @@ class CapitalLossCreateTest(TestCase):
 
     def test_check_balance_on_payment_is_disabled(self):
         """Destination is the system entity; no fund balance gate on payment."""
-        self.assertFalse(CapitalLossOperation.check_balance_on_payment)
+        self.assertFalse(CapitalValuationOperation.check_balance_on_payment)
 
     # ------------------------------------------------------------------
     # Deficit behaviour — a loss-making project can go further into debt

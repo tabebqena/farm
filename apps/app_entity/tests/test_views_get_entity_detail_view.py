@@ -25,7 +25,7 @@ from apps.app_inventory.tests.general import (
 )
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import (
-    CapitalGainOperation,
+    CapitalValuationOperation,
     ExpenseOperation,
     PurchaseOperation,
 )
@@ -116,7 +116,7 @@ class EntityDetailViewTest(TestCase):
         """Payables from an expense issuance appear in the entity detail context."""
         system = Entity.create(EntityType.SYSTEM)
         world = Entity.create(EntityType.WORLD)
-        CapitalGainOperation(
+        CapitalValuationOperation(
             source=system,
             destination=self.entity,
             amount=Decimal("5000.00"),

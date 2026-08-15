@@ -8,7 +8,7 @@ from django.test import TestCase
 from apps.app_entity.models import Entity, EntityType
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import (
-    CapitalGainOperation,
+    CapitalValuationOperation,
     CorrectionOperation,
 )
 from apps.app_operation.tests.base import (
@@ -37,7 +37,7 @@ def _make_project_entity(name="Test Project"):
 
 def _seed_balance(system_entity, project_entity, officer_user, amount):
     """Give a project fund some balance via a CapitalGain."""
-    op = CapitalGainOperation(
+    op = CapitalValuationOperation(
         source=system_entity,
         destination=project_entity,
         amount=amount,

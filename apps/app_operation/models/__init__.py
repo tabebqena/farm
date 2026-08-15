@@ -4,8 +4,7 @@ from .period import FinancialPeriod
 from .proxies import (
     PROXY_MAP,
     BirthOperation,
-    CapitalGainOperation,
-    CapitalLossOperation,
+    CapitalValuationOperation,
     CashInjectionOperation,
     CashWithdrawalOperation,
     DeathOperation,
@@ -36,7 +35,6 @@ __all__ = [
     "PurchaseOperation",
     "SaleOperation",
     "ExpenseOperation",
-    "CapitalGainOperation",
-    "CapitalLossOperation",
+    "CapitalValuationOperation",
     "WorkerAdvanceOperation",
 ]

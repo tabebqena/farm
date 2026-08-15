@@ -23,8 +23,7 @@ from apps.app_inventory.tests.general import (
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import (
     BirthOperation,
-    CapitalGainOperation,
-    CapitalLossOperation,
+    CapitalValuationOperation,
     DeathOperation,
     PurchaseOperation,
     SaleOperation,
@@ -175,7 +174,7 @@ class ProductTest(TestCase):
                 self.system,
                 self.project,
                 self.officer,
-                CapitalGainOperation,
+                CapitalValuationOperation,
                 OperationType.CAPITAL_GAIN,
                 amount=capital_gain,
             )
@@ -185,7 +184,7 @@ class ProductTest(TestCase):
                 self.project,
                 self.system,
                 self.officer,
-                CapitalLossOperation,
+                CapitalValuationOperation,
                 OperationType.CAPITAL_LOSS,
                 amount=capital_loss,
             )
@@ -219,14 +218,14 @@ class ProductTest(TestCase):
     def test_status_active_after_capital_gain(self):
         """A capital gain item does not change the status to SOLD or DEAD."""
         product = self._linked_product(
-            CapitalGainOperation, OperationType.CAPITAL_GAIN, self.system, self.project
+            CapitalValuationOperation, OperationType.CAPITAL_GAIN, self.system, self.project
         )
         self.assertEqual(product.status, Product.Status.ACTIVE)
 
     def test_status_active_after_capital_loss(self):
         """A capital loss item does not change the status to SOLD or DEAD."""
         product = self._linked_product(
-            CapitalLossOperation, OperationType.CAPITAL_LOSS, self.project, self.system
+            CapitalValuationOperation, OperationType.CAPITAL_LOSS, self.project, self.system
         )
         self.assertEqual(product.status, Product.Status.ACTIVE)
 

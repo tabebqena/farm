@@ -8,7 +8,7 @@ from django.test import TestCase
 from apps.app_entity.models import Entity, EntityType
 from apps.app_inventory.models import Product, ProductTemplate
 from apps.app_operation.models.operation_type import OperationType
-from apps.app_operation.models.proxies import CapitalLossOperation
+from apps.app_operation.models.proxies import CapitalValuationOperation
 from apps.app_operation.tests.base import (
     assert_derived_state_unchanged,
     snapshot_derived_state,
@@ -28,7 +28,7 @@ class CapitalLossReversalTest(TestCase):
 
         self.project_entity = Entity.create(EntityType.PROJECT, name="Test Project")
 
-        self.op = CapitalLossOperation(
+        self.op = CapitalValuationOperation(
             source=self.project_entity,
             destination=self.system_entity,
             amount=Decimal("1000.00"),
@@ -96,7 +96,7 @@ class CapitalLossReversalTest(TestCase):
         pre-operation state after a full create + reverse cycle."""
         before = snapshot_derived_state()
 
-        op = CapitalLossOperation(
+        op = CapitalValuationOperation(
             source=self.project_entity,
             destination=self.system_entity,
             amount=Decimal("1000.00"),
@@ -152,7 +152,7 @@ class CapitalLossReversalProductStatusTest(TestCase):
         )
 
     def _make_linked_product(self, amount=Decimal("500.00")):
-        op = CapitalLossOperation(
+        op = CapitalValuationOperation(
             source=self.project_entity,
             destination=self.system_entity,
             amount=amount,

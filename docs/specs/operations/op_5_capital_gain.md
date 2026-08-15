@@ -19,13 +19,20 @@
 | Field | Value | Defined in |
 |-------|-------|-----------|
 | Operation type | `OperationType.CAPITAL_GAIN` (`"CAPITAL_GAIN"`) | |
-| Proxy class | `CapitalGainOperation` | |
+| Proxy class | `CapitalValuationOperation` | |
 | URL slug | `"capital-gain"` | |
 | Label | `"Capital Gain Issuance"` | |
 | Source role | `system` | |
 | Destination role | `url` (must be a Project) | |
 | Registered in | `PROXY_MAP` | |
 | Cross-op reference | row CG | [`operations-comparison.md`](operations-comparison.md) |
+
+> **Shared proxy.** Capital Gain and Capital Loss are served by a **single** proxy,
+> `CapitalValuationOperation`, which dispatches per-type configuration (roles, label,
+> URL slug, validation) on the row's `operation_type` — the same pattern as
+> `CorrectionOperation` for correction credit/debit. Both `"capital-gain"` and
+> `"capital-loss"` URL slugs resolve to this one proxy. Nothing about Capital Gain's
+> behavior changes: it remains a value-only stock event.
 
 **Configuration flags**:
 
@@ -39,9 +46,10 @@
 | `has_invoice` | `False` | no invoice items — the gain is recorded on a dedicated valuation row, not on an `InvoiceItem` |
 | `has_capital_valuation` | `True` | the gain is a `ProductCapitalValuation` row linking the owned product to a signed amount (value-only — no movement line) |
 
-> **No accounting mixins.** `CapitalGainOperation` inherits only `ImmutableMixin`,
-> `AmountCleanMixin`, `OfficerMixin`, `ReversableModel`, `BaseModel` (via the lean `Operation`
-> base). It does **not** inherit `LinkedIssuanceTransactionMixin`, `LinkedPaymentTransactionMixin`,
+> **No accounting mixins.** `CapitalValuationOperation` (the shared Capital Gain/Loss
+> proxy) inherits only `ImmutableMixin`, `AmountCleanMixin`, `OfficerMixin`,
+> `ReversableModel`, `BaseModel` (via the lean `Operation` base). It does **not** inherit
+> `LinkedIssuanceTransactionMixin`, `LinkedPaymentTransactionMixin`,
 > `LinkedRePaymentTransactionMixin` or `AdjustableMixin` — so no transactions, no settlement,
 > no repayment, no adjustments, no P&L entry in `profit_loss()`.
 
@@ -89,7 +97,7 @@ The tables below **register every file that implements this operation**. The spe
 | Concern | Implementing code |
 |---------|-------------------|
 | Ownership guard: the evaluated product belongs to the destination project | `ProductCapitalValuation.clean` + evaluation view |
-| Value-only: creates a `ProductCapitalValuation` row linking the product to a signed amount; **no** `InvoiceItem` and **no** movement line are created | `CapitalGainOperation.add_valuation` + `ProductCapitalValuation` |
+| Value-only: creates a `ProductCapitalValuation` row linking the product to a signed amount; **no** `InvoiceItem` and **no** movement line are created | `CapitalValuationOperation.add_valuation` + `ProductCapitalValuation` |
 | Valuation delta: `(new_unit_price − current_unit_price) × quantity` | `Product.compute_valuation_delta` |
 | Inventory value ▲: `capital_delta()` sums the signed amounts (positive gain) into `movement_state(...)["value"]` / `inventory_value()` | `capital_delta` + `movement_state` |
 | Product status unchanged (stays ACTIVE — a gain is a value write-up, not a status transition) | `Product.status` |
@@ -137,7 +145,7 @@ machinery. `amount_settled`, `is_fully_settled`, `amount_remaining_to_settle`,
 
 ### 5.1 `create`
 
-Entry points: model `CapitalGainOperation.save()` (tests) or the evaluation view
+Entry points: model `CapitalValuationOperation.save()` (tests) or the evaluation view
 (`EvaluationCreateView.post()` computes the delta and calls `Operation.create()` on the proxy).
 
 #### 5.1.1 Validation branches
@@ -234,7 +242,7 @@ reachable.
 | Category | hidden (no category) |
 | Amount | the absolute valuation delta, validated > 0 at model |
 | POST parsing | `OperationDataValidator` — date format, description, category (n/a), `amount_paid` (n/a, forced 0) |
-| Valuation | the view computes the signed delta, creates the operation, then `CapitalGainOperation.add_valuation(product, amount)` records the `ProductCapitalValuation` row |
+| Valuation | the view computes the signed delta, creates the operation, then `CapitalValuationOperation.add_valuation(product, amount)` records the `ProductCapitalValuation` row |
 | List entry | not in the operations-list "New Operation" dropdown — entered from the stock detail "Record Evaluation" button |
 | Detail | `operation_detail_view` — shows the operation total + a **Capital Valuations** section (product, signed amount, date, officer) + reversal action; **no** payment/settlement sections (rendered as one-shot) |
 | Valuations list | `invoice_items_list_view` renders the capital-valuation list for `has_capital_valuation` operations instead of an invoice-items table |

@@ -14,8 +14,9 @@ from django.utils.translation import gettext as _
 from apps.app_base.debug import DebugContext, debug_view
 from apps.app_entity.models import Entity
 from apps.app_inventory.models import Product
-from apps.app_operation.models.proxies.op_capital_gain import CapitalGainOperation
-from apps.app_operation.models.proxies.op_capital_loss import CapitalLossOperation
+from apps.app_operation.models.proxies.op_capital_valuation import (
+    CapitalValuationOperation,
+)
 from farm.shortcuts import get_object_or_404
 
 from . import OperationCreateView
@@ -175,7 +176,11 @@ class EvaluationCreateView(OperationCreateView):
                     request, self.template_name, self._build_evaluation_context(form)
                 )
 
-            self.proxy_cls = CapitalGainOperation if delta > 0 else CapitalLossOperation
+            self.proxy_cls = CapitalValuationOperation
+            # The shared CapitalValuationOperation proxy serves both directions:
+            # pick the variant from the delta sign so _setup_view resolves the
+            # canonical operation type (CAPITAL_GAIN / CAPITAL_LOSS) correctly.
+            self.url_op_type = "capital-gain" if delta > 0 else "capital-loss"
             self._setup_view(self.kwargs["pk"], request)
             amount = abs(delta).quantize(Decimal("0.01"))
 

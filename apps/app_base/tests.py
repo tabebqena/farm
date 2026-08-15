@@ -15,7 +15,7 @@ from apps.app_base.management.commands.seed import ANIMAL_TEMPLATES
 from apps.app_entity.models import Entity, EntityType
 from apps.app_inventory.models import ProductTemplate
 from apps.app_operation.models.operation_type import OperationType
-from apps.app_operation.models.proxies import CapitalGainOperation
+from apps.app_operation.models.proxies import CapitalValuationOperation
 
 User = get_user_model()
 
@@ -160,7 +160,7 @@ class SafeQuerySetTests(TestCase):
 
 
 # =============================================================================
-# Transaction Model Tests via CapitalGainOperation
+# Transaction Model Tests via CapitalValuationOperation
 # =============================================================================
 
 
@@ -193,7 +193,7 @@ class TransactionAutoCreationTests(TestCase):
 
     def test_operation_has_timestamps(self):
         """Operation (extends BaseModel) should have timestamps"""
-        operation = CapitalGainOperation.objects.create(
+        operation = CapitalValuationOperation.objects.create(
             source=self.system,
             destination=self.entity,
             amount=Decimal("1000"),
@@ -223,7 +223,7 @@ class OfficerMixinValidationTests(TestCase):
         """clean() should accept valid staff officer"""
         officer = _make_officer()
 
-        operation = CapitalGainOperation(
+        operation = CapitalValuationOperation(
             source=self.system,
             destination=self.entity,
             amount=Decimal("100"),
@@ -241,7 +241,7 @@ class OfficerMixinValidationTests(TestCase):
             username="nonstaff", email="user@test.com", password="pass", is_staff=False
         )
 
-        operation = CapitalGainOperation(
+        operation = CapitalValuationOperation(
             source=self.system,
             destination=self.entity,
             amount=Decimal("100"),
@@ -264,7 +264,7 @@ class OfficerMixinValidationTests(TestCase):
             is_active=False,
         )
 
-        operation = CapitalGainOperation(
+        operation = CapitalValuationOperation(
             source=self.system,
             destination=self.entity,
             amount=Decimal("100"),
@@ -293,7 +293,7 @@ class AmountCleanMixinValidationTests(TestCase):
 
     def test_clean_accepts_positive_amount(self):
         """clean() should accept positive amount"""
-        operation = CapitalGainOperation(
+        operation = CapitalValuationOperation(
             source=self.system,
             destination=self.entity,
             amount=Decimal("100.00"),
@@ -307,7 +307,7 @@ class AmountCleanMixinValidationTests(TestCase):
 
     def test_clean_rejects_zero_amount(self):
         """clean() should reject zero amount"""
-        operation = CapitalGainOperation(
+        operation = CapitalValuationOperation(
             source=self.system,
             destination=self.entity,
             amount=Decimal("0.00"),
@@ -322,7 +322,7 @@ class AmountCleanMixinValidationTests(TestCase):
 
     def test_clean_rejects_negative_amount(self):
         """clean() should reject negative amount"""
-        operation = CapitalGainOperation(
+        operation = CapitalValuationOperation(
             source=self.system,
             destination=self.entity,
             amount=Decimal("-100.00"),

@@ -14,7 +14,7 @@ from apps.app_inventory.tests.general import (
 )
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import (
-    CapitalGainOperation,
+    CapitalValuationOperation,
     CashInjectionOperation,
     LoanOperation,
     PurchaseOperation,
@@ -318,7 +318,7 @@ class OperationDetailViewTest(TestCase):
             active=True,
             role=StakeholderRole.VENDOR,
         )
-        CapitalGainOperation.objects.create(
+        CapitalValuationOperation.objects.create(
             source=system,
             destination=project,
             officer=self.officer,

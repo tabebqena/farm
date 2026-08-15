@@ -32,8 +32,8 @@ from apps.app_inventory.tests.general import (
 )
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import (
-    CapitalGainOperation,
-    CapitalLossOperation,
+    CapitalValuationOperation,
+    CapitalValuationOperation,
     CorrectionOperation,
     PurchaseOperation,
 )
@@ -62,7 +62,7 @@ class ProductCapitalValuationModelTest(TestCase):
             self.system,
             self.project,
             self.officer,
-            CapitalGainOperation,
+            CapitalValuationOperation,
             OperationType.CAPITAL_GAIN,
             amount=amount,
         )
@@ -72,7 +72,7 @@ class ProductCapitalValuationModelTest(TestCase):
             self.project,
             self.system,
             self.officer,
-            CapitalLossOperation,
+            CapitalValuationOperation,
             OperationType.CAPITAL_LOSS,
             amount=amount,
         )
@@ -294,7 +294,7 @@ class CapitalValuationDetailViewTest(TestCase):
             self.system,
             self.project,
             self.officer,
-            CapitalGainOperation,
+            CapitalValuationOperation,
             OperationType.CAPITAL_GAIN,
             amount=Decimal("500.00"),
         )

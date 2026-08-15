@@ -8,7 +8,7 @@ from django.test import TestCase
 from apps.app_entity.models import Entity, EntityType
 from apps.app_entity.models.category import FinancialCategory
 from apps.app_operation.models.operation_type import OperationType
-from apps.app_operation.models.proxies import CapitalGainOperation, ExpenseOperation
+from apps.app_operation.models.proxies import CapitalValuationOperation, ExpenseOperation
 from apps.app_transaction.transaction_type import TransactionType
 
 User = get_user_model()
@@ -42,7 +42,7 @@ def _make_world_entity():
 
 def _inject_project(system_entity, dest_entity, amount, officer_user):
     """Seed a Project entity's fund via CapitalGain."""
-    CapitalGainOperation(
+    CapitalValuationOperation(
         source=system_entity,
         destination=dest_entity,
         amount=amount,

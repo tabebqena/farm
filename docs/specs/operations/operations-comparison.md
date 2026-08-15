@@ -103,8 +103,8 @@ These guards are omitted from each per-operation action below for brevity; treat
 | 2 | CW | Cash Withdrawal | `CashWithdrawalOperation` | [op_2](op_2_cash_withdrawal.md) |
 | 3 | PF | Project Funding | `ProjectFundingOperation` | [op_3](op_3_project_funding.md) |
 | 4 | PR | Project Refund | `ProjectRefundOperation` | [op_4](op_4_project_refund.md) |
-| 5 | CG | Capital Gain | `CapitalGainOperation` | [op_5](op_5_capital_gain.md) |
-| 6 | CL | Capital Loss | `CapitalLossOperation` | [op_6](op_6_capital_loss.md) |
+| 5 | CG | Capital Gain | `CapitalValuationOperation` | [op_5](op_5_capital_gain.md) |
+| 6 | CL | Capital Loss | `CapitalValuationOperation` | [op_6](op_6_capital_loss.md) |
 | 7 | IT | Internal Transfer | `InternalTransferOperation` | [op_7](op_7_internal_transfer.md) |
 | 8 | LN | Loan | `LoanOperation` | [op_8](op_8_loan.md) |
 | 11 | WA | Worker Advance | `WorkerAdvanceOperation` | [op_11](op_11_worker_advance.md) |

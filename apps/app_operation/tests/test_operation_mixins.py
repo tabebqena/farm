@@ -11,8 +11,7 @@ from django.test import SimpleTestCase
 from apps.app_operation.models.operation import Operation
 from apps.app_operation.models.proxies import (
     BirthOperation,
-    CapitalGainOperation,
-    CapitalLossOperation,
+    CapitalValuationOperation,
     CashInjectionOperation,
     ConsumptionOperation,
     DeathOperation,
@@ -27,8 +26,7 @@ NON_ACCOUNTING = (
     BirthOperation,
     DeathOperation,
     ConsumptionOperation,
-    CapitalGainOperation,
-    CapitalLossOperation,
+    CapitalValuationOperation,
 )
 TRANSACTION_ONLY = (CashInjectionOperation,)
 ADJUSTABLE = (PurchaseOperation, SaleOperation, ExpenseOperation)

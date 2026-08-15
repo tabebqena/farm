@@ -7,7 +7,7 @@ from django.test import TestCase
 
 from apps.app_entity.models import Entity, EntityType
 from apps.app_operation.models.operation_type import OperationType
-from apps.app_operation.models.proxies import CapitalGainOperation
+from apps.app_operation.models.proxies import CapitalValuationOperation
 
 User = get_user_model()
 
@@ -34,7 +34,7 @@ class CapitalGainCreateTest(TestCase):
             officer=self.officer_user,
         )
         defaults.update(kwargs)
-        return CapitalGainOperation(**defaults)
+        return CapitalValuationOperation(**defaults)
 
     # ------------------------------------------------------------------
     # No accounting transactions — Capital Gain is a stock event
@@ -192,4 +192,4 @@ class CapitalGainCreateTest(TestCase):
 
     def test_check_balance_on_payment_is_disabled(self):
         """Source is the system entity; no fund balance gate on payment."""
-        self.assertFalse(CapitalGainOperation.check_balance_on_payment)
+        self.assertFalse(CapitalValuationOperation.check_balance_on_payment)

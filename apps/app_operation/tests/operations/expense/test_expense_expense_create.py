@@ -8,7 +8,7 @@ from django.test import TestCase
 from apps.app_entity.models import Entity, EntityType
 from apps.app_entity.models.category import FinancialCategory
 from apps.app_operation.models.operation_type import OperationType
-from apps.app_operation.models.proxies import CapitalGainOperation, ExpenseOperation
+from apps.app_operation.models.proxies import CapitalValuationOperation, ExpenseOperation
 from apps.app_operation.tests.base import assert_tx_types
 from apps.app_transaction.transaction_type import TransactionType
 
@@ -43,7 +43,7 @@ def _make_world_entity():
 
 def _inject_project(system_entity, dest_entity, amount, officer_user):
     """Seed a Project entity's fund via CapitalGain."""
-    CapitalGainOperation(
+    CapitalValuationOperation(
         source=system_entity,
         destination=dest_entity,
         amount=amount,
@@ -257,7 +257,7 @@ class ExpenseCreateTest(TestCase):
 
     def test_non_category_operation_does_not_require_category(self):
         """A non-category operation (e.g. Capital Gain) is unaffected by the check."""
-        op = CapitalGainOperation(
+        op = CapitalValuationOperation(
             source=self.system_entity,
             destination=self.project_entity,
             amount=Decimal("500.00"),
