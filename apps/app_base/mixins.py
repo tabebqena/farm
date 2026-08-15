@@ -181,14 +181,42 @@ class HasRelatedTransactions(BaseModelMixin):
         return self.get_all_transactions().filter(deleted_at__isnull=True)
 
 
+class AutoTransactionMixin(BaseModelMixin):
+    """Shared ``save()`` plumbing for mixins that auto-create transactions.
+
+    Concrete subclasses implement ``_schedule_transaction_tasks(kwargs)`` and call
+    ``super()._schedule_transaction_tasks(kwargs)`` so composed mixins (e.g. issuance
+    + payment in ``TransactionMixin``) each append their own post-save task. Reversal
+    records (``reversal_of`` / ``reversed_by``) are counter-documents — they never
+    create their own transactions.
+    """
+
+    def _is_reversal_record(self) -> bool:
+        """True when this record is a reversal counter-document."""
+        if getattr(self, "reversal_of", None) is not None and self.reversal_of:
+            return True
+        if getattr(self, "reversed_by", None) is not None and self.reversed_by:
+            return True
+        return False
+
+    def _schedule_transaction_tasks(self, kwargs: dict) -> None:
+        """Hook for subclasses to append their ``post_save_tasks``. No-op by default."""
+
+    def save(self, *args, **kwargs) -> None:
+        with db_transaction.atomic():
+            if self.pk is None and not self._is_reversal_record():
+                self._schedule_transaction_tasks(kwargs)
+            return super().save(*args, **kwargs)
+
+
 class LinkedIssuanceTransactionMixin(
-    SourceFundMixin, TargetFundMixin, HasRelatedTransactions, BaseModelMixin
+    SourceFundMixin, TargetFundMixin, HasRelatedTransactions, AutoTransactionMixin
 ):
     _issuance_transaction_type: "TransactionType"
 
     @property
     def _has_issuance_transaction(self) -> bool:
-        """Indicates if this reord can/should be linked to a transaction that its type is *_Issuance"""
+        """Indicates if this record can/should be linked to a transaction of type *_Issuance"""
         return getattr(self, "_issuance_transaction_type", None) is not None
 
     def create_issuance_transaction(
@@ -219,49 +247,35 @@ class LinkedIssuanceTransactionMixin(
                 date=date or timezone.now(),
             )
 
-    def save(self, *args, **kwargs) -> None:
-        with db_transaction.atomic():
-            is_new = self.pk is None
-            if is_new:
-                if getattr(self, "reversal_of", None) is not None and self.reversal_of:
-                    # Don't create transactions
-                    ...
-                elif (
-                    getattr(self, "reversed_by", None) is not None and self.reversed_by
-                ):
-                    # Don't create transactions
-                    ...
-                else:
-                    if self._has_issuance_transaction:
-                        kwargs.setdefault("post_save_tasks", []).append(
-                            (self.create_issuance_transaction, (), {"date": self.date})
-                        )
-            return super().save(*args, **kwargs)
+    def _schedule_transaction_tasks(self, kwargs: dict) -> None:
+        if self._has_issuance_transaction:
+            kwargs.setdefault("post_save_tasks", []).append(
+                (self.create_issuance_transaction, (), {"date": self.date})
+            )
+        super()._schedule_transaction_tasks(kwargs)
 
 
 class LinkedPaymentTransactionMixin(
-    SourceFundMixin, TargetFundMixin, HasRelatedTransactions, BaseModelMixin
+    SourceFundMixin, TargetFundMixin, HasRelatedTransactions, AutoTransactionMixin
 ):
-    # Flags:
+    """Adds payment/settlement transactions and the settlement amount API.
+
+    Configuration knobs (class attrs, overridden per proxy):
+      * ``_payment_transaction_type`` — TransactionType used for payments.
+      * ``max_payment_transaction_count`` — 0 = no payments, 1 = exactly one
+        payment (one-shot), -1 = unlimited partial payments.
+      * ``_is_one_shot_operation`` — when True the payment fires at creation
+        (issuance + a single payment, the spec's E@create) and any later
+        payment is blocked.
+      * ``check_balance_on_payment`` — lock the payer fund and verify it can
+        pay before creating each payment transaction. Set on operations whose
+        payer is a real person/project entity; leave False for system/world
+        payers or admin correction operations that must never be fund-blocked.
+    """
+
     max_payment_transaction_count = 0
-    # Indicates that this record
-    # _has_issuance_transaction = True
-    # _has_single_payment_transactions = True
-    # _has_multiple_payment_transactions = False
-    # and once created, it should creates
-    # the issuance transaction
-    # and the single payment transaction
     _is_one_shot_operation = False
-    # Whether to enforce a fund balance check before creating a payment transaction.
-    # Set to True on operations where the payer is a real person/project entity.
-    # For one-shot operations this check runs at creation time (failing the whole op);
-    # for partial-payment operations it runs per payment while issuance is unrestricted.
-    # Leave False for operations whose payer is the system/world entity, or for
-    # admin correction operations that must never be blocked by fund balance.
     check_balance_on_payment = False
-    # End of flags
-    # ################################################
-    # Indicates the type of the issuance transaction
     _payment_transaction_type: "TransactionType"
     _amount_field_name = "amount"
 
@@ -421,43 +435,28 @@ class LinkedPaymentTransactionMixin(
                 date=date or timezone.now(),
             )
 
-    def save(self, *args, **kwargs) -> None:
-        with db_transaction.atomic():
-            is_new = self.pk is None
-            if is_new:
-
-                if getattr(self, "reversal_of", None) is not None and self.reversal_of:
-                    # Don't create transactions
-                    ...
-                elif (
-                    getattr(self, "reversed_by", None) is not None and self.reversed_by
-                ):
-                    # Don't create transactions
-                    ...
-                else:
-                    if self._is_one_shot_operation:
-                        if not self._has_single_payment_transaction:
-                            raise ValidationError(
-                                _(
-                                    "This record can't act as a one-shot operation record"
-                                )
-                            )
-                        kwargs.setdefault("post_save_tasks", []).append(
-                            (
-                                self.create_payment_transaction,
-                                (),
-                                {
-                                    "amount": self.amount,
-                                    "officer": self.officer,
-                                    "date": self.date or timezone.now(),
-                                    "description": _(
-                                        "One shot payment transaction for (%(class)s) (%(pk)s)"
-                                    )
-                                    % {"class": self.__class__.__name__, "pk": self.pk},
-                                },
-                            )
+    def _schedule_transaction_tasks(self, kwargs: dict) -> None:
+        if self._is_one_shot_operation:
+            if not self._has_single_payment_transaction:
+                raise ValidationError(
+                    _("This record can't act as a one-shot operation record")
+                )
+            kwargs.setdefault("post_save_tasks", []).append(
+                (
+                    self.create_payment_transaction,
+                    (),
+                    {
+                        "amount": self.amount,
+                        "officer": self.officer,
+                        "date": self.date or timezone.now(),
+                        "description": _(
+                            "One shot payment transaction for (%(class)s) (%(pk)s)"
                         )
-            return super().save(*args, **kwargs)
+                        % {"class": self.__class__.__name__, "pk": self.pk},
+                    },
+                )
+            )
+        super()._schedule_transaction_tasks(kwargs)
 
 
 class LinkedRePaymentTransactionMixin(

@@ -1,10 +1,10 @@
 from django.core.exceptions import ValidationError
 
-from apps.app_operation.models.operation import Operation, TransactionMixin
+from apps.app_operation.models.operation import OneShotTransactionMixin, Operation
 from apps.app_transaction.transaction_type import TransactionType
 
 
-class CashWithdrawalOperation(TransactionMixin, Operation):
+class CashWithdrawalOperation(OneShotTransactionMixin, Operation):
     _issuance_transaction_type = TransactionType.CAPITAL_WITHDRAWAL_ISSUANCE
     _payment_transaction_type = TransactionType.CAPITAL_WITHDRAWAL_PAYMENT
 
@@ -12,13 +12,6 @@ class CashWithdrawalOperation(TransactionMixin, Operation):
     label = "Cash Withdrawal"
     _source_role = "url"
     _dest_role = "world"
-    can_pay = False
-    is_partially_payable = False
-    has_category = False
-    category_required = False
-    _is_one_shot_operation = True
-    has_repayment = False
-    max_payment_transaction_count = 1
     check_balance_on_payment = True
 
     class Meta:

@@ -13,10 +13,15 @@ from apps.app_operation.models.proxies import (
     BirthOperation,
     CapitalValuationOperation,
     CashInjectionOperation,
+    CashWithdrawalOperation,
     ConsumptionOperation,
+    CorrectionOperation,
     DeathOperation,
     ExpenseOperation,
+    InternalTransferOperation,
     LoanOperation,
+    ProjectFundingOperation,
+    ProjectRefundOperation,
     PurchaseOperation,
     SaleOperation,
     WorkerAdvanceOperation,
@@ -31,6 +36,15 @@ NON_ACCOUNTING = (
 TRANSACTION_ONLY = (CashInjectionOperation,)
 ADJUSTABLE = (PurchaseOperation, SaleOperation, ExpenseOperation)
 REPAYABLE = (LoanOperation, WorkerAdvanceOperation)
+ONE_SHOT = (
+    CashInjectionOperation,
+    CashWithdrawalOperation,
+    ProjectFundingOperation,
+    ProjectRefundOperation,
+    InternalTransferOperation,
+    CorrectionOperation,
+    WorkerAdvanceOperation,
+)
 
 SETTLEMENT_MEMBERS = (
     "amount_settled",
@@ -78,3 +92,23 @@ class OperationMixinSeparationTest(SimpleTestCase):
         for cls in REPAYABLE:
             self.assertTrue(hasattr(cls, "repayable_amount"), cls.__name__)
             self.assertTrue(hasattr(cls, "is_fully_repayed"), cls.__name__)
+
+
+class OneShotOperationConfigTest(SimpleTestCase):
+    """One-shot proxies inherit their config from OneShotTransactionMixin."""
+
+    def test_one_shot_proxies_inherit_one_shot_defaults(self):
+        for cls in ONE_SHOT:
+            self.assertTrue(cls._is_one_shot_operation, cls.__name__)
+            self.assertEqual(cls.max_payment_transaction_count, 1, cls.__name__)
+            self.assertFalse(cls.can_pay, cls.__name__)
+            self.assertFalse(cls.is_partially_payable, cls.__name__)
+
+    def test_non_one_shot_accounting_ops_are_not_one_shot(self):
+        for cls in (ExpenseOperation, LoanOperation, PurchaseOperation, SaleOperation):
+            self.assertFalse(cls._is_one_shot_operation, cls.__name__)
+
+    def test_operation_exposes_public_is_one_shot_property(self):
+        self.assertTrue(hasattr(Operation, "is_one_shot"))
+        # The concrete Operation defaults to non-one-shot.
+        self.assertFalse(Operation._is_one_shot_operation)

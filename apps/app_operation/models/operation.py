@@ -1,3 +1,4 @@
+
 import logging
 from datetime import date as today_date
 from decimal import Decimal
@@ -179,6 +180,17 @@ class Operation(
     def can_repay(self) -> bool:
         """Whether this operation supports repayments (e.g. loans, worker advances)."""
         return type(self).has_repayment
+
+    @property
+    def is_one_shot(self) -> bool:
+        """Whether this operation settles in full at creation (one-shot).
+
+        Public, readable alias of the ``_is_one_shot_operation`` config flag that
+        proxies use. One-shot operations (cash flows, funding, corrections,
+        internal transfers, worker advances) write their issuance + single payment
+        pair atomically at creation (see ``OneShotTransactionMixin``).
+        """
+        return self._is_one_shot_operation
 
     class Meta:
         verbose_name = "Operation"
@@ -1168,6 +1180,21 @@ class TransactionMixin(
     LinkedIssuanceTransactionMixin, LinkedPaymentTransactionMixin
 ):
     """Issuance + payment transaction behavior (all accounting operations)."""
+
+
+class OneShotTransactionMixin(TransactionMixin):
+    """One-shot operations settle in full at creation.
+
+    A one-shot operation writes an issuance transaction plus exactly one payment
+    transaction atomically at ``save()`` (the pay action is ``E@create`` per the
+    operation specs — there is no standalone pay action). It is not partially
+    payable, has no category, and is not repayable by default.
+    """
+
+    _is_one_shot_operation = True
+    max_payment_transaction_count = 1
+    can_pay = False
+    is_partially_payable = False
 
 
 class AdjustableTransactionMixin(AdjustableMixin, TransactionMixin):

@@ -1,10 +1,10 @@
 from django.core.exceptions import ValidationError
 
-from apps.app_operation.models.operation import Operation, TransactionMixin
+from apps.app_operation.models.operation import OneShotTransactionMixin, Operation
 from apps.app_transaction.transaction_type import TransactionType
 
 
-class CashInjectionOperation(TransactionMixin, Operation):
+class CashInjectionOperation(OneShotTransactionMixin, Operation):
     _issuance_transaction_type = TransactionType.CASH_INJECTION_ISSUANCE
     _payment_transaction_type = TransactionType.CASH_INJECTION_PAYMENT
 
@@ -12,13 +12,6 @@ class CashInjectionOperation(TransactionMixin, Operation):
     label = "Cash Injection"
     _source_role = "world"
     _dest_role = "url"
-    can_pay = False
-    is_partially_payable = False
-    has_category = False
-    category_required = False
-    _is_one_shot_operation = True
-    has_repayment = False
-    max_payment_transaction_count = 1
     theme_color = "success"
     theme_icon = "bi-box-arrow-in-down"
 

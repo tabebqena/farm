@@ -1,10 +1,16 @@
 from django.core.exceptions import ValidationError
 
-from apps.app_operation.models.operation import Operation, RepayableTransactionMixin
+from apps.app_operation.models.operation import (
+    LinkedRePaymentTransactionMixin,
+    OneShotTransactionMixin,
+    Operation,
+)
 from apps.app_transaction.transaction_type import TransactionType
 
 
-class WorkerAdvanceOperation(RepayableTransactionMixin, Operation):
+class WorkerAdvanceOperation(
+    OneShotTransactionMixin, LinkedRePaymentTransactionMixin, Operation
+):
     _issuance_transaction_type = TransactionType.WORKER_ADVANCE_ISSUANCE
     _payment_transaction_type = TransactionType.WORKER_ADVANCE_PAYMENT
     _repayment_transaction_type = TransactionType.WORKER_ADVANCE_REPAYMENT
@@ -14,14 +20,9 @@ class WorkerAdvanceOperation(RepayableTransactionMixin, Operation):
     label = "Worker Advance Issuance"
     _source_role = "url"
     _dest_role = "post"
-    can_pay = False
-    is_partially_payable = False
-    has_category = False
-    category_required = False
-    _is_one_shot_operation = True
+    # One-shot issuance + payment at creation, plus repayments (non-default).
     has_repayment = True
     repayment_label = "Advance Repayment"
-    max_payment_transaction_count = 1
 
     class Meta:
         proxy = True

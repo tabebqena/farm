@@ -1,11 +1,11 @@
 from django.core.exceptions import ValidationError
 
 from apps.app_entity.models import EntityType
-from apps.app_operation.models.operation import Operation, TransactionMixin
+from apps.app_operation.models.operation import OneShotTransactionMixin, Operation
 from apps.app_transaction.transaction_type import TransactionType
 
 
-class ProjectFundingOperation(TransactionMixin, Operation):
+class ProjectFundingOperation(OneShotTransactionMixin, Operation):
     _issuance_transaction_type = TransactionType.PROJECT_FUNDING_ISSUANCE
     _payment_transaction_type = TransactionType.PROJECT_FUNDING_PAYMENT
 
@@ -13,13 +13,6 @@ class ProjectFundingOperation(TransactionMixin, Operation):
     label = "Project Funding"
     _source_role = "url"
     _dest_role = "post"
-    can_pay = False
-    is_partially_payable = False
-    has_category = False
-    category_required = False
-    _is_one_shot_operation = True
-    has_repayment = False
-    max_payment_transaction_count = 1
 
     class Meta:
         proxy = True

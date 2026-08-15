@@ -223,8 +223,7 @@ def operation_detail_view(request, pk):
         "is_reversed": operation.is_reversed,
         # Non-accounting operations have no standalone pay/settle action — render
         # them as one-shot (settled at creation) so the payment UI is hidden.
-        "is_one_shot_operation": operation._is_one_shot_operation
-        or not has_settlement,
+        "is_one_shot_operation": operation.is_one_shot or not has_settlement,
         "paid_amount": paid_amount,
         "outstanding_balance": outstanding_balance,
         "net_adjustment": net_adjustment,

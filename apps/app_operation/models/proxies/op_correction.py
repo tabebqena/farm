@@ -1,11 +1,11 @@
 from django.core.exceptions import ValidationError
 
-from apps.app_operation.models.operation import Operation, TransactionMixin
+from apps.app_operation.models.operation import OneShotTransactionMixin, Operation
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_transaction.transaction_type import TransactionType
 
 
-class CorrectionOperation(TransactionMixin, Operation):
+class CorrectionOperation(OneShotTransactionMixin, Operation):
     """Single proxy for Correction Credit (system -> project) and Correction
     Debit (project -> system).
 
@@ -15,22 +15,11 @@ class CorrectionOperation(TransactionMixin, Operation):
     from the two former proxies (CorrectionCreditOperation / CorrectionDebitOperation).
     """
 
-    # Shared config — identical for both variants.
-    can_pay = False
+    # One-shot defaults (issuance + single payment at creation, no category, no
+    # invoice, not adjustable) come from OneShotTransactionMixin.
     # No balance check: corrections are an admin-only tool to fix wrong calculations;
     # restricting them by fund balance would prevent admins from fixing ledger errors.
     check_balance_on_payment = False
-    is_partially_payable = False
-    has_category = False
-    category_required = False
-    _is_one_shot_operation = True
-    has_repayment = False
-    max_payment_transaction_count = 1
-    has_invoice = False
-    has_capital_valuation = False
-    creates_assets = False
-    is_adjustable = False
-    is_items_adjustable = False
 
     # Per-type configuration keyed by operation type.
     _VARIANT_CONFIG = {
