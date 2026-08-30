@@ -1,0 +1,16 @@
+{
+	"folders": [
+		{
+			"name": "farm",
+			"path": ".."
+		}
+	],
+	"settings": {
+		"html.format.templating": true,
+		"python.testing.pytestArgs": [
+			"."
+		],
+		"python.testing.unittestEnabled": false,
+		"python.testing.pytestEnabled": true
+	}
+}
