@@ -213,14 +213,6 @@ def pending_items(entity=None, as_of=None):
     return rows
 
 
-def pending_deliveries(entity=None, as_of=None):
-    """Alias for ``pending_items()`` — items with pending inbound obligations."""
-    return [
-        row for row in pending_items(entity=entity, as_of=as_of)
-        if row["pending_qty"] > 0
-    ]
-
-
 # ---------------------------------------------------------------------------
 # Direction classification (stock-history display/filters)
 # ---------------------------------------------------------------------------

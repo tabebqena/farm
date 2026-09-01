@@ -177,9 +177,6 @@ class AdjustmentTransactionTest(TestCase):
 
         self.client_entity = _make_client_entity("Client Co")
         _make_client_stakeholder(self.project_entity, self.client_entity)
-        # _inject_project(
-        #     self.system_entity, self.client_entity, Decimal("5000.00"), self.officer
-        # )
         CashInjectionOperation(
             source=self.world_entity,
             destination=self.client_entity,

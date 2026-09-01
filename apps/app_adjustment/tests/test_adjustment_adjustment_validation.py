@@ -225,7 +225,6 @@ class AdjustmentValidationTest(TestCase):
     def test_sale_operation_is_adjustable(self):
         client = _make_client_entity("Client Co")
         _make_client_stakeholder(self.project_entity, client)
-        # _inject_project(self.system_entity, client, Decimal("2000.00"), self.officer)
         CashInjectionOperation(
             source=self.world_entity,
             destination=client,

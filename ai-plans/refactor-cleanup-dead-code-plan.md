@@ -323,3 +323,41 @@ changes; targeted suites green; full app suite (ui_tests excluded)
 **Verification:** `manage.py check` clean; targeted transaction/inventory/
 operation view suites green; full app suite (ui_tests excluded)
 `--parallel=10 --keepdb` → **1460 tests OK**.
+
+### Phase 5 (2026-09-01) — second dead-code sweep implemented:
+
+Follow-up audit (`codebase_search` + grep) found and removed the remaining
+dead/redundant/no-op code:
+
+- **Un-routed views** — deleted [`project_create.py`](apps/app_entity/views/project_create.py)
+  (route was commented out; `project_create` URL name points to the setup wizard)
+  and removed it from [`views/__init__.py`](apps/app_entity/views/__init__.py);
+  removed the dead [`register`](apps/app_base/views.py) view,
+  [`UserRegistrationForm`](apps/app_base/forms.py), and
+  `registration/register.html` (route commented out), plus the `{% comment %}`
+  block referencing `{% url 'register' %}` in `login.html`.
+- **Unused helper** — removed [`stock.pending_deliveries()`](apps/app_inventory/stock.py)
+  (alias for `pending_items()` with zero callers).
+- **Unused model methods** — removed `Entity.get_vendors()`, `get_clients()`,
+  `get_workers()`, `get_shareholders()` (never referenced).
+- **Unused templates (8)** — deleted `app_operation/snippets/summary_table.html`,
+  `transactions_table.html`, `detail/amount_net_adjustment_line.html`,
+  `detail/operation_summary.html`, `detail/payment_transactions.html` (duplicate of
+  the used `invoice_payment_transaction.html`), `purchase_wizard/step_2_items.html`,
+  `purchase_wizard/step_4_movement.html`, and
+  `app_entity/snippets/entity_edit_link.html`.
+- **No-op branch** — removed the `if step == 1: pass` block in
+  [`_get_step_context()`](apps/app_entity/views/project_setup_wizard.py) (step 1
+  needs no extra context).
+- **Commented-out code** — removed commented `delete()` body in
+  [`app_base/managers.py`](apps/app_base/managers.py), commented `return max(...)`
+  line + stray "TODO: Why I write something like this?" in
+  [`app_base/mixins.py`](apps/app_base/mixins.py), commented-out URL routes in
+  `app_base/urls.py` & `app_entity/urls.py`, a commented `"category__name"` in
+  `category_bulk_assign.py`, and commented-out test scaffolding in
+  `test_sale_wizard_sale_wizard_step1.py`, `test_period_views_period_view_integration.py`,
+  `test_adjustment_adjustment_validation.py`, `test_adjustment_adjustment_transaction.py`.
+
+**Verification:** `manage.py check` clean; no lingering references (grepped);
+targeted suites green (219 tests); full app suite (ui_tests excluded)
+`--parallel=10` → **1460 tests OK** (baseline unchanged).

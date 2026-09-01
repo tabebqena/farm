@@ -619,11 +619,7 @@ def _get_step_context(request, entity, step):
     """Build context dict for the current step."""
     context = {"entity": entity}
 
-    if step == 1:
-        # No additional context needed; form will use entity fields
-        pass
-
-    elif step == 2:
+    if step == 2:
         # Get already-linked category relations grouped by aspect
         if entity:
             # All relations for this entity (active or inactive)

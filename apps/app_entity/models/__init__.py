@@ -239,18 +239,6 @@ class Entity(ImmutableMixin, BaseModel):
     def get_display_name(self):
         return self.name
 
-    def get_vendors(self):
-        return self.stakeholders.filter(is_vendor=True, active=True)
-
-    def get_clients(self):
-        return self.stakeholders.filter(is_client=True, active=True)
-
-    def get_workers(self):
-        return self.stakeholders.filter(is_worker=True, active=True)
-
-    def get_shareholders(self):
-        return self.stakeholders.filter(is_shareholder=True, active=True)
-
     def get_absolute_url(self):
         return reverse("entity_detail", kwargs={"pk": self.pk})
 

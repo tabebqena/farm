@@ -10,9 +10,6 @@ from django.utils.translation import gettext_lazy as _
 # Custom Managers
 # -----------------------------
 class SafeQuerySet(models.QuerySet):
-    # This handles bulk deletion: Product.objects.filter(...).delete()
-    # def delete(self):
-    #     return self.update(deleted_at=timezone.now())
     def update(self, **kwargs):
         raise NotImplementedError(
             _("Direct .update() is blocked. Use individual .save() for validation.")

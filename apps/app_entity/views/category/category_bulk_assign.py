@@ -106,11 +106,7 @@ def category_bulk_assign_view(request, parent_entity_id):
 
     existing_names = FinancialCategoriesEntitiesRelations.objects.filter(
         entity=parent_entity, is_active=True
-    ).values_list(
-        # "category__name",
-        "category__pk",
-        flat=True,
-    )
+    ).values_list("category__pk", flat=True)
     existing_pks_set = set(existing_names)
 
     return render(

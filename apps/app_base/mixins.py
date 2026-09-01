@@ -295,9 +295,6 @@ class LinkedPaymentTransactionMixin(
         to_receiver = valid_txs.filter(target=self.payment_target_fund).aggregate(
             total=Sum(self._amount_field_name)
         )["total"] or Decimal("0.00")
-        # TODO: Why I write something like this ?
-        # I don't know
-        # So comment now.
         # We define 'refund' as money moving back to the Payer
         from_receiver = valid_txs.filter(source=self.payment_target_fund).aggregate(
             total=Sum(self._amount_field_name)
@@ -313,8 +310,6 @@ class LinkedPaymentTransactionMixin(
 
     @property
     def amount_remaining_to_settle(self):
-        # Using max(0, ...) prevents 'negative' remaining amounts if someone overpays
-        # return max(Decimal("0.00"), self.total_settlable_amount - self.amount_settled)
         return self.total_settlable_amount - self.amount_settled
 
     @property

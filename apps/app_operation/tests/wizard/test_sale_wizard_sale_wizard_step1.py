@@ -117,13 +117,3 @@ class SaleWizardStep1Test(TestCase):
         self.assertEqual(response.status_code, 302)
         # Should redirect (URL contains step 2)
         self.assertTrue(response.url)
-
-    # def test_step1_no_clients_shows_error(self):
-    #     """Test step 1 shows error when project has no clients."""
-    #     project_no_client = _make_project(name="No Clients")
-    #     self.client.login(username="sale_step1", password="testpass")
-    #     response = self.client.get(
-    #         reverse("sale_wizard_step1", kwargs={"pk": project_no_client.pk})
-    #     )
-
-    #     self.assertEqual(response.status_code, 302)

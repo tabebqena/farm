@@ -3,14 +3,10 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    # path("", RedirectView.as_view(pattern_name="entity_list", permanent=False)),
     path("", views.entity_list_view, name="entity_list"),
     path("person/add/", views.person_create_view, name="person_create"),
     path("person/edit/<int:pk>", views.person_edit_view, name="person_edit"),
-    # path("project/add/", views.project_create_view, name="project_create"),
     path("project/edit/<int:pk>", views.project_edit_view, name="project_edit"),
-    # path("project/setup/", views.project_setup_wizard_view, name="project_setup"),
-    # JUST TO Test
     path("project/setup/", views.project_setup_wizard_view, name="project_create"),
     path(
         "project/<int:entity_pk>/setup/<int:step>/",

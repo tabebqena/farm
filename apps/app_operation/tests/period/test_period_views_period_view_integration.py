@@ -28,13 +28,6 @@ class PeriodViewIntegrationTest(TestCase):
         existing_period.close(close_date_1)
 
         # Step 1: Create a new period
-        # start_date = close_date_1
-        # response = self.client.post(
-        #     reverse("period_create_view", kwargs={"entity_pk": self.entity.pk}),
-        #     {"start_date": start_date.isoformat()},
-        #     follow=True,
-        # )
-        # self.assertEqual(response.status_code, 200)
 
         # Get the newly created period
         period = FinancialPeriod.objects.get(
