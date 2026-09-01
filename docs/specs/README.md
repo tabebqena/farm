@@ -39,8 +39,7 @@ adjustments, inventory, and evaluations.
 | 2 | Cash Withdrawal | [op_2_cash_withdrawal.md](op_2_cash_withdrawal.md) |
 | 3 | Project Funding | [op_3_project_funding.md](op_3_project_funding.md) |
 | 4 | Project Refund | [op_4_project_refund.md](op_4_project_refund.md) |
-| 5 | Capital Gain | [op_5_capital_gain.md](op_5_capital_gain.md) |
-| 6 | Capital Loss | [op_6_capital_loss.md](op_6_capital_loss.md) |
+| 5/6 | Capital Valuation (Gain & Loss) | [capital_valuation_operation.md](capital_valuation_operation.md) |
 | 7 | Internal Transfer | [op_7_internal_transfer.md](op_7_internal_transfer.md) |
 | 8 | Loan | [op_8_loan.md](op_8_loan.md) |
 | 11 | Worker Advance | [op_11_worker_advance.md](op_11_worker_advance.md) |

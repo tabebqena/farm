@@ -9,8 +9,7 @@
 - [Op 2: Cash Withdrawal](op_2_cash_withdrawal.md)
 - [Op 3: Project Funding](op_3_project_funding.md)
 - [Op 4: Project Refund](op_4_project_refund.md)
-- [Op 5: Capital Gain](op_5_capital_gain.md)
-- [Op 6: Capital Loss](op_6_capital_loss.md)
+- [Op 5/6: Capital Valuation (Gain & Loss)](capital_valuation_operation.md)
 
 ## Movement & Transfer
 - [Op 7: Internal Transfer](op_7_internal_transfer.md)

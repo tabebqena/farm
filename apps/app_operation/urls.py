@@ -29,7 +29,7 @@ urlpatterns = [
         name="operation_list_view",
     ),
     # TODO(spec): register the no-product route `/<pk>/evaluate/` claimed by
-    # docs/specs/operations/op_5_capital_gain.md and op_6_capital_loss.md §8
+    # docs/specs/operations/capital_valuation_operation.md §8
     # ("also /<pk>/evaluate/ without a product"). EvaluationCreateView already
     # handles product_pk=None, but only `/<pk>/evaluate/<product_pk>/` is wired.
     path(

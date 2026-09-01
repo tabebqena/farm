@@ -192,6 +192,14 @@ reversal, valuation, period assignment) for every existing and new operation row
 - Specs updated: `op_5_capital_gain.md`, `op_6_capital_loss.md` and
   `operations-comparison.md` now describe the single `CapitalValuationOperation`
   proxy dispatching per-type config on `operation_type`.
+- Spec consolidation (later): `op_5_capital_gain.md` and `op_6_capital_loss.md`
+  were merged into a single combined contract
+  `docs/specs/operations/capital_valuation_operation.md` (modeled on
+  `op_15_correction.md`, with per-variant CG/CL branch codes), and the old files
+  were removed; cross-references in `docs/specs/README.md`,
+  `docs/specs/operations/README.md`, `operations-comparison.md`,
+  `docs/specs/features/stock.md` and the `apps/app_operation/urls.py` comment were
+  updated to the merged file.
 - Verification: `manage.py check` clean; `makemigrations --check` reports no pending
   changes; targeted capital-area tests (141) all pass; full suite (1472 tests) —
   all Django app tests pass, with only the pre-existing Selenium `ui_tests/` set
