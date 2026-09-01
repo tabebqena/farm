@@ -16,7 +16,7 @@ from apps.app_adjustment.models import (
     InvoiceItemAdjustment,
 )
 from apps.app_inventory.stock import active_lines_for_item
-from apps.app_base.debug import DebugContext, debug_view
+from apps.app_base.logging_utils import audit_logger, logger
 from apps.app_base.reversal import reversal_guard_error
 from apps.app_operation.models import Operation
 
@@ -77,7 +77,6 @@ def parse_item_changes(post, items):
     return changed_items_data
 
 
-@debug_view
 def record_accounting_adjustment(request, pk):
     """Record a simple accounting adjustment on a PURCHASE, SALE, or EXPENSE operation."""
     operation: Operation = get_object_or_404(Operation, pk=pk)
@@ -175,7 +174,6 @@ def record_accounting_adjustment(request, pk):
         return render(request, "app_adjustment/record_adjustment.html", context)
 
 
-@debug_view
 def record_item_adjustment(request, pk):
     """Record an invoice item adjustment (by modifying item qty/price) on PURCHASE or SALE."""
     operation = get_object_or_404(Operation, pk=pk)
@@ -299,33 +297,24 @@ def record_item_adjustment(request, pk):
         return render(request, "app_adjustment/record_item_adjustment.html", context)
 
 
-@debug_view
 def reverse_adjustment(request, adjustment_id):
     """Reverse an accounting adjustment."""
     adjustment = get_object_or_404(Adjustment, pk=adjustment_id)
     operation = adjustment.operation
 
-    with DebugContext.section(
-        "Fetching adjustment for reversal",
-        {
-            "adjustment_pk": adjustment_id,
-            "operation_pk": operation.pk,
-            "user": request.user.username,
-        },
-    ):
-        DebugContext.success(
-            "Adjustment loaded",
-            {
-                "adjustment_id": adjustment.pk,
-                "type": adjustment.type,
-                "amount": float(adjustment.amount),
-            },
-        )
+    logger.debug(
+        f"Fetching adjustment for reversal | adjustment_pk={adjustment_id} | "
+        f"operation_pk={operation.pk} | user={request.user.username}"
+    )
+    logger.debug(
+        f"Adjustment loaded | adjustment_id={adjustment.pk} | type={adjustment.type} | "
+        f"amount={float(adjustment.amount)}"
+    )
 
     # Safety checks
     error_msg = reversal_guard_error(adjustment, "adjustment")
     if error_msg:
-        DebugContext.warn(error_msg, {"adjustment_id": adjustment.pk})
+        logger.warning(f"{error_msg} | adjustment_id={adjustment.pk}")
         messages.warning(request, error_msg)
         return redirect("operation_detail_view", pk=operation.pk)
 
@@ -333,88 +322,76 @@ def reverse_adjustment(request, adjustment_id):
         error_msg = _(
             "Cannot reverse an adjustment on a reversed or reversal operation."
         )
-        DebugContext.warn(error_msg, {"operation_id": operation.pk})
+        logger.warning(f"{error_msg} | operation_id={operation.pk}")
         messages.warning(request, error_msg)
         return redirect("operation_detail_view", pk=operation.pk)
 
     officer = request.user
 
     if request.method == "POST":
-        with DebugContext.section(
-            "Processing adjustment reversal",
-            {
-                "adjustment_id": adjustment.pk,
-                "officer": officer.username,
-            },
-        ):
-            reason = request.POST.get("reversal_reason", "").strip()
+        logger.debug(
+            f"Processing adjustment reversal | adjustment_id={adjustment.pk} | "
+            f"officer={officer.username}"
+        )
+        reason = request.POST.get("reversal_reason", "").strip()
 
-            if not reason:
-                error_msg = _("A reason for reversal is required.")
-                DebugContext.warn(error_msg, {"adjustment_id": adjustment.pk})
-                messages.error(request, error_msg)
-            else:
-                try:
-                    with DebugContext.section("Executing adjustment reversal"):
-                        adjustment.reverse(
-                            officer=officer,
-                            date=timezone.now().date(),
-                            reason=reason,
-                        )
+        if not reason:
+            error_msg = _("A reason for reversal is required.")
+            logger.warning(f"{error_msg} | adjustment_id={adjustment.pk}")
+            messages.error(request, error_msg)
+        else:
+            try:
+                logger.debug("Executing adjustment reversal")
+                adjustment.reverse(
+                    officer=officer,
+                    date=timezone.now().date(),
+                    reason=reason,
+                )
 
-                    DebugContext.success(
-                        "Adjustment reversed successfully",
-                        {
-                            "adjustment_id": adjustment.pk,
-                            "type": adjustment.type,
-                        },
-                    )
-                    DebugContext.audit(
-                        action="adjustment_reversed",
-                        entity_type="Adjustment",
-                        entity_id=adjustment.pk,
-                        details={
-                            "type": adjustment.type,
-                            "amount": float(adjustment.amount),
-                            "reason": reason,
-                            "officer": officer.username,
-                        },
-                        user=request.user.username,
-                    )
+                logger.debug(
+                    f"Adjustment reversed successfully | adjustment_id={adjustment.pk} | "
+                    f"type={adjustment.type}"
+                )
+                audit_logger.info(
+                    f"adjustment_reversed | Adjustment:{adjustment.pk} | "
+                    f"user={request.user.username} | type={adjustment.type} | "
+                    f"amount={float(adjustment.amount)} | reason={reason} | "
+                    f"officer={officer.username}"
+                )
 
-                    if getattr(adjustment, "item_adjustment", None) is not None:
-                        messages.success(
-                            request,
-                            _(
-                                "Adjustment and its linked invoice item adjustment reversed successfully."
-                            ),
-                        )
-                    else:
-                        messages.success(
-                            request, _("Adjustment reversed successfully.")
-                        )
-                    return redirect("operation_detail_view", pk=operation.pk)
+                if getattr(adjustment, "item_adjustment", None) is not None:
+                    messages.success(
+                        request,
+                        _(
+                            "Adjustment and its linked invoice item adjustment reversed successfully."
+                        ),
+                    )
+                else:
+                    messages.success(
+                        request, _("Adjustment reversed successfully.")
+                    )
+                return redirect("operation_detail_view", pk=operation.pk)
 
-                except Exception as e:
-                    error_details = {
-                        "exception_type": type(e).__name__,
-                        "error_message": str(e),
-                        "adjustment_id": adjustment.pk,
-                        "officer": officer.username,
-                        "traceback": traceback.format_exc(),
-                    }
-                    DebugContext.error(
-                        "Adjustment reversal failed", e, data=error_details
-                    )
-                    DebugContext.audit(
-                        action="adjustment_reversal_failed",
-                        entity_type="Adjustment",
-                        entity_id=adjustment.pk,
-                        details=error_details,
-                        user=request.user.username,
-                    )
-                    traceback.print_exc()
-                    messages.error(request, _("Reversal failed: {}").format(str(e)))
+            except Exception as e:
+                error_details = {
+                    "exception_type": type(e).__name__,
+                    "error_message": str(e),
+                    "adjustment_id": adjustment.pk,
+                    "officer": officer.username,
+                    "traceback": traceback.format_exc(),
+                }
+                logger.error(
+                    f"Adjustment reversal failed | "
+                    f"exception_type={error_details['exception_type']} | "
+                    f"error_message={error_details['error_message']} | "
+                    f"adjustment_id={adjustment.pk}"
+                )
+                audit_logger.error(
+                    f"adjustment_reversal_failed | Adjustment:{adjustment.pk} | "
+                    f"user={request.user.username} | error={error_details}"
+                )
+                traceback.print_exc()
+                messages.error(request, _("Reversal failed: {}").format(str(e)))
 
     context = {
         "adjustment": adjustment,
@@ -423,32 +400,24 @@ def reverse_adjustment(request, adjustment_id):
     return render(request, "app_adjustment/reverse_adjustment.html", context)
 
 
-@debug_view
 def reverse_item_adjustment(request, item_adjustment_id):
     """Reverse an invoice item adjustment."""
     item_adjustment = get_object_or_404(InvoiceItemAdjustment, pk=item_adjustment_id)
     operation = item_adjustment.operation
 
-    with DebugContext.section(
-        "Fetching item adjustment for reversal",
-        {
-            "item_adjustment_pk": item_adjustment_id,
-            "operation_pk": operation.pk,
-            "user": request.user.username,
-        },
-    ):
-        DebugContext.success(
-            "Item adjustment loaded",
-            {
-                "item_adjustment_id": item_adjustment.pk,
-                "type": item_adjustment.type,
-            },
-        )
+    logger.debug(
+        f"Fetching item adjustment for reversal | item_adjustment_pk={item_adjustment_id} | "
+        f"operation_pk={operation.pk} | user={request.user.username}"
+    )
+    logger.debug(
+        f"Item adjustment loaded | item_adjustment_id={item_adjustment.pk} | "
+        f"type={item_adjustment.type}"
+    )
 
     # Safety checks
     error_msg = reversal_guard_error(item_adjustment, "item_adjustment")
     if error_msg:
-        DebugContext.warn(error_msg, {"item_adjustment_id": item_adjustment.pk})
+        logger.warning(f"{error_msg} | item_adjustment_id={item_adjustment.pk}")
         messages.warning(request, error_msg)
         return redirect("operation_detail_view", pk=operation.pk)
 
@@ -456,79 +425,69 @@ def reverse_item_adjustment(request, item_adjustment_id):
         error_msg = _(
             "Cannot reverse an item adjustment on a reversed or reversal operation."
         )
-        DebugContext.warn(error_msg, {"operation_id": operation.pk})
+        logger.warning(f"{error_msg} | operation_id={operation.pk}")
         messages.warning(request, error_msg)
         return redirect("operation_detail_view", pk=operation.pk)
 
     officer = request.user
 
     if request.method == "POST":
-        with DebugContext.section(
-            "Processing item adjustment reversal",
-            {
-                "item_adjustment_id": item_adjustment.pk,
-                "officer": officer.username,
-            },
-        ):
-            reason = request.POST.get("reversal_reason", "").strip()
+        logger.debug(
+            f"Processing item adjustment reversal | "
+            f"item_adjustment_id={item_adjustment.pk} | officer={officer.username}"
+        )
+        reason = request.POST.get("reversal_reason", "").strip()
 
-            if not reason:
-                error_msg = _("A reason for reversal is required.")
-                DebugContext.warn(error_msg, {"item_adjustment_id": item_adjustment.pk})
-                messages.error(request, error_msg)
-            else:
-                try:
-                    with DebugContext.section("Executing item adjustment reversal"):
-                        item_adjustment.reverse(
-                            officer=officer,
-                            date=timezone.now().date(),
-                            reason=reason,
-                        )
+        if not reason:
+            error_msg = _("A reason for reversal is required.")
+            logger.warning(f"{error_msg} | item_adjustment_id={item_adjustment.pk}")
+            messages.error(request, error_msg)
+        else:
+            try:
+                logger.debug("Executing item adjustment reversal")
+                item_adjustment.reverse(
+                    officer=officer,
+                    date=timezone.now().date(),
+                    reason=reason,
+                )
 
-                    DebugContext.success(
-                        "Item adjustment reversed successfully",
-                        {
-                            "item_adjustment_id": item_adjustment.pk,
-                            "type": item_adjustment.type,
-                        },
-                    )
-                    DebugContext.audit(
-                        action="item_adjustment_reversed",
-                        entity_type="InvoiceItemAdjustment",
-                        entity_id=item_adjustment.pk,
-                        details={
-                            "type": item_adjustment.type,
-                            "reason": reason,
-                            "officer": officer.username,
-                        },
-                        user=request.user.username,
-                    )
+                logger.debug(
+                    f"Item adjustment reversed successfully | "
+                    f"item_adjustment_id={item_adjustment.pk} | "
+                    f"type={item_adjustment.type}"
+                )
+                audit_logger.info(
+                    f"item_adjustment_reversed | InvoiceItemAdjustment:{item_adjustment.pk} | "
+                    f"user={request.user.username} | type={item_adjustment.type} | "
+                    f"reason={reason} | officer={officer.username}"
+                )
 
-                    messages.success(
-                        request, _("Item adjustment reversed successfully.")
-                    )
-                    return redirect("operation_detail_view", pk=operation.pk)
+                messages.success(
+                    request, _("Item adjustment reversed successfully.")
+                )
+                return redirect("operation_detail_view", pk=operation.pk)
 
-                except Exception as e:
-                    error_details = {
-                        "exception_type": type(e).__name__,
-                        "error_message": str(e),
-                        "item_adjustment_id": item_adjustment.pk,
-                        "officer": officer.username,
-                        "traceback": traceback.format_exc(),
-                    }
-                    DebugContext.error(
-                        "Item adjustment reversal failed", e, data=error_details
-                    )
-                    DebugContext.audit(
-                        action="item_adjustment_reversal_failed",
-                        entity_type="InvoiceItemAdjustment",
-                        entity_id=item_adjustment.pk,
-                        details=error_details,
-                        user=request.user.username,
-                    )
-                    traceback.print_exc()
-                    messages.error(request, _("Reversal failed: {}").format(str(e)))
+            except Exception as e:
+                error_details = {
+                    "exception_type": type(e).__name__,
+                    "error_message": str(e),
+                    "item_adjustment_id": item_adjustment.pk,
+                    "officer": officer.username,
+                    "traceback": traceback.format_exc(),
+                }
+                logger.error(
+                    f"Item adjustment reversal failed | "
+                    f"exception_type={error_details['exception_type']} | "
+                    f"error_message={error_details['error_message']} | "
+                    f"item_adjustment_id={item_adjustment.pk}"
+                )
+                audit_logger.error(
+                    f"item_adjustment_reversal_failed | "
+                    f"InvoiceItemAdjustment:{item_adjustment.pk} | "
+                    f"user={request.user.username} | error={error_details}"
+                )
+                traceback.print_exc()
+                messages.error(request, _("Reversal failed: {}").format(str(e)))
 
     context = {
         "item_adjustment": item_adjustment,

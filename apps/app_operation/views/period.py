@@ -7,7 +7,7 @@ from django.db import transaction
 from django.shortcuts import redirect, render
 from django.utils.translation import gettext_lazy as _
 
-from apps.app_base.debug import DebugContext, debug_view
+from apps.app_base.logging_utils import audit_logger, logger
 from apps.app_base.navigation import set_entity_navigation
 from apps.app_entity.models import Entity
 from apps.app_operation.models.period import FinancialPeriod
@@ -16,27 +16,21 @@ from farm.shortcuts import get_object_or_404
 
 
 @login_required
-@debug_view
 def period_detail_view(request, period_pk):
     """View financial period details."""
-    with DebugContext.section(
-        "Fetching financial period",
-        {"period_pk": period_pk, "user": request.user.username},
-    ):
-        period = get_object_or_404(
-            FinancialPeriod,
-            pk=period_pk,
-            error_message="Financial period not found or has been deleted.",
-        )
-        DebugContext.success(
-            "Period loaded",
-            {
-                "period_id": period.pk,
-                "entity_id": period.entity.pk,
-                "start_date": str(period.start_date),
-                "end_date": str(period.end_date),
-            },
-        )
+    logger.debug(
+        f"Fetching financial period | period_pk={period_pk} | "
+        f"user={request.user.username}"
+    )
+    period = get_object_or_404(
+        FinancialPeriod,
+        pk=period_pk,
+        error_message="Financial period not found or has been deleted.",
+    )
+    logger.debug(
+        f"Period loaded | period_id={period.pk} | entity_id={period.entity.pk} | "
+        f"start_date={period.start_date} | end_date={period.end_date}"
+    )
     context = {
         "period": period,
         "entity": period.entity,
@@ -49,24 +43,19 @@ def period_detail_view(request, period_pk):
 
 
 @login_required
-@debug_view
 def period_list_view(request, entity_pk):
     """List all financial periods for an entity."""
-    with DebugContext.section(
-        "Fetching entity and periods",
-        {"entity_pk": entity_pk, "user": request.user.username},
-    ):
-        entity = get_object_or_404(
-            Entity, pk=entity_pk, error_message="Entity not found or has been deleted."
-        )
-        all_periods = entity.financial_periods.all().order_by("-start_date")
-        DebugContext.success(
-            "Periods loaded",
-            {
-                "entity_id": entity.pk,
-                "period_count": all_periods.count(),
-            },
-        )
+    logger.debug(
+        f"Fetching entity and periods | entity_pk={entity_pk} | "
+        f"user={request.user.username}"
+    )
+    entity = get_object_or_404(
+        Entity, pk=entity_pk, error_message="Entity not found or has been deleted."
+    )
+    all_periods = entity.financial_periods.all().order_by("-start_date")
+    logger.debug(
+        f"Periods loaded | entity_id={entity.pk} | period_count={all_periods.count()}"
+    )
 
     paginator = Paginator(all_periods, 25)
     page_number = request.GET.get("page", 1)
@@ -90,38 +79,29 @@ def period_list_view(request, entity_pk):
 
 
 @login_required
-@debug_view
 def period_close_view(request, period_pk):
     """Close a financial period."""
-    with DebugContext.section(
-        "Fetching period for closing",
-        {"period_pk": period_pk, "user": request.user.username},
-    ):
-        period = get_object_or_404(
-            FinancialPeriod,
-            pk=period_pk,
-            error_message="Financial period not found or has been deleted.",
-        )
-        DebugContext.success(
-            "Period loaded",
-            {
-                "period_id": period.pk,
-                "start_date": str(period.start_date),
-                "end_date": str(period.end_date) if period.end_date else None,
-            },
-        )
+    logger.debug(
+        f"Fetching period for closing | period_pk={period_pk} | "
+        f"user={request.user.username}"
+    )
+    period = get_object_or_404(
+        FinancialPeriod,
+        pk=period_pk,
+        error_message="Financial period not found or has been deleted.",
+    )
+    logger.debug(
+        f"Period loaded | period_id={period.pk} | "
+        f"start_date={period.start_date} | "
+        f"end_date={period.end_date if period.end_date else None}"
+    )
 
     if not period.can_close:
         error_msg = _("This period is already closed.")
-        DebugContext.warn(
-            "Close attempt on already closed period", {"period_id": period.pk}
-        )
-        DebugContext.audit(
-            action="period_close_attempt_on_closed",
-            entity_type="FinancialPeriod",
-            entity_id=period.pk,
-            details={"reason": "period_already_closed"},
-            user=request.user.username,
+        logger.warning(f"Close attempt on already closed period | period_id={period.pk}")
+        audit_logger.info(
+            f"period_close_attempt_on_closed | FinancialPeriod:{period.pk} | "
+            f"user={request.user.username} | reason=period_already_closed"
         )
         context = {
             "period": period,
@@ -140,65 +120,47 @@ def period_close_view(request, period_pk):
         return render(request, "app_operation/period_close.html", context)
 
     if request.method == "POST":
-        with DebugContext.section(
-            "Processing period closure",
-            {
-                "period_pk": period_pk,
-                "user": request.user.username,
-            },
-        ):
-            try:
-                end_date_str = request.POST.get("end_date")
-                if not end_date_str:
-                    raise ValidationError(_("End date is required."))
+        logger.debug(
+            f"Processing period closure | period_pk={period_pk} | "
+            f"user={request.user.username}"
+        )
+        try:
+            end_date_str = request.POST.get("end_date")
+            if not end_date_str:
+                raise ValidationError(_("End date is required."))
 
-                end_date = date.fromisoformat(end_date_str)
+            end_date = date.fromisoformat(end_date_str)
 
-                with transaction.atomic():
-                    with DebugContext.section(
-                        "Closing period", {"end_date": str(end_date)}
-                    ):
-                        period.close(end_date)
-                        DebugContext.success(
-                            "Period closed successfully",
-                            {
-                                "period_id": period.pk,
-                                "end_date": str(period.end_date),
-                            },
-                        )
-                        DebugContext.audit(
-                            action="period_closed",
-                            entity_type="FinancialPeriod",
-                            entity_id=period.pk,
-                            details={
-                                "entity_id": period.entity.pk,
-                                "start_date": str(period.start_date),
-                                "end_date": str(period.end_date),
-                            },
-                            user=request.user.username,
-                        )
-                return redirect("period_list_view", entity_pk=period.entity.pk)
-            except ValidationError as e:
-                error_details = {
-                    "validation_errors": str(e.messages),
-                    "period_id": period.pk,
-                }
-                DebugContext.warn("Period closure validation failed", error_details)
-                DebugContext.audit(
-                    action="period_closure_validation_failed",
-                    entity_type="FinancialPeriod",
-                    entity_id=period.pk,
-                    details=error_details,
-                    user=request.user.username,
+            with transaction.atomic():
+                logger.debug(f"Closing period | end_date={end_date}")
+                period.close(end_date)
+                logger.debug(
+                    f"Period closed successfully | period_id={period.pk} | "
+                    f"end_date={period.end_date}"
                 )
-                context = {"period": period, "errors": e.messages}
-                return render(
-                    request, "app_operation/period_close.html", context, status=400
+                audit_logger.info(
+                    f"period_closed | FinancialPeriod:{period.pk} | "
+                    f"user={request.user.username} | entity_id={period.entity.pk} | "
+                    f"start_date={period.start_date} | end_date={period.end_date}"
                 )
+            return redirect("period_list_view", entity_pk=period.entity.pk)
+        except ValidationError as e:
+            error_details = {
+                "validation_errors": str(e.messages),
+                "period_id": period.pk,
+            }
+            logger.warning(f"Period closure validation failed | {error_details}")
+            audit_logger.info(
+                f"period_closure_validation_failed | FinancialPeriod:{period.pk} | "
+                f"user={request.user.username} | {error_details}"
+            )
+            context = {"period": period, "errors": e.messages}
+            return render(
+                request, "app_operation/period_close.html", context, status=400
+            )
 
 
 @login_required
-@debug_view
 def period_ledger_view(request, period_pk):
     """Show running-balance cash ledger for a financial period."""
     from django.db.models import Q
@@ -206,12 +168,12 @@ def period_ledger_view(request, period_pk):
     from apps.app_transaction.models import Transaction
     from apps.app_transaction.transaction_type import TransactionType
 
-    with DebugContext.section("Fetching period for ledger", {"period_pk": period_pk}):
-        period = get_object_or_404(
-            FinancialPeriod,
-            pk=period_pk,
-            error_message="Financial period not found.",
-        )
+    logger.debug(f"Fetching period for ledger | period_pk={period_pk}")
+    period = get_object_or_404(
+        FinancialPeriod,
+        pk=period_pk,
+        error_message="Financial period not found.",
+    )
 
     entity = period.entity
     date_q = Q(date__date__gte=period.start_date)

@@ -66,7 +66,6 @@ MIDDLEWARE = [
     "crum.CurrentRequestUserMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "farm.middlewares.LoginRequiredMiddleware",
-    "farm.middlewares_audit.AuditTrailMiddleware",  # Request/response auditing
 ]
 
 ROOT_URLCONF = "farm.urls"
@@ -242,9 +241,9 @@ LOGGING = {
         "level": "DEBUG",
     },
     "loggers": {
-        "farm_debug": {
+        "farm": {
             "handlers": ["console", "debug_file"],
-            "level": "DEBUG",
+            "level": "INFO",
             "propagate": False,
         },
         "farm_audit": {
@@ -252,14 +251,9 @@ LOGGING = {
             "level": "INFO",
             "propagate": False,
         },
-        "apps": {
-            "handlers": ["console", "debug_file"],
-            "level": "DEBUG",
-            "propagate": False,
-        },
         "django.db.backends": {
             "handlers": ["debug_file"],
-            "level": "DEBUG" if DEBUG else "INFO",
+            "level": "INFO",
             "propagate": False,
         },
     },
@@ -293,7 +287,7 @@ if "test" in sys.argv:
         },
         "root": {"handlers": ["console"], "level": "WARNING"},
         "loggers": {
-            "farm_debug": {"handlers": [], "level": "CRITICAL", "propagate": False},
+            "farm": {"handlers": [], "level": "CRITICAL", "propagate": False},
             "farm_audit": {"handlers": [], "level": "CRITICAL", "propagate": False},
             "django.db.backends": {"handlers": [], "level": "CRITICAL", "propagate": False},
         },

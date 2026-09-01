@@ -8,7 +8,7 @@ from django.db import models
 from django.db.models import DecimalField, ExpressionWrapper, F, Q, Sum
 from django.utils.translation import gettext_lazy as _
 
-from apps.app_base.debug import DebugContext
+from apps.app_base.logging_utils import audit_logger, logger
 from apps.app_base.mixins import AmountCleanMixin, ImmutableMixin
 from apps.app_base.models import BaseModel
 
@@ -894,104 +894,59 @@ class Product(AmountCleanMixin, BaseModel):
             )
 
     def clean(self) -> None:
-        DebugContext.log(
-            "Product.clean()",
-            {
-                "pk": self.pk,
-                "product": self.product_template.name if self.product_template else "",
-                "quantity": self.quantity,
-                "status": self.status if self.pk else "new",
-            },
+        logger.debug(
+            f"Product.clean() | pk={self.pk} | "
+            f"product={self.product_template.name if self.product_template else ''} | "
+            f"quantity={self.quantity} | status={self.status if self.pk else 'new'}"
         )
         super().clean()  # AmountCleanMixin: unit_price > 0
         # M2M is unavailable until the object has been persisted.
         if self.pk is None:
-            DebugContext.success("Product validation passed (not yet persisted)")
+            logger.debug("Product validation passed (not yet persisted)")
             return
         for item in self.invoice_items.select_related("operation").all():
             op_type = item.operation.operation_type
             if not self.product_template.accepts_operation(op_type):
-                DebugContext.error(
-                    "Product incompatible with operation",
-                    data={
-                        "product": self.product_template.name,
-                        "operation_type": op_type,
-                    },
+                logger.error(
+                    f"Product incompatible with operation | "
+                    f"product={self.product_template.name} | operation_type={op_type}"
                 )
                 raise ValidationError(
                     _("Product '%(p)s' is not compatible with operation type %(op)s.")
                     % {"p": self.product_template.name, "op": op_type}
                 )
-        DebugContext.success("Product validation passed")
+        logger.debug("Product validation passed")
 
     def save(self, *args, **kwargs):
         """Save product with audit logging."""
         is_new = self.pk is None
         action = "created" if is_new else "updated"
-        with DebugContext.section(
-            f"Product.save() ({action})",
-            {
-                "product": self.product_template.name if self.product_template else "",
-                "quantity": self.quantity,
-                "unit_price": float(self.unit_price),
-                "status": self.status if self.pk else "new",
-            },
-        ):
-            result = super().save(*args, **kwargs)
-            DebugContext.success(f"Product {action}", {"pk": self.pk})
+        result = super().save(*args, **kwargs)
+        logger.debug(f"Product {action} | pk={self.pk}")
 
-            DebugContext.audit(
-                action=f"product_{action}",
-                entity_type="Product",
-                entity_id=self.pk,
-                details={
-                    "product_template": (
-                        self.product_template.name if self.product_template else ""
-                    ),
-                    "quantity": self.quantity,
-                    "unit_price": float(self.unit_price),
-                    "status": self.status,
-                },
-                user="system",
-            )
-            return result
+        audit_logger.info(
+            f"product_{action} | Product:{self.pk} | user=system | "
+            f"product_template={self.product_template.name if self.product_template else ''} | "
+            f"quantity={self.quantity} | unit_price={float(self.unit_price)} | "
+            f"status={self.status}"
+        )
+        return result
 
     def delete(self, *args, **kwargs):
         """Delete product with audit logging."""
-        with DebugContext.section(
-            "Product.delete()",
-            {
-                "pk": self.pk,
-                "product": self.product_template.name if self.product_template else "",
-                "quantity": self.quantity,
-                "status": self.status,
-            },
-        ):
-            DebugContext.warn(
-                "Deleting product",
-                {
-                    "pk": self.pk,
-                    "product": (
-                        self.product_template.name if self.product_template else ""
-                    ),
-                    "status": self.status,
-                },
-            )
+        logger.warning(
+            f"Deleting product | pk={self.pk} | "
+            f"product={self.product_template.name if self.product_template else ''} | "
+            f"status={self.status}"
+        )
 
-            DebugContext.audit(
-                action="product_deleted",
-                entity_type="Product",
-                entity_id=self.pk,
-                details={
-                    "product_template": (
-                        self.product_template.name if self.product_template else ""
-                    ),
-                    "status": self.status,
-                },
-                user="system",
-            )
+        audit_logger.info(
+            f"product_deleted | Product:{self.pk} | user=system | "
+            f"product_template={self.product_template.name if self.product_template else ''} | "
+            f"status={self.status}"
+        )
 
-            return super().delete(*args, **kwargs)
+        return super().delete(*args, **kwargs)
 
     # ------------------------------------------------------------------
     # Concurrency helpers

@@ -1,5 +1,4 @@
  
-import logging
 from decimal import Decimal
 from typing import List
 
@@ -9,7 +8,7 @@ from django.db import transaction as db_transaction
 from django.forms import ValidationError
 from django.utils.translation import gettext_lazy as _
 
-from apps.app_base.debug import DebugContext
+from apps.app_base.logging_utils import audit_logger, logger
 from apps.app_base.mixins import (
     AmountCleanMixin,
     ImmutableMixin,
@@ -19,8 +18,6 @@ from apps.app_base.mixins import (
 from apps.app_base.models import BaseModel, ReversableModel
 from apps.app_operation.models.operation_type import OperationType
 from apps.app_transaction.models import TransactionType
-
-logger = logging.getLogger(__name__)
 
 
 class AdjustmentType(models.TextChoices):
@@ -241,97 +238,59 @@ class Adjustment(
         }.get(self.operation.operation_type)
 
     def clean(self):
-        DebugContext.log(
-            f"Adjustment.clean() for operation {self.operation.pk}",
-            {
-                "type": self.type,
-                "operation_type": self.operation.operation_type,
-                "amount": float(self.amount),
-            },
+        logger.debug(
+            f"Adjustment.clean() for operation {self.operation.pk} | "
+            f"type={self.type} | operation_type={self.operation.operation_type} | "
+            f"amount={float(self.amount)}"
         )
         if self.operation.operation_type not in (
             OperationType.PURCHASE,
             OperationType.SALE,
             OperationType.EXPENSE,
         ):
-            DebugContext.error(
-                "Invalid operation type for adjustment",
-                data={
-                    "operation_type": self.operation.operation_type,
-                    "allowed": ["PURCHASE", "SALE", "EXPENSE"],
-                },
+            logger.error(
+                f"Invalid operation type for adjustment | "
+                f"operation_type={self.operation.operation_type} | "
+                f"allowed=['PURCHASE', 'SALE', 'EXPENSE']"
             )
             raise ValidationError(_("This operation cannot be adjusted."))
         if AdjustmentType.is_general(self.type) and not self.reason:
-            DebugContext.warn(
-                "General adjustment type requires reason",
-                {
-                    "type": self.type,
-                },
+            logger.warning(
+                f"General adjustment type requires reason | type={self.type}"
             )
             raise ValidationError(_("Reason is required in general adjustment types."))
-        DebugContext.success("Adjustment validation passed")
+        logger.debug("Adjustment validation passed")
         return super().clean()
 
     def save(self, *args, **kwargs):
         """Save adjustment with audit logging."""
         is_new = self.pk is None
         action = "created" if is_new else "updated"
-        with DebugContext.section(
-            f"Adjustment.save() ({action})",
-            {
-                "operation": str(self.operation),
-                "type": self.type,
-                "amount": float(self.amount),
-            },
-        ):
-            result = super().save(*args, **kwargs)
-            DebugContext.success(f"Adjustment {action}", {"pk": self.pk})
+        result = super().save(*args, **kwargs)
+        logger.debug(
+            f"Adjustment {action} | pk={self.pk} | operation={self.operation} | "
+            f"type={self.type} | amount={float(self.amount)}"
+        )
 
-            DebugContext.audit(
-                action=f"adjustment_{action}",
-                entity_type="Adjustment",
-                entity_id=self.pk,
-                details={
-                    "operation": str(self.operation),
-                    "type": self.type,
-                    "amount": float(self.amount),
-                },
-                user=str(self.officer),
-            )
-            return result
+        audit_logger.info(
+            f"adjustment_{action} | Adjustment:{self.pk} | user={self.officer} | "
+            f"operation={self.operation} | type={self.type} | amount={float(self.amount)}"
+        )
+        return result
 
     def delete(self, *args, **kwargs):
         """Delete adjustment with audit logging."""
-        with DebugContext.section(
-            "Adjustment.delete()",
-            {
-                "pk": self.pk,
-                "operation": str(self.operation),
-                "type": self.type,
-                "amount": float(self.amount),
-            },
-        ):
-            DebugContext.warn(
-                "Deleting adjustment",
-                {
-                    "operation": str(self.operation),
-                    "type": self.type,
-                },
-            )
+        logger.warning(
+            f"Deleting adjustment | pk={self.pk} | operation={self.operation} | "
+            f"type={self.type}"
+        )
 
-            DebugContext.audit(
-                action="adjustment_deleted",
-                entity_type="Adjustment",
-                entity_id=self.pk,
-                details={
-                    "operation": str(self.operation),
-                    "type": self.type,
-                },
-                user=str(self.officer),
-            )
+        audit_logger.info(
+            f"adjustment_deleted | Adjustment:{self.pk} | user={self.officer} | "
+            f"operation={self.operation} | type={self.type}"
+        )
 
-            return super().delete(*args, **kwargs)
+        return super().delete(*args, **kwargs)
 
     @property
     def _reversable_transaction_types(self) -> List[TransactionType]:
@@ -461,49 +420,31 @@ class InvoiceItemAdjustment(
         and link it back. Must be called inside an atomic block, after all lines
         have been saved.
         """
-        DebugContext.log(
-            f"InvoiceItemAdjustment.finalize() called",
-            {
-                "item_adjustment_pk": self.pk,
-                "type": self.type,
-                "operation_pk": self.operation.pk,
-            },
+        logger.debug(
+            f"InvoiceItemAdjustment.finalize() called | item_adjustment_pk={self.pk} | "
+            f"type={self.type} | operation_pk={self.operation.pk}"
         )
 
         if self.adjustment_id is not None:
-            DebugContext.error(
-                "Item adjustment already finalized",
-                data={
-                    "item_adjustment_pk": self.pk,
-                    "adjustment_pk": self.adjustment_id,
-                },
+            logger.error(
+                f"Item adjustment already finalized | item_adjustment_pk={self.pk} | "
+                f"adjustment_pk={self.adjustment_id}"
             )
             raise ValidationError(_("This item adjustment has already been finalized."))
 
         lines = self.lines.all()
-        DebugContext.log(
-            f"Computing net delta from {lines.count()} lines",
-            {
-                "line_count": lines.count(),
-            },
+        logger.debug(
+            f"Computing net delta from {lines.count()} lines | line_count={lines.count()}"
         )
 
         total_delta = sum(line.value_delta for line in lines)
-        DebugContext.log(
-            f"Net delta computed",
-            {
-                "total_delta": float(total_delta),
-                "is_increase": total_delta > 0,
-            },
+        logger.debug(
+            f"Net delta computed | total_delta={float(total_delta)} | "
+            f"is_increase={total_delta > 0}"
         )
 
         if total_delta == 0:
-            DebugContext.error(
-                "Net adjustment is zero",
-                {
-                    "line_count": lines.count(),
-                },
-            )
+            logger.error(f"Net adjustment is zero | line_count={lines.count()}")
             raise ValidationError(_("Net adjustment is zero — nothing to record."))
 
         # Direction (increase vs decrease) is encoded in the type, not an effect field.
@@ -533,44 +474,29 @@ class InvoiceItemAdjustment(
         }
 
         adj_type = adj_type_map[self.type]
-        DebugContext.log(
-            f"Adjustment type mapped",
-            {
-                "input_type": self.type,
-                "output_type": adj_type,
-                "is_increase": is_increase,
-            },
+        logger.debug(
+            f"Adjustment type mapped | input_type={self.type} | "
+            f"output_type={adj_type} | is_increase={is_increase}"
         )
 
-        with DebugContext.section(
-            f"Creating Adjustment record",
-            {
-                "type": adj_type,
-                "amount": float(abs(total_delta)),
-                "operation_pk": self.operation.pk,
-            },
-        ):
-            adj = Adjustment(
-                operation=self.operation,
-                type=adj_type,
-                amount=abs(total_delta).quantize(Decimal("0.01")),
-                reason=self.reason,
-                date=self.date,
-                officer=self.officer,
-            )
-            adj.full_clean()
-            DebugContext.log("Adjustment validation passed")
-            adj.save()  # creates issuance transaction via LinkedIssuanceTransactionMixin
-            DebugContext.success("Adjustment saved", {"adjustment_pk": adj.pk})
+        adj = Adjustment(
+            operation=self.operation,
+            type=adj_type,
+            amount=abs(total_delta).quantize(Decimal("0.01")),
+            reason=self.reason,
+            date=self.date,
+            officer=self.officer,
+        )
+        adj.full_clean()
+        logger.debug("Adjustment validation passed")
+        adj.save()  # creates issuance transaction via LinkedIssuanceTransactionMixin
+        logger.debug(f"Adjustment saved | adjustment_pk={adj.pk}")
 
         self.adjustment = adj
         self.save(update_fields=["adjustment"])
-        DebugContext.success(
-            "InvoiceItemAdjustment finalized",
-            {
-                "item_adjustment_pk": self.pk,
-                "adjustment_pk": adj.pk,
-            },
+        logger.debug(
+            f"InvoiceItemAdjustment finalized | item_adjustment_pk={self.pk} | "
+            f"adjustment_pk={adj.pk}"
         )
 
     @classmethod
@@ -622,45 +548,30 @@ class InvoiceItemAdjustment(
         1. Reverse the linked Adjustment (counter-transaction).
         2. Mark this record as reversed via ReversableModel.
         """
-        DebugContext.log(
-            f"InvoiceItemAdjustment.reverse() called",
-            {
-                "item_adjustment_pk": self.pk,
-                "adjustment_pk": self.adjustment_id,
-                "officer": str(officer),
-                "date": str(date),
-            },
+        logger.debug(
+            f"InvoiceItemAdjustment.reverse() called | item_adjustment_pk={self.pk} | "
+            f"adjustment_pk={self.adjustment_id} | officer={officer} | date={date}"
         )
 
         if self.adjustment is None:
-            DebugContext.error(
-                "Cannot reverse un-finalized item adjustment",
-                data={
-                    "item_adjustment_pk": self.pk,
-                },
+            logger.error(
+                f"Cannot reverse un-finalized item adjustment | item_adjustment_pk={self.pk}"
             )
             raise ValidationError(_("Cannot reverse an un-finalized item adjustment."))
 
-        with DebugContext.section(
-            f"Reversing InvoiceItemAdjustment",
-            {
-                "item_adjustment_pk": self.pk,
-                "line_count": self.lines.count(),
-            },
-        ):
-            with db_transaction.atomic():
-                DebugContext.log("Reversing linked Adjustment")
-                self.adjustment.reverse(
-                    officer=officer,
-                    date=date,
-                    reason=reason,
-                    _from_item_adjustment=True,
-                )
-                DebugContext.success("Linked Adjustment reversed")
+        with db_transaction.atomic():
+            logger.debug("Reversing linked Adjustment")
+            self.adjustment.reverse(
+                officer=officer,
+                date=date,
+                reason=reason,
+                _from_item_adjustment=True,
+            )
+            logger.debug("Linked Adjustment reversed")
 
-                result = super().reverse(officer=officer, date=date, reason=reason)
-                DebugContext.success("InvoiceItemAdjustment reversed successfully")
-                return result
+            result = super().reverse(officer=officer, date=date, reason=reason)
+            logger.debug("InvoiceItemAdjustment reversed successfully")
+            return result
 
     class Meta:
         verbose_name = _("invoice item adjustment")
@@ -815,17 +726,11 @@ class InvoiceItemAdjustmentLine(
         return super().clean()
 
     def save(self, *args, **kwargs):
-        DebugContext.log(
-            f"InvoiceItemAdjustmentLine.save()",
-            {
-                "pk": self.pk,
-                "adjustment_pk": self.adjustment_id,
-                "invoice_item_pk": self.invoice_item_id,
-                "quantity_delta": (
-                    float(self.quantity_delta) if self.quantity_delta else None
-                ),
-                "value_delta": float(self.value_delta) if self.value_delta else None,
-            },
+        logger.debug(
+            f"InvoiceItemAdjustmentLine.save() | pk={self.pk} | "
+            f"adjustment_pk={self.adjustment_id} | invoice_item_pk={self.invoice_item_id} | "
+            f"quantity_delta={(float(self.quantity_delta) if self.quantity_delta else None)} | "
+            f"value_delta={(float(self.value_delta) if self.value_delta else None)}"
         )
         super().save(*args, **kwargs)
 

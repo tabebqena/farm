@@ -4,32 +4,30 @@ from django.contrib import messages
 from django.shortcuts import redirect, render
 from django.utils import timezone
 
-from apps.app_base.debug import DebugContext, debug_view
+from apps.app_base.logging_utils import audit_logger, logger
 from apps.app_base.reversal import reversal_guard_error
 from farm.shortcuts import get_object_or_404
 from apps.app_operation.models.operation import Operation
 from apps.app_operation.models.proxies import PROXY_MAP
 
 
-@debug_view
 def operation_reverse_view(request, pk):
     """Reverse a financial operation (critical audit operation)."""
-    with DebugContext.section("Fetching operation for reversal", {
-        "operation_pk": pk,
-        "user": request.user.username,
-    }):
-        operation = get_object_or_404(
-            Operation,
-            pk=pk,
-            error_message="Operation not found or has been deleted."
-        )
-        operation = Operation.objects.cast(operation)
-        DebugContext.success("Operation loaded", {
-            "operation_id": operation.pk,
-            "operation_type": operation.operation_type,
-            "is_reversed": operation.is_reversed,
-            "is_reversal": operation.is_reversal,
-        })
+    logger.debug(
+        f"Fetching operation for reversal | operation_pk={pk} | "
+        f"user={request.user.username}"
+    )
+    operation = get_object_or_404(
+        Operation,
+        pk=pk,
+        error_message="Operation not found or has been deleted."
+    )
+    operation = Operation.objects.cast(operation)
+    logger.debug(
+        f"Operation loaded | operation_id={operation.pk} | "
+        f"operation_type={operation.operation_type} | "
+        f"is_reversed={operation.is_reversed} | is_reversal={operation.is_reversal}"
+    )
 
     # Safety checks for reversibility
     error_msg = reversal_guard_error(operation, "operation")
@@ -40,13 +38,10 @@ def operation_reverse_view(request, pk):
         else:
             action = "reversal_attempt_on_reversal"
             details = {"reason": "is_itself_reversal"}
-        DebugContext.warn(error_msg, {"operation_id": operation.pk})
-        DebugContext.audit(
-            action=action,
-            entity_type="Operation",
-            entity_id=operation.pk,
-            details=details,
-            user=request.user.username
+        logger.warning(f"{error_msg} | operation_id={operation.pk}")
+        audit_logger.info(
+            f"{action} | Operation:{operation.pk} | "
+            f"user={request.user.username} | {details}"
         )
         messages.warning(request, error_msg)
         return redirect("operation_detail_view", pk=operation.pk)
@@ -54,13 +49,12 @@ def operation_reverse_view(request, pk):
     config = PROXY_MAP.get(operation.operation_type)
     if not config:
         error_msg = "Unsupported operation type."
-        DebugContext.error(error_msg, data={"operation_type": operation.operation_type})
-        DebugContext.audit(
-            action="reversal_attempt_unsupported_type",
-            entity_type="Operation",
-            entity_id=operation.pk,
-            details={"operation_type": operation.operation_type},
-            user=request.user.username
+        logger.error(
+            f"{error_msg} | operation_type={operation.operation_type}"
+        )
+        audit_logger.info(
+            f"reversal_attempt_unsupported_type | Operation:{operation.pk} | "
+            f"user={request.user.username} | operation_type={operation.operation_type}"
         )
         messages.warning(request, error_msg)
         return redirect("operation_detail_view", pk=operation.pk)
@@ -68,70 +62,60 @@ def operation_reverse_view(request, pk):
     officer = request.user
 
     if request.method == "POST":
-        with DebugContext.section("Processing operation reversal", {
-            "operation_id": operation.pk,
-            "operation_type": operation.operation_type,
-            "officer": officer.username,
-        }):
-            reason = request.POST.get("reversal_reason", "").strip()
+        logger.debug(
+            f"Processing operation reversal | operation_id={operation.pk} | "
+            f"operation_type={operation.operation_type} | officer={officer.username}"
+        )
+        reason = request.POST.get("reversal_reason", "").strip()
 
-            if not reason:
-                error_msg = "A reason for reversal is required."
-                DebugContext.warn(error_msg, {"operation_id": operation.pk})
-                DebugContext.audit(
-                    action="reversal_attempt_no_reason",
-                    entity_type="Operation",
-                    entity_id=operation.pk,
-                    details={"reason": "missing_reversal_reason"},
-                    user=request.user.username
+        if not reason:
+            error_msg = "A reason for reversal is required."
+            logger.warning(f"{error_msg} | operation_id={operation.pk}")
+            audit_logger.info(
+                f"reversal_attempt_no_reason | Operation:{operation.pk} | "
+                f"user={request.user.username} | reason=missing_reversal_reason"
+            )
+            messages.error(request, error_msg)
+        else:
+            try:
+                logger.debug("Executing transaction reversal")
+                operation.reverse(reason=reason, officer=officer)
+
+                logger.debug(
+                    f"Operation reversed successfully | operation_id={operation.pk} | "
+                    f"operation_type={operation.label} | reversal_reason={reason[:100]}"
                 )
-                messages.error(request, error_msg)
-            else:
-                try:
-                    with DebugContext.section("Executing transaction reversal"):
-                        operation.reverse(reason=reason, officer=officer)
+                audit_logger.info(
+                    f"operation_reversed | Operation:{operation.pk} | "
+                    f"user={request.user.username} | operation_type={operation.operation_type} | "
+                    f"label={operation.label} | reason={reason} | officer={officer.username}"
+                )
 
-                    DebugContext.success("Operation reversed successfully", {
-                        "operation_id": operation.pk,
-                        "operation_type": operation.label,
-                        "reversal_reason": reason[:100],
-                    })
-                    DebugContext.audit(
-                        action="operation_reversed",
-                        entity_type="Operation",
-                        entity_id=operation.pk,
-                        details={
-                            "operation_type": operation.operation_type,
-                            "label": operation.label,
-                            "reason": reason,
-                            "officer": officer.username,
-                        },
-                        user=request.user.username
-                    )
-
-                    messages.success(
-                        request, f"Successfully reversed {operation.label} #{operation.pk}"
-                    )
-                    return redirect("operation_detail_view", pk=operation.pk)
-                except Exception as e:
-                    error_details = {
-                        "exception_type": type(e).__name__,
-                        "error_message": str(e),
-                        "operation_id": operation.pk,
-                        "operation_type": operation.operation_type,
-                        "officer": officer.username,
-                        "traceback": traceback.format_exc(),
-                    }
-                    DebugContext.error("Operation reversal failed", e, data=error_details)
-                    DebugContext.audit(
-                        action="operation_reversal_failed",
-                        entity_type="Operation",
-                        entity_id=operation.pk,
-                        details=error_details,
-                        user=request.user.username
-                    )
-                    traceback.print_exc()
-                    messages.error(request, f"Reversal failed: {str(e)}")
+                messages.success(
+                    request, f"Successfully reversed {operation.label} #{operation.pk}"
+                )
+                return redirect("operation_detail_view", pk=operation.pk)
+            except Exception as e:
+                error_details = {
+                    "exception_type": type(e).__name__,
+                    "error_message": str(e),
+                    "operation_id": operation.pk,
+                    "operation_type": operation.operation_type,
+                    "officer": officer.username,
+                    "traceback": traceback.format_exc(),
+                }
+                logger.error(
+                    f"Operation reversal failed | "
+                    f"exception_type={error_details['exception_type']} | "
+                    f"error_message={error_details['error_message']} | "
+                    f"operation_id={operation.pk}"
+                )
+                audit_logger.error(
+                    f"operation_reversal_failed | Operation:{operation.pk} | "
+                    f"user={request.user.username} | error={error_details}"
+                )
+                traceback.print_exc()
+                messages.error(request, f"Reversal failed: {str(e)}")
 
     context = {
         "operation": operation,

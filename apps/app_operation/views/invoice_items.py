@@ -5,12 +5,11 @@ from django.conf import settings
 from django.shortcuts import render
 
 from apps.app_adjustment.models import InvoiceItemAdjustment, InvoiceItemAdjustmentLine
-from apps.app_base.debug import DebugContext, debug_view
+from apps.app_base.logging_utils import logger
 from apps.app_operation.models import Operation
 from farm.shortcuts import get_object_or_404
 
 
-@debug_view
 def invoice_items_list_view(request, pk):
     """Display all invoice items for an operation in a dedicated list view.
 
@@ -20,110 +19,82 @@ def invoice_items_list_view(request, pk):
     - Item adjustments (adjustment lines affecting this item)
     - Inventory movement status
     """
-    with DebugContext.section(
-        "Fetching operation for invoice items list",
-        {
-            "operation_pk": pk,
-            "user": request.user.username,
-        },
-    ):
-        operation = get_object_or_404(
-            Operation, pk=pk, error_message="Operation not found or has been deleted."
+    logger.debug(
+        f"Fetching operation for invoice items list | operation_pk={pk} | "
+        f"user={request.user.username}"
+    )
+    operation = get_object_or_404(
+        Operation, pk=pk, error_message="Operation not found or has been deleted."
+    )
+    operation = Operation.objects.cast(operation)
+    logger.debug(
+        f"Operation loaded | operation_id={operation.pk} | "
+        f"operation_type={operation.operation_type} | "
+        f"has_invoice={type(operation).has_invoice}"
+    )
+
+    logger.debug(
+        f"Fetching invoice items, adjustments, and movement data | "
+        f"operation_id={operation.pk} | has_invoice={type(operation).has_invoice}"
+    )
+    items = operation.items.all() if type(operation).has_invoice else []
+    logger.debug(
+        f"Invoice items fetched | count={len(items)} | operation_id={operation.pk}"
+    )
+
+    capital_valuations = []
+    if type(operation).has_capital_valuation:
+        capital_valuations = operation.capital_valuations.select_related(
+            "product", "product__product_template", "officer"
         )
-        operation = Operation.objects.cast(operation)
-        DebugContext.success(
-            "Operation loaded",
-            {
-                "operation_id": operation.pk,
-                "operation_type": operation.operation_type,
-                "has_invoice": type(operation).has_invoice,
-            },
+        logger.debug(
+            f"Capital valuations fetched | count={len(capital_valuations)} | "
+            f"operation_id={operation.pk}"
         )
 
-    with DebugContext.section(
-        "Fetching invoice items, adjustments, and movement data",
-        {
-            "operation_id": operation.pk,
-            "has_invoice": type(operation).has_invoice,
-        },
-    ):
-        items = operation.items.all() if type(operation).has_invoice else []
-        DebugContext.log(
-            "Invoice items fetched",
-            {
-                "count": len(items),
-                "operation_id": operation.pk,
-            },
+    # Prefetch item-adjustment lines per invoice item
+    item_adjustments = (
+        InvoiceItemAdjustmentLine.objects.filter(
+            invoice_item__operation=operation,
+            adjustment__reversed_by__isnull=True,
         )
+        .select_related("adjustment", "adjustment__officer")
+        .order_by("-adjustment__date", "-adjustment__pk")
+    )
+    logger.debug(
+        f"Item adjustment lines fetched | count={len(item_adjustments)} | "
+        f"operation_id={operation.pk}"
+    )
 
-        capital_valuations = []
-        if type(operation).has_capital_valuation:
-            capital_valuations = operation.capital_valuations.select_related(
-                "product", "product__product_template", "officer"
-            )
-            DebugContext.log(
-                "Capital valuations fetched",
-                {
-                    "count": len(capital_valuations),
-                    "operation_id": operation.pk,
-                },
-            )
+    # Group adjustment lines by invoice_item_id for quick lookup
+    adj_lines_by_item: dict[int, list[InvoiceItemAdjustmentLine]] = defaultdict(
+        list
+    )
+    for line in item_adjustments:
+        adj_lines_by_item[line.invoice_item_id].append(line)
+    logger.debug(
+        f"Adjustment lines grouped by invoice item | "
+        f"items_with_adj={len(adj_lines_by_item)} | operation_id={operation.pk}"
+    )
 
-        # Prefetch item-adjustment lines per invoice item
-        item_adjustments = (
-            InvoiceItemAdjustmentLine.objects.filter(
-                invoice_item__operation=operation,
-                adjustment__reversed_by__isnull=True,
-            )
-            .select_related("adjustment", "adjustment__officer")
-            .order_by("-adjustment__date", "-adjustment__pk")
+    # Fetch item adjustments (for reversed/original info per adjustment group)
+    item_adjustments_grouped = (
+        InvoiceItemAdjustment.objects.filter(
+            operation=operation,
         )
-        DebugContext.log(
-            "Item adjustment lines fetched",
-            {
-                "count": len(item_adjustments),
-                "operation_id": operation.pk,
-            },
-        )
+        .select_related("officer", "adjustment")
+        .order_by("-date", "-pk")
+    )
+    logger.debug(
+        f"Item adjustments (grouped) fetched | count={len(item_adjustments_grouped)} | "
+        f"operation_id={operation.pk}"
+    )
 
-        # Group adjustment lines by invoice_item_id for quick lookup
-        adj_lines_by_item: dict[int, list[InvoiceItemAdjustmentLine]] = defaultdict(
-            list
-        )
-        for line in item_adjustments:
-            adj_lines_by_item[line.invoice_item_id].append(line)
-        DebugContext.log(
-            "Adjustment lines grouped by invoice item",
-            {
-                "items_with_adj": len(adj_lines_by_item),
-                "operation_id": operation.pk,
-            },
-        )
-
-        # Fetch item adjustments (for reversed/original info per adjustment group)
-        item_adjustments_grouped = (
-            InvoiceItemAdjustment.objects.filter(
-                operation=operation,
-            )
-            .select_related("officer", "adjustment")
-            .order_by("-date", "-pk")
-        )
-        DebugContext.log(
-            "Item adjustments (grouped) fetched",
-            {
-                "count": len(item_adjustments_grouped),
-                "operation_id": operation.pk,
-            },
-        )
-
-        items_data = operation.get_items_data()
-        DebugContext.log(
-            "Items movement data computed",
-            {
-                "items_count": len(items_data),
-                "operation_id": operation.pk,
-            },
-        )
+    items_data = operation.get_items_data()
+    logger.debug(
+        f"Items movement data computed | items_count={len(items_data)} | "
+        f"operation_id={operation.pk}"
+    )
 
     # Build a lookup from items_data by item pk
     items_data_by_pk = {entry["item"].pk: entry for entry in items_data}

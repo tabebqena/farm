@@ -3,7 +3,7 @@ from django.shortcuts import render
 from django.urls import reverse
 from django.utils.translation import gettext as _
 
-from apps.app_base.debug import DebugContext, debug_view
+from apps.app_base.logging_utils import logger
 from apps.app_operation.models import Operation
 from farm.shortcuts import get_object_or_404
 
@@ -52,113 +52,73 @@ def _build_navigation_overrides(operation):
     return navigation_overrides
 
 
-@debug_view
 def operation_detail_view(request, pk):
     """Display operation details with all related transactions and items."""
-    with DebugContext.section(
-        "Fetching operation details",
-        {
-            "operation_pk": pk,
-            "user": request.user.username,
-        },
-    ):
-        operation = get_object_or_404(
-            Operation, pk=pk, error_message="Operation not found or has been deleted."
+    logger.debug(
+        f"Fetching operation details | operation_pk={pk} | user={request.user.username}"
+    )
+    operation = get_object_or_404(
+        Operation, pk=pk, error_message="Operation not found or has been deleted."
+    )
+    operation = Operation.objects.cast(operation)
+    logger.debug(
+        f"Operation loaded | operation_id={operation.pk} | "
+        f"operation_type={operation.operation_type} | is_reversed={operation.is_reversed}"
+    )
+
+    logger.debug(f"Fetching related transactions and items | operation_id={operation.pk}")
+    transactions = operation.get_all_transactions()
+    logger.debug(
+        f"Transactions fetched | count={len(transactions)} | operation_id={operation.pk}"
+    )
+
+    items = operation.items.all() if type(operation).has_invoice else None
+    logger.debug(
+        f"Invoice items fetched | count={len(items) if items else 0} | "
+        f"has_invoice={type(operation).has_invoice} | operation_id={operation.pk}"
+    )
+
+    capital_valuations = None
+    if type(operation).has_capital_valuation:
+        capital_valuations = operation.capital_valuations.select_related(
+            "product", "product__product_template", "officer"
         )
-        operation = Operation.objects.cast(operation)
-        DebugContext.success(
-            "Operation loaded",
-            {
-                "operation_id": operation.pk,
-                "operation_type": operation.operation_type,
-                "is_reversed": operation.is_reversed,
-            },
+        logger.debug(
+            f"Capital valuations fetched | count={len(capital_valuations)} | "
+            f"operation_id={operation.pk}"
         )
 
-    with DebugContext.section(
-        "Fetching related transactions and items",
-        {
-            "operation_id": operation.pk,
-        },
-    ):
-        transactions = operation.get_all_transactions()
-        DebugContext.log(
-            "Transactions fetched",
-            {
-                "count": len(transactions),
-                "operation_id": operation.pk,
-            },
-        )
+    adjustments = list(
+        operation.adjustments.filter(reversal_of__isnull=True).order_by("date")
+    )
+    item_adjustments = list(
+        operation.item_adjustments.filter(reversal_of__isnull=True).order_by("date")
+    )
 
-        items = operation.items.all() if type(operation).has_invoice else None
-        DebugContext.log(
-            "Invoice items fetched",
-            {
-                "count": len(items) if items else 0,
-                "has_invoice": type(operation).has_invoice,
-                "operation_id": operation.pk,
-            },
-        )
+    logger.debug(
+        f"Computing items_data for invoice items | operation_id={operation.pk} | "
+        f"has_invoice={type(operation).has_invoice}"
+    )
+    items_data = operation.get_items_data()
+    logger.debug(
+        f"Items data computed | items_count={len(items_data)} | operation_id={operation.pk}"
+    )
 
-        capital_valuations = None
-        if type(operation).has_capital_valuation:
-            capital_valuations = operation.capital_valuations.select_related(
-                "product", "product__product_template", "officer"
-            )
-            DebugContext.log(
-                "Capital valuations fetched",
-                {
-                    "count": len(capital_valuations),
-                    "operation_id": operation.pk,
-                },
-            )
+    logger.debug(f"Computing payment balance | operation_id={operation.pk}")
+    # The non-accounting operations (Birth / Death / Consumption / Capital
+    # Gain / Capital Loss) do not track settlement — they are fully settled
+    # at their amount. Only accounting operations expose the settlement
+    # mixin members, so guard has_settlement here (it is reused below for
+    # the payment-transaction and one-shot flags).
+    has_settlement = hasattr(operation, "amount_settled")
 
-        adjustments = list(
-            operation.adjustments.filter(reversal_of__isnull=True).order_by("date")
-        )
-        item_adjustments = list(
-            operation.item_adjustments.filter(reversal_of__isnull=True).order_by("date")
-        )
-
-    with DebugContext.section(
-        "Computing items_data for invoice items",
-        {
-            "operation_id": operation.pk,
-            "has_invoice": type(operation).has_invoice,
-        },
-    ):
-        items_data = operation.get_items_data()
-        DebugContext.log(
-            "Items data computed",
-            {
-                "items_count": len(items_data),
-                "operation_id": operation.pk,
-            },
-        )
-
-    with DebugContext.section(
-        "Computing payment balance",
-        {
-            "operation_id": operation.pk,
-        },
-    ):
-        # The non-accounting operations (Birth / Death / Consumption / Capital
-        # Gain / Capital Loss) do not track settlement — they are fully settled
-        # at their amount. Only accounting operations expose the settlement
-        # mixin members, so guard has_settlement here (it is reused below for
-        # the payment-transaction and one-shot flags).
-        has_settlement = hasattr(operation, "amount_settled")
-
-        payment_balance = operation.payment_balance()
-        paid_amount = payment_balance["paid_amount"]
-        outstanding_balance = payment_balance["outstanding_balance"]
-        net_adjustment = payment_balance["net_adjustment"]
-        overpayment_amount = payment_balance["overpayment_amount"]
-        over_repayment_amount = payment_balance["over_repayment_amount"]
-        DebugContext.log(
-            "Payment balance computed",
-            {**payment_balance, "operation_id": operation.pk},
-        )
+    payment_balance = operation.payment_balance()
+    paid_amount = payment_balance["paid_amount"]
+    outstanding_balance = payment_balance["outstanding_balance"]
+    net_adjustment = payment_balance["net_adjustment"]
+    overpayment_amount = payment_balance["overpayment_amount"]
+    over_repayment_amount = payment_balance["over_repayment_amount"]
+    logger.debug(f"Payment balance computed | {payment_balance} | operation_id={operation.pk}")
 
     # Set navigation overrides for entity detail links (see
     # _build_navigation_overrides): real entity names + an operations-list link.

@@ -2,24 +2,18 @@
 
 ## Quick Start: Enable Debug Logging
 
-The project now includes comprehensive debug logging across all critical paths. To see debug messages:
+The project uses standard Python logging. To see debug messages, temporarily set
+the `farm` logger to `DEBUG` in `farm/settings.py`:
 
 ```bash
-# Set Django logging level to DEBUG
-export DEBUG=True
-
 # Run development server with logging output
 python manage.py runserver
-
-# Or run specific operations with logging
-python manage.py shell
 ```
 
-All debug messages use the `farm_debug` logger and include context-aware formatting with:
-- **Indentation**: Shows call depth and nesting
-- **Timing**: Automatic elapsed time measurement for sections
-- **Status indicators**: ✓, ❌, ⚡, →, ← for easy scanning
-- **Structured data**: JSON-formatted context for each operation
+All application logging uses the shared `farm` logger
+(`from apps.app_base.logging_utils import logger`) plus a compliance-only
+`farm_audit` logger (`logs/audit.log`). See
+[../logging/LOGGING_STANDARDS.md](../logging/LOGGING_STANDARDS.md).
 
 ## Architecture Overview
 
@@ -92,71 +86,27 @@ User creates Purchase → Operation record created → Invoice items added
 ## Debug Logging Deep Dive
 
 ### Debug Module Location
-**File**: `apps/app_base/debug.py`
+**File**: `apps/app_base/logging_utils.py`
 
-### Three Debug Utilities
+### Standard Logging
 
-#### 1. **DebugContext** - Context Manager
-Used for logging with automatic indentation and timing:
-
-```python
-from apps.app_base.debug import DebugContext
-
-# Log with section and auto-timing
-with DebugContext.section("Creating purchase", {"amount": 1000, "vendor": "ACME"}):
-    # ... your code ...
-    DebugContext.log("Step 1 completed")
-    DebugContext.success("All steps done")
-
-# Simple logging (no section)
-DebugContext.log("Message", {"key": "value"})
-DebugContext.warn("Warning message", {"context": "data"})
-DebugContext.error("Error message", exception_object)
-DebugContext.success("Success message", {"result": "value"})
-```
-
-**Output Example**:
-```
-⚡ Creating purchase | {"amount": 1000, "vendor": "ACME"}
-  ⚡ Step 1 completed
-  ✓ All steps done
-← Creating purchase (0.125s)
-```
-
-#### 2. **@debug_function** - Function Decorator
-Automatically logs function entry/exit and timing:
+Logging is standard Python `logging` with a single shared logger and a
+compliance-only audit channel:
 
 ```python
-from apps.app_base.debug import debug_function
+from apps.app_base.logging_utils import logger, audit_logger
 
-@debug_function
-def complex_operation(param1, param2):
-    # ... implementation ...
-    return result
+logger.debug("Detail trace")              # silent unless farm logger is DEBUG
+logger.info("Significant event")
+logger.warning("Suspicious condition")
+logger.error("Failure")
+
+audit_logger.info("entity_created | Entity:1 | user=officer")
 ```
 
-**Output**:
-```
-🔵 complex_operation | {"args": ["value1", "value2"], "kwargs_keys": []}
-← complex_operation completed (0.234s)
-```
-
-#### 3. **@debug_view** - Django View Decorator
-Logs HTTP requests with method, user, and parameters:
-
-```python
-from apps.app_base.debug import debug_view
-
-@debug_view
-def purchase_wizard_view(request, pk, step=1):
-    # ... implementation ...
-```
-
-**Output**:
-```
-🌐 purchase_wizard_view | {"method": "POST", "path": "/purchase/1/step/2", "user": "john"}
-← purchase_wizard_view completed (status_code: 200)
-```
+There are no custom decorators or context managers — log the meaningful steps
+explicitly. `logger.debug(...)` calls are silent by default (the `farm` logger
+is `INFO`); raise it to `DEBUG` in `farm/settings.py` to trace.
 
 ### Debug Points Across the Project
 
@@ -186,22 +136,11 @@ All operation saves are logged with context:
 
 ```python
 def save(self, *args, **kwargs):
-    with DebugContext.section(f"Operation.save() ({self.operation_type})", {
-        "is_new": is_new,
-        "source": str(self.source),
-        "destination": str(self.destination),
-        "amount": float(self.amount),
-    }):
-        # ... save logic ...
-```
-
-**Output**:
-```
-→ Operation.save() (PURCHASE) | {"is_new": true, "source": "Project A", "destination": "Vendor B", "amount": 5000.50}
-  ⚡ Validating 5 invoice items
-  ✓ All 5 invoice items validated
-  ✓ Operation saved (pk=456)
-← Operation.save() (0.123s)
+    result = super().save(*args, **kwargs)
+    logger.debug(f"Operation saved | pk={self.pk} | type={self.operation_type}")
+    action = "operation_created" if is_new else "operation_updated"
+    audit_logger.info(f"{action} | Operation:{self.pk} | user={self.officer} | ...")
+    return result
 ```
 
 #### **Adjustments** (`apps/app_adjustment/models.py`)
@@ -349,9 +288,9 @@ LOGGING = {
         },
     },
     'loggers': {
-        'farm_debug': {
-            'handlers': ['console'],
-            'level': 'DEBUG',  # Change to 'WARNING' in production
+        'farm': {
+            'handlers': ['console', 'debug_file'],
+            'level': 'INFO',  # Change to 'DEBUG' to trace, 'WARNING' in production
             'propagate': False,
         },
     },

@@ -2,7 +2,6 @@ from django.contrib import messages
 from django.shortcuts import redirect, render
 from django.utils.translation import gettext as _
 
-from apps.app_base.debug import debug_view
 from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
 from apps.app_inventory.models import ProductTemplate
 from apps.app_operation.forms import (
@@ -78,7 +77,6 @@ def cancel_purchase_wizard_view(request, pk):
     return PURCHASE_WIZARD.cancel(request, pk)
 
 
-@debug_view
 def purchase_wizard_view(request, pk, step=1):
     project, redir = _load_project(request, pk)
     if redir:
@@ -91,7 +89,6 @@ def purchase_wizard_view(request, pk, step=1):
 # ---------------------------------------------------------------------------
 
 
-@debug_view
 def purchase_invoice_view(request, pk):
     project, redir = _load_project(request, pk)
     if redir:
@@ -113,7 +110,6 @@ def purchase_invoice_view(request, pk):
 # ---------------------------------------------------------------------------
 
 
-@debug_view
 def purchase_select_template_view(request, pk):
     project, redir = _load_project(request, pk)
     if redir:
@@ -142,7 +138,6 @@ def purchase_select_template_view(request, pk):
 # ---------------------------------------------------------------------------
 
 
-@debug_view
 def purchase_add_item_view(request, pk, idx=None):
     project, redir = _load_project(request, pk)
     if redir:

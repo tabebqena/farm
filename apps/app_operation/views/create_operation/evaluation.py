@@ -4,11 +4,10 @@ import traceback
 from django.contrib import messages
 from django.shortcuts import redirect, render
 from django.utils import timezone
-from django.utils.decorators import method_decorator
 from django.utils.translation import gettext as _
 from django.views import View
 
-from apps.app_base.debug import DebugContext, debug_view
+from apps.app_base.logging_utils import audit_logger, logger
 from apps.app_entity.models import Entity
 from apps.app_inventory.models import Product
 from apps.app_operation.forms import EvaluationForm
@@ -32,170 +31,140 @@ class EvaluationCreateView(View):
 
     template_name = "app_operation/evaluation_form.html"
 
-    @method_decorator(debug_view)
     def dispatch(self, request, *args, **kwargs):
-        with DebugContext.section(
-            "Setting up evaluation creation view",
-            {
-                "project_pk": kwargs.get("pk"),
-                "product_pk": kwargs.get("product_pk"),
-                "user": request.user.username,
-            },
-        ):
-            self.project = get_object_or_404(
-                Entity,
-                pk=kwargs["pk"],
-                error_message="Project not found or has been deleted.",
-            )
-            DebugContext.success("Project loaded", {"project_id": self.project.pk})
+        logger.debug(
+            f"Setting up evaluation creation view | project_pk={kwargs.get('pk')} | "
+            f"product_pk={kwargs.get('product_pk')} | user={request.user.username}"
+        )
+        self.project = get_object_or_404(
+            Entity,
+            pk=kwargs["pk"],
+            error_message="Project not found or has been deleted.",
+        )
+        logger.debug(f"Project loaded | project_id={self.project.pk}")
 
-            self.product_pk = kwargs.get("product_pk")
-            if self.product_pk:
-                self.product = get_object_or_404(
-                    Product,
-                    pk=self.product_pk,
-                    error_message="Product not found or has been deleted.",
-                )
-                DebugContext.success("Product loaded", {"product_id": self.product.pk})
-            else:
-                self.product = None
+        self.product_pk = kwargs.get("product_pk")
+        if self.product_pk:
+            self.product = get_object_or_404(
+                Product,
+                pk=self.product_pk,
+                error_message="Product not found or has been deleted.",
+            )
+            logger.debug(f"Product loaded | product_id={self.product.pk}")
+        else:
+            self.product = None
 
         return super().dispatch(request, *args, **kwargs)
 
     def get(self, request, *args, **kwargs):
-        with DebugContext.section(
-            "Rendering evaluation form",
-            {
-                "project_id": self.project.pk,
-                "product_pk": self.product_pk,
-            },
-        ):
-            initial = {"date": timezone.now().date()}
-            if self.product:
-                initial["product"] = self.product
-            form = EvaluationForm(project=self.project, initial=initial)
-            DebugContext.success(
-                "Form rendered",
-                {"product_count": form.fields["product"].queryset.count()},
+        logger.debug(
+            f"Rendering evaluation form | project_id={self.project.pk} | "
+            f"product_pk={self.product_pk}"
+        )
+        initial = {"date": timezone.now().date()}
+        if self.product:
+            initial["product"] = self.product
+        form = EvaluationForm(project=self.project, initial=initial)
+        logger.debug(f"Form rendered | product_count={form.fields['product'].queryset.count()}")
+        return render(
+            request, self.template_name, self._build_evaluation_context(form)
+        )
+
+    def post(self, request, *args, **kwargs):
+        logger.debug(
+            f"Processing product evaluation | project_id={self.project.pk} | "
+            f"user={request.user.username}"
+        )
+        form = EvaluationForm(request.POST, project=self.project)
+        if not form.is_valid():
+            error_details = {
+                "form_errors": str(form.errors),
+            }
+            logger.warning(f"Evaluation form validation failed | {error_details}")
+            audit_logger.info(
+                f"evaluation_form_validation_failed | Evaluation:None | "
+                f"user={request.user.username} | {error_details}"
             )
             return render(
                 request, self.template_name, self._build_evaluation_context(form)
             )
 
-    def post(self, request, *args, **kwargs):
-        with DebugContext.section(
-            "Processing product evaluation",
-            {
-                "project_id": self.project.pk,
-                "user": request.user.username,
-            },
-        ):
-            form = EvaluationForm(request.POST, project=self.project)
-            if not form.is_valid():
-                error_details = {
-                    "form_errors": str(form.errors),
-                }
-                DebugContext.warn("Evaluation form validation failed", error_details)
-                DebugContext.audit(
-                    action="evaluation_form_validation_failed",
-                    entity_type="Evaluation",
-                    entity_id=None,
-                    details=error_details,
-                    user=request.user.username,
-                )
-                return render(
-                    request, self.template_name, self._build_evaluation_context(form)
-                )
+        product = form.cleaned_data["product"]
+        new_unit_price = form.cleaned_data["new_unit_price"]
+        date = form.cleaned_data["date"]
+        description = form.cleaned_data["description"]
 
-            product = form.cleaned_data["product"]
-            new_unit_price = form.cleaned_data["new_unit_price"]
-            date = form.cleaned_data["date"]
-            description = form.cleaned_data["description"]
+        try:
+            logger.debug(
+                f"Creating evaluation operation | product_id={product.pk} | "
+                f"new_unit_price={new_unit_price}"
+            )
+            # Delta computation, direction selection, ownership guard and
+            # operation+valuation creation all live in the model factory.
+            result = CapitalValuationOperation.create_with_valuation(
+                product=product,
+                new_unit_price=new_unit_price,
+                date=date,
+                description=description,
+                officer=request.user,
+                project=self.project,
+            )
 
-            try:
-                with DebugContext.section(
-                    "Creating evaluation operation",
-                    {
-                        "product_id": product.pk,
-                        "new_unit_price": str(new_unit_price),
-                    },
-                ):
-                    # Delta computation, direction selection, ownership guard and
-                    # operation+valuation creation all live in the model factory.
-                    result = CapitalValuationOperation.create_with_valuation(
-                        product=product,
-                        new_unit_price=new_unit_price,
-                        date=date,
-                        description=description,
-                        officer=request.user,
-                        project=self.project,
-                    )
-
-                if result is None:
-                    DebugContext.warn(
-                        "No material change in valuation",
-                        {"delta": "0", "product_id": product.pk},
-                    )
-                    messages.info(
-                        request, _("No material change — no operation recorded.")
-                    )
-                    return render(
-                        request,
-                        self.template_name,
-                        self._build_evaluation_context(form),
-                    )
-
-                op, _entry, delta = result
-                direction = _("Capital Gain") if delta > 0 else _("Capital Loss")
-                DebugContext.success(
-                    "Evaluation recorded successfully",
-                    {
-                        "operation_id": op.pk,
-                        "direction": direction,
-                        "amount": str(op.amount),
-                    },
+            if result is None:
+                logger.warning(
+                    f"No material change in valuation | delta=0 | product_id={product.pk}"
                 )
-                DebugContext.audit(
-                    action="evaluation_recorded",
-                    entity_type="Evaluation",
-                    entity_id=op.pk,
-                    details={
-                        "operation_type": "CapitalGain" if delta > 0 else "CapitalLoss",
-                        "product_id": product.pk,
-                        "amount": str(op.amount),
-                    },
-                    user=request.user.username,
+                messages.info(
+                    request, _("No material change — no operation recorded.")
                 )
-                messages.success(
-                    request,
-                    _("%(dir)s of %(amt)s recorded.")
-                    % {"dir": direction, "amt": op.amount},
-                )
-                return redirect("operation_detail_view", pk=op.pk)
-
-            except Exception as e:
-                traceback.print_exc()
-                error_details = {
-                    "exception_type": type(e).__name__,
-                    "error_message": str(e),
-                    "product_id": product.pk,
-                }
-                DebugContext.error(
-                    "Evaluation operation creation failed", e, error_details
-                )
-                DebugContext.audit(
-                    action="evaluation_creation_failed",
-                    entity_type="Evaluation",
-                    entity_id=None,
-                    details=error_details,
-                    user=request.user.username,
-                )
-                messages.error(request, str(e))
                 return render(
                     request,
                     self.template_name,
-                    self._build_evaluation_context(form, errors=[str(e)]),
+                    self._build_evaluation_context(form),
                 )
+
+            op, _entry, delta = result
+            direction = _("Capital Gain") if delta > 0 else _("Capital Loss")
+            logger.debug(
+                f"Evaluation recorded successfully | operation_id={op.pk} | "
+                f"direction={direction} | amount={op.amount}"
+            )
+            audit_logger.info(
+                f"evaluation_recorded | Evaluation:{op.pk} | "
+                f"user={request.user.username} | "
+                f"operation_type={'CapitalGain' if delta > 0 else 'CapitalLoss'} | "
+                f"product_id={product.pk} | amount={op.amount}"
+            )
+            messages.success(
+                request,
+                _("%(dir)s of %(amt)s recorded.")
+                % {"dir": direction, "amt": op.amount},
+            )
+            return redirect("operation_detail_view", pk=op.pk)
+
+        except Exception as e:
+            traceback.print_exc()
+            error_details = {
+                "exception_type": type(e).__name__,
+                "error_message": str(e),
+                "product_id": product.pk,
+            }
+            logger.error(
+                f"Evaluation operation creation failed | "
+                f"exception_type={error_details['exception_type']} | "
+                f"error_message={error_details['error_message']} | "
+                f"product_id={product.pk}"
+            )
+            audit_logger.error(
+                f"evaluation_creation_failed | Evaluation:None | "
+                f"user={request.user.username} | error={error_details}"
+            )
+            messages.error(request, str(e))
+            return render(
+                request,
+                self.template_name,
+                self._build_evaluation_context(form, errors=[str(e)]),
+            )
 
     def _build_evaluation_context(self, form, errors=None):
         from django.conf import settings

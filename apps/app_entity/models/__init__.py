@@ -9,7 +9,7 @@ from django.forms import ValidationError
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
-from apps.app_base.debug import DebugContext
+from apps.app_base.logging_utils import audit_logger, logger
 from apps.app_base.mixins import ImmutableMixin
 from apps.app_base.models import BaseModel
 
@@ -55,40 +55,26 @@ class ContactInfo(ImmutableMixin, BaseModel):
         """Save contact info with logging."""
         is_new = self.pk is None
         action = "created" if is_new else "updated"
-        DebugContext.log(
-            f"ContactInfo.save() ({action})",
-            {
-                "entity": str(self.entity),
-                "contact_type": self.contact_type,
-                "label": self.label,
-            },
+        logger.debug(
+            f"ContactInfo.save() ({action}) | entity={self.entity} | "
+            f"contact_type={self.contact_type} | label={self.label}"
         )
         result = super().save(*args, **kwargs)
-        DebugContext.audit(
-            action=f"contact_info_{action}",
-            entity_type="ContactInfo",
-            entity_id=self.pk,
-            details={"entity": str(self.entity), "type": self.contact_type},
-            user="system",
+        audit_logger.info(
+            f"contact_info_{action} | ContactInfo:{self.pk} | user=system | "
+            f"entity={self.entity} | type={self.contact_type}"
         )
         return result
 
     def delete(self, *args, **kwargs):
         """Delete contact info with logging."""
-        DebugContext.warn(
-            "ContactInfo.delete()",
-            {
-                "entity": str(self.entity),
-                "type": self.contact_type,
-                "value": self.value[:50] if self.value else "",
-            },
+        logger.warning(
+            f"ContactInfo.delete() | entity={self.entity} | type={self.contact_type} | "
+            f"value={self.value[:50] if self.value else ''}"
         )
-        DebugContext.audit(
-            action="contact_info_deleted",
-            entity_type="ContactInfo",
-            entity_id=self.pk,
-            details={"entity": str(self.entity)},
-            user="system",
+        audit_logger.info(
+            f"contact_info_deleted | ContactInfo:{self.pk} | user=system | "
+            f"entity={self.entity}"
         )
         return super().delete(*args, **kwargs)
 
@@ -133,49 +119,26 @@ class Stakeholder(ImmutableMixin, BaseModel):
         """Save stakeholder with logging."""
         is_new = self.pk is None
         action = "created" if is_new else "updated"
-        DebugContext.log(
-            f"Stakeholder.save() ({action})",
-            {
-                "parent": str(self.parent),
-                "target": str(self.target),
-                "role": self.role,
-                "active": self.active,
-            },
+        logger.debug(
+            f"Stakeholder.save() ({action}) | parent={self.parent} | target={self.target} | "
+            f"role={self.role} | active={self.active}"
         )
         result = super().save(*args, **kwargs)
-        DebugContext.audit(
-            action=f"stakeholder_{action}",
-            entity_type="Stakeholder",
-            entity_id=self.pk,
-            details={
-                "parent": str(self.parent),
-                "target": str(self.target),
-                "role": self.role,
-            },
-            user="system",
+        audit_logger.info(
+            f"stakeholder_{action} | Stakeholder:{self.pk} | user=system | "
+            f"parent={self.parent} | target={self.target} | role={self.role}"
         )
         return result
 
     def delete(self, *args, **kwargs):
         """Delete stakeholder with logging."""
-        DebugContext.warn(
-            "Stakeholder.delete()",
-            {
-                "parent": str(self.parent),
-                "target": str(self.target),
-                "role": self.role,
-            },
+        logger.warning(
+            f"Stakeholder.delete() | parent={self.parent} | target={self.target} | "
+            f"role={self.role}"
         )
-        DebugContext.audit(
-            action="stakeholder_deleted",
-            entity_type="Stakeholder",
-            entity_id=self.pk,
-            details={
-                "parent": str(self.parent),
-                "target": str(self.target),
-                "role": self.role,
-            },
-            user="system",
+        audit_logger.info(
+            f"stakeholder_deleted | Stakeholder:{self.pk} | user=system | "
+            f"parent={self.parent} | target={self.target} | role={self.role}"
         )
         return super().delete(*args, **kwargs)
 
@@ -295,18 +258,13 @@ class Entity(ImmutableMixin, BaseModel):
         return self.name or _("Entity #%(pk)s") % {"pk": self.pk}
 
     def clean(self) -> None:
-        DebugContext.log(
-            "Entity.clean()",
-            {
-                "is_new": self.pk is None,
-                "pk": self.pk,
-                "entity_type": self.entity_type,
-                "name": self.name[:50] if self.name else "",
-            },
+        logger.debug(
+            f"Entity.clean() | is_new={self.pk is None} | pk={self.pk} | "
+            f"entity_type={self.entity_type} | name={self.name[:50] if self.name else ''}"
         )
 
         if not self.entity_type:
-            DebugContext.error("Entity type is required", data={"name": self.name})
+            logger.error(f"Entity type is required | name={self.name}")
             raise ValidationError(_("Entity type is required. --"))
 
         if self.entity_type == EntityType.SYSTEM:
@@ -323,19 +281,16 @@ class Entity(ImmutableMixin, BaseModel):
         is_new = self.pk is None
         if is_new and self.entity_type == EntityType.SYSTEM:
             if Entity.objects.filter(entity_type=EntityType.SYSTEM).exists():
-                DebugContext.error("System entity already exists")
+                logger.error("System entity already exists")
                 raise ValidationError(_("System entity already exists."))
         if is_new and self.entity_type == EntityType.WORLD:
             if Entity.objects.filter(entity_type=EntityType.WORLD).exists():
-                DebugContext.error("World entity already exists")
+                logger.error("World entity already exists")
                 raise ValidationError(_("World entity already exists."))
 
-        DebugContext.success(
-            "Entity validation passed",
-            {
-                "entity_type": self.entity_type,
-                "name": self.name[:50] if self.name else "",
-            },
+        logger.debug(
+            f"Entity validation passed | entity_type={self.entity_type} | "
+            f"name={self.name[:50] if self.name else ''}"
         )
         return super().clean()
 
@@ -667,93 +622,53 @@ class Entity(ImmutableMixin, BaseModel):
         is_new = self.pk is None
         from apps.app_operation.models.period import FinancialPeriod
 
-        with DebugContext.section(
-            f"Entity.save() ({self.entity_type})",
-            {
-                "is_new": is_new,
-                "pk": self.pk,
-                "name": self.name[:50] if self.name else "",
-                "entity_type": self.entity_type,
-            },
-        ):
-            with db_transaction.atomic():
-                rv = super().save(*args, **kwargs)
-                if not (self.is_world or self.is_system):
-                    open_period = self.financial_periods.filter(end_date__isnull=True).first()
-                    if self.active and open_period is None:
-                        start_date = self.created_at.date() if is_new else date_type.today()
-                        FinancialPeriod.objects.create(entity=self, start_date=start_date)
-                        DebugContext.log(
-                            "Financial period created",
-                            {
-                                "entity_pk": self.pk,
-                                "start_date": str(start_date),
-                                "reason": "entity_activation" if not is_new else "entity_creation",
-                            },
-                        )
-                    elif not self.active and open_period is not None:
-                        from datetime import timedelta
-                        end_date = date_type.today()
-                        if end_date <= open_period.start_date:
-                            end_date = open_period.start_date + timedelta(days=1)
-                        open_period.end_date = end_date
-                        open_period.save()
-                        DebugContext.log(
-                            "Financial period closed",
-                            {
-                                "entity_pk": self.pk,
-                                "period_pk": open_period.pk,
-                                "end_date": str(end_date),
-                                "reason": "entity_deactivation",
-                            },
-                        )
+        with db_transaction.atomic():
+            rv = super().save(*args, **kwargs)
+            if not (self.is_world or self.is_system):
+                open_period = self.financial_periods.filter(end_date__isnull=True).first()
+                if self.active and open_period is None:
+                    start_date = self.created_at.date() if is_new else date_type.today()
+                    FinancialPeriod.objects.create(entity=self, start_date=start_date)
+                    logger.debug(
+                        f"Financial period created | entity_pk={self.pk} | "
+                        f"start_date={start_date} | "
+                        f"reason={'entity_activation' if not is_new else 'entity_creation'}"
+                    )
+                elif not self.active and open_period is not None:
+                    from datetime import timedelta
+                    end_date = date_type.today()
+                    if end_date <= open_period.start_date:
+                        end_date = open_period.start_date + timedelta(days=1)
+                    open_period.end_date = end_date
+                    open_period.save()
+                    logger.debug(
+                        f"Financial period closed | entity_pk={self.pk} | "
+                        f"period_pk={open_period.pk} | end_date={end_date} | "
+                        f"reason=entity_deactivation"
+                    )
 
-                DebugContext.success("Entity saved", {"pk": self.pk})
+            logger.debug(f"Entity saved | pk={self.pk}")
 
-                # Audit the operation
-                action = "entity_created" if is_new else "entity_updated"
-                DebugContext.audit(
-                    action=action,
-                    entity_type="Entity",
-                    entity_id=self.pk,
-                    details={
-                        "name": self.name,
-                        "entity_type": self.entity_type,
-                        "is_internal": self.is_internal,
-                    },
-                    user="system",
-                )
+            # Audit the operation
+            action = "entity_created" if is_new else "entity_updated"
+            audit_logger.info(
+                f"{action} | Entity:{self.pk} | user=system | "
+                f"name={self.name} | entity_type={self.entity_type} | "
+                f"is_internal={self.is_internal}"
+            )
 
-                return rv
+            return rv
 
     def delete(self, *args, **kwargs):
         """Delete entity with audit logging."""
-        with DebugContext.section(
-            "Entity.delete()",
-            {
-                "pk": self.pk,
-                "name": self.name[:50] if self.name else "",
-                "entity_type": self.entity_type,
-            },
-        ):
-            DebugContext.warn(
-                "Deleting entity",
-                {
-                    "pk": self.pk,
-                    "name": self.name,
-                    "entity_type": self.entity_type,
-                },
-            )
+        logger.warning(
+            f"Deleting entity | pk={self.pk} | name={self.name} | "
+            f"entity_type={self.entity_type}"
+        )
 
-            DebugContext.audit(
-                action="entity_deleted",
-                entity_type="Entity",
-                entity_id=self.pk,
-                details={
-                    "name": self.name,
-                    "entity_type": self.entity_type,
-                },
-                user="system",
-            )
+        audit_logger.info(
+            f"entity_deleted | Entity:{self.pk} | user=system | "
+            f"name={self.name} | entity_type={self.entity_type}"
+        )
 
-            return super().delete(*args, **kwargs)
+        return super().delete(*args, **kwargs)

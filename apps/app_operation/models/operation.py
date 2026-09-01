@@ -1,5 +1,4 @@
 
-import logging
 from datetime import date as today_date
 from decimal import Decimal
 from typing import List
@@ -9,7 +8,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
 
-from apps.app_base.debug import DebugContext
+from apps.app_base.logging_utils import audit_logger, logger
 from apps.app_base.mixins import (
     AdjustableMixin,
     AmountCleanMixin,
@@ -24,8 +23,6 @@ from apps.app_transaction.transaction_type import TransactionType
 
 from .managers import AllOperationManager, OperationManager
 from .operation_type import OperationType
-
-logger = logging.getLogger(__name__)
 
 # TODO use database level constrains for data integrity.
 # TODO: "Financial Statement" method
@@ -897,13 +894,9 @@ class Operation(
     # ------------------------------------------------------------------
 
     def clean(self):
-        DebugContext.log(
-            f"Operation.clean() ({self.operation_type})",
-            {
-                "is_new": self.pk is None,
-                "pk": self.pk,
-                "date": str(self.date),
-            },
+        logger.debug(
+            f"Operation.clean() ({self.operation_type}) | "
+            f"is_new={self.pk is None} | pk={self.pk} | date={self.date}"
         )
 
         from django.utils.translation import gettext as _
@@ -917,9 +910,8 @@ class Operation(
             if entity is None:
                 continue
             if not entity.active:
-                DebugContext.error(
-                    "Inactive entity on operation",
-                    data={"entity": str(entity), "active": entity.active},
+                logger.error(
+                    f"Inactive entity on operation | entity={entity} | active={entity.active}"
                 )
                 raise ValidationError(
                     _("Entity '%(name)s' must be active to participate in this operation.")
@@ -932,12 +924,9 @@ class Operation(
             # Check both source and destination entities.
             for entity in [self.source, self.destination]:
                 if entity and is_date_in_closed_period(entity, self.date):
-                    DebugContext.error(
-                        "Cannot create operation in closed period",
-                        data={
-                            "date": str(self.date),
-                            "entity": str(entity),
-                        },
+                    logger.error(
+                        f"Cannot create operation in closed period | "
+                        f"date={self.date} | entity={entity}"
                     )
                     raise ValidationError(
                         "Cannot create an operation whose date falls within a closed financial period."
@@ -946,21 +935,18 @@ class Operation(
         # opts in via class-level config (e.g. ExpenseOperation: has_category=True,
         # category_required=True, category_type="EXPENSE").
         if self.category_required and not self.category_id:
-            DebugContext.error(
-                "Missing required category on operation",
-                data={"operation_type": self.operation_type},
+            logger.error(
+                f"Missing required category on operation | "
+                f"operation_type={self.operation_type}"
             )
             raise ValidationError(
                 _("Category is required for this operation.")
             )
         if self.category_id and getattr(self, "category_type", None):
             if self.category.category_type != self.category_type:
-                DebugContext.error(
-                    "Category type mismatch on operation",
-                    data={
-                        "expected": self.category_type,
-                        "actual": self.category.category_type,
-                    },
+                logger.error(
+                    f"Category type mismatch on operation | "
+                    f"expected={self.category_type} | actual={self.category.category_type}"
                 )
                 raise ValidationError(
                     _(
@@ -973,7 +959,7 @@ class Operation(
                         "category_type": self.category_type,
                     }
                 )
-        DebugContext.success("Operation validation passed")
+        logger.debug("Operation validation passed")
         return super().clean()
 
     def save(self, *args, **kwargs):
@@ -1006,12 +992,12 @@ class Operation(
 
         def _validate_invoice_items(op):
             items = op.items.all()
-            DebugContext.log(
-                f"Validating {items.count()} invoice items", {"operation_pk": op.pk}
+            logger.debug(
+                f"Validating {items.count()} invoice items | operation_pk={op.pk}"
             )
             for item in items:
                 item.full_clean()
-            DebugContext.success(f"All {items.count()} invoice items validated")
+            logger.debug(f"All {items.count()} invoice items validated")
 
         kwargs.setdefault("post_save_tasks", []).append(
             (
@@ -1021,36 +1007,18 @@ class Operation(
             )
         )
 
-        with DebugContext.section(
-            f"Operation.save() ({self.operation_type})",
-            {
-                "is_new": is_new,
-                "pk": self.pk,
-                "source": str(self.source),
-                "destination": str(self.destination),
-                "amount": float(self.amount),
-                "date": str(self.date),
-            },
-        ):
-            result = super().save(*args, **kwargs)
-            DebugContext.success("Operation saved", {"pk": self.pk})
+        result = super().save(*args, **kwargs)
+        logger.debug(f"Operation saved | pk={self.pk}")
 
-            # Audit log the operation
-            action = "operation_created" if is_new else "operation_updated"
-            DebugContext.audit(
-                action=action,
-                entity_type="Operation",
-                entity_id=self.pk,
-                details={
-                    "type": self.operation_type,
-                    "source": str(self.source),
-                    "destination": str(self.destination),
-                    "amount": float(self.amount),
-                    "date": str(self.date),
-                },
-                user=str(self.officer),
-            )
-            return result
+        # Audit log the operation
+        action = "operation_created" if is_new else "operation_updated"
+        audit_logger.info(
+            f"{action} | Operation:{self.pk} | user={self.officer} | "
+            f"type={self.operation_type} | source={self.source} | "
+            f"destination={self.destination} | amount={float(self.amount)} | "
+            f"date={self.date}"
+        )
+        return result
 
     # ------------------------------------------------------------------
     # Payment processing
@@ -1203,36 +1171,17 @@ class Operation(
 
     def delete(self, *args, **kwargs):
         """Delete operation with audit logging."""
-        with DebugContext.section(
-            "Operation.delete()",
-            {
-                "pk": self.pk,
-                "type": self.operation_type,
-                "amount": float(self.amount),
-            },
-        ):
-            DebugContext.warn(
-                "Deleting operation",
-                {
-                    "pk": self.pk,
-                    "type": self.operation_type,
-                    "source": str(self.source),
-                    "destination": str(self.destination),
-                },
-            )
+        logger.warning(
+            f"Deleting operation | pk={self.pk} | type={self.operation_type} | "
+            f"source={self.source} | destination={self.destination}"
+        )
 
-            DebugContext.audit(
-                action="operation_deleted",
-                entity_type="Operation",
-                entity_id=self.pk,
-                details={
-                    "type": self.operation_type,
-                    "amount": float(self.amount),
-                },
-                user=str(self.officer),
-            )
+        audit_logger.info(
+            f"operation_deleted | Operation:{self.pk} | user={self.officer} | "
+            f"type={self.operation_type} | amount={float(self.amount)}"
+        )
 
-            return super().delete(*args, **kwargs)
+        return super().delete(*args, **kwargs)
 
     def reverse(self, officer, date=None, reason=None):
         """Reverse an operation with full audit trail."""
@@ -1241,14 +1190,9 @@ class Operation(
         from django.utils.translation import gettext as _
 
         txn_id = f"reverse_op_{self.pk}_{uuid.uuid4().hex[:8]}"
-        DebugContext.transaction_start(
-            txn_id,
-            f"Reversing operation {self.pk}",
-            {
-                "original_op_pk": self.pk,
-                "operation_type": self.operation_type,
-                "amount": float(self.amount),
-            },
+        audit_logger.info(
+            f"transaction_start | reverse_txn={txn_id} | reversing Operation:{self.pk} | "
+            f"operation_type={self.operation_type} | amount={float(self.amount)}"
         )
 
         try:
@@ -1267,36 +1211,22 @@ class Operation(
             if type(self).has_invoice:
                 self._reverse_inventory_movements(officer=officer, date=date)
 
-            DebugContext.transaction_commit(
-                txn_id,
-                {
-                    "original_op_pk": self.pk,
-                    "reversal_op_pk": reversal.pk,
-                    "status": "success",
-                },
+            audit_logger.info(
+                f"transaction_commit | reverse_txn={txn_id} | original_op={self.pk} | "
+                f"reversal_op={reversal.pk} | status=success"
             )
 
-            DebugContext.audit(
-                action="operation_reversed",
-                entity_type="Operation",
-                entity_id=self.pk,
-                details={
-                    "type": self.operation_type,
-                    "reversal_pk": reversal.pk,
-                    "reason": reason or "",
-                },
-                user=str(officer),
+            audit_logger.info(
+                f"operation_reversed | Operation:{self.pk} | user={officer} | "
+                f"type={self.operation_type} | reversal_pk={reversal.pk} | "
+                f"reason={reason or ''}"
             )
 
             return reversal
         except Exception as e:
-            DebugContext.transaction_rollback(txn_id, str(e), e)
-            DebugContext.audit(
-                action="operation_reversal_failed",
-                entity_type="Operation",
-                entity_id=self.pk,
-                details={"error": str(e), "reason": reason or ""},
-                user=str(officer),
+            audit_logger.error(
+                f"operation_reversal_failed | Operation:{self.pk} | user={officer} | "
+                f"error={e} | reason={reason or ''}"
             )
             raise
 

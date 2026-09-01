@@ -8,11 +8,10 @@ from django.db import transaction as db_transaction
 from django.http import HttpResponseBadRequest
 from django.shortcuts import redirect, render
 from django.utils import timezone
-from django.utils.decorators import method_decorator
 from django.utils.translation import gettext as _
 from django.views import View
 
-from apps.app_base.debug import DebugContext, debug_view
+from apps.app_base.logging_utils import audit_logger, logger
 from apps.app_entity.models.category import (
     FinancialCategory,
 )
@@ -103,211 +102,170 @@ class OperationCreateView(View):
         self.has_invoice = self.data.get("has_invoice", False)
         self.project = self.data["url_entity"]
 
-    @method_decorator(debug_view)
     def dispatch(self, request, *args, **kwargs):
-        with DebugContext.section(
-            "Setting up operation creation view",
-            {
-                "op_type": kwargs.get("op_type"),
-                "pk": kwargs.get("pk"),
-                "user": request.user.username,
-            },
-        ):
-            # Resolve proxy_cls from URL when present; otherwise rely on
-            # the class attribute set on dedicated child views (Birth, Death, Sale).
-            op_type = kwargs.get("op_type")
-            if op_type:
-                proxy_cls = get_canonical_type(op_type)
-                if not proxy_cls:
-                    error_msg = _("Unsupported operation %(op_type)s") % {
-                        "op_type": op_type
-                    }
-                    DebugContext.error(error_msg, None, {"op_type": op_type})
-                    DebugContext.audit(
-                        action="invalid_operation_type",
-                        entity_type="Operation",
-                        entity_id=None,
-                        details={"op_type": op_type},
-                        user=request.user.username,
-                    )
-                    return HttpResponseBadRequest(error_msg)
-                self.proxy_cls = proxy_cls
-                # Remember the URL slug so multi-type proxies can resolve the
-                # canonical operation type in _setup_view.
-                self.url_op_type = op_type
-            # else: proxy_cls already set as class attribute on child class
+        logger.debug(
+            f"Setting up operation creation view | op_type={kwargs.get('op_type')} | "
+            f"pk={kwargs.get('pk')} | user={request.user.username}"
+        )
+        # Resolve proxy_cls from URL when present; otherwise rely on
+        # the class attribute set on dedicated child views (Birth, Death, Sale).
+        op_type = kwargs.get("op_type")
+        if op_type:
+            proxy_cls = get_canonical_type(op_type)
+            if not proxy_cls:
+                error_msg = _("Unsupported operation %(op_type)s") % {
+                    "op_type": op_type
+                }
+                logger.error(f"{error_msg} | op_type={op_type}")
+                audit_logger.info(
+                    f"invalid_operation_type | Operation:None | "
+                    f"user={request.user.username} | op_type={op_type}"
+                )
+                return HttpResponseBadRequest(error_msg)
+            self.proxy_cls = proxy_cls
+            # Remember the URL slug so multi-type proxies can resolve the
+            # canonical operation type in _setup_view.
+            self.url_op_type = op_type
+        # else: proxy_cls already set as class attribute on child class
 
-            self._setup_view(kwargs["pk"], request)
-            # SALE is only created through the sale wizard — the generic create
-            # view must not offer a second, divergent sale path.
-            from apps.app_operation.models.proxies import SaleOperation
+        self._setup_view(kwargs["pk"], request)
+        # SALE is only created through the sale wizard — the generic create
+        # view must not offer a second, divergent sale path.
+        from apps.app_operation.models.proxies import SaleOperation
 
-            if self.proxy_cls is SaleOperation:
-                return redirect("sale_wizard_step1", pk=kwargs["pk"])
-            DebugContext.success(
-                "View setup complete", {"op_type": self.canonical_op_type}
-            )
+        if self.proxy_cls is SaleOperation:
+            return redirect("sale_wizard_step1", pk=kwargs["pk"])
+        logger.debug(f"View setup complete | op_type={self.canonical_op_type}")
         return super().dispatch(request, *args, **kwargs)
 
     # ---- HTTP handlers ------------------------------------------------------
 
     def get(self, request, *args, **kwargs):
-        with DebugContext.section(
-            "Rendering operation creation form",
-            {
-                "op_type": self.canonical_op_type,
-                "has_invoice": self.has_invoice,
-            },
-        ):
-            formset = self._make_formset()
-            DebugContext.success(
-                "Form rendered", {"formset_count": len(formset) if formset else 0}
-            )
-            return render(
-                request, self.template_name, self._build_context(formset=formset)
-            )
+        logger.debug(
+            f"Rendering operation creation form | op_type={self.canonical_op_type} | "
+            f"has_invoice={self.has_invoice}"
+        )
+        formset = self._make_formset()
+        logger.debug(f"Form rendered | formset_count={len(formset) if formset else 0}")
+        return render(
+            request, self.template_name, self._build_context(formset=formset)
+        )
 
     def post(self, request, *args, **kwargs):
-        with DebugContext.section(
-            "Processing operation creation",
-            {
-                "op_type": self.canonical_op_type,
-                "user": request.user.username,
-            },
-        ):
-            # ── 1. Validate POST data via standalone validator ────────────
-            validator = OperationDataValidator(request.POST, self.data)
-            try:
-                parsed = validator.validate()
-            except Exception as e:
-                DebugContext.warn(
-                    "POST data validation failed",
-                    {"error": str(e)},
-                )
-                return self._render_with_errors(
-                    request,
-                    formset=self._make_formset(data=request.POST),
-                    errors=[str(e)],
-                    message=str(e),
-                )
-
-            date_val = parsed.date
-            description = parsed.description
-            selected_category_id = parsed.selected_category_id
-
-            # ── 2. Create & validate formset ──────────────────────────────
-            formset = self._make_formset(data=request.POST)
-
-            if formset and not formset.is_valid():
-                error_msg = _("Please check the items table for errors.")
-                DebugContext.warn(
-                    "Formset validation failed",
-                    {
-                        "formset_errors": formset.errors if formset else None,
-                        "has_invoice": self.has_invoice,
-                    },
-                )
-                DebugContext.audit(
-                    action="operation_formset_validation_failed",
-                    entity_type="Operation",
-                    entity_id=None,
-                    details={
-                        "formset_errors": str(formset.errors) if formset else None
-                    },
-                    user=request.user.username,
-                )
-                return self._render_with_errors(
-                    request,
-                    formset=formset,
-                    date=date_val,
-                    description=description,
-                    selected_category_id=selected_category_id,
-                    message=error_msg,
-                )
-
-            # ── 3. Compute amount ─────────────────────────────────────────
-            amount = _compute_amount(
-                self.has_invoice,
-                formset,
-                request.POST.get("amount"),
+        logger.debug(
+            f"Processing operation creation | op_type={self.canonical_op_type} | "
+            f"user={request.user.username}"
+        )
+        # ── 1. Validate POST data via standalone validator ────────────
+        validator = OperationDataValidator(request.POST, self.data)
+        try:
+            parsed = validator.validate()
+        except Exception as e:
+            logger.warning(f"POST data validation failed | error={e}")
+            return self._render_with_errors(
+                request,
+                formset=self._make_formset(data=request.POST),
+                errors=[str(e)],
+                message=str(e),
             )
 
-            # ── 4. Delegate to model layer ────────────────────────────────
-            errors = []
-            try:
-                with db_transaction.atomic():
-                    with DebugContext.section(
-                        "Creating operation transaction",
-                        {
-                            "op_type": self.canonical_op_type,
-                            "date": str(date_val),
-                        },
-                    ):
-                        op = self.proxy_cls.create(
-                            operation_type=self.canonical_op_type,
-                            source=self.data["source_entity"],
-                            destination=self.data["dest_entity"],
-                            amount=amount,
-                            date=date_val,
-                            description=description,
-                            officer=request.user,
-                            amount_paid=parsed.amount_paid,
-                            raw_post=request.POST,
-                            project=self.project,
-                            category_id=selected_category_id,
-                        )
-                        DebugContext.success(
-                            "Operation created",
-                            {
-                                "operation_id": op.pk,
-                                "amount": str(amount),
-                            },
-                        )
+        date_val = parsed.date
+        description = parsed.description
+        selected_category_id = parsed.selected_category_id
 
-                DebugContext.success(
-                    "Operation saved successfully",
-                    {
-                        "operation_id": op.pk,
-                        "operation_type": op.operation_type,
-                    },
-                )
-                DebugContext.audit(
-                    action="operation_created",
-                    entity_type="Operation",
-                    entity_id=op.pk,
-                    details={
-                        "operation_type": op.operation_type,
-                        "amount": str(amount),
-                        "date": str(date_val),
-                    },
-                    user=request.user.username,
-                )
-                messages.success(
-                    request,
-                    _("%(label)s recorded successfully.")
-                    % {"label": self.data["label"]},
-                )
-                return redirect("operation_detail_view", pk=op.pk)
+        # ── 2. Create & validate formset ──────────────────────────────
+        formset = self._make_formset(data=request.POST)
 
-            except Exception as e:
-                traceback.print_exc()
-                errors.append(str(e))
-                error_details = {
-                    "exception_type": type(e).__name__,
-                    "error_message": str(e),
-                    "op_type": self.canonical_op_type,
-                }
-                DebugContext.error("Operation creation failed", e, error_details)
-                DebugContext.audit(
-                    action="operation_creation_failed",
-                    entity_type="Operation",
-                    entity_id=None,
-                    details=error_details,
-                    user=request.user.username,
+        if formset and not formset.is_valid():
+            error_msg = _("Please check the items table for errors.")
+            logger.warning(
+                f"Formset validation failed | "
+                f"formset_errors={formset.errors if formset else None} | "
+                f"has_invoice={self.has_invoice}"
+            )
+            audit_logger.info(
+                f"operation_formset_validation_failed | Operation:None | "
+                f"user={request.user.username} | "
+                f"formset_errors={str(formset.errors) if formset else None}"
+            )
+            return self._render_with_errors(
+                request,
+                formset=formset,
+                date=date_val,
+                description=description,
+                selected_category_id=selected_category_id,
+                message=error_msg,
+            )
+
+        # ── 3. Compute amount ─────────────────────────────────────────
+        amount = _compute_amount(
+            self.has_invoice,
+            formset,
+            request.POST.get("amount"),
+        )
+
+        # ── 4. Delegate to model layer ────────────────────────────────
+        errors = []
+        try:
+            with db_transaction.atomic():
+                logger.debug(
+                    f"Creating operation transaction | op_type={self.canonical_op_type} | "
+                    f"date={date_val}"
                 )
-                messages.error(
-                    request, _("Transaction Error: %(error)s") % {"error": str(e)}
+                op = self.proxy_cls.create(
+                    operation_type=self.canonical_op_type,
+                    source=self.data["source_entity"],
+                    destination=self.data["dest_entity"],
+                    amount=amount,
+                    date=date_val,
+                    description=description,
+                    officer=request.user,
+                    amount_paid=parsed.amount_paid,
+                    raw_post=request.POST,
+                    project=self.project,
+                    category_id=selected_category_id,
                 )
+                logger.debug(
+                    f"Operation created | operation_id={op.pk} | amount={amount}"
+                )
+
+            logger.debug(
+                f"Operation saved successfully | operation_id={op.pk} | "
+                f"operation_type={op.operation_type}"
+            )
+            audit_logger.info(
+                f"operation_created | Operation:{op.pk} | "
+                f"user={request.user.username} | operation_type={op.operation_type} | "
+                f"amount={amount} | date={date_val}"
+            )
+            messages.success(
+                request,
+                _("%(label)s recorded successfully.")
+                % {"label": self.data["label"]},
+            )
+            return redirect("operation_detail_view", pk=op.pk)
+
+        except Exception as e:
+            traceback.print_exc()
+            errors.append(str(e))
+            error_details = {
+                "exception_type": type(e).__name__,
+                "error_message": str(e),
+                "op_type": self.canonical_op_type,
+            }
+            logger.error(
+                f"Operation creation failed | "
+                f"exception_type={error_details['exception_type']} | "
+                f"error_message={error_details['error_message']} | "
+                f"op_type={self.canonical_op_type}"
+            )
+            audit_logger.error(
+                f"operation_creation_failed | Operation:None | "
+                f"user={request.user.username} | error={error_details}"
+            )
+            messages.error(
+                request, _("Transaction Error: %(error)s") % {"error": str(e)}
+            )
 
         return self._render_with_errors(
             request,

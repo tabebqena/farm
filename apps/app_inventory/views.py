@@ -10,7 +10,6 @@ from django.shortcuts import redirect, render
 from django.utils.dateparse import parse_date
 from django.utils.translation import gettext as _
 
-from apps.app_base.debug import debug_view
 from apps.app_entity.models import Entity
 from apps.app_inventory.forms import InventoryMovementLineFormSet, ProductTemplateForm
 from apps.app_inventory.models import (
@@ -262,7 +261,6 @@ def stock_history(request, entity_pk):
     )
 
 
-@debug_view
 def quick_consume(request, entity_pk):
     """
     One-step "Consume from stock" — from the stock detail page, pick a
@@ -731,7 +729,6 @@ def _create_inventory_movement(request, operation_pk, expected_type):
     return _render_movement_form(request, operation, formset, invoice_items_json)
 
 
-@debug_view
 def reverse_inventory_movement_line(request, pk):
     """
     Reverse a single InventoryMovementLine.
@@ -771,7 +768,6 @@ def reverse_inventory_movement_line(request, pk):
     )
 
 
-@debug_view
 def batch_reverse_inventory_movement_lines(request, group_key):
     """
     Reverse all non-reversed InventoryMovementLines sharing a ``group_key``.
@@ -823,7 +819,6 @@ def batch_reverse_inventory_movement_lines(request, group_key):
     )
 
 
-@debug_view
 def register_deferred_movements(request, operation_pk):
     """
     Register inventory movements for an operation's unmoved products.

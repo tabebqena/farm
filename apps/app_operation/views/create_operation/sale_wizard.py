@@ -4,7 +4,6 @@ from django.contrib import messages
 from django.shortcuts import redirect, render
 from django.utils.translation import gettext as _
 
-from apps.app_base.debug import debug_view
 from farm.shortcuts import get_object_or_404
 from apps.app_entity.models import Entity, EntityType
 from apps.app_inventory.models import Product
@@ -82,7 +81,6 @@ def cancel_sale_wizard_view(request, pk):
     return SALE_WIZARD.cancel(request, pk)
 
 
-@debug_view
 def sale_wizard_view(request, pk, step=1):
     project, redir = _load_project(request, pk)
     if redir:
@@ -95,7 +93,6 @@ def sale_wizard_view(request, pk, step=1):
 # ---------------------------------------------------------------------------
 
 
-@debug_view
 def sale_invoice_view(request, pk):
     project, redir = _load_project(request, pk)
     if redir:
@@ -120,7 +117,6 @@ def sale_invoice_view(request, pk):
 # ---------------------------------------------------------------------------
 
 
-@debug_view
 def sale_select_product_view(request, pk):
     """List the seller's EXISTING on-hand products to pick for the sale."""
     project, redir = _load_project(request, pk)
@@ -167,7 +163,6 @@ def sale_select_product_view(request, pk):
 # ---------------------------------------------------------------------------
 
 
-@debug_view
 def sale_add_item_view(request, pk, idx=None):
     """Add/edit a sale invoice item by selecting an EXISTING product from stock."""
     project, redir = _load_project(request, pk)

@@ -2,6 +2,7 @@ from django import forms
 from django.utils.translation import gettext_lazy as _
 
 from apps.app_base.form_logging import LoggingFormMixin
+from apps.app_base.logging_utils import logger
 from apps.app_entity.models import Entity, EntityType
 
 
@@ -55,16 +56,14 @@ class PersonForm(LoggingFormMixin, forms.ModelForm):
         self.instance.entity_type = EntityType.PERSON
 
     def clean_name(self):
-        from apps.app_base.debug import DebugContext
-
         name = self.cleaned_data.get("name")
-        DebugContext.log("PersonForm.clean_name()", {
-            "name": name[:50] if name else "",
-            "is_update": bool(self.instance and self.instance.pk),
-        })
+        logger.debug(
+            f"PersonForm.clean_name() | name={name[:50] if name else ''} | "
+            f"is_update={bool(self.instance and self.instance.pk)}"
+        )
 
         if not name:
-            DebugContext.warn("Name is required")
+            logger.warning("Name is required")
             raise forms.ValidationError(_("Name is required."))
 
         # Check uniqueness excluding current instance
@@ -73,12 +72,10 @@ class PersonForm(LoggingFormMixin, forms.ModelForm):
             existing = existing.exclude(pk=self.instance.pk)
 
         if existing.exists():
-            DebugContext.warn("Entity with this name already exists", {
-                "name": name,
-            })
+            logger.warning(f"Entity with this name already exists | name={name}")
             raise forms.ValidationError(_("An entity with this name already exists."))
 
-        DebugContext.success("Name validation passed", {"name": name[:50] if name else ""})
+        logger.debug(f"Name validation passed | name={name[:50] if name else ''}")
         return name
 
 
@@ -125,16 +122,14 @@ class ProjectForm(LoggingFormMixin, forms.ModelForm):
         self.fields["name"].required = True
 
     def clean_name(self):
-        from apps.app_base.debug import DebugContext
-
         name = self.cleaned_data.get("name")
-        DebugContext.log("ProjectForm.clean_name()", {
-            "name": name[:50] if name else "",
-            "is_update": bool(self.instance and self.instance.pk),
-        })
+        logger.debug(
+            f"ProjectForm.clean_name() | name={name[:50] if name else ''} | "
+            f"is_update={bool(self.instance and self.instance.pk)}"
+        )
 
         if not name:
-            DebugContext.warn("Project name is required")
+            logger.warning("Project name is required")
             raise forms.ValidationError(_("Project name is required."))
 
         # Check uniqueness excluding current instance
@@ -143,8 +138,8 @@ class ProjectForm(LoggingFormMixin, forms.ModelForm):
             existing = existing.exclude(pk=self.instance.pk)
 
         if existing.exists():
-            DebugContext.warn("Project with this name already exists", {"name": name})
+            logger.warning(f"Project with this name already exists | name={name}")
             raise forms.ValidationError(_("A project with this name already exists."))
 
-        DebugContext.success("Project name validation passed", {"name": name[:50] if name else ""})
+        logger.debug(f"Project name validation passed | name={name[:50] if name else ''}")
         return name
