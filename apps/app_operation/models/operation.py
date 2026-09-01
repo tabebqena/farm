@@ -261,21 +261,40 @@ class InventoryOperationMixin:
         and availability guards also apply to these auto-created movements.
         """
         import uuid
-        from decimal import Decimal
-
-        from apps.app_inventory.models import (
-            InventoryMovementLine,
-            Product,
-            ProductTemplate,
-        )
 
         group_key = uuid.uuid4().hex[:8]
+        self._lock_selected_products(bound_formset)
 
-        # Concurrency: lock the selected products for the duration of this
-        # transaction so concurrent DEATH/CONSUMPTION on the same stock cannot
-        # both pass the availability check (SELECT ... FOR UPDATE; no-op on
-        # SQLite).
+        for form in bound_formset.forms:
+            item = form.instance
+            if not item.pk:
+                continue
+
+            if self.operation_type == OperationType.BIRTH:
+                lines = self._build_birth_lines(item, form, group_key)
+            elif self.operation_type in (
+                OperationType.DEATH,
+                OperationType.CONSUMPTION,
+            ):
+                line = self._build_terminal_line(item, form, group_key)
+                if line is None:
+                    continue
+                lines = [line]
+            else:
+                continue
+
+            for line in lines:
+                line.full_clean()
+                line.save()
+
+    def _lock_selected_products(self, bound_formset):
+        """Concurrency: lock the selected products for the duration of this
+        transaction so concurrent DEATH/CONSUMPTION on the same stock cannot
+        both pass the availability check (SELECT ... FOR UPDATE; no-op on
+        SQLite)."""
         if self.operation_type in (OperationType.DEATH, OperationType.CONSUMPTION):
+            from apps.app_inventory.models import Product
+
             selected_ids = [
                 form.cleaned_data.get("selected_product").pk
                 for form in bound_formset.forms
@@ -283,12 +302,48 @@ class InventoryOperationMixin:
             ]
             Product.lock_ids(selected_ids)
 
-        for form in bound_formset.forms:
-            item = form.instance
-            if not item.pk:
-                continue
+    def _build_birth_lines(self, item, form, group_key):
+        """Build the BIRTH movement lines for one invoice item.
 
-            kwargs = dict(
+        INDIVIDUAL → one qty-1 line per head, each lazy-creating its own tagged
+        Product (with the birth-specific attributes forwarded via transient
+        attributes, mirroring ``_lazy_unique_id``). COMMODITY → a single line
+        (``product=None`` → created lazily by ``save()``)."""
+        from decimal import Decimal
+
+        from apps.app_inventory.models import InventoryMovementLine, ProductTemplate
+
+        if (
+            item.product_template.tracking_mode
+            == ProductTemplate.TrackingMode.INDIVIDUAL
+        ):
+            birth_attrs = {}
+            if getattr(form, "is_birth", False):
+                birth_attrs = {
+                    "_lazy_gender": form.cleaned_data.get("gender") or None,
+                    "_lazy_birth_date": form.cleaned_data.get("birth_date")
+                    or self.date,
+                    "_lazy_mother": form.cleaned_data.get("mother") or None,
+                }
+            # One line per head — each lazy-creates its own tagged Product
+            # (e.g. 5 calves → 5 movement lines, 5 products).
+            lines = []
+            for head_idx in range(int(item.quantity)):
+                line = InventoryMovementLine(
+                    operation=self,
+                    invoice_item=item,
+                    quantity=Decimal("1"),
+                    date=self.date,
+                    officer=self.officer,
+                    group_key=group_key,
+                )
+                for attr, value in birth_attrs.items():
+                    setattr(line, attr, value)
+                lines.append(line)
+            return lines
+        # COMMODITY: product=None → created lazily by save()
+        return [
+            InventoryMovementLine(
                 operation=self,
                 invoice_item=item,
                 quantity=item.quantity,
@@ -296,54 +351,25 @@ class InventoryOperationMixin:
                 officer=self.officer,
                 group_key=group_key,
             )
+        ]
 
-            if self.operation_type == OperationType.BIRTH:
-                if (
-                    item.product_template.tracking_mode
-                    == ProductTemplate.TrackingMode.INDIVIDUAL
-                ):
-                    # Forward the birth-specific attributes (mother, newborn
-                    # gender, birth date) to the lazily-created Product via
-                    # transient attributes, mirroring `_lazy_unique_id`.
-                    birth_attrs = {}
-                    if getattr(form, "is_birth", False):
-                        birth_attrs = {
-                            "_lazy_gender": form.cleaned_data.get("gender") or None,
-                            "_lazy_birth_date": form.cleaned_data.get("birth_date")
-                            or self.date,
-                            "_lazy_mother": form.cleaned_data.get("mother") or None,
-                        }
-                    # One line per head — each lazy-creates its own tagged
-                    # Product (e.g. 5 calves → 5 movement lines, 5 products).
-                    for head_idx in range(int(item.quantity)):
-                        line = InventoryMovementLine(
-                            operation=self,
-                            invoice_item=item,
-                            quantity=Decimal("1"),
-                            date=self.date,
-                            officer=self.officer,
-                            group_key=group_key,
-                        )
-                        for attr, value in birth_attrs.items():
-                            setattr(line, attr, value)
-                        line.full_clean()
-                        line.save()
-                    continue
-                # COMMODITY: product=None → created lazily by save()
-                line = InventoryMovementLine(**kwargs)
-            elif self.operation_type in (
-                OperationType.DEATH,
-                OperationType.CONSUMPTION,
-            ):
-                selected = form.cleaned_data.get("selected_product")
-                if not selected:
-                    continue
-                line = InventoryMovementLine(product=selected, **kwargs)
-            else:
-                continue
+    def _build_terminal_line(self, item, form, group_key):
+        """Build the DEATH/CONSUMPTION movement line for one invoice item, or
+        ``None`` when no product was selected."""
+        from apps.app_inventory.models import InventoryMovementLine
 
-            line.full_clean()
-            line.save()
+        selected = form.cleaned_data.get("selected_product")
+        if not selected:
+            return None
+        return InventoryMovementLine(
+            operation=self,
+            invoice_item=item,
+            quantity=item.quantity,
+            date=self.date,
+            officer=self.officer,
+            group_key=group_key,
+            product=selected,
+        )
 
     # ------------------------------------------------------------------
     # Reversal inventory hooks
@@ -747,14 +773,7 @@ class Operation(
         Raises ``ValidationError`` (or ``ValueError``) on failure — the
         caller is responsible for catching and presenting the error.
         """
-        from decimal import Decimal
-
         from django.db import transaction
-
-        from apps.app_inventory.forms import (
-            InvoiceItemCreateFormSet,
-            InvoiceItemSelectFormSet,
-        )
 
         with transaction.atomic():
             # ── 1. Construct & save ──────────────────────────────────────
@@ -771,41 +790,58 @@ class Operation(
             op.save()  # full_clean → clean_fields → clean → save → post_save_tasks
 
             # ── 2. Payment processing ────────────────────────────────────
-            paid = Decimal(amount_paid) if amount_paid is not None else Decimal("0.00")
-            if cls.can_pay and paid > Decimal("0.00"):
-                op.process_payment(
-                    amount_paid=paid,
-                    officer=officer,
-                    date=date,
-                )
+            cls._process_creation_payment(op, amount_paid, officer, date)
 
             # ── 3. Invoice / inventory processing ────────────────────────
-            if cls.has_invoice and raw_post is not None:
-                # Determine the correct formset class
-                formset_cls = (
-                    InvoiceItemCreateFormSet
-                    if cls.creates_assets
-                    else InvoiceItemSelectFormSet
-                )
-                # Rebind to the saved instance
-                formset_kwargs = {"data": raw_post, "instance": op}
-                if cls.creates_assets:
-                    formset_kwargs["project"] = project
-                    formset_kwargs["is_birth"] = (
-                        operation_type == OperationType.BIRTH
-                    )
-                else:
-                    # Select-mode operations (SALE/DEATH/CONSUMPTION/CAPITAL):
-                    # restrict product selection to the owning entity so stock
-                    # from another project cannot be moved/written off.
-                    formset_kwargs["entity"] = op.inventory_owner_entity
-
-                bound_formset = formset_cls(**formset_kwargs)
-                bound_formset.is_valid()  # already validated earlier — this is a rebind
-                bound_formset.save()
-                op.save_inventory(bound_formset)
+            cls._process_creation_invoice(op, operation_type, raw_post, project)
 
         return op
+
+    @classmethod
+    def _process_creation_payment(cls, op, amount_paid, officer, date):
+        """Process the operation's payment (stage 2 of ``create``)."""
+        from decimal import Decimal
+
+        paid = Decimal(amount_paid) if amount_paid is not None else Decimal("0.00")
+        if cls.can_pay and paid > Decimal("0.00"):
+            op.process_payment(
+                amount_paid=paid,
+                officer=officer,
+                date=date,
+            )
+
+    @classmethod
+    def _process_creation_invoice(cls, op, operation_type, raw_post, project):
+        """Process the operation's invoice / inventory (stage 3 of ``create``)."""
+        if not cls.has_invoice or raw_post is None:
+            return
+
+        from apps.app_inventory.forms import (
+            InvoiceItemCreateFormSet,
+            InvoiceItemSelectFormSet,
+        )
+
+        # Determine the correct formset class
+        formset_cls = (
+            InvoiceItemCreateFormSet
+            if cls.creates_assets
+            else InvoiceItemSelectFormSet
+        )
+        # Rebind to the saved instance
+        formset_kwargs = {"data": raw_post, "instance": op}
+        if cls.creates_assets:
+            formset_kwargs["project"] = project
+            formset_kwargs["is_birth"] = operation_type == OperationType.BIRTH
+        else:
+            # Select-mode operations (SALE/DEATH/CONSUMPTION/CAPITAL):
+            # restrict product selection to the owning entity so stock
+            # from another project cannot be moved/written off.
+            formset_kwargs["entity"] = op.inventory_owner_entity
+
+        bound_formset = formset_cls(**formset_kwargs)
+        bound_formset.is_valid()  # already validated earlier — this is a rebind
+        bound_formset.save()
+        op.save_inventory(bound_formset)
 
     @classmethod
     def get_related_entities(cls, url_entity, config):

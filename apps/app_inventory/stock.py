@@ -28,42 +28,54 @@ def valuation_unit_cost(product) -> Decimal:
     return product.unit_price or Decimal("0.00")
 
 
-def active_movements(product, as_of=None):
+def active_lines_queryset(product=None, invoice_item=None, as_of=None):
     """Movement lines still physically active: not a reversal line, and not the
-    original of a reversal line (i.e. not reversed). Optionally up to *as_of*."""
+    original of a reversal line (i.e. not reversed), optionally filtered by
+    *product* / *invoice_item* and up to *as_of*.
+
+    Single source of truth for the reversal-exclusion semantics shared by
+    ``active_movements()``, ``active_lines_for_item()``, ``_item_moved_qty()``
+    and the movement-line over-delivery guard.
+    """
     from apps.app_inventory.models import InventoryMovementLine
 
+    filters = {"reversal_of__isnull": True}
+    reversal_filters = {"reversal_of__isnull": False}
+    if product is not None:
+        filters["product"] = product
+        reversal_filters["product"] = product
+    if invoice_item is not None:
+        filters["invoice_item"] = invoice_item
+        reversal_filters["invoice_item"] = invoice_item
+
     reversed_originals = InventoryMovementLine.objects.filter(
-        product=product, reversal_of__isnull=False
+        **reversal_filters
     ).values_list("reversal_of_id", flat=True)
     qs = (
-        InventoryMovementLine.objects.filter(
-            product=product, reversal_of__isnull=True
-        )
+        InventoryMovementLine.objects.filter(**filters)
         .exclude(id__in=list(reversed_originals))
         .select_related("operation")
     )
     if as_of is not None:
         qs = qs.filter(date__lte=as_of)
-    return list(qs.order_by("date", "created_at"))
+    return qs
+
+
+def active_movements(product, as_of=None):
+    """Movement lines still physically active: not a reversal line, and not the
+    original of a reversal line (i.e. not reversed). Optionally up to *as_of*."""
+    return list(
+        active_lines_queryset(product=product, as_of=as_of).order_by(
+            "date", "created_at"
+        )
+    )
 
 
 def active_lines_for_item(item):
     """Movement lines still physically active for an invoice item: not a
     reversal line, and not the original of a reversal line (i.e. not
     reversed). Mirrors ``active_movements()`` but keyed on the invoice item."""
-    from apps.app_inventory.models import InventoryMovementLine
-
-    reversed_originals = InventoryMovementLine.objects.filter(
-        invoice_item=item, reversal_of__isnull=False
-    ).values_list("reversal_of_id", flat=True)
-    return (
-        InventoryMovementLine.objects.filter(
-            invoice_item=item, reversal_of__isnull=True
-        )
-        .exclude(id__in=list(reversed_originals))
-        .select_related("operation")
-    )
+    return active_lines_queryset(invoice_item=item)
 
 
 def movement_delta(line, product_entity_id) -> Decimal:
@@ -146,20 +158,7 @@ def inventory_value(entity, as_of=None) -> Decimal:
 
 def _item_moved_qty(item, as_of=None) -> Decimal:
     """Direction-aware moved quantity for an invoice item (net of reversals)."""
-    from apps.app_inventory.models import InventoryMovementLine
-
-    reversed_originals = InventoryMovementLine.objects.filter(
-        invoice_item=item, reversal_of__isnull=False
-    ).values_list("reversal_of_id", flat=True)
-    qs = (
-        InventoryMovementLine.objects.filter(
-            invoice_item=item, reversal_of__isnull=True
-        )
-        .exclude(id__in=list(reversed_originals))
-        .select_related("operation")
-    )
-    if as_of is not None:
-        qs = qs.filter(date__lte=as_of)
+    qs = active_lines_queryset(invoice_item=item, as_of=as_of)
     total = Decimal("0")
     for line in qs.iterator():
         entity_id = line.product.entity_id if line.product_id else None

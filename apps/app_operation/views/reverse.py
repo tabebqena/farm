@@ -1,11 +1,9 @@
-import traceback
-
 from django.contrib import messages
 from django.shortcuts import redirect, render
 from django.utils import timezone
 
 from apps.app_base.logging_utils import audit_logger, logger
-from apps.app_base.reversal import reversal_guard_error
+from apps.app_base.reversal import request_reversal, reversal_guard_error
 from farm.shortcuts import get_object_or_404
 from apps.app_operation.models.operation import Operation
 from apps.app_operation.models.proxies import PROXY_MAP
@@ -66,56 +64,38 @@ def operation_reverse_view(request, pk):
             f"Processing operation reversal | operation_id={operation.pk} | "
             f"operation_type={operation.operation_type} | officer={officer.username}"
         )
-        reason = request.POST.get("reversal_reason", "").strip()
-
-        if not reason:
-            error_msg = "A reason for reversal is required."
-            logger.warning(f"{error_msg} | operation_id={operation.pk}")
-            audit_logger.info(
-                f"reversal_attempt_no_reason | Operation:{operation.pk} | "
+        response = request_reversal(
+            request,
+            operation,
+            record_type="operation",
+            reverse_call=lambda officer, reason: operation.reverse(
+                reason=reason, officer=officer
+            ),
+            audit_success=lambda request, obj, reason, reversal: (
+                f"operation_reversed | Operation:{obj.pk} | "
+                f"user={request.user.username} | operation_type={obj.operation_type} | "
+                f"label={obj.label} | reason={reason} | officer={request.user.username}"
+            ),
+            audit_failure=lambda request, obj, error, error_details: (
+                f"operation_reversal_failed | Operation:{obj.pk} | "
+                f"user={request.user.username} | error={error_details}"
+            ),
+            success_message=lambda request, obj, reason: (
+                f"Successfully reversed {obj.label} #{obj.pk}"
+            ),
+            error_message=lambda error: f"Reversal failed: {str(error)}",
+            redirect_to=lambda obj: redirect("operation_detail_view", pk=obj.pk),
+            missing_reason_audit=lambda request, obj: (
+                f"reversal_attempt_no_reason | Operation:{obj.pk} | "
                 f"user={request.user.username} | reason=missing_reversal_reason"
-            )
-            messages.error(request, error_msg)
-        else:
-            try:
-                logger.debug("Executing transaction reversal")
-                operation.reverse(reason=reason, officer=officer)
-
-                logger.debug(
-                    f"Operation reversed successfully | operation_id={operation.pk} | "
-                    f"operation_type={operation.label} | reversal_reason={reason[:100]}"
-                )
-                audit_logger.info(
-                    f"operation_reversed | Operation:{operation.pk} | "
-                    f"user={request.user.username} | operation_type={operation.operation_type} | "
-                    f"label={operation.label} | reason={reason} | officer={officer.username}"
-                )
-
-                messages.success(
-                    request, f"Successfully reversed {operation.label} #{operation.pk}"
-                )
-                return redirect("operation_detail_view", pk=operation.pk)
-            except Exception as e:
-                error_details = {
-                    "exception_type": type(e).__name__,
-                    "error_message": str(e),
-                    "operation_id": operation.pk,
-                    "operation_type": operation.operation_type,
-                    "officer": officer.username,
-                    "traceback": traceback.format_exc(),
-                }
-                logger.error(
-                    f"Operation reversal failed | "
-                    f"exception_type={error_details['exception_type']} | "
-                    f"error_message={error_details['error_message']} | "
-                    f"operation_id={operation.pk}"
-                )
-                audit_logger.error(
-                    f"operation_reversal_failed | Operation:{operation.pk} | "
-                    f"user={request.user.username} | error={error_details}"
-                )
-                traceback.print_exc()
-                messages.error(request, f"Reversal failed: {str(e)}")
+            ),
+            error_details_extra=lambda obj: {
+                "operation_id": obj.pk,
+                "operation_type": obj.operation_type,
+            },
+        )
+        if response is not None:
+            return response
 
     context = {
         "operation": operation,

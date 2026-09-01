@@ -31,6 +31,83 @@ def _render_transaction_form(
     )
 
 
+def _process_transaction(request, operation, create_transaction, label, use_form_error):
+    """
+    Bind and validate the ``PaymentForm``, create the transaction via
+    *create_transaction* and handle the success/error flow.
+
+    Returns ``(response, form)`` — *response* is a redirect on success, otherwise
+    ``None`` and *form* carries any errors for re-rendering. ``label`` drives the
+    log/audit wording ("payment" / "repayment"); ``use_form_error`` selects
+    ``form.add_error`` (repayment) vs ``messages.error`` (payment) on failure.
+    """
+    logger.debug(
+        f"Processing {label} transaction | operation_pk={operation.pk} | "
+        f"user={request.user.username}"
+    )
+    form = PaymentForm(request.POST)
+    if form.is_valid():
+        try:
+            officer = request.user
+            amount = form.cleaned_data["amount"]
+            logger.debug(
+                f"Creating {label} transaction | amount={amount} | "
+                f"date={form.cleaned_data['date']}"
+            )
+
+            with db_transaction.atomic():
+                create_transaction(
+                    amount=amount,
+                    officer=officer,
+                    date=form.cleaned_data["date"],
+                    note=form.cleaned_data["note"],
+                )
+                logger.debug(
+                    f"{label.capitalize()} transaction created | "
+                    f"operation_id={operation.pk} | amount={amount}"
+                )
+                audit_logger.info(
+                    f"{label}_transaction_created | Transaction:{operation.pk} | "
+                    f"user={request.user.username} | operation_id={operation.pk} | "
+                    f"amount={amount}"
+                )
+            messages.success(
+                request,
+                f"{label.capitalize()} of {amount} recorded for Operation #{operation.pk}.",
+            )
+            return redirect("operation_detail_view", pk=operation.pk), form
+        except Exception as e:
+            traceback.print_exc()
+            error_details = {
+                "exception_type": type(e).__name__,
+                "error_message": str(e),
+                "operation_id": operation.pk,
+            }
+            logger.error(
+                f"{label.capitalize()} transaction creation failed | "
+                f"exception_type={error_details['exception_type']} | "
+                f"error_message={error_details['error_message']} | "
+                f"operation_id={operation.pk}"
+            )
+            audit_logger.error(
+                f"{label}_transaction_failed | Transaction:{operation.pk} | "
+                f"user={request.user.username} | error={error_details}"
+            )
+            if use_form_error:
+                form.add_error("amount", str(e))
+            else:
+                messages.error(request, f"Error: {str(e)}")
+    else:
+        error_details = {"form_errors": str(form.errors)}
+        logger.warning(f"{label} form validation failed | {error_details}")
+        audit_logger.info(
+            f"{label}_form_validation_failed | Transaction:{operation.pk} | "
+            f"user={request.user.username} | {error_details}"
+        )
+    # Form errors will be displayed in template
+    return None, form
+
+
 def record_transaction_payment(request, pk):
     """Record a payment transaction for an operation."""
     logger.debug(
@@ -48,65 +125,15 @@ def record_transaction_payment(request, pk):
     )
 
     if request.method == "POST":
-        logger.debug(
-            f"Processing payment transaction | operation_pk={pk} | "
-            f"user={request.user.username}"
+        response, form = _process_transaction(
+            request,
+            operation,
+            create_transaction=operation.create_payment_transaction,
+            label="payment",
+            use_form_error=False,
         )
-        form = PaymentForm(request.POST)
-        if form.is_valid():
-            try:
-                officer = request.user
-                amount = form.cleaned_data["amount"]
-                logger.debug(
-                    f"Creating payment transaction | amount={amount} | "
-                    f"date={form.cleaned_data['date']}"
-                )
-                operation.create_payment_transaction(
-                    amount=amount,
-                    officer=officer,
-                    date=form.cleaned_data["date"],
-                    note=form.cleaned_data["note"],
-                )
-                logger.debug(
-                    f"Payment transaction created | operation_id={operation.pk} | "
-                    f"amount={amount}"
-                )
-                audit_logger.info(
-                    f"payment_transaction_created | Transaction:{operation.pk} | "
-                    f"user={request.user.username} | operation_id={operation.pk} | "
-                    f"amount={amount}"
-                )
-                messages.success(
-                    request,
-                    f"Payment of {amount} recorded for Operation #{operation.pk}.",
-                )
-                return redirect("operation_detail_view", pk=operation.pk)
-            except Exception as e:
-                traceback.print_exc()
-                error_details = {
-                    "exception_type": type(e).__name__,
-                    "error_message": str(e),
-                    "operation_id": operation.pk,
-                }
-                logger.error(
-                    f"Payment transaction creation failed | "
-                    f"exception_type={error_details['exception_type']} | "
-                    f"error_message={error_details['error_message']} | "
-                    f"operation_id={operation.pk}"
-                )
-                audit_logger.error(
-                    f"payment_transaction_failed | Transaction:{operation.pk} | "
-                    f"user={request.user.username} | error={error_details}"
-                )
-                messages.error(request, f"Error: {str(e)}")
-        else:
-            error_details = {"form_errors": str(form.errors)}
-            logger.warning(f"Payment form validation failed | {error_details}")
-            audit_logger.info(
-                f"payment_form_validation_failed | Transaction:{operation.pk} | "
-                f"user={request.user.username} | {error_details}"
-            )
-        # Form errors will be displayed in template
+        if response is not None:
+            return response
     else:
         form = PaymentForm(
             initial={
@@ -164,64 +191,15 @@ def record_transaction_repayment(request, pk):
     remaining_amount = operation.amount_remaining_to_repay
 
     if request.method == "POST":
-        logger.debug(
-            f"Processing repayment transaction | operation_pk={pk} | "
-            f"user={request.user.username}"
+        response, form = _process_transaction(
+            request,
+            operation,
+            create_transaction=operation.create_repayment_transaction,
+            label="repayment",
+            use_form_error=True,
         )
-        form = PaymentForm(request.POST)
-        if form.is_valid():
-            try:
-                officer = request.user
-                amount = form.cleaned_data["amount"]
-
-                with db_transaction.atomic():
-                    logger.debug(f"Creating repayment transaction | amount={amount}")
-                    operation.create_repayment_transaction(
-                        amount=amount,
-                        officer=officer,
-                        date=form.cleaned_data["date"],
-                        note=form.cleaned_data["note"],
-                    )
-                    logger.debug(
-                        f"Repayment transaction created | operation_id={operation.pk} | "
-                        f"amount={amount}"
-                    )
-                    audit_logger.info(
-                        f"repayment_transaction_created | Transaction:{operation.pk} | "
-                        f"user={request.user.username} | operation_id={operation.pk} | "
-                        f"amount={amount}"
-                    )
-                messages.success(
-                    request,
-                    f"Repayment of {amount} recorded for Operation #{operation.pk}.",
-                )
-                return redirect("operation_detail_view", pk=operation.pk)
-            except Exception as e:
-                traceback.print_exc()
-                error_details = {
-                    "exception_type": type(e).__name__,
-                    "error_message": str(e),
-                    "operation_id": operation.pk,
-                }
-                logger.error(
-                    f"Repayment transaction creation failed | "
-                    f"exception_type={error_details['exception_type']} | "
-                    f"error_message={error_details['error_message']} | "
-                    f"operation_id={operation.pk}"
-                )
-                audit_logger.error(
-                    f"repayment_transaction_failed | Transaction:{operation.pk} | "
-                    f"user={request.user.username} | error={error_details}"
-                )
-                form.add_error("amount", str(e))
-        else:
-            error_details = {"form_errors": str(form.errors)}
-            logger.warning(f"Repayment form validation failed | {error_details}")
-            audit_logger.info(
-                f"repayment_form_validation_failed | Transaction:{operation.pk} | "
-                f"user={request.user.username} | {error_details}"
-            )
-        # Form errors will be displayed in template
+        if response is not None:
+            return response
     else:
         form = PaymentForm(
             initial={

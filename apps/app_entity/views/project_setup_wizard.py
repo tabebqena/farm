@@ -441,21 +441,7 @@ def _handle_step_6_post(request, entity):
                 f"Adding shareholder stakeholders | entity_id={entity.pk} | "
                 f"shareholder_count={len(selected_ids)}"
             )
-            created_count = 0
-            for target_id in selected_ids:
-                try:
-                    target = Entity.objects.get(
-                        pk=target_id, is_shareholder=True, active=True
-                    )
-                    _, created = Stakeholder.objects.get_or_create(
-                        parent=entity,
-                        target=target,
-                        role="shareholder",
-                    )
-                    if created:
-                        created_count += 1
-                except Entity.DoesNotExist:
-                    pass
+            created_count = _create_stakeholders(entity, "shareholder", selected_ids)
 
             logger.debug(
                 f"Shareholders added | entity_id={entity.pk} | "
@@ -509,6 +495,41 @@ def _handle_step_6_post(request, entity):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+def _role_filter(role_type):
+    """Eligibility filter kwargs for a stakeholder role, or ``None`` if the
+    role type is unknown."""
+    if role_type == "worker":
+        return {"is_worker": True, "active": True}
+    if role_type == "vendor":
+        return {"is_vendor": True, "active": True}
+    if role_type == "shareholder":
+        return {"is_shareholder": True, "active": True}
+    return None
+
+
+def _create_stakeholders(entity, role_type, selected_ids):
+    """Create ``Stakeholder`` links on *entity* for the selected entity ids of
+    *role_type* (skipping entities that don't match the role's eligibility
+    filter). Returns the number of newly created links."""
+    filter_kwargs = _role_filter(role_type)
+    if filter_kwargs is None:
+        raise ValueError(f"Invalid role type: {role_type}")
+    created_count = 0
+    for target_id in selected_ids:
+        try:
+            target = Entity.objects.get(pk=target_id, **filter_kwargs)
+            _, created = Stakeholder.objects.get_or_create(
+                parent=entity,
+                target=target,
+                role=role_type,
+            )
+            if created:
+                created_count += 1
+        except Entity.DoesNotExist:
+            pass
+    return created_count
+
+
 def _handle_stakeholder_post(request, entity, role_type, next_step):
     """Generic handler for workers, vendors, and other stakeholders."""
     logger.debug(
@@ -528,13 +549,7 @@ def _handle_stakeholder_post(request, entity, role_type, next_step):
     selected_ids = request.POST.getlist("selected_entities")
 
     # Determine eligibility filter based on role
-    if role_type == "worker":
-        filter_kwargs = {"is_worker": True, "active": True}
-    elif role_type == "vendor":
-        filter_kwargs = {"is_vendor": True, "active": True}
-    elif role_type == "shareholder":
-        filter_kwargs = {"is_shareholder": True, "active": True}
-    else:
+    if _role_filter(role_type) is None:
         logger.warning(f"Invalid role type | role_type={role_type}")
         audit_logger.info(
             f"wizard_invalid_role_type | ProjectSetupWizard:{entity.pk if entity else None} | "
@@ -551,19 +566,7 @@ def _handle_stakeholder_post(request, entity, role_type, next_step):
                 f"Adding {role_type} stakeholders | entity_id={entity.pk} | "
                 f"stakeholder_count={len(selected_ids)}"
             )
-            created_count = 0
-            for target_id in selected_ids:
-                try:
-                    target = Entity.objects.get(pk=target_id, **filter_kwargs)
-                    _, created = Stakeholder.objects.get_or_create(
-                        parent=entity,
-                        target=target,
-                        role=role_type,
-                    )
-                    if created:
-                        created_count += 1
-                except Entity.DoesNotExist:
-                    pass
+            created_count = _create_stakeholders(entity, role_type, selected_ids)
 
             logger.debug(
                 f"{role_type} stakeholders added | entity_id={entity.pk} | "
@@ -620,120 +623,15 @@ def _get_step_context(request, entity, step):
     context = {"entity": entity}
 
     if step == 2:
-        # Get already-linked category relations grouped by aspect
-        if entity:
-            # All relations for this entity (active or inactive)
-            linked_relations = FinancialCategoriesEntitiesRelations.objects.filter(
-                entity=entity
-            ).select_related("category")
-
-            # Group linked categories by aspect
-            linked_by_aspect = {}
-            linked_ids = set()
-            for relation in linked_relations:
-                aspect = relation.category.aspect
-                if aspect not in linked_by_aspect:
-                    linked_by_aspect[aspect] = []
-                linked_by_aspect[aspect].append(relation)
-                linked_ids.add(relation.category.id)
-
-            # All categories not yet linked, grouped by aspect
-            available_categories = FinancialCategory.objects.exclude(
-                id__in=linked_ids
-            ).order_by("aspect", "name")
-
-            available_by_aspect = {}
-            for category in available_categories:
-                aspect = category.aspect
-                if aspect not in available_by_aspect:
-                    available_by_aspect[aspect] = []
-                available_by_aspect[aspect].append(category)
-        else:
-            linked_by_aspect = {}
-            linked_ids = set()
-            available_by_aspect = {}
-            available_categories = FinancialCategory.objects.order_by("aspect", "name")
-            for category in available_categories:
-                aspect = category.aspect
-                if aspect not in available_by_aspect:
-                    available_by_aspect[aspect] = []
-                available_by_aspect[aspect].append(category)
-
-        context["linked_by_aspect"] = linked_by_aspect
-        context["available_by_aspect"] = available_by_aspect
-
+        context.update(_step2_context(entity))
     elif step == 3:
-        # Product templates: show all, highlight assigned
-        if entity:
-            all_templates = ProductTemplate.objects.all().order_by(
-                "nature", "sub_category", "name"
-            )
-            enabled_ids = set(entity.product_templates.values_list("id", flat=True))
-            context["templates"] = all_templates
-            context["enabled_ids"] = enabled_ids
-        else:
-            context["templates"] = ProductTemplate.objects.none()
-            context["enabled_ids"] = set()
-
+        context.update(_step3_context(entity))
     elif step == 4:
-        # Workers: eligible persons flagged as is_worker
-        if entity:
-            eligible = (
-                Entity.objects.filter(is_worker=True, active=True)
-                .exclude(id=entity.id)
-                .order_by("name")
-            )
-            existing = set(
-                Stakeholder.objects.filter(parent=entity, role="worker").values_list(
-                    "target_id", flat=True
-                )
-            )
-        else:
-            eligible = Entity.objects.none()
-            existing = set()
-
-        context["eligible_entities"] = eligible
-        context["existing_stakeholder_ids"] = existing
-
+        context.update(_stakeholder_context(entity, "worker"))
     elif step == 5:
-        # Vendors: entities flagged as is_vendor
-        if entity:
-            eligible = (
-                Entity.objects.filter(is_vendor=True, active=True)
-                .exclude(id=entity.id)
-                .order_by("name")
-            )
-            existing = set(
-                Stakeholder.objects.filter(parent=entity, role="vendor").values_list(
-                    "target_id", flat=True
-                )
-            )
-        else:
-            eligible = Entity.objects.none()
-            existing = set()
-
-        context["eligible_entities"] = eligible
-        context["existing_stakeholder_ids"] = existing
-
+        context.update(_stakeholder_context(entity, "vendor"))
     elif step == 6:
-        # Shareholders: persons flagged as is_shareholder
-        if entity:
-            eligible = (
-                Entity.objects.filter(is_shareholder=True, active=True)
-                .exclude(id=entity.id)
-                .order_by("name")
-            )
-            existing = set(
-                Stakeholder.objects.filter(
-                    parent=entity, role="shareholder"
-                ).values_list("target_id", flat=True)
-            )
-        else:
-            eligible = Entity.objects.none()
-            existing = set()
-
-        context["eligible_entities"] = eligible
-        context["existing_stakeholder_ids"] = existing
+        context.update(_stakeholder_context(entity, "shareholder"))
     context["step_nums"] = (
         1,
         2,
@@ -743,3 +641,85 @@ def _get_step_context(request, entity, step):
         6,
     )
     return context
+
+
+def _step2_context(entity):
+    """Step 2 context: linked + available financial categories grouped by aspect."""
+    if entity:
+        # All relations for this entity (active or inactive)
+        linked_relations = FinancialCategoriesEntitiesRelations.objects.filter(
+            entity=entity
+        ).select_related("category")
+
+        # Group linked categories by aspect
+        linked_by_aspect = {}
+        linked_ids = set()
+        for relation in linked_relations:
+            aspect = relation.category.aspect
+            if aspect not in linked_by_aspect:
+                linked_by_aspect[aspect] = []
+            linked_by_aspect[aspect].append(relation)
+            linked_ids.add(relation.category.id)
+
+        # All categories not yet linked, grouped by aspect
+        available_categories = FinancialCategory.objects.exclude(
+            id__in=linked_ids
+        ).order_by("aspect", "name")
+
+        available_by_aspect = {}
+        for category in available_categories:
+            aspect = category.aspect
+            if aspect not in available_by_aspect:
+                available_by_aspect[aspect] = []
+            available_by_aspect[aspect].append(category)
+    else:
+        linked_by_aspect = {}
+        linked_ids = set()
+        available_by_aspect = {}
+        available_categories = FinancialCategory.objects.order_by("aspect", "name")
+        for category in available_categories:
+            aspect = category.aspect
+            if aspect not in available_by_aspect:
+                available_by_aspect[aspect] = []
+            available_by_aspect[aspect].append(category)
+
+    return {
+        "linked_by_aspect": linked_by_aspect,
+        "available_by_aspect": available_by_aspect,
+    }
+
+
+def _step3_context(entity):
+    """Step 3 context: product templates with the assigned ones highlighted."""
+    if entity:
+        all_templates = ProductTemplate.objects.all().order_by(
+            "nature", "sub_category", "name"
+        )
+        enabled_ids = set(entity.product_templates.values_list("id", flat=True))
+    else:
+        all_templates = ProductTemplate.objects.none()
+        enabled_ids = set()
+    return {"templates": all_templates, "enabled_ids": enabled_ids}
+
+
+def _stakeholder_context(entity, role):
+    """Eligible entities + existing stakeholder ids for a stakeholder role."""
+    filter_kwargs = _role_filter(role)
+    if entity and filter_kwargs:
+        eligible = (
+            Entity.objects.filter(**filter_kwargs)
+            .exclude(id=entity.id)
+            .order_by("name")
+        )
+        existing = set(
+            Stakeholder.objects.filter(parent=entity, role=role).values_list(
+                "target_id", flat=True
+            )
+        )
+    else:
+        eligible = Entity.objects.none()
+        existing = set()
+    return {
+        "eligible_entities": eligible,
+        "existing_stakeholder_ids": existing,
+    }

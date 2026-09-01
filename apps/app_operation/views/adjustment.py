@@ -1,4 +1,3 @@
-import traceback
 from decimal import Decimal
 
 from django import forms
@@ -17,7 +16,7 @@ from apps.app_adjustment.models import (
 )
 from apps.app_inventory.stock import active_lines_for_item
 from apps.app_base.logging_utils import audit_logger, logger
-from apps.app_base.reversal import reversal_guard_error
+from apps.app_base.reversal import request_reversal, reversal_guard_error
 from apps.app_operation.models import Operation
 
 
@@ -333,65 +332,40 @@ def reverse_adjustment(request, adjustment_id):
             f"Processing adjustment reversal | adjustment_id={adjustment.pk} | "
             f"officer={officer.username}"
         )
-        reason = request.POST.get("reversal_reason", "").strip()
-
-        if not reason:
-            error_msg = _("A reason for reversal is required.")
-            logger.warning(f"{error_msg} | adjustment_id={adjustment.pk}")
-            messages.error(request, error_msg)
-        else:
-            try:
-                logger.debug("Executing adjustment reversal")
-                adjustment.reverse(
-                    officer=officer,
-                    date=timezone.now().date(),
-                    reason=reason,
+        response = request_reversal(
+            request,
+            adjustment,
+            record_type="adjustment",
+            reverse_call=lambda officer, reason: adjustment.reverse(
+                officer=officer,
+                date=timezone.now().date(),
+                reason=reason,
+            ),
+            audit_success=lambda request, obj, reason, reversal: (
+                f"adjustment_reversed | Adjustment:{obj.pk} | "
+                f"user={request.user.username} | type={obj.type} | "
+                f"amount={float(obj.amount)} | reason={reason} | "
+                f"officer={request.user.username}"
+            ),
+            audit_failure=lambda request, obj, error, error_details: (
+                f"adjustment_reversal_failed | Adjustment:{obj.pk} | "
+                f"user={request.user.username} | error={error_details}"
+            ),
+            success_message=lambda request, obj, reason: (
+                _(
+                    "Adjustment and its linked invoice item adjustment reversed successfully."
                 )
-
-                logger.debug(
-                    f"Adjustment reversed successfully | adjustment_id={adjustment.pk} | "
-                    f"type={adjustment.type}"
-                )
-                audit_logger.info(
-                    f"adjustment_reversed | Adjustment:{adjustment.pk} | "
-                    f"user={request.user.username} | type={adjustment.type} | "
-                    f"amount={float(adjustment.amount)} | reason={reason} | "
-                    f"officer={officer.username}"
-                )
-
-                if getattr(adjustment, "item_adjustment", None) is not None:
-                    messages.success(
-                        request,
-                        _(
-                            "Adjustment and its linked invoice item adjustment reversed successfully."
-                        ),
-                    )
-                else:
-                    messages.success(
-                        request, _("Adjustment reversed successfully.")
-                    )
-                return redirect("operation_detail_view", pk=operation.pk)
-
-            except Exception as e:
-                error_details = {
-                    "exception_type": type(e).__name__,
-                    "error_message": str(e),
-                    "adjustment_id": adjustment.pk,
-                    "officer": officer.username,
-                    "traceback": traceback.format_exc(),
-                }
-                logger.error(
-                    f"Adjustment reversal failed | "
-                    f"exception_type={error_details['exception_type']} | "
-                    f"error_message={error_details['error_message']} | "
-                    f"adjustment_id={adjustment.pk}"
-                )
-                audit_logger.error(
-                    f"adjustment_reversal_failed | Adjustment:{adjustment.pk} | "
-                    f"user={request.user.username} | error={error_details}"
-                )
-                traceback.print_exc()
-                messages.error(request, _("Reversal failed: {}").format(str(e)))
+                if getattr(obj, "item_adjustment", None) is not None
+                else _("Adjustment reversed successfully.")
+            ),
+            error_message=lambda error: _("Reversal failed: {}").format(str(error)),
+            redirect_to=lambda obj: redirect(
+                "operation_detail_view", pk=obj.operation_id
+            ),
+            error_details_extra=lambda obj: {"adjustment_id": obj.pk},
+        )
+        if response is not None:
+            return response
 
     context = {
         "adjustment": adjustment,
@@ -436,58 +410,36 @@ def reverse_item_adjustment(request, item_adjustment_id):
             f"Processing item adjustment reversal | "
             f"item_adjustment_id={item_adjustment.pk} | officer={officer.username}"
         )
-        reason = request.POST.get("reversal_reason", "").strip()
-
-        if not reason:
-            error_msg = _("A reason for reversal is required.")
-            logger.warning(f"{error_msg} | item_adjustment_id={item_adjustment.pk}")
-            messages.error(request, error_msg)
-        else:
-            try:
-                logger.debug("Executing item adjustment reversal")
-                item_adjustment.reverse(
-                    officer=officer,
-                    date=timezone.now().date(),
-                    reason=reason,
-                )
-
-                logger.debug(
-                    f"Item adjustment reversed successfully | "
-                    f"item_adjustment_id={item_adjustment.pk} | "
-                    f"type={item_adjustment.type}"
-                )
-                audit_logger.info(
-                    f"item_adjustment_reversed | InvoiceItemAdjustment:{item_adjustment.pk} | "
-                    f"user={request.user.username} | type={item_adjustment.type} | "
-                    f"reason={reason} | officer={officer.username}"
-                )
-
-                messages.success(
-                    request, _("Item adjustment reversed successfully.")
-                )
-                return redirect("operation_detail_view", pk=operation.pk)
-
-            except Exception as e:
-                error_details = {
-                    "exception_type": type(e).__name__,
-                    "error_message": str(e),
-                    "item_adjustment_id": item_adjustment.pk,
-                    "officer": officer.username,
-                    "traceback": traceback.format_exc(),
-                }
-                logger.error(
-                    f"Item adjustment reversal failed | "
-                    f"exception_type={error_details['exception_type']} | "
-                    f"error_message={error_details['error_message']} | "
-                    f"item_adjustment_id={item_adjustment.pk}"
-                )
-                audit_logger.error(
-                    f"item_adjustment_reversal_failed | "
-                    f"InvoiceItemAdjustment:{item_adjustment.pk} | "
-                    f"user={request.user.username} | error={error_details}"
-                )
-                traceback.print_exc()
-                messages.error(request, _("Reversal failed: {}").format(str(e)))
+        response = request_reversal(
+            request,
+            item_adjustment,
+            record_type="item_adjustment",
+            reverse_call=lambda officer, reason: item_adjustment.reverse(
+                officer=officer,
+                date=timezone.now().date(),
+                reason=reason,
+            ),
+            audit_success=lambda request, obj, reason, reversal: (
+                f"item_adjustment_reversed | InvoiceItemAdjustment:{obj.pk} | "
+                f"user={request.user.username} | type={obj.type} | "
+                f"reason={reason} | officer={request.user.username}"
+            ),
+            audit_failure=lambda request, obj, error, error_details: (
+                f"item_adjustment_reversal_failed | "
+                f"InvoiceItemAdjustment:{obj.pk} | "
+                f"user={request.user.username} | error={error_details}"
+            ),
+            success_message=lambda request, obj, reason: _(
+                "Item adjustment reversed successfully."
+            ),
+            error_message=lambda error: _("Reversal failed: {}").format(str(error)),
+            redirect_to=lambda obj: redirect(
+                "operation_detail_view", pk=obj.operation_id
+            ),
+            error_details_extra=lambda obj: {"item_adjustment_id": obj.pk},
+        )
+        if response is not None:
+            return response
 
     context = {
         "item_adjustment": item_adjustment,

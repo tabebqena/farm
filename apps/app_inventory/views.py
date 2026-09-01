@@ -261,6 +261,85 @@ def stock_history(request, entity_pk):
     )
 
 
+def _consume_error_redirect(request, entity_pk, message):
+    """Set an error message and redirect back to the stock detail page."""
+    messages.error(request, message)
+    return redirect("stock_detail", entity_pk=entity_pk)
+
+
+def _parse_consume_input(request, product, entity_pk):
+    """Parse + validate the quick-consume POST fields.
+
+    Returns ``(parsed, None)`` on success (``parsed`` is a
+    ``(quantity, unit_price, date, description)`` tuple), or
+    ``(None, error_response)`` after setting the error message."""
+    from decimal import Decimal
+
+    from apps.app_inventory.stock import movement_state
+
+    try:
+        quantity = Decimal(request.POST.get("quantity", ""))
+        unit_price = Decimal(request.POST.get("unit_price", ""))
+    except Exception:
+        return None, _consume_error_redirect(
+            request, entity_pk, _("Invalid quantity or unit price.")
+        )
+
+    date_str = request.POST.get("date", "").strip()
+    date = parse_date(date_str) if date_str else today_date.today()
+    if date is None:
+        return None, _consume_error_redirect(
+            request, entity_pk, _("Invalid date format.")
+        )
+
+    description = request.POST.get("description", "").strip()
+    if not description:
+        description = _("Consumption from stock")
+
+    if quantity <= 0:
+        return None, _consume_error_redirect(
+            request, entity_pk, _("Quantity must be greater than zero.")
+        )
+
+    # Availability guard: cannot consume more than physically on hand.
+    available = movement_state(product, as_of=date)["quantity"]
+    if quantity > available:
+        return None, _consume_error_redirect(
+            request,
+            entity_pk,
+            _("Insufficient stock: %(qty)s requested but only %(avail)s available.")
+            % {"qty": quantity, "avail": available},
+        )
+
+    # Unit consistency guard: quantity is a multiple of minimum_quantity.
+    min_qty = product.product_template.minimum_quantity
+    if min_qty and min_qty > 0 and (quantity % min_qty) != 0:
+        return None, _consume_error_redirect(
+            request,
+            entity_pk,
+            _("Quantity %(qty)s must be a multiple of the minimum increment %(min)s.")
+            % {"qty": quantity, "min": min_qty},
+        )
+
+    return (quantity, unit_price, date, description), None
+
+
+def _build_consume_raw_post(quantity, unit_price, description, product):
+    """Build the single-item formset POST dict for ``ConsumptionOperation.create``."""
+    return {
+        "items-TOTAL_FORMS": "1",
+        "items-INITIAL_FORMS": "0",
+        "items-MIN_NUM_FORMS": "0",
+        "items-MAX_NUM_FORMS": "1000",
+        "items-0-id": "",
+        "items-0-quantity": str(quantity),
+        "items-0-unit_price": str(unit_price),
+        "items-0-description": description,
+        "items-0-selected_product": str(product.pk),
+        "items-0-DELETE": "",
+    }
+
+
 def quick_consume(request, entity_pk):
     """
     One-step "Consume from stock" — from the stock detail page, pick a
@@ -277,13 +356,13 @@ def quick_consume(request, entity_pk):
     from decimal import Decimal
 
     from apps.app_entity.models import EntityType
-    from apps.app_inventory.stock import movement_state
     from apps.app_operation.models.operation_type import OperationType
     from apps.app_operation.models.proxies import ConsumptionOperation
 
     if not request.user.is_staff:
-        messages.error(request, _("You must be an officer to consume from stock."))
-        return redirect("stock_detail", entity_pk=entity_pk)
+        return _consume_error_redirect(
+            request, entity_pk, _("You must be an officer to consume from stock.")
+        )
 
     entity = get_object_or_404(
         Entity, pk=entity_pk, error_message="Entity not found or has been deleted."
@@ -300,57 +379,24 @@ def quick_consume(request, entity_pk):
 
     # Ownership guard: the product must belong to this entity's stock.
     if product.entity_id != entity.id:
-        messages.error(request, _("Product does not belong to this stock."))
-        return redirect("stock_detail", entity_pk=entity_pk)
+        return _consume_error_redirect(
+            request, entity_pk, _("Product does not belong to this stock.")
+        )
 
     # Nature guard: only FEED / MEDICINE templates accept consumption.
     if not product.product_template.accepts_operation(OperationType.CONSUMPTION):
-        messages.error(
+        return _consume_error_redirect(
             request,
-            _("'%(name)s' cannot be consumed.") % {"name": product.product_template.name},
+            entity_pk,
+            _("'%(name)s' cannot be consumed.")
+            % {"name": product.product_template.name},
         )
-        return redirect("stock_detail", entity_pk=entity_pk)
 
-    try:
-        quantity = Decimal(request.POST.get("quantity", ""))
-        unit_price = Decimal(request.POST.get("unit_price", ""))
-    except Exception:
-        messages.error(request, _("Invalid quantity or unit price."))
-        return redirect("stock_detail", entity_pk=entity_pk)
-
-    date_str = request.POST.get("date", "").strip()
-    date = parse_date(date_str) if date_str else today_date.today()
-    if date is None:
-        messages.error(request, _("Invalid date format."))
-        return redirect("stock_detail", entity_pk=entity_pk)
-
-    description = request.POST.get("description", "").strip()
-    if not description:
-        description = _("Consumption from stock")
-
-    if quantity <= 0:
-        messages.error(request, _("Quantity must be greater than zero."))
-        return redirect("stock_detail", entity_pk=entity_pk)
-
-    # Availability guard: cannot consume more than physically on hand.
-    available = movement_state(product, as_of=date)["quantity"]
-    if quantity > available:
-        messages.error(
-            request,
-            _("Insufficient stock: %(qty)s requested but only %(avail)s available.")
-            % {"qty": quantity, "avail": available},
-        )
-        return redirect("stock_detail", entity_pk=entity_pk)
-
-    # Unit consistency guard: quantity is a multiple of minimum_quantity.
-    min_qty = product.product_template.minimum_quantity
-    if min_qty and min_qty > 0 and (quantity % min_qty) != 0:
-        messages.error(
-            request,
-            _("Quantity %(qty)s must be a multiple of the minimum increment %(min)s.")
-            % {"qty": quantity, "min": min_qty},
-        )
-        return redirect("stock_detail", entity_pk=entity_pk)
+    # Parse + validate quantity / unit price / date / description.
+    parsed, error_response = _parse_consume_input(request, product, entity_pk)
+    if error_response:
+        return error_response
+    quantity, unit_price, date, description = parsed
 
     # System entity — the destination of a consumption write-off.
     system_entity = Entity.objects.filter(entity_type=EntityType.SYSTEM).first()
@@ -358,18 +404,7 @@ def quick_consume(request, entity_pk):
         system_entity = Entity.create(EntityType.SYSTEM)
 
     # Build a single-item formset POST and delegate to the proven factory.
-    raw_post = {
-        "items-TOTAL_FORMS": "1",
-        "items-INITIAL_FORMS": "0",
-        "items-MIN_NUM_FORMS": "0",
-        "items-MAX_NUM_FORMS": "1000",
-        "items-0-id": "",
-        "items-0-quantity": str(quantity),
-        "items-0-unit_price": str(unit_price),
-        "items-0-description": description,
-        "items-0-selected_product": str(product.pk),
-        "items-0-DELETE": "",
-    }
+    raw_post = _build_consume_raw_post(quantity, unit_price, description, product)
 
     try:
         with db_transaction.atomic():
@@ -392,8 +427,9 @@ def quick_consume(request, entity_pk):
         return redirect("stock_detail", entity_pk=entity_pk)
     except Exception as e:
         traceback.print_exc()
-        messages.error(request, _("Error: %(error)s") % {"error": str(e)})
-        return redirect("stock_detail", entity_pk=entity_pk)
+        return _consume_error_redirect(
+            request, entity_pk, _("Error: %(error)s") % {"error": str(e)}
+        )
 
 
 def product_detail(request, pk):

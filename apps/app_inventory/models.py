@@ -11,6 +11,7 @@ from django.utils.translation import gettext_lazy as _
 from apps.app_base.logging_utils import audit_logger, logger
 from apps.app_base.mixins import AmountCleanMixin, ImmutableMixin
 from apps.app_base.models import BaseModel
+from apps.app_operation.models.operation_type import OperationType
 
 
 class ProductTemplate(BaseModel):
@@ -713,12 +714,6 @@ class Product(AmountCleanMixin, BaseModel):
         """
         from apps.app_operation.models.operation_type import OperationType
 
-        TERMINAL_STATUS = {
-            OperationType.DEATH: self.Status.DEAD,
-            OperationType.SALE: self.Status.SOLD,
-            OperationType.CONSUMPTION: self.Status.CONSUMED,
-        }
-
         # Movements still active: not a reversal line, and not the original of a
         # reversal line (i.e. not reversed).
         reversed_originals = InventoryMovementLine.objects.filter(
@@ -750,7 +745,7 @@ class Product(AmountCleanMixin, BaseModel):
             if net > Decimal("0.00"):
                 return self.Status.ACTIVE
             if last_terminal_type is not None:
-                return TERMINAL_STATUS[last_terminal_type]
+                return TERMINAL_STATUS_BY_OP[last_terminal_type]
             return self.Status.ACTIVE
 
         return self._status_from_linked_operations()
@@ -780,11 +775,6 @@ class Product(AmountCleanMixin, BaseModel):
             OperationType.SALE: "destination",    # the seller dispatches
             OperationType.DEATH: "source",        # the project writes off
             OperationType.CONSUMPTION: "source",  # the project consumes
-        }
-        TERMINAL_STATUS = {
-            OperationType.DEATH: self.Status.DEAD,
-            OperationType.SALE: self.Status.SOLD,
-            OperationType.CONSUMPTION: self.Status.CONSUMED,
         }
         TYPE_TO_STATUS = {
             OperationType.PURCHASE: self.Status.ACTIVE,
@@ -828,7 +818,7 @@ class Product(AmountCleanMixin, BaseModel):
         if disposer_side is not None:
             disposer = getattr(op, disposer_side)
             if disposer is not None and self.entity_id == disposer.id:
-                return TERMINAL_STATUS[op_type]
+                return TERMINAL_STATUS_BY_OP[op_type]
 
         return TYPE_TO_STATUS[op_type]
 
@@ -1001,6 +991,16 @@ class Product(AmountCleanMixin, BaseModel):
         ]
 
 
+# Terminal product status per terminal outbound operation type (single source
+# of truth — shared by Product.status, _status_from_linked_operations and
+# InventoryMovementLine._validate_status_allowance).
+TERMINAL_STATUS_BY_OP = {
+    OperationType.DEATH: Product.Status.DEAD,
+    OperationType.SALE: Product.Status.SOLD,
+    OperationType.CONSUMPTION: Product.Status.CONSUMED,
+}
+
+
 class InventoryMovementLine(ImmutableMixin, BaseModel):
     """
     A flat record of a physical inventory movement (receipt or dispatch).
@@ -1131,31 +1131,57 @@ class InventoryMovementLine(ImmutableMixin, BaseModel):
 
     def clean(self):
         """Validate cross-field integrity."""
-        # Ensure the invoice item belongs to the same operation
-        # (skip check when operation is not yet assigned, e.g. during form
-        #  validation before the view sets line.operation)
+        # Ensure the invoice item belongs to the same operation (skip check when
+        # operation is not yet assigned, e.g. during form validation before the
+        # view sets line.operation).
+        self._validate_operation_match()
+
+        # Prevent over-delivery (skip for reversal lines). Direction-aware: only
+        # movements of the same owner count, so an internal-client sale's buyer
+        # receipt does not consume the seller's invoice-item budget.
+        self._validate_over_delivery()
+
+        # Validate the product can be moved (SOLD/DEAD allowed for reversals)
+        # (skip when product is not yet assigned, e.g. during form validation).
+        if self.product_id is not None:
+            if self.reversal_of_id is None:
+                # Ownership: the moved product must belong to the entity whose
+                # inventory it leaves (reversal lines are exempt — they restore
+                # stock to its original location).
+                self._validate_ownership()
+                # Availability: never move more than the product physically holds.
+                self._validate_availability()
+                # Unit consistency: quantity must be a positive multiple of the
+                # template's minimum increment (e.g. 1 for Head, 0.01 for Kg).
+                self._validate_unit_multiple()
+            # Movement lines ARE the physical move, so obligated-only products are
+            # allowed here; terminal operations carry the matching terminal status.
+            self._validate_status_allowance()
+
+        super().clean()
+
+    def _validate_operation_match(self):
+        """Ensure the invoice item belongs to the same operation (skipped when
+        operation is not yet assigned, e.g. during form validation before the
+        view sets line.operation)."""
         if (
             self.operation_id is not None
             and self.invoice_item.operation_id != self.operation_id
         ):
             raise ValidationError(_("Invoice item does not belong to this operation."))
 
-        # Prevent over-delivery (skip for reversal lines).
-        # Direction-aware: only movements of the same owner count, so an
-        # internal-client sale's buyer receipt does not consume the seller's
-        # invoice-item budget.
+    def _validate_over_delivery(self):
+        """Prevent over-delivery (skip for reversal lines).
+
+        Direction-aware: only movements of the same owner count, so an
+        internal-client sale's buyer receipt does not consume the seller's
+        invoice-item budget. Originals that have since been reversed no longer
+        count as moved.
+        """
         if self.reversal_of_id is None:
-            already_moved_qs = InventoryMovementLine.objects.filter(
-                invoice_item=self.invoice_item,
-                reversal_of__isnull=True,
-            )
-            # Originals that have since been reversed no longer count as moved.
-            reversed_originals = InventoryMovementLine.objects.filter(
-                invoice_item=self.invoice_item, reversal_of__isnull=False
-            ).values_list("reversal_of_id", flat=True)
-            already_moved_qs = already_moved_qs.exclude(
-                id__in=list(reversed_originals)
-            )
+            from apps.app_inventory.stock import active_lines_queryset
+
+            already_moved_qs = active_lines_queryset(invoice_item=self.invoice_item)
             if self.product_id is not None:
                 already_moved_qs = already_moved_qs.filter(
                     product__entity=self.product.entity
@@ -1178,69 +1204,56 @@ class InventoryMovementLine(ImmutableMixin, BaseModel):
                     }
                 )
 
-        # Validate the product can be moved (SOLD/DEAD allowed for reversals)
-        # (skip when product is not yet assigned, e.g. during form validation)
-        if self.product_id is not None:
-            from apps.app_operation.models.operation_type import OperationType
-
-            # Ownership: for outbound operations the moved product must belong
-            # to the entity whose inventory it leaves. Prevents moving another
-            # project's stock out of this project. Reversal lines are exempt
-            # (they restore stock to its original location).
-            if self.reversal_of_id is None:
-                owner = self._outbound_owner_entity()
-                if owner is not None and self.product.entity_id != owner.id:
-                    raise ValidationError(
-                        _(
-                            "Product '%(p)s' does not belong to '%(entity)s' and "
-                            "cannot be moved out of it."
-                        )
-                        % {"p": self.product, "entity": owner}
-                    )
-                # Availability: never move more than the product physically holds.
-                self._validate_availability()
-                # Unit consistency: quantity must be a positive multiple of the
-                # template's minimum increment (e.g. 1 for Head, 0.01 for Kg).
-                min_qty = self.product.product_template.minimum_quantity
-                if min_qty and min_qty > 0 and (self.quantity % min_qty) != 0:
-                    raise ValidationError(
-                        _(
-                            "Quantity %(qty)s must be a multiple of the minimum "
-                            "increment %(min)s for '%(p)s'."
-                        )
-                        % {"qty": self.quantity, "min": min_qty, "p": self.product}
-                    )
-
-            # Movement lines ARE the physical move, so obligated-only products
-            # (registered but not yet moved) are allowed here. For terminal
-            # operations (SALE/DEATH/CONSUMPTION) the moved product legitimately
-            # carries the matching terminal status (SOLD/DEAD/CONSUMED), so it
-            # must be allowed too.
-            terminal_status_by_op = {
-                OperationType.SALE: Product.Status.SOLD,
-                OperationType.DEATH: Product.Status.DEAD,
-                OperationType.CONSUMPTION: Product.Status.CONSUMED,
-            }
-            op_type = self.operation.operation_type
-            if op_type in (OperationType.PURCHASE, OperationType.BIRTH):
-                # Inbound receipt (PURCHASE/BIRTH) brings the purchased/born lot
-                # INTO stock, so the lot's own current status (e.g. SOLD after a
-                # partial dispatch) must never block receiving the remaining
-                # quantity. The purchase created the Product instance and the
-                # movement only materialises it further — receiving the rest of
-                # a lot that was partially sold re-activates it.
-                allow_status = True
-            else:
-                allow_status = (
-                    self.product.status == terminal_status_by_op.get(op_type)
+    def _validate_ownership(self):
+        """Ownership: for outbound operations the moved product must belong to
+        the entity whose inventory it leaves. Prevents moving another project's
+        stock out of this project. Reversal lines are exempt (they restore stock
+        to its original location)."""
+        owner = self._outbound_owner_entity()
+        if owner is not None and self.product.entity_id != owner.id:
+            raise ValidationError(
+                _(
+                    "Product '%(p)s' does not belong to '%(entity)s' and "
+                    "cannot be moved out of it."
                 )
-            self.product.validate_active(
-                allow_reversal=self.reversal_of_id is not None,
-                allow_obligated=True,
-                allow_adjustment=allow_status,
+                % {"p": self.product, "entity": owner}
             )
 
-        super().clean()
+    def _validate_unit_multiple(self):
+        """Unit consistency: quantity must be a positive multiple of the
+        template's minimum increment (e.g. 1 for Head, 0.01 for Kg)."""
+        min_qty = self.product.product_template.minimum_quantity
+        if min_qty and min_qty > 0 and (self.quantity % min_qty) != 0:
+            raise ValidationError(
+                _(
+                    "Quantity %(qty)s must be a multiple of the minimum "
+                    "increment %(min)s for '%(p)s'."
+                )
+                % {"qty": self.quantity, "min": min_qty, "p": self.product}
+            )
+
+    def _validate_status_allowance(self):
+        """Movement lines ARE the physical move, so obligated-only products
+        (registered but not yet moved) are allowed here. For terminal operations
+        (SALE/DEATH/CONSUMPTION) the moved product legitimately carries the
+        matching terminal status (SOLD/DEAD/CONSUMED), so it must be allowed too.
+        """
+        op_type = self.operation.operation_type
+        if op_type in (OperationType.PURCHASE, OperationType.BIRTH):
+            # Inbound receipt (PURCHASE/BIRTH) brings the purchased/born lot INTO
+            # stock, so the lot's own current status (e.g. SOLD after a partial
+            # dispatch) must never block receiving the remaining quantity. The
+            # purchase created the Product instance and the movement only
+            # materialises it further — receiving the rest of a lot that was
+            # partially sold re-activates it.
+            allow_status = True
+        else:
+            allow_status = self.product.status == TERMINAL_STATUS_BY_OP.get(op_type)
+        self.product.validate_active(
+            allow_reversal=self.reversal_of_id is not None,
+            allow_obligated=True,
+            allow_adjustment=allow_status,
+        )
 
     def save(self, *args, **kwargs):
         is_new = self.pk is None

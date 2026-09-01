@@ -157,17 +157,9 @@ class OperationCreateView(View):
             f"user={request.user.username}"
         )
         # ── 1. Validate POST data via standalone validator ────────────
-        validator = OperationDataValidator(request.POST, self.data)
-        try:
-            parsed = validator.validate()
-        except Exception as e:
-            logger.warning(f"POST data validation failed | error={e}")
-            return self._render_with_errors(
-                request,
-                formset=self._make_formset(data=request.POST),
-                errors=[str(e)],
-                message=str(e),
-            )
+        parsed, error_response = self._validate_post(request)
+        if error_response:
+            return error_response
 
         date_val = parsed.date
         description = parsed.description
@@ -175,7 +167,73 @@ class OperationCreateView(View):
 
         # ── 2. Create & validate formset ──────────────────────────────
         formset = self._make_formset(data=request.POST)
+        error_response = self._validate_formset(
+            request,
+            formset,
+            date=date_val,
+            description=description,
+            selected_category_id=selected_category_id,
+        )
+        if error_response:
+            return error_response
 
+        # ── 3. Compute amount ─────────────────────────────────────────
+        amount = _compute_amount(
+            self.has_invoice,
+            formset,
+            request.POST.get("amount"),
+        )
+
+        # ── 4. Delegate to model layer ────────────────────────────────
+        response, errors = self._create_operation(
+            request,
+            parsed,
+            amount=amount,
+            date=date_val,
+            description=description,
+            selected_category_id=selected_category_id,
+        )
+        if response is not None:
+            return response
+
+        return self._render_with_errors(
+            request,
+            formset=formset,
+            amount=amount,
+            date=date_val,
+            description=description,
+            selected_category_id=selected_category_id,
+            errors=errors,
+        )
+
+    def _validate_post(self, request):
+        """Validate the raw POST data via the standalone validator.
+
+        Returns ``(parsed, None)`` on success, or ``(None, error_response)``
+        when validation failed (the error form was already rendered)."""
+        validator = OperationDataValidator(request.POST, self.data)
+        try:
+            parsed = validator.validate()
+        except Exception as e:
+            logger.warning(f"POST data validation failed | error={e}")
+            return None, self._render_with_errors(
+                request,
+                formset=self._make_formset(data=request.POST),
+                errors=[str(e)],
+                message=str(e),
+            )
+        return parsed, None
+
+    def _validate_formset(
+        self,
+        request,
+        formset,
+        *,
+        date,
+        description,
+        selected_category_id,
+    ):
+        """Return an error response when the formset is invalid, else ``None``."""
         if formset and not formset.is_valid():
             error_msg = _("Please check the items table for errors.")
             logger.warning(
@@ -191,33 +249,40 @@ class OperationCreateView(View):
             return self._render_with_errors(
                 request,
                 formset=formset,
-                date=date_val,
+                date=date,
                 description=description,
                 selected_category_id=selected_category_id,
                 message=error_msg,
             )
+        return None
 
-        # ── 3. Compute amount ─────────────────────────────────────────
-        amount = _compute_amount(
-            self.has_invoice,
-            formset,
-            request.POST.get("amount"),
-        )
+    def _create_operation(
+        self,
+        request,
+        parsed,
+        *,
+        amount,
+        date,
+        description,
+        selected_category_id,
+    ):
+        """Delegate to the model layer inside an atomic block.
 
-        # ── 4. Delegate to model layer ────────────────────────────────
+        Returns ``(redirect_response, errors)`` on success, or
+        ``(None, [errors])`` when creation raised (the caller re-renders)."""
         errors = []
         try:
             with db_transaction.atomic():
                 logger.debug(
                     f"Creating operation transaction | op_type={self.canonical_op_type} | "
-                    f"date={date_val}"
+                    f"date={date}"
                 )
                 op = self.proxy_cls.create(
                     operation_type=self.canonical_op_type,
                     source=self.data["source_entity"],
                     destination=self.data["dest_entity"],
                     amount=amount,
-                    date=date_val,
+                    date=date,
                     description=description,
                     officer=request.user,
                     amount_paid=parsed.amount_paid,
@@ -236,14 +301,14 @@ class OperationCreateView(View):
             audit_logger.info(
                 f"operation_created | Operation:{op.pk} | "
                 f"user={request.user.username} | operation_type={op.operation_type} | "
-                f"amount={amount} | date={date_val}"
+                f"amount={amount} | date={date}"
             )
             messages.success(
                 request,
                 _("%(label)s recorded successfully.")
                 % {"label": self.data["label"]},
             )
-            return redirect("operation_detail_view", pk=op.pk)
+            return redirect("operation_detail_view", pk=op.pk), errors
 
         except Exception as e:
             traceback.print_exc()
@@ -266,16 +331,7 @@ class OperationCreateView(View):
             messages.error(
                 request, _("Transaction Error: %(error)s") % {"error": str(e)}
             )
-
-        return self._render_with_errors(
-            request,
-            formset=formset,
-            amount=amount,
-            date=date_val,
-            description=description,
-            selected_category_id=selected_category_id,
-            errors=errors,
-        )
+            return None, errors
 
     # ---- view helpers (no business logic) -----------------------------------
 
