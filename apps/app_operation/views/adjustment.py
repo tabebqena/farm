@@ -14,13 +14,11 @@ from apps.app_adjustment.models import (
     Adjustment,
     AdjustmentType,
     InvoiceItemAdjustment,
-    InvoiceItemAdjustmentLine,
-    InvoiceItemAdjustmentType,
 )
 from apps.app_inventory.stock import active_lines_for_item
 from apps.app_base.debug import DebugContext, debug_view
+from apps.app_base.reversal import reversal_guard_error
 from apps.app_operation.models import Operation
-from apps.app_operation.models.operation_type import OperationType
 
 
 def _build_adjustment_type_data():
@@ -33,6 +31,50 @@ def _build_adjustment_type_data():
         for t in AdjustmentType
         if not AdjustmentType.is_item_correction(t.value)
     }
+
+
+def parse_item_changes(post, items):
+    """
+    Parse the per-item ``item_<pk>_new_quantity`` / ``item_<pk>_new_unit_price``
+    POST fields into a list of changed-item dicts.
+
+    Each returned dict has ``item``, ``new_quantity`` and ``new_unit_price``
+    (either may be ``None`` when only the other field changed). Raises
+    ``ValueError`` with a translated message on the first invalid value.
+    """
+    changed_items_data = []
+    for item in items:
+        new_qty_str = post.get(f"item_{item.pk}_new_quantity", "").strip()
+        new_price_str = post.get(f"item_{item.pk}_new_unit_price", "").strip()
+
+        new_qty = None
+        new_price = None
+
+        if new_qty_str:
+            try:
+                new_qty = Decimal(new_qty_str)
+            except Exception:
+                raise ValueError(
+                    _("Invalid quantity for {}.").format(item.product_template.name)
+                )
+
+        if new_price_str:
+            try:
+                new_price = Decimal(new_price_str)
+            except Exception:
+                raise ValueError(
+                    _("Invalid price for {}.").format(item.product_template.name)
+                )
+
+        if new_qty is not None or new_price is not None:
+            changed_items_data.append(
+                {
+                    "item": item,
+                    "new_quantity": new_qty,
+                    "new_unit_price": new_price,
+                }
+            )
+    return changed_items_data
 
 
 @debug_view
@@ -207,59 +249,17 @@ def record_item_adjustment(request, pk):
         }
         return render(request, "app_adjustment/record_item_adjustment.html", context)
 
-    # Collect changed items
-    changed_items_data = []
-    for item in items:
-        new_qty_str = request.POST.get(f"item_{item.pk}_new_quantity", "").strip()
-        new_price_str = request.POST.get(f"item_{item.pk}_new_unit_price", "").strip()
-
-        new_qty = None
-        new_price = None
-
-        # Parse quantity and price
-        if new_qty_str:
-            try:
-                new_qty = Decimal(new_qty_str)
-            except:
-                messages.error(
-                    request,
-                    _("Invalid quantity for {}.").format(item.product_template.name),
-                )
-                context = {
-                    "operation": operation,
-                    "items": items,
-                    "today": timezone.now().date(),
-                }
-                return render(
-                    request, "app_adjustment/record_item_adjustment.html", context
-                )
-
-        if new_price_str:
-            try:
-                new_price = Decimal(new_price_str)
-            except:
-                messages.error(
-                    request,
-                    _("Invalid price for {}.").format(item.product_template.name),
-                )
-                context = {
-                    "operation": operation,
-                    "items": items,
-                    "today": timezone.now().date(),
-                }
-                return render(
-                    request, "app_adjustment/record_item_adjustment.html", context
-                )
-
-        # Check if anything changed
-        if new_qty is not None or new_price is not None:
-            changed_items_data.append(
-                {
-                    "item": item,
-                    "new_quantity": new_qty,
-                    "new_unit_price": new_price,
-                }
-            )
+    # Parse the per-item changes from the POST fields
+    try:
+        changed_items_data = parse_item_changes(request.POST, items)
+    except ValueError as e:
+        messages.error(request, str(e))
+        context = {
+            "operation": operation,
+            "items": items,
+            "today": timezone.now().date(),
+        }
+        return render(request, "app_adjustment/record_item_adjustment.html", context)
 
     # Validate at least one item changed
     if not changed_items_data:
@@ -271,38 +271,17 @@ def record_item_adjustment(request, pk):
         }
         return render(request, "app_adjustment/record_item_adjustment.html", context)
 
-    # Determine the item adjustment type based on operation type
-    if operation.operation_type == OperationType.PURCHASE:
-        item_adj_type = InvoiceItemAdjustmentType.PURCHASE_ITEM_INCREASE
-    else:  # SALE
-        item_adj_type = InvoiceItemAdjustmentType.SALE_ITEM_INCREASE
-
     try:
         with db_transaction.atomic():
-            # Create InvoiceItemAdjustment
-            item_adj = InvoiceItemAdjustment(
+            # Creation + finalization of the adjustment and its lines live on
+            # the model so the view only parses the request.
+            InvoiceItemAdjustment.create_from_item_changes(
                 operation=operation,
-                type=item_adj_type,
+                changed_items_data=changed_items_data,
                 reason=reason,
                 date=date,
                 officer=request.user,
             )
-            item_adj.full_clean()
-            item_adj.save()
-
-            # Create InvoiceItemAdjustmentLine for each changed item
-            for changed_item_data in changed_items_data:
-                line = InvoiceItemAdjustmentLine(
-                    adjustment=item_adj,
-                    invoice_item=changed_item_data["item"],
-                    new_quantity=changed_item_data["new_quantity"],
-                    new_unit_price=changed_item_data["new_unit_price"],
-                )
-                line.full_clean()
-                line.save()
-
-            # Finalize: creates the accounting Adjustment and transaction
-            item_adj.finalize()
 
         messages.success(
             request,
@@ -344,14 +323,8 @@ def reverse_adjustment(request, adjustment_id):
         )
 
     # Safety checks
-    if adjustment.is_reversed:
-        error_msg = _("This adjustment has already been reversed.")
-        DebugContext.warn(error_msg, {"adjustment_id": adjustment.pk})
-        messages.warning(request, error_msg)
-        return redirect("operation_detail_view", pk=operation.pk)
-
-    if adjustment.is_reversal:
-        error_msg = _("This adjustment is a reversal (you can't reverse it).")
+    error_msg = reversal_guard_error(adjustment, "adjustment")
+    if error_msg:
         DebugContext.warn(error_msg, {"adjustment_id": adjustment.pk})
         messages.warning(request, error_msg)
         return redirect("operation_detail_view", pk=operation.pk)
@@ -473,14 +446,8 @@ def reverse_item_adjustment(request, item_adjustment_id):
         )
 
     # Safety checks
-    if item_adjustment.is_reversed:
-        error_msg = _("This item adjustment has already been reversed.")
-        DebugContext.warn(error_msg, {"item_adjustment_id": item_adjustment.pk})
-        messages.warning(request, error_msg)
-        return redirect("operation_detail_view", pk=operation.pk)
-
-    if item_adjustment.is_reversal:
-        error_msg = _("This item adjustment is a reversal (you can't reverse it).")
+    error_msg = reversal_guard_error(item_adjustment, "item_adjustment")
+    if error_msg:
         DebugContext.warn(error_msg, {"item_adjustment_id": item_adjustment.pk})
         messages.warning(request, error_msg)
         return redirect("operation_detail_view", pk=operation.pk)

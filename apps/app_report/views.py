@@ -4,9 +4,9 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import render
-from django.urls import reverse
 
 from apps.app_base.debug import DebugContext, debug_view
+from apps.app_base.navigation import set_entity_navigation
 from apps.app_entity.models import Entity
 from apps.app_operation.models.period import FinancialPeriod
 from farm.shortcuts import get_object_or_404
@@ -39,14 +39,7 @@ def _resolve(request, entity_pk):
 
 
 def _base_context(request, entity, periods, period):
-    request.navigation_overrides = {
-        "related_urls": {
-            "Entity": {
-                "title": entity.get_display_name(),
-                "url": reverse("entity_detail", kwargs={"pk": entity.pk}),
-            },
-        }
-    }
+    set_entity_navigation(request, entity)
     return {
         "entity": entity,
         "periods": periods,

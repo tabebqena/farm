@@ -303,3 +303,25 @@ def _map_params(param_map, view_kwargs):
             mapped[target_param] = view_kwargs[source_param]
 
     return mapped
+
+
+def set_entity_navigation(request, entity, label="Entity", view_name="entity_detail"):
+    """
+    Point the navigation ``label`` link at *entity*'s detail page so the
+    ambiguous generic label is replaced by the entity's display name.
+
+    For virtual System/World entities (which have no detail page) the link is
+    dropped (``None``). This centralises the per-view ``request.navigation_overrides``
+    blocks that used to be duplicated across several views.
+    """
+    if entity is None or entity.entity_type in ("system", "world"):
+        request.navigation_overrides = {"related_urls": {label: None}}
+    else:
+        request.navigation_overrides = {
+            "related_urls": {
+                label: {
+                    "title": entity.get_display_name(),
+                    "url": reverse(view_name, kwargs={"pk": entity.pk}),
+                },
+            }
+        }

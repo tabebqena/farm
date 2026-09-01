@@ -179,15 +179,16 @@ def stock_history(request, entity_pk):
 
     from apps.app_entity.models import Entity
     from apps.app_inventory.models import InventoryMovementLine
-    from apps.app_inventory.stock import pending_items
+    from apps.app_inventory.stock import (
+        history_direction_q,
+        line_direction,
+        pending_items,
+    )
     from apps.app_operation.models.operation_type import OperationType
 
     entity = get_object_or_404(
         Entity, pk=entity_pk, error_message="Entity not found or has been deleted."
     )
-
-    inbound_ops = [OperationType.PURCHASE, OperationType.BIRTH]
-    outbound_ops = [OperationType.SALE, OperationType.DEATH, OperationType.CONSUMPTION]
 
     movements = (
         InventoryMovementLine.objects.filter(product__entity=entity)
@@ -215,15 +216,9 @@ def stock_history(request, entity_pk):
     to_date = request.GET.get("to", "").strip()
 
     if active_direction == "in":
-        movements = movements.filter(
-            Q(operation__operation_type__in=inbound_ops, reversal_of__isnull=True)
-            | Q(reversal_of__operation__operation_type__in=outbound_ops)
-        )
+        movements = movements.filter(history_direction_q("in"))
     elif active_direction == "out":
-        movements = movements.filter(
-            Q(operation__operation_type__in=outbound_ops, reversal_of__isnull=True)
-            | Q(reversal_of__operation__operation_type__in=inbound_ops)
-        )
+        movements = movements.filter(history_direction_q("out"))
 
     if active_op_type:
         movements = movements.filter(operation__operation_type=active_op_type)
@@ -244,36 +239,13 @@ def stock_history(request, entity_pk):
     # ------------------------------------------------------------------
     # Summary counts (IN / OUT) over the filtered queryset
     # ------------------------------------------------------------------
-    in_q = (
-        Q(operation__operation_type__in=inbound_ops, reversal_of__isnull=True)
-        | Q(reversal_of__operation__operation_type__in=outbound_ops)
-    )
-    out_q = (
-        Q(operation__operation_type__in=outbound_ops, reversal_of__isnull=True)
-        | Q(reversal_of__operation__operation_type__in=inbound_ops)
-    )
-    inbound_count = movements.filter(in_q).count()
-    outbound_count = movements.filter(out_q).count()
+    inbound_count = movements.filter(history_direction_q("in")).count()
+    outbound_count = movements.filter(history_direction_q("out")).count()
 
-    # Attach a per-row direction label for display. A line is IN when it is a
-    # forward PURCHASE/BIRTH (or a reversal of an OUT op); otherwise OUT.
+    # Attach a per-row direction label for display (reversal-aware, shared
+    # with stock.line_direction).
     movement_rows = [
-        {
-            "line": line,
-            "direction": (
-                "OUT"
-                if (
-                    line.reversal_of_id is None
-                    and line.operation.operation_type in outbound_ops
-                )
-                or (
-                    line.reversal_of_id is not None
-                    and line.reversal_of.operation.operation_type in inbound_ops
-                )
-                else "IN"
-            ),
-        }
-        for line in movements
+        {"line": line, "direction": line_direction(line)} for line in movements
     ]
 
     paginator = Paginator(movement_rows, 25)
@@ -730,72 +702,16 @@ def _create_inventory_movement(request, operation_pk, expected_type):
                     prefix="lines",
                 )
                 if formset.is_valid():
-                    from decimal import Decimal
-
-                    from apps.app_operation.models.operation_type import OperationType
-
-                    lines = formset.save(commit=False)
-                    created_count = 0
-                    for line in lines:
-                        line.operation = operation
-                        line.date = date
-                        line.officer = request.user
-                        line.notes = notes
-
-                        template = line.invoice_item.product_template
-                        is_individual_purchase = (
-                            operation.operation_type == OperationType.PURCHASE
-                            and template.tracking_mode
-                            == ProductTemplate.TrackingMode.INDIVIDUAL
-                        )
-                        if is_individual_purchase:
-                            # One movement line per animal (qty=1 each). Leaving
-                            # product=None lets InventoryMovementLine.save()
-                            # lazy-create a new tagged Product per line — the
-                            # "one line per purchased animal" contract (same as
-                            # create_from_session / register_deferred_movements).
-                            # Reusing the item's first linked product would keep
-                            # writing every new line against the same animal
-                            # instead of materialising a new one.
-                            for head_idx in range(max(int(line.quantity), 1)):
-                                sub = InventoryMovementLine(
-                                    operation=operation,
-                                    invoice_item=line.invoice_item,
-                                    product=None,  # lazy-created by save()
-                                    quantity=Decimal("1.00"),
-                                    date=date,
-                                    officer=request.user,
-                                    notes=notes,
-                                    group_key=line.group_key,
-                                )
-                                sub.full_clean()
-                                sub.save()
-                                created_count += 1
-                            continue
-
-                        # Derive the product from the invoice_item's first linked Product
-                        if not line.product_id:
-                            first_product = line.invoice_item.products.first()
-                            if first_product is None:
-                                raise ValidationError(
-                                    _("Invoice item %(pk)s has no linked product.")
-                                    % {"pk": line.invoice_item.pk}
-                                )
-                            # Ownership guard (clearer message before model-level
-                            # full_clean catches the same case below).
-                            owner = operation.inventory_owner_entity
-                            if owner is not None and first_product.entity_id != owner.id:
-                                raise ValidationError(
-                                    _(
-                                        "Product '%(p)s' does not belong to '%(entity)s' "
-                                        "and cannot be moved out of it."
-                                    )
-                                    % {"p": first_product, "entity": owner}
-                                )
-                            line.product = first_product
-                        line.full_clean()
-                        line.save()
-                        created_count += 1
+                    # Movement creation rules (INDIVIDUAL expansion, product
+                    # derivation, ownership guard) live on the model so the
+                    # purchase/sale flows share one implementation.
+                    created_count = InventoryMovementLine.create_for_operation(
+                        operation=operation,
+                        formset=formset,
+                        date=date,
+                        officer=request.user,
+                        notes=notes,
+                    )
                     messages.success(
                         request,
                         _("Inventory movement created with %(count)s line(s).")
@@ -982,16 +898,12 @@ def register_deferred_movements(request, operation_pk):
             # originals that have since been reversed no longer count).
             from django.db.models import Sum
 
-            reversed_originals = InventoryMovementLine.objects.filter(
-                invoice_item=invoice_item, reversal_of__isnull=False
-            ).values_list("reversal_of_id", flat=True)
+            from apps.app_inventory.stock import active_lines_for_item
+
             already_moved = (
-                InventoryMovementLine.objects.filter(
-                    invoice_item=invoice_item,
-                    reversal_of__isnull=True,
-                )
-                .exclude(id__in=list(reversed_originals))
-                .aggregate(total=Sum("quantity"))["total"]
+                active_lines_for_item(invoice_item).aggregate(total=Sum("quantity"))[
+                    "total"
+                ]
                 or Decimal("0.00")
             )
             remaining = invoice_item.quantity - already_moved
@@ -1011,10 +923,7 @@ def register_deferred_movements(request, operation_pk):
                     {"form": form, "operation": operation},
                 )
 
-            template = invoice_item.product_template
             group_key = uuid.uuid4().hex[:8]
-            products = list(invoice_item.products.all())
-            created_count = 0
 
             try:
                 with db_transaction.atomic():
@@ -1023,63 +932,14 @@ def register_deferred_movements(request, operation_pk):
                     Product.lock_ids(
                         invoice_item.products.values_list("pk", flat=True)
                     )
-                    if (
-                        template.tracking_mode
-                        == ProductTemplate.TrackingMode.INDIVIDUAL
-                    ):
-                        if products:
-                            # One line per existing product
-                            for product in products:
-                                if created_count >= int(qty_to_move):
-                                    break
-                                if product.deleted_at:
-                                    continue
-                                InventoryMovementLine.objects.create(
-                                    operation=operation,
-                                    invoice_item=invoice_item,
-                                    product=product,
-                                    quantity=Decimal("1.00"),
-                                    date=operation.date,
-                                    officer=request.user,
-                                    notes=notes,
-                                    group_key=group_key,
-                                )
-                                created_count += 1
-                        else:
-                            # No products materialised yet (deferred receipt
-                            # of an ordered purchase) — create one line per
-                            # head; each line lazy-creates its own tagged
-                            # Product (INDIVIDUAL).
-                            for head_idx in range(max(int(qty_to_move), 1)):
-                                line = InventoryMovementLine(
-                                    operation=operation,
-                                    invoice_item=invoice_item,
-                                    product=None,  # lazy-created by save()
-                                    quantity=Decimal("1.00"),
-                                    date=operation.date,
-                                    officer=request.user,
-                                    notes=notes,
-                                    group_key=group_key,
-                                )
-                                line.save()
-                                created_count += 1
-                    else:
-                        # COMMODITY: single line with full qty
-                        product = products[0] if products else None
-                        # If no product exists yet, product=None is fine —
-                        # InventoryMovementLine.save() will lazy-create one
-                        # for PURCHASE operations.
-                        InventoryMovementLine.objects.create(
-                            operation=operation,
-                            invoice_item=invoice_item,
-                            product=product,
-                            quantity=qty_to_move,
-                            date=operation.date,
-                            officer=request.user,
-                            notes=notes,
-                            group_key=group_key,
-                        )
-                        created_count = 1
+                    created_count = invoice_item.create_movements(
+                        operation=operation,
+                        qty_to_move=qty_to_move,
+                        date=operation.date,
+                        officer=request.user,
+                        notes=notes,
+                        group_key=group_key,
+                    )
 
                 messages.success(
                     request,

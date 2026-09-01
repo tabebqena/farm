@@ -527,6 +527,89 @@ class InvoiceItem(AmountCleanMixin, BaseModel):
             }
         return json.dumps(data)
 
+    def create_movements(
+        self, operation, qty_to_move, date, officer, notes="", group_key=None
+    ):
+        """
+        Create ``InventoryMovementLine`` records for this invoice item.
+
+        Branches on the template's tracking mode:
+
+        - **INDIVIDUAL** → one qty-1 line per existing ``Product`` (up to
+          ``qty_to_move``); if no products are materialised yet (deferred
+          receipt of an ordered purchase), one line per head is created and
+          each line lazy-creates its own tagged ``Product``.
+        - **COMMODITY** → a single line with the full quantity (bulk).
+
+        All created lines share *group_key* so the UI can group them. Assumes
+        the caller holds the product locks (``Product.lock_ids``) and runs
+        inside an atomic block. Returns the number of lines created.
+        """
+        import uuid
+        from decimal import Decimal
+
+        from apps.app_inventory.models import InventoryMovementLine, ProductTemplate
+
+        template = self.product_template
+        group_key = group_key or uuid.uuid4().hex[:8]
+        products = list(self.products.all())
+        created_count = 0
+
+        if template.tracking_mode == ProductTemplate.TrackingMode.INDIVIDUAL:
+            if products:
+                # One line per existing product
+                for product in products:
+                    if created_count >= int(qty_to_move):
+                        break
+                    if product.deleted_at:
+                        continue
+                    InventoryMovementLine.objects.create(
+                        operation=operation,
+                        invoice_item=self,
+                        product=product,
+                        quantity=Decimal("1.00"),
+                        date=date,
+                        officer=officer,
+                        notes=notes,
+                        group_key=group_key,
+                    )
+                    created_count += 1
+            else:
+                # No products materialised yet (deferred receipt of an ordered
+                # purchase) — create one line per head; each line lazy-creates
+                # its own tagged Product (INDIVIDUAL).
+                for head_idx in range(max(int(qty_to_move), 1)):
+                    line = InventoryMovementLine(
+                        operation=operation,
+                        invoice_item=self,
+                        product=None,  # lazy-created by save()
+                        quantity=Decimal("1.00"),
+                        date=date,
+                        officer=officer,
+                        notes=notes,
+                        group_key=group_key,
+                    )
+                    line.save()
+                    created_count += 1
+        else:
+            # COMMODITY: single line with full qty.
+            # If no product exists yet, product=None is fine —
+            # InventoryMovementLine.save() will lazy-create one for PURCHASE.
+            product = products[0] if products else None
+            InventoryMovementLine.objects.create(
+                operation=operation,
+                invoice_item=self,
+                product=product,
+                quantity=qty_to_move,
+                date=date,
+                officer=officer,
+                notes=notes,
+                group_key=group_key,
+            )
+            created_count = 1
+
+        return created_count
+
     def __str__(self):
         return f"{self.product_template.name} ({self.quantity})"
 
@@ -1270,6 +1353,91 @@ class InventoryMovementLine(ImmutableMixin, BaseModel):
                     line.reverse(officer=officer, date=date, group_key="batch")
                 )
         return created
+
+    @classmethod
+    def create_for_operation(cls, operation, formset, date, officer, notes=""):
+        """
+        Create ``InventoryMovementLine`` records from a validated movement formset.
+
+        Encapsulates the movement-creation rules shared by the purchase/sale
+        movement views:
+
+        * PURCHASE + INDIVIDUAL templates → one qty-1 line per head with
+          ``product=None`` so ``save()`` lazily creates a new tagged ``Product``
+          per animal ("one line per purchased animal" — the same contract as
+          ``create_from_session`` / ``register_deferred_movements``).
+        * Otherwise → a single line; the product is derived from the invoice
+          item's first linked ``Product`` (with an ownership guard) when not
+          explicitly chosen.
+
+        Assumes the caller holds the product locks (``Product.lock_ids``) and
+        runs inside an atomic block. Returns the number of lines created.
+        """
+        from decimal import Decimal
+
+        from django.utils.translation import gettext as _
+
+        from apps.app_operation.models.operation_type import OperationType
+
+        lines = formset.save(commit=False)
+        created_count = 0
+        for line in lines:
+            line.operation = operation
+            line.date = date
+            line.officer = officer
+            line.notes = notes
+
+            template = line.invoice_item.product_template
+            is_individual_purchase = (
+                operation.operation_type == OperationType.PURCHASE
+                and template.tracking_mode == ProductTemplate.TrackingMode.INDIVIDUAL
+            )
+            if is_individual_purchase:
+                # One movement line per animal (qty=1 each). Leaving
+                # product=None lets InventoryMovementLine.save() lazy-create a
+                # new tagged Product per line. Reusing the item's first linked
+                # product would keep writing every new line against the same
+                # animal instead of materialising a new one.
+                for head_idx in range(max(int(line.quantity), 1)):
+                    sub = cls(
+                        operation=operation,
+                        invoice_item=line.invoice_item,
+                        product=None,  # lazy-created by save()
+                        quantity=Decimal("1.00"),
+                        date=date,
+                        officer=officer,
+                        notes=notes,
+                        group_key=line.group_key,
+                    )
+                    sub.full_clean()
+                    sub.save()
+                    created_count += 1
+                continue
+
+            # Derive the product from the invoice_item's first linked Product
+            if not line.product_id:
+                first_product = line.invoice_item.products.first()
+                if first_product is None:
+                    raise ValidationError(
+                        _("Invoice item %(pk)s has no linked product.")
+                        % {"pk": line.invoice_item.pk}
+                    )
+                # Ownership guard (clearer message before model-level full_clean
+                # catches the same case below).
+                owner = operation.inventory_owner_entity
+                if owner is not None and first_product.entity_id != owner.id:
+                    raise ValidationError(
+                        _(
+                            "Product '%(p)s' does not belong to '%(entity)s' "
+                            "and cannot be moved out of it."
+                        )
+                        % {"p": first_product, "entity": owner}
+                    )
+                line.product = first_product
+            line.full_clean()
+            line.save()
+            created_count += 1
+        return created_count
 
     def __str__(self):
         return (

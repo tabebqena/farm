@@ -1,5 +1,3 @@
-from decimal import Decimal
-
 from django.conf import settings
 from django.shortcuts import render
 from django.urls import reverse
@@ -8,6 +6,50 @@ from django.utils.translation import gettext as _
 from apps.app_base.debug import DebugContext, debug_view
 from apps.app_operation.models import Operation
 from farm.shortcuts import get_object_or_404
+
+
+def _build_navigation_overrides(operation):
+    """Build navigation related-url overrides for the operation detail page.
+
+    Replaces the generic "Source Entity"/"Destination Entity" labels with the
+    real entity names, and adds an operations-list link for each real
+    (non-virtual) counterpart entity. ``None`` drops a related link entirely
+    (system/world entities have no detail page). Returns an empty dict when
+    nothing should be overridden.
+    """
+    related_url_overrides = {}
+    for label, entity in (
+        ("Source Entity", operation.source),
+        ("Destination Entity", operation.destination),
+    ):
+        if entity.entity_type not in ("system", "world"):
+            related_url_overrides[label] = {
+                "title": entity.get_display_name(),
+                "url": reverse("entity_detail", kwargs={"pk": entity.pk}),
+            }
+        else:
+            related_url_overrides[label] = None
+
+    add_related = []
+    for entity in (operation.source, operation.destination):
+        if entity.entity_type in ("system", "world"):
+            continue
+        add_related.append(
+            {
+                "title": _("Operations: %(name)s")
+                % {"name": entity.get_display_name()},
+                "url": reverse(
+                    "operation_list_view", kwargs={"person_pk": entity.pk}
+                ),
+            }
+        )
+
+    navigation_overrides = {}
+    if related_url_overrides:
+        navigation_overrides["related_urls"] = related_url_overrides
+    if add_related:
+        navigation_overrides["add_related"] = add_related
+    return navigation_overrides
 
 
 @debug_view
@@ -102,107 +144,25 @@ def operation_detail_view(request, pk):
     ):
         # The non-accounting operations (Birth / Death / Consumption / Capital
         # Gain / Capital Loss) do not track settlement — they are fully settled
-        # at their amount. Only accounting operations expose the settlement mixin
-        # members, so guard every access.
+        # at their amount. Only accounting operations expose the settlement
+        # mixin members, so guard has_settlement here (it is reused below for
+        # the payment-transaction and one-shot flags).
         has_settlement = hasattr(operation, "amount_settled")
-        paid_amount = float(
-            operation.amount_settled if has_settlement else operation.amount
-        )
-        outstanding_balance = float(
-            operation.amount_remaining_to_settle
-            if has_settlement
-            else Decimal("0.00")
-        )
+
+        payment_balance = operation.payment_balance()
+        paid_amount = payment_balance["paid_amount"]
+        outstanding_balance = payment_balance["outstanding_balance"]
+        net_adjustment = payment_balance["net_adjustment"]
+        overpayment_amount = payment_balance["overpayment_amount"]
+        over_repayment_amount = payment_balance["over_repayment_amount"]
         DebugContext.log(
             "Payment balance computed",
-            {
-                "paid_amount": paid_amount,
-                "outstanding_balance": outstanding_balance,
-                "operation_id": operation.pk,
-            },
+            {**payment_balance, "operation_id": operation.pk},
         )
 
-        net_adjustment = float(
-            (operation.effective_amount or Decimal("0.00")) - operation.amount
-        )
-        DebugContext.log(
-            "Net adjustment computed",
-            {
-                "net_adjustment": net_adjustment,
-                "operation_id": operation.pk,
-            },
-        )
-
-        overpayment_amount = float(
-            operation.amount_settled - operation.total_settlable_amount
-            if has_settlement and operation.is_overpayed_settled
-            else Decimal("0.00")
-        )
-        DebugContext.log(
-            "Overpayment computed",
-            {
-                "overpayment_amount": overpayment_amount,
-                "operation_id": operation.pk,
-            },
-        )
-
-        over_repayment_amount = float(
-            operation.amount_repayed - operation.repayable_amount
-            if getattr(operation, "is_overpaid_repayed", False)
-            else Decimal("0.00")
-        )
-        DebugContext.log(
-            "Over-repayment computed",
-            {
-                "over_repayment_amount": over_repayment_amount,
-                "operation_id": operation.pk,
-            },
-        )
-
-    # Set navigation overrides for entity detail links.
-    # Replace the generic "Source Entity"/"Destination Entity" labels with the
-    # real entity names so the navigation is unambiguous. Long names are kept on
-    # one line via CSS (fixed-width, ellipsis) in the navigation template.
-    # A None value drops the related link entirely (system/world entities have
-    # no detail page).
-    related_url_overrides = {}
-    if operation.source.entity_type not in ("system", "world"):
-        related_url_overrides["Source Entity"] = {
-            "title": operation.source.get_display_name(),
-            "url": reverse("entity_detail", kwargs={"pk": operation.source.pk}),
-        }
-    else:
-        related_url_overrides["Source Entity"] = None
-    if operation.destination.entity_type not in ("system", "world"):
-        related_url_overrides["Destination Entity"] = {
-            "title": operation.destination.get_display_name(),
-            "url": reverse("entity_detail", kwargs={"pk": operation.destination.pk}),
-        }
-    else:
-        related_url_overrides["Destination Entity"] = None
-
-    # Add an operations-list link for each real (non-virtual) counterpart entity
-    # so the navigation bar always offers a way back to that entity's operation
-    # history. System/World entities have no operations list, so they are exempt.
-    add_related = []
-    for entity in (operation.source, operation.destination):
-        if entity.entity_type in ("system", "world"):
-            continue
-        add_related.append(
-            {
-                "title": _("Operations: %(name)s")
-                % {"name": entity.get_display_name()},
-                "url": reverse(
-                    "operation_list_view", kwargs={"person_pk": entity.pk}
-                ),
-            }
-        )
-
-    navigation_overrides = {}
-    if related_url_overrides:
-        navigation_overrides["related_urls"] = related_url_overrides
-    if add_related:
-        navigation_overrides["add_related"] = add_related
+    # Set navigation overrides for entity detail links (see
+    # _build_navigation_overrides): real entity names + an operations-list link.
+    navigation_overrides = _build_navigation_overrides(operation)
     if navigation_overrides:
         request.navigation_overrides = navigation_overrides
 

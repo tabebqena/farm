@@ -1100,6 +1100,107 @@ class Operation(
                 % {"op_type": self.operation_type, "pk": self.pk},
             )
 
+    def settlement_summary(self):
+        """
+        Build the settlement display data used by the operations list.
+
+        Operations fall into three kinds with different settlement semantics:
+          - repayed  - recovered over time via repayments (loan, worker advance)
+          - paid     - settled over time via payments (purchase, sale, expense)
+          - one_shot - settled in full at creation (cash flows, funding, capital,
+                       corrections, birth/death/consumption, internal transfers)
+
+        Non-accounting operations (Birth/Death/Consumption/Capital) have no
+        settlement mixin — the ``getattr`` guards keep them fully settled.
+
+        Returns a dict with ``kind``, ``paid``, ``remaining``, ``total``,
+        ``fully_settled`` and ``percent``.
+        """
+        from decimal import Decimal
+
+        total = self.effective_amount or Decimal("0.00")
+
+        if self.has_repayment:
+            kind = "repayed"
+            paid = getattr(self, "amount_repayed", None) or Decimal("0.00")
+            remaining = getattr(self, "amount_remaining_to_repay", None) or Decimal(
+                "0.00"
+            )
+            fully_settled = bool(getattr(self, "is_fully_repayed", False))
+        elif self.is_partially_payable:
+            kind = "paid"
+            paid = getattr(self, "amount_settled", None) or Decimal("0.00")
+            remaining = getattr(self, "amount_remaining_to_settle", None) or Decimal(
+                "0.00"
+            )
+            fully_settled = bool(getattr(self, "is_fully_settled", False))
+        else:
+            # One-shot operations settle fully at creation (reversal voids it).
+            kind = "one_shot"
+            paid = getattr(self, "amount_settled", None) or total
+            remaining = Decimal("0.00")
+            fully_settled = bool(getattr(self, "is_fully_settled", True))
+
+        if remaining < Decimal("0.00"):
+            remaining = Decimal("0.00")
+
+        percent = 0
+        if total > Decimal("0.00"):
+            percent = min(int(round(float(paid) / float(total) * 100)), 100)
+
+        return {
+            "kind": kind,
+            "paid": paid,
+            "remaining": remaining,
+            "total": total,
+            "fully_settled": fully_settled,
+            "percent": percent,
+        }
+
+    def payment_balance(self):
+        """
+        Compute the payment-balance summary shown on the operation detail page.
+
+        Non-accounting operations (Birth / Death / Consumption / Capital Gain /
+        Capital Loss) do not track settlement — they are fully settled at their
+        amount, so only accounting operations expose the settlement mixin
+        members. Every access is guarded.
+
+        Returns a dict of float values: ``paid_amount``, ``outstanding_balance``,
+        ``net_adjustment``, ``overpayment_amount`` and ``over_repayment_amount``.
+        """
+        from decimal import Decimal
+
+        has_settlement = hasattr(self, "amount_settled")
+        paid_amount = float(
+            self.amount_settled if has_settlement else self.amount
+        )
+        outstanding_balance = float(
+            self.amount_remaining_to_settle
+            if has_settlement
+            else Decimal("0.00")
+        )
+        net_adjustment = float(
+            (self.effective_amount or Decimal("0.00")) - self.amount
+        )
+        overpayment_amount = float(
+            self.amount_settled - self.total_settlable_amount
+            if has_settlement and self.is_overpayed_settled
+            else Decimal("0.00")
+        )
+        over_repayment_amount = float(
+            self.amount_repayed - self.repayable_amount
+            if getattr(self, "is_overpaid_repayed", False)
+            else Decimal("0.00")
+        )
+        return {
+            "paid_amount": paid_amount,
+            "outstanding_balance": outstanding_balance,
+            "net_adjustment": net_adjustment,
+            "overpayment_amount": overpayment_amount,
+            "over_repayment_amount": over_repayment_amount,
+        }
+
     def delete(self, *args, **kwargs):
         """Delete operation with audit logging."""
         with DebugContext.section(

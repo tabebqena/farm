@@ -4,8 +4,6 @@ from decimal import Decimal
 
 from django import forms
 from django.contrib import messages
-from django.core.exceptions import ValidationError
-from django.db import transaction as db_transaction
 from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -143,101 +141,47 @@ class EvaluationCreateView(OperationCreateView):
             date = form.cleaned_data["date"]
             description = form.cleaned_data["description"]
 
-            with DebugContext.section(
-                "Calculating valuation delta",
-                {
-                    "product_id": product.pk,
-                    "new_unit_price": str(new_unit_price),
-                },
-            ):
-                valuation = product.compute_valuation_delta(new_unit_price)
-                delta = valuation["delta"]
-
-                DebugContext.success(
-                    "Valuation calculated",
-                    {
-                        "quantity": product.quantity,
-                        "current_unit_price": str(valuation["current_unit_price"]),
-                        "new_unit_price": str(new_unit_price),
-                        "delta": str(delta),
-                    },
-                )
-
-            if abs(delta) < Decimal("0.01"):
-                DebugContext.warn(
-                    "No material change in valuation",
-                    {
-                        "delta": str(delta),
-                        "product_id": product.pk,
-                    },
-                )
-                messages.info(request, _("No material change — no operation recorded."))
-                return render(
-                    request, self.template_name, self._build_evaluation_context(form)
-                )
-
-            self.proxy_cls = CapitalValuationOperation
-            # The shared CapitalValuationOperation proxy serves both directions:
-            # pick the variant from the delta sign so _setup_view resolves the
-            # canonical operation type (CAPITAL_GAIN / CAPITAL_LOSS) correctly.
-            self.url_op_type = "capital-gain" if delta > 0 else "capital-loss"
-            self._setup_view(self.kwargs["pk"], request)
-            amount = abs(delta).quantize(Decimal("0.01"))
-
             try:
-                with db_transaction.atomic():
-                    with DebugContext.section(
-                        "Creating evaluation operation",
-                        {
-                            "operation_type": (
-                                "CapitalGain" if delta > 0 else "CapitalLoss"
-                            ),
-                            "amount": str(amount),
-                        },
-                    ):
-                        # Ownership guard (defense-in-depth — the form queryset
-                        # already restricts choices to entity=project): never
-                        # record a gain/loss on another entity's asset. The
-                        # valuation row's clean() re-checks it at the model layer.
-                        if product.entity_id != self.project.id:
-                            raise ValidationError(
-                                _(
-                                    "Product '%(p)s' does not belong to '%(entity)s' "
-                                    "and cannot be evaluated."
-                                )
-                                % {"p": product, "entity": self.project}
-                            )
-                        op = self.proxy_cls.create(
-                            operation_type=self.canonical_op_type,
-                            source=self.data["source_entity"],
-                            destination=self.data["dest_entity"],
-                            amount=amount,
-                            date=date,
-                            description=description,
-                            officer=request.user,
-                            amount_paid=Decimal("0"),
-                            project=self.project,
-                        )
-                        entry = op.add_valuation(
-                            product=product,
-                            amount=delta.quantize(Decimal("0.01")),
-                            officer=request.user,
-                        )
-                        DebugContext.success(
-                            "Evaluation operation created",
-                            {
-                                "operation_id": op.pk,
-                                "capital_valuation_id": entry.pk,
-                            },
-                        )
+                with DebugContext.section(
+                    "Creating evaluation operation",
+                    {
+                        "product_id": product.pk,
+                        "new_unit_price": str(new_unit_price),
+                    },
+                ):
+                    # Delta computation, direction selection, ownership guard and
+                    # operation+valuation creation all live in the model factory.
+                    result = CapitalValuationOperation.create_with_valuation(
+                        product=product,
+                        new_unit_price=new_unit_price,
+                        date=date,
+                        description=description,
+                        officer=request.user,
+                        project=self.project,
+                    )
 
+                if result is None:
+                    DebugContext.warn(
+                        "No material change in valuation",
+                        {"delta": "0", "product_id": product.pk},
+                    )
+                    messages.info(
+                        request, _("No material change — no operation recorded.")
+                    )
+                    return render(
+                        request,
+                        self.template_name,
+                        self._build_evaluation_context(form),
+                    )
+
+                op, _entry, delta = result
                 direction = _("Capital Gain") if delta > 0 else _("Capital Loss")
                 DebugContext.success(
                     "Evaluation recorded successfully",
                     {
                         "operation_id": op.pk,
                         "direction": direction,
-                        "amount": str(amount),
+                        "amount": str(op.amount),
                     },
                 )
                 DebugContext.audit(
@@ -247,14 +191,14 @@ class EvaluationCreateView(OperationCreateView):
                     details={
                         "operation_type": "CapitalGain" if delta > 0 else "CapitalLoss",
                         "product_id": product.pk,
-                        "amount": str(amount),
+                        "amount": str(op.amount),
                     },
                     user=request.user.username,
                 )
                 messages.success(
                     request,
                     _("%(dir)s of %(amt)s recorded.")
-                    % {"dir": direction, "amt": amount},
+                    % {"dir": direction, "amt": op.amount},
                 )
                 return redirect("operation_detail_view", pk=op.pk)
 

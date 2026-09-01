@@ -5,6 +5,7 @@ from django.shortcuts import redirect, render
 from django.utils import timezone
 
 from apps.app_base.debug import DebugContext, debug_view
+from apps.app_base.reversal import reversal_guard_error
 from farm.shortcuts import get_object_or_404
 from apps.app_operation.models.operation import Operation
 from apps.app_operation.models.proxies import PROXY_MAP
@@ -31,27 +32,20 @@ def operation_reverse_view(request, pk):
         })
 
     # Safety checks for reversibility
-    if operation.is_reversed:
-        error_msg = "This operation has already been reversed."
+    error_msg = reversal_guard_error(operation, "operation")
+    if error_msg:
+        if operation.is_reversed:
+            action = "reversal_attempt_already_reversed"
+            details = {"reason": "already_reversed"}
+        else:
+            action = "reversal_attempt_on_reversal"
+            details = {"reason": "is_itself_reversal"}
         DebugContext.warn(error_msg, {"operation_id": operation.pk})
         DebugContext.audit(
-            action="reversal_attempt_already_reversed",
+            action=action,
             entity_type="Operation",
             entity_id=operation.pk,
-            details={"reason": "already_reversed"},
-            user=request.user.username
-        )
-        messages.warning(request, error_msg)
-        return redirect("operation_detail_view", pk=operation.pk)
-
-    if operation.is_reversal:
-        error_msg = "This operation is a reversal (You can't reverse it)."
-        DebugContext.warn(error_msg, {"operation_id": operation.pk})
-        DebugContext.audit(
-            action="reversal_attempt_on_reversal",
-            entity_type="Operation",
-            entity_id=operation.pk,
-            details={"reason": "is_itself_reversal"},
+            details=details,
             user=request.user.username
         )
         messages.warning(request, error_msg)

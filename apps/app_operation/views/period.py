@@ -5,12 +5,13 @@ from django.core.exceptions import ValidationError
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db import transaction
 from django.shortcuts import redirect, render
-from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
 from apps.app_base.debug import DebugContext, debug_view
+from apps.app_base.navigation import set_entity_navigation
 from apps.app_entity.models import Entity
 from apps.app_operation.models.period import FinancialPeriod
+from apps.app_transaction.running_balance import running_balance_rows
 from farm.shortcuts import get_object_or_404
 
 
@@ -77,17 +78,7 @@ def period_list_view(request, entity_pk):
         page_obj = paginator.page(paginator.num_pages)
 
     # Replace the ambiguous "Entity" navigation label with the entity's display name
-    if entity.entity_type in ("system", "world"):
-        request.navigation_overrides = {"related_urls": {"Entity": None}}
-    else:
-        request.navigation_overrides = {
-            "related_urls": {
-                "Entity": {
-                    "title": entity.get_display_name(),
-                    "url": reverse("entity_detail", kwargs={"pk": entity.pk}),
-                },
-            }
-        }
+    set_entity_navigation(request, entity)
 
     context = {
         "entity": entity,
@@ -238,23 +229,29 @@ def period_ledger_view(request, period_pk):
         .order_by("date", "created_at")
     )
 
-    running = period.previous_balance
-    ledger_rows = []
-    for tx in raw_txs:
-        if tx.target_id == entity.pk:
-            direction, delta = "credit", tx.amount
-        else:
-            direction, delta = "debit", -tx.amount
-        running += delta
-        ledger_rows.append(
-            {
-                "tx": tx,
-                "direction": direction,
-                "delta": tx.amount,
-                "balance": running,
-                "counterparty": tx.source if direction == "credit" else tx.target,
-            }
-        )
+    # Direction: a transaction credited to the entity's fund adds to the
+    # balance; one debited from it subtracts. The running balance starts at the
+    # previous period's closing balance.
+    rows, _total_in, _total_out = running_balance_rows(
+        raw_txs,
+        lambda tx: (
+            ("credit", tx.amount)
+            if tx.target_id == entity.pk
+            else ("debit", -tx.amount)
+        ),
+        initial=period.previous_balance,
+    )
+    ledger_rows = [
+        {
+            "tx": tx,
+            "direction": direction,
+            "delta": delta,
+            "balance": balance,
+            "counterparty": tx.source if direction == "credit" else tx.target,
+        }
+        for tx, direction, delta, balance in rows
+    ]
+    closing_balance = rows[-1][3] if rows else period.previous_balance
 
     return render(
         request,
@@ -263,7 +260,7 @@ def period_ledger_view(request, period_pk):
             "period": period,
             "entity": entity,
             "opening_balance": period.previous_balance,
-            "closing_balance": running,
+            "closing_balance": closing_balance,
             "ledger_rows": ledger_rows,
         },
     )

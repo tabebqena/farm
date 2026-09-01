@@ -219,3 +219,56 @@ def pending_deliveries(entity=None, as_of=None):
         row for row in pending_items(entity=entity, as_of=as_of)
         if row["pending_qty"] > 0
     ]
+
+
+# ---------------------------------------------------------------------------
+# Direction classification (stock-history display/filters)
+# ---------------------------------------------------------------------------
+
+# Forward op types treated as inbound / outbound for the stock-history
+# direction display and filters. SALE is outbound for the seller.
+_HISTORY_INBOUND_TYPES = _INBOUND_TYPES
+_HISTORY_OUTBOUND_TYPES = (
+    OperationType.SALE,
+    OperationType.DEATH,
+    OperationType.CONSUMPTION,
+)
+
+
+def line_direction(line):
+    """
+    Return ``"IN"`` or ``"OUT"`` for a movement line, reversal-aware.
+
+    A line is OUT when it is a forward outbound op (SALE/DEATH/CONSUMPTION) or
+    a reversal of an inbound op (PURCHASE/BIRTH); otherwise IN.
+    """
+    if (
+        line.reversal_of_id is None
+        and line.operation.operation_type in _HISTORY_OUTBOUND_TYPES
+    ) or (
+        line.reversal_of_id is not None
+        and line.reversal_of.operation.operation_type in _HISTORY_INBOUND_TYPES
+    ):
+        return "OUT"
+    return "IN"
+
+
+def history_direction_q(direction):
+    """
+    Return the ``Q`` that filters an ``InventoryMovementLine`` queryset to the
+    given *direction* ("in"/"out"), matching the forward/outbound op-type
+    classification used by :func:`line_direction`.
+    """
+    from django.db.models import Q
+
+    if direction == "in":
+        return Q(
+            operation__operation_type__in=_HISTORY_INBOUND_TYPES,
+            reversal_of__isnull=True,
+        ) | Q(
+            reversal_of__operation__operation_type__in=_HISTORY_OUTBOUND_TYPES
+        )
+    return Q(
+        operation__operation_type__in=_HISTORY_OUTBOUND_TYPES,
+        reversal_of__isnull=True,
+    ) | Q(reversal_of__operation__operation_type__in=_HISTORY_INBOUND_TYPES)

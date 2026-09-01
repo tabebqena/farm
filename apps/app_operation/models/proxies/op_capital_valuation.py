@@ -130,3 +130,76 @@ class CapitalValuationOperation(StockEventMixin, Operation):
         entry.full_clean()
         entry.save()
         return entry
+
+    @classmethod
+    def create_with_valuation(
+        cls, *, product, new_unit_price, date, description, officer, project
+    ):
+        """
+        Evaluate *product* at *new_unit_price* and record the capital
+        gain/loss operation inside one atomic block.
+
+        Computes the valuation delta (via ``product.compute_valuation_delta``),
+        guards ownership, and creates the operation (choosing CAPITAL_GAIN vs
+        CAPITAL_LOSS from the delta sign) plus its ``ProductCapitalValuation``
+        row. Returns ``(op, entry, delta)``, or ``None`` when there is no
+        material change (``abs(delta) < 0.01``) so the caller can show a
+        friendly message.
+        """
+        from decimal import Decimal
+
+        from django.db import transaction
+        from django.utils.translation import gettext as _
+
+        from apps.app_entity.models import Entity, EntityType
+
+        valuation = product.compute_valuation_delta(new_unit_price)
+        delta = valuation["delta"]
+        if abs(delta) < Decimal("0.01"):
+            return None
+
+        # Ownership guard (defense-in-depth — the evaluation form queryset
+        # already restricts choices to entity=project): never record a
+        # gain/loss on another entity's asset. The valuation row's clean()
+        # re-checks it at the model layer.
+        if product.entity_id != project.id:
+            raise ValidationError(
+                _(
+                    "Product '%(p)s' does not belong to '%(entity)s' "
+                    "and cannot be evaluated."
+                )
+                % {"p": product, "entity": project}
+            )
+
+        # The shared CapitalValuationOperation proxy serves both directions:
+        # pick the variant from the delta sign.
+        op_type = (
+            OperationType.CAPITAL_GAIN if delta > 0 else OperationType.CAPITAL_LOSS
+        )
+        system_entity = Entity.objects.filter(
+            entity_type=EntityType.SYSTEM
+        ).first()
+        if op_type == OperationType.CAPITAL_GAIN:
+            source, destination = system_entity, project
+        else:
+            source, destination = project, system_entity
+
+        amount = abs(delta).quantize(Decimal("0.01"))
+        with transaction.atomic():
+            op = cls.create(
+                operation_type=op_type,
+                source=source,
+                destination=destination,
+                amount=amount,
+                date=date,
+                description=description,
+                officer=officer,
+                amount_paid=Decimal("0"),
+                project=project,
+            )
+            entry = op.add_valuation(
+                product=product,
+                amount=delta.quantize(Decimal("0.01")),
+                officer=officer,
+            )
+        return op, entry, delta

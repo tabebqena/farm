@@ -573,6 +573,49 @@ class InvoiceItemAdjustment(
             },
         )
 
+    @classmethod
+    def create_from_item_changes(
+        cls, operation, changed_items_data, reason, date, officer
+    ):
+        """
+        Create an ``InvoiceItemAdjustment`` (and its lines) from a list of
+        changed-item dicts, then finalize it.
+
+        ``changed_items_data`` entries are dicts with ``item``,
+        ``new_quantity`` and ``new_unit_price`` (either may be ``None`` when the
+        other field changed). Must be called inside an atomic block. Returns the
+        created ``InvoiceItemAdjustment``.
+        """
+        # Determine the item adjustment type based on operation type
+        if operation.operation_type == OperationType.PURCHASE:
+            item_adj_type = InvoiceItemAdjustmentType.PURCHASE_ITEM_INCREASE
+        else:  # SALE
+            item_adj_type = InvoiceItemAdjustmentType.SALE_ITEM_INCREASE
+
+        item_adj = cls(
+            operation=operation,
+            type=item_adj_type,
+            reason=reason,
+            date=date,
+            officer=officer,
+        )
+        item_adj.full_clean()
+        item_adj.save()
+
+        for changed_item_data in changed_items_data:
+            line = InvoiceItemAdjustmentLine(
+                adjustment=item_adj,
+                invoice_item=changed_item_data["item"],
+                new_quantity=changed_item_data["new_quantity"],
+                new_unit_price=changed_item_data["new_unit_price"],
+            )
+            line.full_clean()
+            line.save()
+
+        # Finalize: creates the accounting Adjustment and transaction
+        item_adj.finalize()
+        return item_adj
+
     def reverse(self, officer, date, reason=""):
         """
         Reverse the item adjustment:

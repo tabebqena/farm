@@ -184,14 +184,11 @@ class OperationCreateView(View):
                     "POST data validation failed",
                     {"error": str(e)},
                 )
-                messages.error(request, str(e))
-                return render(
+                return self._render_with_errors(
                     request,
-                    self.template_name,
-                    self._build_context(
-                        formset=self._make_formset(data=request.POST),
-                        errors=[str(e)],
-                    ),
+                    formset=self._make_formset(data=request.POST),
+                    errors=[str(e)],
+                    message=str(e),
                 )
 
             date_val = parsed.date
@@ -219,16 +216,13 @@ class OperationCreateView(View):
                     },
                     user=request.user.username,
                 )
-                messages.error(request, error_msg)
-                return render(
+                return self._render_with_errors(
                     request,
-                    self.template_name,
-                    self._build_context(
-                        formset=formset,
-                        date=date_val,
-                        description=description,
-                        selected_category_id=selected_category_id,
-                    ),
+                    formset=formset,
+                    date=date_val,
+                    description=description,
+                    selected_category_id=selected_category_id,
+                    message=error_msg,
                 )
 
             # ── 3. Compute amount ─────────────────────────────────────────
@@ -315,17 +309,14 @@ class OperationCreateView(View):
                     request, _("Transaction Error: %(error)s") % {"error": str(e)}
                 )
 
-        return render(
+        return self._render_with_errors(
             request,
-            self.template_name,
-            self._build_context(
-                formset=formset,
-                amount=amount,
-                date=date_val,
-                description=description,
-                selected_category_id=selected_category_id,
-                errors=errors,
-            ),
+            formset=formset,
+            amount=amount,
+            date=date_val,
+            description=description,
+            selected_category_id=selected_category_id,
+            errors=errors,
         )
 
     # ---- view helpers (no business logic) -----------------------------------
@@ -339,6 +330,24 @@ class OperationCreateView(View):
             instance=instance or self.proxy_cls(),
             project=self.project,
             is_birth=self.canonical_op_type == OperationType.BIRTH,
+        )
+
+    def _render_with_errors(
+        self,
+        request,
+        formset,
+        *,
+        errors=None,
+        message=None,
+        **overrides
+    ):
+        """Render the create form with an error message and context overrides."""
+        if message:
+            messages.error(request, message)
+        return render(
+            request,
+            self.template_name,
+            self._build_context(formset=formset, errors=errors or [], **overrides),
         )
 
     def _build_context(

@@ -1,18 +1,19 @@
 import traceback
 from datetime import date
-from decimal import Decimal
 
 from django.conf import settings
 from django.contrib import messages
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db.models import Q
 from django.shortcuts import redirect, render
-from django.urls import reverse
 from django.utils import timezone
 
 from apps.app_base.debug import DebugContext, debug_view
+from apps.app_base.navigation import set_entity_navigation
+from apps.app_base.reversal import reversal_guard_error
 from apps.app_entity.models import Entity
 from apps.app_transaction.models import Transaction
+from apps.app_transaction.running_balance import running_balance_rows
 from apps.app_transaction.transaction_type import TransactionType
 from farm.shortcuts import get_object_or_404
 
@@ -57,27 +58,25 @@ def entity_payment_transactions_view(request, entity_pk):
 
         # Annotate each transaction with its direction relative to this entity
         # and compute a running balance (incoming increases, outgoing decreases).
-        running_balance = Decimal("0.00")
-        total_incoming = Decimal("0.00")
-        total_outgoing = Decimal("0.00")
+        rows, total_incoming, total_outgoing = running_balance_rows(
+            transactions,
+            lambda tx: (
+                ("incoming", tx.amount)
+                if tx.target == entity
+                else ("outgoing", -tx.amount)
+            ),
+        )
         annotated_transactions = []
-        for tx in transactions:
-            if tx.target == entity:
-                tx.direction = "incoming"
-                running_balance += tx.amount
-                total_incoming += tx.amount
-            else:
-                tx.direction = "outgoing"
-                running_balance -= tx.amount
-                total_outgoing += tx.amount
-            tx.running_balance = running_balance
+        for tx, direction, _delta, balance in rows:
+            tx.direction = direction
+            tx.running_balance = balance
             annotated_transactions.append(tx)
 
         DebugContext.success("Transactions loaded", {
             "count": len(annotated_transactions),
             "total_incoming": str(total_incoming),
             "total_outgoing": str(total_outgoing),
-            "running_balance": str(running_balance),
+            "running_balance": str(total_incoming - total_outgoing),
         })
 
     # Paginate the annotated list (running balance is computed over ALL rows
@@ -92,17 +91,7 @@ def entity_payment_transactions_view(request, entity_pk):
         page_obj = paginator.page(paginator.num_pages)
 
     # Replace the ambiguous "Entity" navigation label with the entity's display name
-    if entity.entity_type in ("system", "world"):
-        request.navigation_overrides = {"related_urls": {"Entity": None}}
-    else:
-        request.navigation_overrides = {
-            "related_urls": {
-                "Entity": {
-                    "title": entity.get_display_name(),
-                    "url": reverse("entity_detail", kwargs={"pk": entity.pk}),
-                },
-            }
-        }
+    set_entity_navigation(request, entity)
 
     context = {
         "entity": entity,
@@ -158,24 +147,20 @@ def _build_obligation_transactions(
         Q(reversed_by__isnull=True) | Q(reversed_by__date__date__gt=date.today())
     )
 
-    running_balance = Decimal("0.00")
-    total_increase = Decimal("0.00")
-    total_decrease = Decimal("0.00")
-    annotated_transactions = []
-    for tx in transactions:
+    def _classify(tx):
         if tx.source == entity and tx.type in increase_source_types:
-            tx.direction = "increase"
-            running_balance += tx.amount
-            total_increase += tx.amount
-        elif tx.target == entity and tx.type in increase_target_types:
-            tx.direction = "increase"
-            running_balance += tx.amount
-            total_increase += tx.amount
-        else:
-            tx.direction = "decrease"
-            running_balance -= tx.amount
-            total_decrease += tx.amount
-        tx.running_balance = running_balance
+            return "increase", tx.amount
+        if tx.target == entity and tx.type in increase_target_types:
+            return "increase", tx.amount
+        return "decrease", -tx.amount
+
+    rows, total_increase, total_decrease = running_balance_rows(
+        transactions, _classify
+    )
+    annotated_transactions = []
+    for tx, direction, _delta, balance in rows:
+        tx.direction = direction
+        tx.running_balance = balance
         annotated_transactions.append(tx)
 
     return annotated_transactions, total_increase, total_decrease
@@ -279,14 +264,7 @@ def _obligation_context(request, entity_pk, kind, template):
     except EmptyPage:
         page_obj = paginator.page(paginator.num_pages)
 
-    request.navigation_overrides = {
-        "related_urls": {
-            "Entity": {
-                "title": entity.get_display_name(),
-                "url": reverse("entity_detail", kwargs={"pk": entity.pk}),
-            },
-        }
-    }
+    set_entity_navigation(request, entity)
 
     context = {
         "entity": entity,
@@ -398,27 +376,20 @@ def transaction_reverse_view(request, pk):
         })
 
     # Safety checks for reversibility
-    if transaction.is_reversed:
-        error_msg = "This transaction has already been reversed."
+    error_msg = reversal_guard_error(transaction, "transaction")
+    if error_msg:
+        if transaction.is_reversed:
+            action = "reversal_attempt_already_reversed"
+            details = {"reason": "already_reversed"}
+        else:
+            action = "reversal_attempt_on_reversal"
+            details = {"reason": "is_itself_reversal"}
         DebugContext.warn(error_msg, {"transaction_pk": transaction.pk})
         DebugContext.audit(
-            action="reversal_attempt_already_reversed",
+            action=action,
             entity_type="Transaction",
             entity_id=transaction.pk,
-            details={"reason": "already_reversed"},
-            user=request.user.username,
-        )
-        messages.warning(request, error_msg)
-        return redirect("operation_detail_view", pk=transaction.object_id)
-
-    if transaction.is_reversal:
-        error_msg = "This transaction is a reversal (You can't reverse it)."
-        DebugContext.warn(error_msg, {"transaction_pk": transaction.pk})
-        DebugContext.audit(
-            action="reversal_attempt_on_reversal",
-            entity_type="Transaction",
-            entity_id=transaction.pk,
-            details={"reason": "is_itself_reversal"},
+            details=details,
             user=request.user.username,
         )
         messages.warning(request, error_msg)

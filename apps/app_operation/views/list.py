@@ -1,12 +1,10 @@
-from decimal import Decimal
-
 from django.conf import settings
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.db.models import Q
 from django.shortcuts import render
-from django.urls import reverse
 
 from apps.app_base.debug import DebugContext, debug_view
+from apps.app_base.navigation import set_entity_navigation
 from farm.shortcuts import get_object_or_404
 from apps.app_entity.models import Entity
 from apps.app_operation.models.operation import Operation
@@ -51,54 +49,11 @@ def operation_list_view(request, person_pk):
         })
 
     # Precompute user-friendly settlement values for the list template.
-    # Operations fall into three kinds with different settlement semantics:
-    #   one_shot  - settled in full at creation (cash flows, funding, capital,
-    #               corrections, birth/death/consumption, internal transfers).
-    #   paid      - settled over time via payments (purchase, sale, expense).
-    #   repayed   - recovered over time via repayments (loan, worker advance).
-    operations = []
-    for op in proxy_operations:
-        total = op.effective_amount or Decimal("0.00")
-
-        if op.has_repayment:
-            kind = "repayed"
-            paid = getattr(op, "amount_repayed", None) or Decimal("0.00")
-            remaining = getattr(op, "amount_remaining_to_repay", None) or Decimal(
-                "0.00"
-            )
-            fully_settled = bool(getattr(op, "is_fully_repayed", False))
-        elif op.is_partially_payable:
-            kind = "paid"
-            paid = getattr(op, "amount_settled", None) or Decimal("0.00")
-            remaining = getattr(op, "amount_remaining_to_settle", None) or Decimal(
-                "0.00"
-            )
-            fully_settled = bool(getattr(op, "is_fully_settled", False))
-        else:
-            # One-shot operations settle fully at creation (reversal voids it).
-            # Non-accounting operations (Birth/Death/Consumption/Capital) have no
-            # settlement mixin — guard the access and treat them as fully settled.
-            kind = "one_shot"
-            paid = getattr(op, "amount_settled", None) or total
-            remaining = Decimal("0.00")
-            fully_settled = bool(getattr(op, "is_fully_settled", True))
-
-        if remaining < Decimal("0.00"):
-            remaining = Decimal("0.00")
-
-        percent = 0
-        if total > Decimal("0.00"):
-            percent = min(int(round(float(paid) / float(total) * 100)), 100)
-
-        operations.append({
-            "operation": op,
-            "kind": kind,
-            "paid": paid,
-            "remaining": remaining,
-            "total": total,
-            "fully_settled": fully_settled,
-            "percent": percent,
-        })
+    # The kind (one_shot / paid / repayed) and paid/remaining/percent are
+    # computed by Operation.settlement_summary().
+    operations = [
+        {"operation": op, **op.settlement_summary()} for op in proxy_operations
+    ]
 
     paginator = Paginator(operations, 25)
     page_number = request.GET.get('page', 1)
@@ -110,19 +65,7 @@ def operation_list_view(request, person_pk):
         page_obj = paginator.page(paginator.num_pages)
 
     # Replace the ambiguous "Entity" navigation label with the entity's display name
-    if entity_person.entity_type in ("system", "world"):
-        request.navigation_overrides = {"related_urls": {"Entity": None}}
-    else:
-        request.navigation_overrides = {
-            "related_urls": {
-                "Entity": {
-                    "title": entity_person.get_display_name(),
-                    "url": reverse(
-                        "entity_detail", kwargs={"pk": entity_person.pk}
-                    ),
-                },
-            }
-        }
+    set_entity_navigation(request, entity_person)
 
     context = {
         "entity_person": entity_person,
