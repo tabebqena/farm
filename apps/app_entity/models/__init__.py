@@ -392,12 +392,6 @@ class Entity(ImmutableMixin, BaseModel):
             e.save()
             return e
 
-    # Sentinel used by operation proxies via hasattr(self.source, "fund") to
-    # detect fund-backed entities (e.g. WorkerAdvanceOperation.clean()).
-    @property
-    def fund(self):
-        return self
-
     class Meta:
         verbose_name = _("entity")
         verbose_name_plural = _("entities")
@@ -763,7 +757,3 @@ class Entity(ImmutableMixin, BaseModel):
             )
 
             return super().delete(*args, **kwargs)
-
-    # class Meta:
-    #     verbose_name = _("fund")
-    #     verbose_name_plural = _("funds")

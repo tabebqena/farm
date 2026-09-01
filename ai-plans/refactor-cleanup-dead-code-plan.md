@@ -97,13 +97,15 @@ is marked `# TODO remove` and just `return self`. Its only consumer is
 **Action:** change the template to `{{ entity.description|default:'No description provided.' }}`
 and remove the property. Rendered output is identical.
 
-### 0c. `Entity.fund` property — KEPT (NOT dead code)
-[`apps/app_entity/models/__init__.py`](apps/app_entity/models/__init__.py) exposes
-`fund` returning `self`. It is **not** dead: operation proxies use it as a
-sentinel via `hasattr(self.source, "fund")` to detect fund-backed entities (e.g.
-[`WorkerAdvanceOperation.clean()`](apps/app_operation/models/proxies/op_worker_advance.py:73)).
-It was initially misidentified as dead (the `# TODO remove` comment is
-misleading); the comment was corrected and the property kept.
+### 0c. `Entity.fund` property — REMOVED (guard simplified)
+[`apps/app_entity/models/__init__.py`](apps/app_entity/models/__init__.py) exposed
+`fund` returning `self`. It is used only as a sentinel via
+`hasattr(self.source, "fund")` in
+[`WorkerAdvanceOperation.clean()`](apps/app_operation/models/proxies/op_worker_advance.py:73).
+Since `fund` is just the entity itself, the sentinel was removed and the balance
+guard now calls `self.source.can_pay()` directly (the `source_id` guard remains).
+The dangling commented-out `class Meta: verbose_name = _("fund")` block was also
+removed. Verified no remaining `hasattr/getattr("fund")` or `.fund` references.
 
 ### 0d. `Entity.type` property
 [`apps/app_entity/models/__init__.py:281`](apps/app_entity/models/__init__.py:281)
@@ -262,8 +264,10 @@ Phase 0 (dead-code removal) implemented as a pure refactor:
   stub (never imported or routed).
 - Removed `Entity.owner` and `Entity.type` properties; `entity_detail.html` now
   uses `entity.description` (identical output, since `owner` returned `self`).
-- **Kept** `Entity.fund` — it is an `hasattr(...)` sentinel used by the operation
-  proxies, not dead code; corrected the misleading `# TODO remove` comment.
+- **Removed** `Entity.fund` and the `hasattr(self.source, "fund")` guard in
+  `WorkerAdvanceOperation.clean()` — `fund` is just the entity itself, so the
+  balance guard now calls `self.source.can_pay()` directly; the dangling
+  commented-out `class Meta: verbose_name = _("fund")` block was removed too.
 - Removed the duplicate `Entity` import in
   [`project_setup_wizard.py`](apps/app_entity/views/project_setup_wizard.py).
 - Removed commented-out `CashInjectionUpdateView`
