@@ -3,7 +3,6 @@ from datetime import date
 
 from django.conf import settings
 from django.contrib import messages
-from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db.models import Q
 from django.shortcuts import redirect, render
 from django.utils import timezone
@@ -15,7 +14,7 @@ from apps.app_entity.models import Entity
 from apps.app_transaction.models import Transaction
 from apps.app_transaction.running_balance import running_balance_rows
 from apps.app_transaction.transaction_type import TransactionType
-from farm.shortcuts import get_object_or_404
+from farm.shortcuts import get_object_or_404, paginate
 
 
 @debug_view
@@ -81,14 +80,7 @@ def entity_payment_transactions_view(request, entity_pk):
 
     # Paginate the annotated list (running balance is computed over ALL rows
     # first, so it remains correct across pages).
-    paginator = Paginator(annotated_transactions, 25)
-    page_number = request.GET.get("page", 1)
-    try:
-        page_obj = paginator.page(page_number)
-    except PageNotAnInteger:
-        page_obj = paginator.page(1)
-    except EmptyPage:
-        page_obj = paginator.page(paginator.num_pages)
+    page_obj, paginator = paginate(request, annotated_transactions)
 
     # Replace the ambiguous "Entity" navigation label with the entity's display name
     set_entity_navigation(request, entity)
@@ -255,14 +247,7 @@ def _obligation_context(request, entity_pk, kind, template):
 
     # Paginate the annotated list (running balance is computed over ALL rows
     # first, so it remains correct across pages).
-    paginator = Paginator(annotated_transactions, 25)
-    page_number = request.GET.get("page", 1)
-    try:
-        page_obj = paginator.page(page_number)
-    except PageNotAnInteger:
-        page_obj = paginator.page(1)
-    except EmptyPage:
-        page_obj = paginator.page(paginator.num_pages)
+    page_obj, paginator = paginate(request, annotated_transactions)
 
     set_entity_navigation(request, entity)
 

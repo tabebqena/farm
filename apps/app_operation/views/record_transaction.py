@@ -13,6 +13,24 @@ from apps.app_operation.models.operation import Operation
 from farm.shortcuts import get_object_or_404
 
 
+def _render_transaction_form(
+    request, operation, form, template, remaining_balance, source_entity
+):
+    """Render a payment/repayment form with the shared transaction context."""
+    return render(
+        request,
+        template,
+        {
+            "form": form,
+            "operation": operation,
+            "remaining_balance": remaining_balance,
+            "source_entity": source_entity,
+            "source_balance": source_entity.balance if source_entity else None,
+            "currency": getattr(settings, "CURRENCY_SYMBOL", "$"),
+        },
+    )
+
+
 @debug_view
 def record_transaction_payment(request, pk):
     """Record a payment transaction for an operation."""
@@ -118,18 +136,13 @@ def record_transaction_payment(request, pk):
         )
 
     # The payment transaction debits the operation's payment source fund.
-    source_entity = getattr(operation, "payment_source_fund", None)
-    return render(
+    return _render_transaction_form(
         request,
+        operation,
+        form,
         "app_operation/add_payment_form.html",
-        {
-            "form": form,
-            "operation": operation,
-            "remaining_balance": operation.amount_remaining_to_settle,
-            "source_entity": source_entity,
-            "source_balance": source_entity.balance if source_entity else None,
-            "currency": getattr(settings, "CURRENCY_SYMBOL", "$"),
-        },
+        operation.amount_remaining_to_settle,
+        getattr(operation, "payment_source_fund", None),
     )
 
 
@@ -268,16 +281,11 @@ def record_transaction_repayment(request, pk):
 
     # The repayment transaction is sourced from the payment target fund (the
     # entity that pays the money back).
-    source_entity = getattr(operation, "payment_target_fund", None)
-    return render(
+    return _render_transaction_form(
         request,
+        operation,
+        form,
         "app_operation/add_repayment_form.html",
-        {
-            "form": form,
-            "operation": operation,
-            "remaining_balance": remaining_amount,
-            "source_entity": source_entity,
-            "source_balance": source_entity.balance if source_entity else None,
-            "currency": getattr(settings, "CURRENCY_SYMBOL", "$"),
-        },
+        remaining_amount,
+        getattr(operation, "payment_target_fund", None),
     )

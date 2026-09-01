@@ -26,3 +26,17 @@ def get_object_or_404(klass, *args, error_message=None, **kwargs):
 		if error_message:
 			raise Http404(error_message)
 		raise
+
+
+def paginate(request, items, per_page=25):
+	"""
+	Paginate *items* (a queryset or list) using the request's ``page`` param.
+
+	Returns a ``(page_obj, paginator)`` tuple. ``paginator.get_page`` handles
+	non-integer and out-of-range page numbers, so callers don't need the
+	``PageNotAnInteger``/``EmptyPage`` try/except dance.
+	"""
+	from django.core.paginator import Paginator
+
+	paginator = Paginator(items, per_page)
+	return paginator.get_page(request.GET.get("page")), paginator

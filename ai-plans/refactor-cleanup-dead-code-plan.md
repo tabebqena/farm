@@ -256,7 +256,7 @@ Per repo rules ([`AGENTS.md`](AGENTS.md), `.roo/rules/testing.md`):
 
 ---
 
-## Implementation Status — 2026-09-01 (Phases 0 & 2 COMPLETE)
+## Implementation Status — 2026-09-01 (Phases 0, 2 & 3 COMPLETE)
 
 ### Phase 0 (dead-code removal) implemented as a pure refactor:
 
@@ -301,3 +301,25 @@ changes; targeted suites green; full app suite (ui_tests excluded)
 **Verification:** `manage.py check` clean; targeted stock/movement suites green
 (61 tests); full app suite (ui_tests excluded) `--parallel=10 --keepdb` →
 **1460 tests OK**.
+
+### Phase 3 (split long functions) implemented:
+
+- Added a shared [`farm.shortcuts.paginate()`](farm/shortcuts.py) helper
+  (returns `(page_obj, paginator)`; `get_page` handles non-integer/out-of-range
+  pages, removing the `PageNotAnInteger`/`EmptyPage` try/except dance).
+- **3a `stock_detail`:** extracted module-level `_stock_portfolio_rows()` (the
+  per-product card dicts) and switched pagination to `paginate()`; the local
+  `Paginator` import was removed.
+- **3b `_create_inventory_movement`:** extracted `_render_movement_form()` and
+  both the POST-error and GET render paths now call it (removes a duplicated
+  3-key context render).
+- **3c `record_transaction_payment` / `record_transaction_repayment`:**
+  extracted `_render_transaction_form()`; both views delegate their final render
+  (shared form/operation/remaining_balance/source_balance/currency context).
+- **3d `_obligation_context` (+ `entity_payment_transactions_view`):** switched
+  both pagination blocks to `paginate()` and dropped the now-unused
+  `EmptyPage`/`PageNotAnInteger`/`Paginator` import.
+
+**Verification:** `manage.py check` clean; targeted transaction/inventory/
+operation view suites green; full app suite (ui_tests excluded)
+`--parallel=10 --keepdb` → **1460 tests OK**.

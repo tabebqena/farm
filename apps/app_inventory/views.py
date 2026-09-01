@@ -19,13 +19,28 @@ from apps.app_inventory.models import (
     Product,
     ProductTemplate,
 )
-from farm.shortcuts import get_object_or_404
+from farm.shortcuts import get_object_or_404, paginate
+
+
+def _stock_portfolio_rows(products_qs, portfolio_by_product):
+    """Build the per-product card dicts for the physically present products."""
+    rows = []
+    for p in products_qs:
+        row = portfolio_by_product[p.pk]
+        rows.append(
+            {
+                "product": p,
+                "quantity": row["quantity"],
+                "value": row["value"],
+                "is_animal": p.product_template.nature == ProductTemplate.Nature.ANIMAL,
+            }
+        )
+    return rows
 
 
 def stock_detail(request, entity_pk):
     from decimal import Decimal
 
-    from django.core.paginator import Paginator
     from django.db.models import Case, DecimalField, F, Q, Sum, Value, When
 
     from apps.app_inventory.stock import (
@@ -106,17 +121,7 @@ def stock_detail(request, entity_pk):
         products_qs = products_with_qty.none()
 
     # Build one dict per physically present product for the per-product cards.
-    physically_present_products = []
-    for p in products_qs:
-        row = portfolio_by_product[p.pk]
-        physically_present_products.append(
-            {
-                "product": p,
-                "quantity": row["quantity"],
-                "value": row["value"],
-                "is_animal": p.product_template.nature == ProductTemplate.Nature.ANIMAL,
-            }
-        )
+    physically_present_products = _stock_portfolio_rows(products_qs, portfolio_by_product)
 
     # ------------------------------------------------------------------
     # 3. Obligated outbound — aggregate warning only (not per-card metric)
@@ -129,8 +134,7 @@ def stock_detail(request, entity_pk):
     # ------------------------------------------------------------------
     # 4. Pagination (live physically present products table)
     # ------------------------------------------------------------------
-    paginator = Paginator(products_qs, 25)
-    page_obj = paginator.get_page(request.GET.get("page"))
+    page_obj, paginator = paginate(request, products_qs)
 
     return render(
         request,
@@ -603,6 +607,19 @@ def create_inventory_movement(request, operation_pk):
     return redirect("create_purchase_movement", operation_pk=operation_pk)
 
 
+def _render_movement_form(request, operation, formset, invoice_items_json):
+    """Render the inventory-movement form template with the shared context."""
+    return render(
+        request,
+        "app_inventory/inventory_movement_form.html",
+        {
+            "operation": operation,
+            "formset": formset,
+            "invoice_items_json": invoice_items_json,
+        },
+    )
+
+
 def _create_inventory_movement(request, operation_pk, expected_type):
     """
     Shared implementation for creating ``InventoryMovementLine`` records for an
@@ -703,15 +720,7 @@ def _create_inventory_movement(request, operation_pk, expected_type):
                 operation=operation,
                 prefix="lines",
             )
-            return render(
-                request,
-                "app_inventory/inventory_movement_form.html",
-                {
-                    "operation": operation,
-                    "formset": formset,
-                    "invoice_items_json": invoice_items_json,
-                },
-            )
+            return _render_movement_form(request, operation, formset, invoice_items_json)
 
     formset = InventoryMovementLineFormSet(
         queryset=InventoryMovementLine.objects.none(),
@@ -719,15 +728,7 @@ def _create_inventory_movement(request, operation_pk, expected_type):
         prefix="lines",
     )
 
-    return render(
-        request,
-        "app_inventory/inventory_movement_form.html",
-        {
-            "operation": operation,
-            "formset": formset,
-            "invoice_items_json": invoice_items_json,
-        },
-    )
+    return _render_movement_form(request, operation, formset, invoice_items_json)
 
 
 @debug_view
