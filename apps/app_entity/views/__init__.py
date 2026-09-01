@@ -1,39 +1,39 @@
-from .add_contact_info import add_contact_info_view
+from .add_contact_info import AddContactInfoView
 from .add_stakeholder import (
-    add_client_view,
-    add_shareholder_view,
-    add_vendor_view,
-    add_worker_view,
+    AddClientView,
+    AddShareholderView,
+    AddVendorView,
+    AddWorkerView,
 )
 from .category import (
-    category_bulk_assign_view,
-    category_relation_detail_view,
-    category_relation_edit_view,
+    CategoryBulkAssignView,
+    CategoryRelationDetailView,
+    CategoryRelationEditView,
 )
-from .edit_contact_info import edit_contact_info_view
-from .edit_stakeholder import edit_stakeholder_view
-from .entity_detail import entity_detail_view
-from .entity_list import entity_list_view
-from .person_create import person_create_view
-from .person_edit import person_edit_view
-from .project_edit import project_edit_view
+from .edit_contact_info import EditContactInfoView
+from .edit_stakeholder import EditStakeholderView
+from .entity_detail import EntityDetailView
+from .entity_list import EntityListView
+from .person_create import PersonCreateView
+from .person_edit import PersonEditView
+from .project_edit import ProjectEditView
 from .project_setup_wizard import project_setup_wizard_view
 
 __all__ = [
-    "entity_list_view",
-    "entity_detail_view",
-    "person_create_view",
-    "person_edit_view",
-    "project_edit_view",
+    "EntityListView",
+    "EntityDetailView",
+    "PersonCreateView",
+    "PersonEditView",
+    "ProjectEditView",
     "project_setup_wizard_view",
-    "add_contact_info_view",
-    "edit_contact_info_view",
-    "add_client_view",
-    "add_shareholder_view",
-    "add_worker_view",
-    "add_vendor_view",
-    "edit_stakeholder_view",
-    "category_relation_edit_view",
-    "category_relation_detail_view",
-    "category_bulk_assign_view",
+    "AddContactInfoView",
+    "EditContactInfoView",
+    "AddClientView",
+    "AddShareholderView",
+    "AddWorkerView",
+    "AddVendorView",
+    "EditStakeholderView",
+    "CategoryRelationEditView",
+    "CategoryRelationDetailView",
+    "CategoryBulkAssignView",
 ]

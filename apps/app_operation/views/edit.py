@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.db import transaction as db_transaction
 from django.shortcuts import redirect, render
+from django.views import View
 
 from apps.app_base.logging_utils import audit_logger, logger
 from farm.shortcuts import get_object_or_404
@@ -8,37 +9,60 @@ from apps.app_operation.models.operation import Operation
 from apps.app_operation.models.proxies import PROXY_MAP
 
 
-def operation_update_view(request, pk):
+class OperationUpdateView(View):
     """Update non-financial fields of an operation."""
-    logger.debug(
-        f"Fetching operation for update | operation_pk={pk} | "
-        f"user={request.user.username}"
-    )
-    operation = get_object_or_404(
-        Operation,
-        pk=pk,
-        error_message="Operation not found or has been deleted."
-    )
-    operation = Operation.objects.cast(operation)
-    logger.debug(
-        f"Operation loaded | operation_id={operation.pk} | "
-        f"operation_type={operation.operation_type} | is_reversed={operation.is_reversed}"
-    )
 
-    # Financial Protection: Do not allow editing reversed operations
-    if operation.is_reversed:
-        error_msg = "Cannot edit a reversed operation."
-        logger.warning(f"{error_msg} | operation_id={operation.pk}")
-        audit_logger.info(
-            f"operation_update_attempt_on_reversed | Operation:{operation.pk} | "
-            f"user={request.user.username} | reason=operation_already_reversed"
-        )
-        messages.error(request, error_msg)
-        return redirect("operation_detail_view", pk=operation.pk)
-
-    if request.method == "POST":
+    def _setup(self, pk):
+        """Load + guard the operation. Returns ``(operation, response)``."""
         logger.debug(
-            f"Processing operation update | operation_pk={pk} | "
+            f"Fetching operation for update | operation_pk={pk} | "
+            f"user={self.request.user.username}"
+        )
+        operation = get_object_or_404(
+            Operation,
+            pk=pk,
+            error_message="Operation not found or has been deleted."
+        )
+        operation = Operation.objects.cast(operation)
+        logger.debug(
+            f"Operation loaded | operation_id={operation.pk} | "
+            f"operation_type={operation.operation_type} | is_reversed={operation.is_reversed}"
+        )
+
+        # Financial Protection: Do not allow editing reversed operations
+        if operation.is_reversed:
+            error_msg = "Cannot edit a reversed operation."
+            logger.warning(f"{error_msg} | operation_id={operation.pk}")
+            audit_logger.info(
+                f"operation_update_attempt_on_reversed | Operation:{operation.pk} | "
+                f"user={self.request.user.username} | reason=operation_already_reversed"
+            )
+            messages.error(self.request, error_msg)
+            return None, redirect("operation_detail_view", pk=operation.pk)
+
+        return operation, None
+
+    def get(self, request, *args, **kwargs):
+        operation, response = self._setup(kwargs["pk"])
+        if response is not None:
+            return response
+        assert operation is not None
+
+        context = {
+            "operation": operation,
+            "config": PROXY_MAP.get(operation.operation_type),
+            "is_update": True,
+        }
+        return render(request, "app_operation/generic_edit_form.html", context)
+
+    def post(self, request, *args, **kwargs):
+        operation, response = self._setup(kwargs["pk"])
+        if response is not None:
+            return response
+        assert operation is not None
+
+        logger.debug(
+            f"Processing operation update | operation_pk={operation.pk} | "
             f"user={request.user.username}"
         )
         try:
@@ -84,9 +108,9 @@ def operation_update_view(request, pk):
             )
             messages.error(request, f"Update Error: {str(e)}")
 
-    context = {
-        "operation": operation,
-        "config": PROXY_MAP.get(operation.operation_type),
-        "is_update": True,
-    }
-    return render(request, "app_operation/generic_edit_form.html", context)
+        context = {
+            "operation": operation,
+            "config": PROXY_MAP.get(operation.operation_type),
+            "is_update": True,
+        }
+        return render(request, "app_operation/generic_edit_form.html", context)

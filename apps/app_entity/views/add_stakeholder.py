@@ -1,40 +1,92 @@
 from django.contrib import messages
 from django.http import Http404
 from django.shortcuts import redirect, render
+from django.views import View
 
 from apps.app_base.logging_utils import audit_logger, logger
 from farm.shortcuts import get_object_or_404
 from apps.app_entity.models import Entity, Stakeholder
 
 
-def add_stakeholder_base(request, parent_entity_id, role_type):
-    """Add a stakeholder to a project with role-based validation."""
-    logger.debug(
-        f"Fetching parent project entity | parent_entity_id={parent_entity_id} | "
-        f"role_type={role_type}"
-    )
-    try:
-        parent_project = get_object_or_404(
-            Entity,
-            pk=parent_entity_id,
-            is_internal=True,
-            error_message="Project not found or is not configured as internal."
-        )
-        logger.debug(
-            f"Parent project loaded | project_id={parent_project.id} | "
-            f"project_name={parent_project.name}"
-        )
-    except Http404 as e:
-        error_msg = f"No project match the supplied query pk{parent_entity_id} is_internal:{True}"
-        logger.error(error_msg)
-        audit_logger.info(
-            f"invalid_parent_project_for_stakeholder_add | Entity:{parent_entity_id} | "
-            f"user={request.user.username} | reason=not_internal | role_type={role_type}"
-        )
-        messages.error(request, error_msg)
-        raise e
+class AddStakeholderView(View):
+    """Add a stakeholder to a project with role-based validation.
 
-    if request.method == "POST":
+    Concrete subclasses set ``role_type`` (e.g. ``"vendor"``, ``"client"``,
+    ``"worker"``, ``"shareholder"``).
+    """
+
+    role_type: str
+    template_name = "app_entity/stakeholder_form.html"
+
+    def _load_parent(self, parent_entity_id):
+        """Load the internal parent project, or re-raise the 404 with auditing."""
+        logger.debug(
+            f"Fetching parent project entity | parent_entity_id={parent_entity_id} | "
+            f"role_type={self.role_type}"
+        )
+        try:
+            parent_project = get_object_or_404(
+                Entity,
+                pk=parent_entity_id,
+                is_internal=True,
+                error_message="Project not found or is not configured as internal."
+            )
+            logger.debug(
+                f"Parent project loaded | project_id={parent_project.id} | "
+                f"project_name={parent_project.name}"
+            )
+        except Http404 as e:
+            error_msg = f"No project match the supplied query pk{parent_entity_id} is_internal:{True}"
+            logger.error(error_msg)
+            audit_logger.info(
+                f"invalid_parent_project_for_stakeholder_add | Entity:{parent_entity_id} | "
+                f"user={self.request.user.username} | reason=not_internal | "
+                f"role_type={self.role_type}"
+            )
+            messages.error(self.request, error_msg)
+            raise e
+        return parent_project
+
+    def _render_form(self, parent_project, available_entities, role_type):
+        return render(
+            self.request,
+            self.template_name,
+            {
+                "project_entity": parent_project,
+                "entities": available_entities,
+                "role_type": role_type,
+                "role_name": role_type.capitalize(),
+            },
+        )
+
+    def get(self, request, *args, **kwargs):
+        parent_project = self._load_parent(kwargs["parent_entity_id"])
+        role_type = self.role_type
+
+        # Filter available entities based on the role requirements
+        logger.debug(f"Building available entities list | role_type={role_type}")
+        if role_type == "worker":
+            available = Entity.objects.filter(is_worker=True, active=True)
+        elif role_type == "shareholder":
+            available = Entity.objects.filter(is_shareholder=True, active=True)
+        elif role_type == "vendor":
+            available = Entity.objects.filter(is_vendor=True, active=True)
+        elif role_type == "client":
+            available = Entity.objects.filter(is_client=True, active=True)
+        else:
+            available = Entity.objects.none()
+
+        # Exclude the host itself
+        available = available.exclude(id=parent_project.id)
+        logger.debug(
+            f"Available entities filtered | count={available.count()} | role_type={role_type}"
+        )
+
+        return self._render_form(parent_project, available, role_type)
+
+    def post(self, request, *args, **kwargs):
+        parent_project = self._load_parent(kwargs["parent_entity_id"])
+        role_type = self.role_type
         logger.debug(
             f"Processing stakeholder addition | project_id={parent_project.id} | "
             f"role_type={role_type} | user={request.user.username}"
@@ -121,67 +173,35 @@ def add_stakeholder_base(request, parent_entity_id, role_type):
                     f"user={request.user.username} | error={error_details}"
                 )
                 messages.error(request, f"Error creating stakeholder: {str(e)}")
-                return render(
-                    request,
-                    "app_entity/stakeholder_form.html",
-                    {
-                        "project_entity": parent_project,
-                        "entities": [],
-                        "role_type": role_type,
-                        "role_name": role_type.capitalize(),
-                    },
-                )
+                return self._render_form(parent_project, Entity.objects.none(), role_type)
 
             messages.success(
                 request, f"Successfully added {role_type}: {target_entity}"
             )
             return redirect("entity_detail", pk=parent_project.id)
 
-    # Filter available entities based on the role requirements
-    logger.debug(f"Building available entities list | role_type={role_type}")
-    if role_type == "worker":
-        available = Entity.objects.filter(is_worker=True, active=True)
-    elif role_type == "shareholder":
-        available = Entity.objects.filter(is_shareholder=True, active=True)
-    elif role_type == "vendor":
-        available = Entity.objects.filter(is_vendor=True, active=True)
-    elif role_type == "client":
-        available = Entity.objects.filter(is_client=True, active=True)
-    else:
-        available = Entity.objects.none()
-
-    # Exclude the host itself
-    available = available.exclude(id=parent_project.id)
-    logger.debug(f"Available entities filtered | count={available.count()} | role_type={role_type}")
-
-    return render(
-        request,
-        "app_entity/stakeholder_form.html",
-        {
-            "project_entity": parent_project,
-            "entities": available,
-            "role_type": role_type,
-            "role_name": role_type.capitalize(),
-        },
-    )
+        return self._render_form(parent_project, Entity.objects.none(), role_type)
 
 
-# The four specific views
-def add_vendor_view(request, pk):
+class AddVendorView(AddStakeholderView):
     """Add a vendor stakeholder."""
-    return add_stakeholder_base(request, pk, "vendor")
+
+    role_type = "vendor"
 
 
-def add_client_view(request, pk):
+class AddClientView(AddStakeholderView):
     """Add a client stakeholder."""
-    return add_stakeholder_base(request, pk, "client")
+
+    role_type = "client"
 
 
-def add_worker_view(request, pk):
+class AddWorkerView(AddStakeholderView):
     """Add a worker stakeholder."""
-    return add_stakeholder_base(request, pk, "worker")
+
+    role_type = "worker"
 
 
-def add_shareholder_view(request, pk):
+class AddShareholderView(AddStakeholderView):
     """Add a shareholder stakeholder."""
-    return add_stakeholder_base(request, pk, "shareholder")
+
+    role_type = "shareholder"

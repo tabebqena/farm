@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.db import transaction
 from django.shortcuts import redirect, render
+from django.views import View
 
 from apps.app_base.logging_utils import audit_logger, logger
 from farm.shortcuts import get_object_or_404
@@ -11,26 +12,54 @@ from apps.app_entity.models.category import (
 )
 
 
-def category_bulk_assign_view(request, parent_entity_id):
+class CategoryBulkAssignView(View):
     """Bulk assign or remove financial categories for an entity."""
-    logger.debug(
-        f"Fetching entity and categories | entity_id={parent_entity_id} | "
-        f"user={request.user.username}"
-    )
-    parent_entity = get_object_or_404(
-        Entity,
-        id=parent_entity_id,
-        error_message="Entity not found or has been deleted."
-    )
-    categories = FinancialCategory.objects.all()
-    logger.debug(
-        f"Entity and categories loaded | entity_id={parent_entity.pk} | "
-        f"category_count={categories.count()}"
-    )
 
-    if request.method == "POST":
+    def _setup(self, parent_entity_id):
+        """Load the entity and all categories. Returns ``(parent_entity, categories, response)``."""
         logger.debug(
-            f"Processing bulk category assignment | entity_id={parent_entity_id} | "
+            f"Fetching entity and categories | entity_id={parent_entity_id} | "
+            f"user={self.request.user.username}"
+        )
+        parent_entity = get_object_or_404(
+            Entity,
+            id=parent_entity_id,
+            error_message="Entity not found or has been deleted."
+        )
+        categories = FinancialCategory.objects.all()
+        logger.debug(
+            f"Entity and categories loaded | entity_id={parent_entity.pk} | "
+            f"category_count={categories.count()}"
+        )
+        return parent_entity, categories, None
+
+    def get(self, request, *args, **kwargs):
+        parent_entity, categories, response = self._setup(kwargs["parent_entity_id"])
+        if response is not None:
+            return response
+
+        existing_names = FinancialCategoriesEntitiesRelations.objects.filter(
+            entity=parent_entity, is_active=True
+        ).values_list("category__pk", flat=True)
+        existing_pks_set = set(existing_names)
+
+        return render(
+            request,
+            "app_entity/category/category_bulk_form.html",
+            {
+                "parent": parent_entity,
+                "categories": categories,
+                "existing_category_names": existing_pks_set,
+            },
+        )
+
+    def post(self, request, *args, **kwargs):
+        parent_entity, categories, response = self._setup(kwargs["parent_entity_id"])
+        if response is not None:
+            return response
+
+        logger.debug(
+            f"Processing bulk category assignment | entity_id={parent_entity.pk} | "
             f"user={request.user.username}"
         )
         selected_pks = request.POST.getlist("selected_categories")
@@ -102,19 +131,4 @@ def category_bulk_assign_view(request, parent_entity_id):
             )
             messages.error(request, f"Bulk creation failed: {str(e)}")
 
-        return redirect("entity_detail", pk=parent_entity.id)
-
-    existing_names = FinancialCategoriesEntitiesRelations.objects.filter(
-        entity=parent_entity, is_active=True
-    ).values_list("category__pk", flat=True)
-    existing_pks_set = set(existing_names)
-
-    return render(
-        request,
-        "app_entity/category/category_bulk_form.html",
-        {
-            "parent": parent_entity,
-            "categories": categories,
-            "existing_category_names": existing_pks_set,
-        },
-    )
+        return redirect("entity_detail", pk=parent_entity.pk)

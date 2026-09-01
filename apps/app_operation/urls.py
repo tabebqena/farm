@@ -5,27 +5,27 @@ from . import views
 urlpatterns = [
     path(
         "periods/<int:entity_pk>/",
-        views.period_list_view,
+        views.PeriodListView.as_view(),
         name="period_list_view",
     ),
     path(
         "periods/<int:period_pk>/detail/",
-        views.period_detail_view,
+        views.PeriodDetailView.as_view(),
         name="period_detail_view",
     ),
     path(
         "periods/<int:period_pk>/close/",
-        views.period_close_view,
+        views.PeriodCloseView.as_view(),
         name="period_close_view",
     ),
     path(
         "periods/<int:period_pk>/ledger/",
-        views.period_ledger_view,
+        views.PeriodLedgerView.as_view(),
         name="period_ledger_view",
     ),
     path(
         "<int:person_pk>/list/",
-        views.operation_list_view,
+        views.OperationListView.as_view(),
         name="operation_list_view",
     ),
     # TODO(spec): register the no-product route `/<pk>/evaluate/` claimed by
@@ -145,57 +145,57 @@ urlpatterns = [
     ),
     path(
         "repayment/<int:pk>/create",
-        views.record_transaction_repayment,
+        views.RecordTransactionRepaymentView.as_view(),
         name="record_transaction_repayment",
     ),
     path(
         "payment/<int:pk>/create",
-        views.record_transaction_payment,
+        views.RecordTransactionPaymentView.as_view(),
         name="record_transaction_payment",
     ),
     path(
         "<int:pk>/adjustment-create",
-        views.record_accounting_adjustment,
+        views.RecordAccountingAdjustmentView.as_view(),
         name="record_accounting_adjustment",
     ),
     path(
         "<int:pk>/adjustment/items/create",
-        views.record_item_adjustment,
+        views.RecordItemAdjustmentView.as_view(),
         name="record_item_adjustment",
     ),
     path(
         "adjustment/<int:adjustment_id>/reverse/",
-        views.reverse_adjustment,
+        views.ReverseAdjustmentView.as_view(),
         name="reverse_adjustment",
     ),
     path(
         "adjustment/item/<int:item_adjustment_id>/reverse/",
-        views.reverse_item_adjustment,
+        views.ReverseItemAdjustmentView.as_view(),
         name="reverse_item_adjustment",
     ),
     path(
         "<int:pk>/adjustments/",
-        views.adjustments_list_view,
+        views.AdjustmentsListView.as_view(),
         name="adjustments_list_view",
     ),
     path(
         "<int:pk>/detail/",
-        views.operation_detail_view,
+        views.OperationDetailView.as_view(),
         name="operation_detail_view",
     ),
     path(
         "<int:pk>/invoice-items/",
-        views.invoice_items_list_view,
+        views.InvoiceItemsListView.as_view(),
         name="invoice_items_list_view",
     ),
     path(
         "<int:pk>/reverse/",
-        views.operation_reverse_view,
+        views.OperationReverseView.as_view(),
         name="operation_reverse_view",
     ),
     path(
         "<int:pk>/edit/",
-        views.operation_update_view,
+        views.OperationUpdateView.as_view(),
         name="operation_update_view",
     ),
 ]

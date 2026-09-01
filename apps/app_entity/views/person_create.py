@@ -1,15 +1,24 @@
 from django.contrib import messages
 from django.db import transaction
 from django.shortcuts import redirect, render
+from django.views import View
 
 from apps.app_base.logging_utils import audit_logger, logger
 from apps.app_entity.forms import PersonForm
 from apps.app_entity.models import Entity, EntityType
 
 
-def person_create_view(request):
+class PersonCreateView(View):
     """Create a new Person entity."""
-    if request.method == "POST":
+
+    def get(self, request, *args, **kwargs):
+        logger.debug("GET request - initializing empty person form")
+        form = PersonForm()
+        return render(
+            request, "app_entity/person_form.html", context={"edit": False, "form": form}
+        )
+
+    def post(self, request, *args, **kwargs):
         logger.debug(
             f"Processing person creation request | user={request.user.username} | "
             f"method=POST"
@@ -70,10 +79,7 @@ def person_create_view(request):
                 f"person_form_validation_failed | Entity:None | "
                 f"user={request.user.username} | {error_details}"
             )
-    else:
-        logger.debug("GET request - initializing empty person form")
-        form = PersonForm()
 
-    return render(
-        request, "app_entity/person_form.html", context={"edit": False, "form": form}
-    )
+        return render(
+            request, "app_entity/person_form.html", context={"edit": False, "form": form}
+        )

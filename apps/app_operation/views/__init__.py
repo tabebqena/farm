@@ -1,10 +1,10 @@
 from .adjustment import (
-    record_accounting_adjustment,
-    record_item_adjustment,
-    reverse_adjustment,
-    reverse_item_adjustment,
+    RecordAccountingAdjustmentView,
+    RecordItemAdjustmentView,
+    ReverseAdjustmentView,
+    ReverseItemAdjustmentView,
 )
-from .adjustments_list import adjustments_list_view
+from .adjustments_list import AdjustmentsListView
 from .create_operation import (
     BirthCreateView,
     DeathCreateView,
@@ -25,32 +25,35 @@ from .create_operation import (
     sale_submit_view,
     sale_wizard_view,
 )
-from .detail import operation_detail_view
-from .edit import operation_update_view
-from .invoice_items import invoice_items_list_view
-from .list import operation_list_view
+from .detail import OperationDetailView
+from .edit import OperationUpdateView
+from .invoice_items import InvoiceItemsListView
+from .list import OperationListView
 from .period import (
-    period_close_view,
-    period_detail_view,
-    period_ledger_view,
-    period_list_view,
+    PeriodCloseView,
+    PeriodDetailView,
+    PeriodLedgerView,
+    PeriodListView,
 )
-from .record_transaction import record_transaction_payment, record_transaction_repayment
-from .reverse import operation_reverse_view
+from .record_transaction import (
+    RecordTransactionPaymentView,
+    RecordTransactionRepaymentView,
+)
+from .reverse import OperationReverseView
 
 __all__ = [
-    "adjustments_list_view",
-    "invoice_items_list_view",
-    "operation_list_view",
-    "operation_update_view",
+    "AdjustmentsListView",
+    "InvoiceItemsListView",
+    "OperationListView",
+    "OperationUpdateView",
     "OperationCreateView",
     "BirthCreateView",
     "DeathCreateView",
     "EvaluationCreateView",
-    "period_list_view",
-    "period_detail_view",
-    "period_close_view",
-    "period_ledger_view",
+    "PeriodListView",
+    "PeriodDetailView",
+    "PeriodCloseView",
+    "PeriodLedgerView",
     "purchase_wizard_view",
     "cancel_purchase_wizard_view",
     "purchase_invoice_view",
@@ -65,12 +68,12 @@ __all__ = [
     "sale_add_item_view",
     "sale_delete_item_view",
     "sale_submit_view",
-    "operation_detail_view",
-    "operation_reverse_view",
-    "record_transaction_repayment",
-    "record_transaction_payment",
-    "record_accounting_adjustment",
-    "record_item_adjustment",
-    "reverse_adjustment",
-    "reverse_item_adjustment",
+    "OperationDetailView",
+    "OperationReverseView",
+    "RecordTransactionRepaymentView",
+    "RecordTransactionPaymentView",
+    "RecordAccountingAdjustmentView",
+    "RecordItemAdjustmentView",
+    "ReverseAdjustmentView",
+    "ReverseItemAdjustmentView",
 ]

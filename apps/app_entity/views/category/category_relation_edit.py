@@ -3,6 +3,7 @@ from decimal import Decimal
 from django.contrib import messages
 from django.db import transaction
 from django.shortcuts import redirect, render
+from django.views import View
 
 from apps.app_base.logging_utils import audit_logger, logger
 from farm.shortcuts import get_object_or_404
@@ -11,28 +12,51 @@ from apps.app_entity.models.category import (
 )
 
 
-def category_relation_edit_view(request, pk):
+class CategoryRelationEditView(View):
     """Edit a category-entity relationship (max limit and activation)."""
-    # 1. Fetch the existing category and relation
-    logger.debug(
-        f"Fetching category relation | relation_pk={pk} | user={request.user.username}"
-    )
-    relation = get_object_or_404(
-        FinancialCategoriesEntitiesRelations,
-        pk=pk,
-        error_message="Category assignment not found or has been deleted."
-    )
-    category = relation.category
-    parent = relation.entity
-    logger.debug(
-        f"Category relation loaded | relation_id={relation.pk} | "
-        f"category_id={category.pk} | entity_id={parent.pk} | "
-        f"is_active={relation.is_active} | max_limit={relation.max_limit}"
-    )
 
-    if request.method == "POST":
+    def _setup(self, pk):
+        """Load the relation, category and parent. Returns ``(relation, category, parent, response)``."""
+        # 1. Fetch the existing category and relation
         logger.debug(
-            f"Processing category relation update | relation_pk={pk} | "
+            f"Fetching category relation | relation_pk={pk} | user={self.request.user.username}"
+        )
+        relation = get_object_or_404(
+            FinancialCategoriesEntitiesRelations,
+            pk=pk,
+            error_message="Category assignment not found or has been deleted."
+        )
+        category = relation.category
+        parent = relation.entity
+        logger.debug(
+            f"Category relation loaded | relation_id={relation.pk} | "
+            f"category_id={category.pk} | entity_id={parent.pk} | "
+            f"is_active={relation.is_active} | max_limit={relation.max_limit}"
+        )
+        return relation, category, parent, None
+
+    def get(self, request, *args, **kwargs):
+        relation, category, parent, response = self._setup(kwargs["pk"])
+        if response is not None:
+            return response
+
+        return render(
+            request,
+            "app_entity/category/category_relation_edit_form.html",
+            {
+                "category": category,
+                "parent": parent,
+                "relation": relation,
+            },
+        )
+
+    def post(self, request, *args, **kwargs):
+        relation, category, parent, response = self._setup(kwargs["pk"])
+        if response is not None:
+            return response
+
+        logger.debug(
+            f"Processing category relation update | relation_pk={relation.pk} | "
             f"user={request.user.username}"
         )
         action = request.POST.get("action", "save")
@@ -95,7 +119,7 @@ def category_relation_edit_view(request, pk):
                         request, f"Category '{category.name}' updated successfully."
                     )
 
-                return redirect("entity_detail", pk=parent.id)
+                return redirect("entity_detail", pk=parent.pk)
 
         except Exception as e:
             error_details = {
@@ -116,12 +140,12 @@ def category_relation_edit_view(request, pk):
             )
             messages.error(request, f"Update failed: {str(e)}")
 
-    return render(
-        request,
-        "app_entity/category/category_relation_edit_form.html",
-        {
-            "category": category,
-            "parent": parent,
-            "relation": relation,
-        },
-    )
+        return render(
+            request,
+            "app_entity/category/category_relation_edit_form.html",
+            {
+                "category": category,
+                "parent": parent,
+                "relation": relation,
+            },
+        )

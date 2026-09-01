@@ -2,25 +2,39 @@ from django.contrib import messages
 from django.db import transaction
 from django.shortcuts import redirect, render
 from django.utils.translation import gettext as _
+from django.views import View
 
 from apps.app_base.logging_utils import audit_logger, logger
 from farm.shortcuts import get_object_or_404
 from apps.app_entity.models import ContactInfo, Entity
 
 
-def add_contact_info_view(request, entity_id):
+class AddContactInfoView(View):
     """Add contact information to an entity."""
-    logger.debug(f"Fetching entity for contact addition | entity_id={entity_id}")
-    entity = get_object_or_404(
-        Entity,
-        pk=entity_id,
-        error_message="Entity not found or has been deleted."
-    )
-    logger.debug(
-        f"Entity loaded | entity_id={entity.id} | entity_name={entity.name}"
-    )
 
-    if request.method == "POST":
+    def _load_entity(self, entity_id):
+        logger.debug(f"Fetching entity for contact addition | entity_id={entity_id}")
+        entity = get_object_or_404(
+            Entity,
+            pk=entity_id,
+            error_message="Entity not found or has been deleted."
+        )
+        logger.debug(
+            f"Entity loaded | entity_id={entity.id} | entity_name={entity.name}"
+        )
+        return entity
+
+    def get(self, request, *args, **kwargs):
+        entity = self._load_entity(kwargs["entity_id"])
+        context = {
+            "entity": entity,
+            "type_choices": ContactInfo.TYPES,
+            "label_choices": ContactInfo.LabelTypes,
+        }
+        return render(request, "app_entity/contact_form.html", context)
+
+    def post(self, request, *args, **kwargs):
+        entity = self._load_entity(kwargs["entity_id"])
         logger.debug(
             f"Processing contact information addition | entity_id={entity.id} | "
             f"user={request.user.username}"
@@ -87,9 +101,9 @@ def add_contact_info_view(request, entity_id):
             )
             messages.error(request, _("Error: %(error)s") % {"error": str(e)})
 
-    context = {
-        "entity": entity,
-        "type_choices": ContactInfo.TYPES,
-        "label_choices": ContactInfo.LabelTypes,
-    }
-    return render(request, "app_entity/contact_form.html", context)
+        context = {
+            "entity": entity,
+            "type_choices": ContactInfo.TYPES,
+            "label_choices": ContactInfo.LabelTypes,
+        }
+        return render(request, "app_entity/contact_form.html", context)

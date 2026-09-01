@@ -1,27 +1,48 @@
 from django.contrib import messages
 from django.db import transaction
 from django.shortcuts import redirect, render
+from django.views import View
 
 from apps.app_base.logging_utils import audit_logger, logger
 from farm.shortcuts import get_object_or_404
 from apps.app_entity.models import ContactInfo, Entity
 
 
-def edit_contact_info_view(request, pk):
+class EditContactInfoView(View):
     """Edit contact information."""
-    logger.debug(f"Fetching contact information | contact_pk={pk}")
-    contact = get_object_or_404(
-        ContactInfo,
-        pk=pk,
-        error_message="Contact information not found or has been deleted.",
-    )
-    entity = contact.entity
-    logger.debug(
-        f"Contact loaded | contact_id={contact.id} | entity_id={entity.id} | "
-        f"contact_type={contact.contact_type}"
-    )
 
-    if request.method == "POST":
+    def _setup(self, pk):
+        """Load the contact and its entity. Returns ``(contact, entity, response)``."""
+        logger.debug(f"Fetching contact information | contact_pk={pk}")
+        contact = get_object_or_404(
+            ContactInfo,
+            pk=pk,
+            error_message="Contact information not found or has been deleted.",
+        )
+        entity = contact.entity
+        logger.debug(
+            f"Contact loaded | contact_id={contact.id} | entity_id={entity.id} | "
+            f"contact_type={contact.contact_type}"
+        )
+        return contact, entity, None
+
+    def get(self, request, *args, **kwargs):
+        contact, entity, response = self._setup(kwargs["pk"])
+        if response is not None:
+            return response
+        context = {
+            "contact": contact,
+            "entity": entity,
+            "type_choices": ContactInfo.TYPES,
+            "label_choices": ContactInfo.LabelTypes,
+            "is_edit": True,
+        }
+        return render(request, "app_entity/contact_form.html", context)
+
+    def post(self, request, *args, **kwargs):
+        contact, entity, response = self._setup(kwargs["pk"])
+        if response is not None:
+            return response
         logger.debug(
             f"Processing contact information update | contact_id={contact.id} | "
             f"entity_id={entity.id} | user={request.user.username}"
@@ -82,11 +103,11 @@ def edit_contact_info_view(request, pk):
             )
             messages.error(request, f"Update Error: {str(e)}")
 
-    context = {
-        "contact": contact,
-        "entity": entity,
-        "type_choices": ContactInfo.TYPES,
-        "label_choices": ContactInfo.LabelTypes,
-        "is_edit": True,
-    }
-    return render(request, "app_entity/contact_form.html", context)
+        context = {
+            "contact": contact,
+            "entity": entity,
+            "type_choices": ContactInfo.TYPES,
+            "label_choices": ContactInfo.LabelTypes,
+            "is_edit": True,
+        }
+        return render(request, "app_entity/contact_form.html", context)

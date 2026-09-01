@@ -1,8 +1,9 @@
-from django.shortcuts import render, redirect
-from django.contrib.auth import views as auth_views
-from django.contrib import messages
-from django.views.decorators.http import require_http_methods
 from django.conf import settings
+from django.contrib import messages
+from django.contrib.auth import views as auth_views
+from django.shortcuts import redirect, render
+from django.views import View
+
 from .forms import UserProfileForm
 
 
@@ -14,21 +15,24 @@ class LoginView(auth_views.LoginView):
         return super().dispatch(request, *args, **kwargs)
 
 
-@require_http_methods(["GET"])
-def profile(request):
+class ProfileView(View):
     """Show the current user's profile (read-only detail page)."""
-    return render(request, 'registration/profile.html')
+
+    def get(self, request, *args, **kwargs):
+        return render(request, "registration/profile.html")
 
 
-@require_http_methods(["GET", "POST"])
-def profile_edit(request):
+class ProfileEditView(View):
     """Edit the current user's profile."""
-    if request.method == 'POST':
+
+    def get(self, request, *args, **kwargs):
+        form = UserProfileForm(instance=request.user)
+        return render(request, "registration/profile_edit.html", {"form": form})
+
+    def post(self, request, *args, **kwargs):
         form = UserProfileForm(request.POST, instance=request.user)
         if form.is_valid():
             form.save()
-            messages.success(request, 'Profile updated successfully.')
-            return redirect('profile')
-    else:
-        form = UserProfileForm(instance=request.user)
-    return render(request, 'registration/profile_edit.html', {'form': form})
+            messages.success(request, "Profile updated successfully.")
+            return redirect("profile")
+        return render(request, "registration/profile_edit.html", {"form": form})
