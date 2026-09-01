@@ -12,7 +12,7 @@ import traceback
 from django.contrib import messages
 from django.utils.translation import gettext as _
 
-from apps.app_base.logging_utils import audit_logger, logger
+from apps.app_base.logging_utils import audit_logger, build_error_details, logger
 
 _ALREADY_REVERSED = {
     "adjustment": _("This adjustment has already been reversed."),
@@ -101,13 +101,14 @@ def request_reversal(
         messages.success(request, success_message(request, obj, reason))
         return redirect_to(obj)
     except Exception as e:
-        traceback.print_exc()
-        error_details = {
-            "exception_type": type(e).__name__,
-            "error_message": str(e),
-            "officer": officer.username,
-            "traceback": traceback.format_exc(),
-        }
+        logger.exception("Reversal orchestration failed")
+        error_details = build_error_details(
+            e,
+            extra={
+                "officer": officer.username,
+                "traceback": traceback.format_exc(),
+            },
+        )
         if error_details_extra is not None:
             error_details.update(error_details_extra(obj))
         audit_logger.error(audit_failure(request, obj, e, error_details))

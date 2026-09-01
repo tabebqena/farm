@@ -3,7 +3,7 @@ from django.db import transaction as db_transaction
 from django.shortcuts import redirect, render
 from django.views import View
 
-from apps.app_base.logging_utils import audit_logger, logger
+from apps.app_base.logging_utils import audit_logger, build_error_details, logger
 from farm.shortcuts import get_object_or_404
 from apps.app_operation.models.operation import Operation
 from apps.app_operation.models.proxies import PROXY_MAP
@@ -92,11 +92,9 @@ class OperationUpdateView(View):
             messages.success(request, "Update saved successfully.")
             return redirect("operation_detail_view", pk=operation.pk)
         except Exception as e:
-            error_details = {
-                "exception_type": type(e).__name__,
-                "error_message": str(e),
-                "operation_id": operation.pk,
-            }
+            error_details = build_error_details(
+                e, extra={"operation_id": operation.pk}
+            )
             logger.error(
                 f"Operation update failed | exception_type={error_details['exception_type']} | "
                 f"error_message={error_details['error_message']} | "

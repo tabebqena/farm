@@ -1,4 +1,3 @@
-import traceback
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
@@ -11,7 +10,7 @@ from django.utils import timezone
 from django.utils.translation import gettext as _
 from django.views import View
 
-from apps.app_base.logging_utils import audit_logger, logger
+from apps.app_base.logging_utils import audit_logger, build_error_details, logger
 from apps.app_entity.models.category import (
     FinancialCategory,
 )
@@ -311,13 +310,11 @@ class OperationCreateView(View):
             return redirect("operation_detail_view", pk=op.pk), errors
 
         except Exception as e:
-            traceback.print_exc()
+            logger.exception("Operation creation failed")
             errors.append(str(e))
-            error_details = {
-                "exception_type": type(e).__name__,
-                "error_message": str(e),
-                "op_type": self.canonical_op_type,
-            }
+            error_details = build_error_details(
+                e, extra={"op_type": self.canonical_op_type}
+            )
             logger.error(
                 f"Operation creation failed | "
                 f"exception_type={error_details['exception_type']} | "

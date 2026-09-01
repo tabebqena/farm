@@ -1,5 +1,4 @@
 import json
-import traceback
 
 from django.contrib import messages
 from django.shortcuts import redirect, render
@@ -7,7 +6,7 @@ from django.utils import timezone
 from django.utils.translation import gettext as _
 from django.views import View
 
-from apps.app_base.logging_utils import audit_logger, logger
+from apps.app_base.logging_utils import audit_logger, build_error_details, logger
 from apps.app_entity.models import Entity
 from apps.app_inventory.models import Product
 from apps.app_operation.forms import EvaluationForm
@@ -143,12 +142,10 @@ class EvaluationCreateView(View):
             return redirect("operation_detail_view", pk=op.pk)
 
         except Exception as e:
-            traceback.print_exc()
-            error_details = {
-                "exception_type": type(e).__name__,
-                "error_message": str(e),
-                "product_id": product.pk,
-            }
+            logger.exception("Evaluation operation creation failed")
+            error_details = build_error_details(
+                e, extra={"product_id": product.pk}
+            )
             logger.error(
                 f"Evaluation operation creation failed | "
                 f"exception_type={error_details['exception_type']} | "

@@ -1,5 +1,3 @@
-import traceback
-
 from django.conf import settings
 from django.contrib import messages
 from django.db import transaction as db_transaction
@@ -8,7 +6,7 @@ from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views import View
 
-from apps.app_base.logging_utils import audit_logger, logger
+from apps.app_base.logging_utils import audit_logger, build_error_details, logger
 from apps.app_operation.forms import PaymentForm
 from apps.app_operation.models.operation import Operation
 from farm.shortcuts import get_object_or_404
@@ -83,12 +81,10 @@ class _TransactionRecordView(View):
                 )
                 return redirect("operation_detail_view", pk=operation.pk), form
             except Exception as e:
-                traceback.print_exc()
-                error_details = {
-                    "exception_type": type(e).__name__,
-                    "error_message": str(e),
-                    "operation_id": operation.pk,
-                }
+                logger.exception(f"{label} transaction creation failed")
+                error_details = build_error_details(
+                    e, extra={"operation_id": operation.pk}
+                )
                 logger.error(
                     f"{label.capitalize()} transaction creation failed | "
                     f"exception_type={error_details['exception_type']} | "

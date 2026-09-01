@@ -5,7 +5,7 @@ from django.db import transaction
 from django.shortcuts import redirect, render
 from django.utils.translation import gettext
 
-from apps.app_base.logging_utils import audit_logger, logger
+from apps.app_base.logging_utils import audit_logger, build_error_details, logger
 from farm.shortcuts import get_object_or_404
 from apps.app_entity.models import (
     Entity,
@@ -212,10 +212,7 @@ def _handle_step_1_post(request, entity):
             active=active,
         )
     except Exception as e:
-        error_details = {
-            "exception_type": type(e).__name__,
-            "error_message": str(e),
-        }
+        error_details = build_error_details(e)
         logger.error(
             f"Project save failed | exception_type={error_details['exception_type']} | "
             f"error_message={error_details['error_message']}"
@@ -330,10 +327,7 @@ def _handle_step_2_post(request, entity):
         _apply_step2_post(request, entity, selected_pks)
         messages.success(request, gettext("Categories updated successfully."))
     except Exception as e:
-        error_details = {
-            "exception_type": type(e).__name__,
-            "error_message": str(e),
-        }
+        error_details = build_error_details(e)
         logger.error(
             f"Category update failed | exception_type={error_details['exception_type']} | "
             f"error_message={error_details['error_message']}"
@@ -406,10 +400,7 @@ def _handle_step_3_post(request, entity):
         else:
             messages.info(request, gettext("No product templates selected."))
     except Exception as e:
-        error_details = {
-            "exception_type": type(e).__name__,
-            "error_message": str(e),
-        }
+        error_details = build_error_details(e)
         logger.error(
             f"Template assignment failed | "
             f"exception_type={error_details['exception_type']} | "
@@ -493,10 +484,7 @@ def _handle_step_6_post(request, entity):
             else:
                 messages.info(request, gettext("No shareholders selected."))
     except Exception as e:
-        error_details = {
-            "exception_type": type(e).__name__,
-            "error_message": str(e),
-        }
+        error_details = build_error_details(e)
         logger.error(
             f"Shareholder addition failed | "
             f"exception_type={error_details['exception_type']} | "
@@ -623,11 +611,7 @@ def _handle_stakeholder_post(request, entity, role_type, next_step):
                     request, gettext("No %(role)s selected.") % {"role": role_type}
                 )
     except Exception as e:
-        error_details = {
-            "exception_type": type(e).__name__,
-            "error_message": str(e),
-            "role_type": role_type,
-        }
+        error_details = build_error_details(e, extra={"role_type": role_type})
         logger.error(
             f"Stakeholder addition failed ({role_type}) | "
             f"exception_type={error_details['exception_type']} | "

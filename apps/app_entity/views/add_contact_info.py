@@ -4,7 +4,7 @@ from django.shortcuts import redirect, render
 from django.utils.translation import gettext as _
 from django.views import View
 
-from apps.app_base.logging_utils import audit_logger, logger
+from apps.app_base.logging_utils import audit_logger, build_error_details, logger
 from farm.shortcuts import get_object_or_404
 from apps.app_entity.models import ContactInfo, Entity
 
@@ -82,13 +82,14 @@ class AddContactInfoView(View):
             )
             return redirect("entity_detail", pk=entity.id)
         except Exception as e:
-            error_details = {
-                "exception_type": type(e).__name__,
-                "error_message": str(e),
-                "entity_id": entity.id,
-                "contact_type": contact_type,
-                "user": request.user.username,
-            }
+            error_details = build_error_details(
+                e,
+                extra={
+                    "entity_id": entity.id,
+                    "contact_type": contact_type,
+                },
+                user=request.user,
+            )
             logger.error(
                 f"Contact info creation failed | "
                 f"exception_type={error_details['exception_type']} | "

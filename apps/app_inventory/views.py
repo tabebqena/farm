@@ -1,4 +1,3 @@
-import traceback
 import uuid
 from datetime import date as today_date
 
@@ -11,6 +10,7 @@ from django.utils.dateparse import parse_date
 from django.utils.translation import gettext as _
 from django.views import View
 
+from apps.app_base.logging_utils import logger
 from apps.app_entity.models import Entity
 from apps.app_inventory.forms import InventoryMovementLineFormSet, ProductTemplateForm
 from apps.app_inventory.models import (
@@ -483,7 +483,7 @@ class QuickConsumeView(View):
             )
             return redirect("stock_detail", entity_pk=entity_pk)
         except Exception as e:
-            traceback.print_exc()
+            logger.exception("Quick consume from stock failed")
             return self._consume_error_redirect(
                 entity_pk, _("Error: %(error)s") % {"error": str(e)}
             )
@@ -572,7 +572,7 @@ class ProjectProductTemplatesSetupView(View):
                 )
             return redirect("entity_detail", pk=entity_pk)
         except Exception as e:
-            traceback.print_exc()
+            logger.exception("Product template toggle failed")
             messages.error(
                 request, _("Transaction Error: %(error)s") % {"error": str(e)}
             )
@@ -690,7 +690,7 @@ class CreateProductTemplateView(View):
                     )
                     return redirect("entity_list")
             except Exception as e:
-                traceback.print_exc()
+                logger.exception("Product template creation failed")
                 messages.error(
                     request, _("Transaction Error: %(error)s") % {"error": str(e)}
                 )
@@ -765,7 +765,7 @@ class _InventoryMovementCreateView(View):
                 )
             return date, notes
         except Exception as e:
-            traceback.print_exc()
+            logger.exception("Movement POST parsing failed")
             messages.error(request, _("Error: %(error)s") % {"error": str(e)})
             formset = self._build_formset(request, operation, data=request.POST)
             return self._render_movement_form(
@@ -816,7 +816,7 @@ class _InventoryMovementCreateView(View):
                     )
                     return None
         except Exception as e:
-            traceback.print_exc()
+            logger.exception("Movement line creation failed")
             messages.error(request, _("Error: %(error)s") % {"error": str(e)})
             formset = self._build_formset(request, operation, data=request.POST)
             return self._render_movement_form(
@@ -989,7 +989,7 @@ class ReverseInventoryMovementLineView(View):
             messages.success(request, _("Movement line reversed successfully."))
             return redirect("operation_detail_view", pk=line.operation_id)
         except Exception as e:
-            traceback.print_exc()
+            logger.exception("Movement line reversal failed")
             messages.error(
                 request,
                 _("Error reversing movement line: %(error)s") % {"error": str(e)},
@@ -1070,7 +1070,7 @@ class BatchReverseInventoryMovementLinesView(View):
             )
             return redirect("operation_detail_view", pk=operation.pk)
         except Exception as e:
-            traceback.print_exc()
+            logger.exception("Batch movement line reversal failed")
             messages.error(
                 request,
                 _("Error reversing movement lines: %(error)s") % {"error": str(e)},
@@ -1209,7 +1209,7 @@ class RegisterDeferredMovementsView(View):
             return redirect("operation_detail_view", pk=operation.pk)
 
         except Exception as e:
-            traceback.print_exc()
+            logger.exception("Deferred movement registration failed")
             messages.error(
                 request,
                 _("Error creating movements: %(error)s") % {"error": str(e)},

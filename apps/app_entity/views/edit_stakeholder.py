@@ -2,7 +2,7 @@ from django.contrib import messages
 from django.shortcuts import redirect, render
 from django.views import View
 
-from apps.app_base.logging_utils import audit_logger, logger
+from apps.app_base.logging_utils import audit_logger, build_error_details, logger
 from farm.shortcuts import get_object_or_404
 from apps.app_entity.models import Stakeholder
 
@@ -71,13 +71,14 @@ class EditStakeholderView(View):
             )
             return redirect("entity_detail", pk=parent.id)
         except Exception as e:
-            error_details = {
-                "exception_type": type(e).__name__,
-                "error_message": str(e),
-                "stakeholder_id": stakeholder.id,
-                "parent_id": parent.id,
-                "user": request.user.username,
-            }
+            error_details = build_error_details(
+                e,
+                extra={
+                    "stakeholder_id": stakeholder.id,
+                    "parent_id": parent.id,
+                },
+                user=request.user,
+            )
             logger.error(
                 f"Stakeholder update failed | "
                 f"exception_type={error_details['exception_type']} | "

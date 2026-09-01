@@ -5,7 +5,7 @@ from django.db import transaction
 from django.shortcuts import redirect, render
 from django.views import View
 
-from apps.app_base.logging_utils import audit_logger, logger
+from apps.app_base.logging_utils import audit_logger, build_error_details, logger
 from farm.shortcuts import get_object_or_404
 from apps.app_entity.models.category import (
     FinancialCategoriesEntitiesRelations,
@@ -136,12 +136,13 @@ class CategoryRelationEditView(View):
 
     def _relation_error(self, request, e, relation, category, parent):
         """Render the edit form after a failed relation update."""
-        error_details = {
-            "exception_type": type(e).__name__,
-            "error_message": str(e),
-            "action": request.POST.get("action", "save"),
-            "relation_id": relation.pk,
-        }
+        error_details = build_error_details(
+            e,
+            extra={
+                "action": request.POST.get("action", "save"),
+                "relation_id": relation.pk,
+            },
+        )
         logger.error(
             f"Category relation update failed | "
             f"exception_type={error_details['exception_type']} | "

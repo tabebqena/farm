@@ -3,7 +3,7 @@ from django.db import transaction
 from django.shortcuts import redirect, render
 from django.views import View
 
-from apps.app_base.logging_utils import audit_logger, logger
+from apps.app_base.logging_utils import audit_logger, build_error_details, logger
 from farm.shortcuts import get_object_or_404
 from apps.app_entity.models import ContactInfo, Entity
 
@@ -84,13 +84,14 @@ class EditContactInfoView(View):
             )
             return redirect("entity_detail", pk=entity.id)
         except Exception as e:
-            error_details = {
-                "exception_type": type(e).__name__,
-                "error_message": str(e),
-                "contact_id": contact.id,
-                "entity_id": entity.id,
-                "user": request.user.username,
-            }
+            error_details = build_error_details(
+                e,
+                extra={
+                    "contact_id": contact.id,
+                    "entity_id": entity.id,
+                },
+                user=request.user,
+            )
             logger.error(
                 f"Contact update failed | "
                 f"exception_type={error_details['exception_type']} | "

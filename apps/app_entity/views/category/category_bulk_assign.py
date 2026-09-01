@@ -3,7 +3,7 @@ from django.db import transaction
 from django.shortcuts import redirect, render
 from django.views import View
 
-from apps.app_base.logging_utils import audit_logger, logger
+from apps.app_base.logging_utils import audit_logger, build_error_details, logger
 from farm.shortcuts import get_object_or_404
 from apps.app_entity.models import Entity
 from apps.app_entity.models.category import (
@@ -128,11 +128,9 @@ class CategoryBulkAssignView(View):
         try:
             self._bulk_assign_post(request, parent_entity, categories)
         except Exception as e:
-            error_details = {
-                "exception_type": type(e).__name__,
-                "error_message": str(e),
-                "entity_id": parent_entity.pk,
-            }
+            error_details = build_error_details(
+                e, extra={"entity_id": parent_entity.pk}
+            )
             logger.error(
                 f"Bulk category assignment failed | "
                 f"exception_type={error_details['exception_type']} | "

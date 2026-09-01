@@ -3,7 +3,7 @@ from django.http import Http404
 from django.shortcuts import redirect, render
 from django.views import View
 
-from apps.app_base.logging_utils import audit_logger, logger
+from apps.app_base.logging_utils import audit_logger, build_error_details, logger
 from farm.shortcuts import get_object_or_404
 from apps.app_entity.models import Entity, Stakeholder
 
@@ -138,14 +138,15 @@ class AddStakeholderView(View):
                 f"target_id={target_entity.id} | role={role_type}"
             )
         except Exception as e:
-            error_details = {
-                "exception_type": type(e).__name__,
-                "error_message": str(e),
-                "project_id": parent_project.id,
-                "target_id": target_entity.id,
-                "role_type": role_type,
-                "user": request.user.username,
-            }
+            error_details = build_error_details(
+                e,
+                extra={
+                    "project_id": parent_project.id,
+                    "target_id": target_entity.id,
+                    "role_type": role_type,
+                },
+                user=request.user,
+            )
             logger.error(
                 f"Stakeholder creation failed | "
                 f"exception_type={error_details['exception_type']} | "

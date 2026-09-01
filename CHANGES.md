@@ -12,11 +12,28 @@ Dates follow the commit history (`git log`). The format is loosely based on
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). The current release version
 is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 
+
+
 ---
 
-## Unreleased / In progress
+## 2026-09-01 — Fresh refactor scan: logging standardization & error-details dedup
 
-- No pending changes staged beyond the current `HEAD` (`464f0f4`).
+A behavior-preserving cleanup following the fresh refactor scan
+([`ai-plans/fresh-refactor-scan-plan.md`](ai-plans/fresh-refactor-scan-plan.md)). Verified
+with `manage.py check`, `makemigrations --check` (no changes), and the full non-UI suite
+(**1469 tests OK**).
+
+### Refactor
+- Replaced all **12 raw `traceback.print_exc()`** calls with structured
+  `logger.exception(...)` in [`apps/app_inventory/views.py`](apps/app_inventory/views.py),
+  [`apps/app_base/reversal.py`](apps/app_base/reversal.py), and the operation
+  `record_transaction` / `evaluation` / `base` views; removed now-unused `traceback`
+  imports.
+- Added [`build_error_details()`](apps/app_base/logging_utils.py) to
+  [`apps/app_base/logging_utils.py`](apps/app_base/logging_utils.py) and refactored the
+  25+ duplicated `error_details = {...}` exception blocks (entity views, wizard steps,
+  category views, reversal, operation views) to delegate to it — log/audit/message
+  strings preserved byte-for-byte.
 
 ---
 

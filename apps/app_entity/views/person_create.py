@@ -3,7 +3,7 @@ from django.db import transaction
 from django.shortcuts import redirect, render
 from django.views import View
 
-from apps.app_base.logging_utils import audit_logger, logger
+from apps.app_base.logging_utils import audit_logger, build_error_details, logger
 from apps.app_entity.forms import PersonForm
 from apps.app_entity.models import Entity, EntityType
 
@@ -53,11 +53,7 @@ class PersonCreateView(View):
                     return redirect("entity_detail", pk=entity.pk)
 
             except Exception as e:
-                error_details = {
-                    "exception_type": type(e).__name__,
-                    "error_message": str(e),
-                    "user": request.user.username,
-                }
+                error_details = build_error_details(e, user=request.user)
                 logger.error(
                     f"Person creation failed | "
                     f"exception_type={error_details['exception_type']} | "
