@@ -272,3 +272,39 @@ def history_direction_q(direction):
         operation__operation_type__in=_HISTORY_OUTBOUND_TYPES,
         reversal_of__isnull=True,
     ) | Q(reversal_of__operation__operation_type__in=_HISTORY_INBOUND_TYPES)
+
+
+def portfolio_direction_q(direction):
+    """
+    Return the ``Q`` for the stock-detail ``Product`` queryset that matches a
+    movement line counted as inbound ("in") or outbound ("out"), ready for the
+    ``Case/When`` incoming/outgoing sums (the ``movement_lines__`` traversal
+    prefix is included).
+
+    Mirrors :func:`movement_delta`: PURCHASE/BIRTH are inbound,
+    DEATH/CONSUMPTION are outbound, and a SALE is inbound for a buyer receipt
+    (the product is owned by the SALE source) and outbound for a seller
+    dispatch. Only active lines count (not reversal lines, not reversed
+    originals).
+    """
+    from django.db.models import F, Q
+
+    received_on_sale = Q(
+        movement_lines__operation__operation_type=OperationType.SALE,
+        movement_lines__operation__source_id=F("entity"),
+    )
+    active_lines = Q(movement_lines__reversal_of__isnull=True) & Q(
+        movement_lines__reversed_by__isnull=True
+    )
+    if direction == "in":
+        return active_lines & (
+            Q(movement_lines__operation__operation_type__in=_INBOUND_TYPES)
+            | received_on_sale
+        )
+    return active_lines & (
+        Q(movement_lines__operation__operation_type__in=_OUTBOUND_TYPES)
+        | (
+            Q(movement_lines__operation__operation_type=OperationType.SALE)
+            & ~received_on_sale
+        )
+    )

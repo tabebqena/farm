@@ -256,9 +256,9 @@ Per repo rules ([`AGENTS.md`](AGENTS.md), `.roo/rules/testing.md`):
 
 ---
 
-## Implementation Status — 2026-09-01 (Phase 0 COMPLETE)
+## Implementation Status — 2026-09-01 (Phases 0 & 2 COMPLETE)
 
-Phase 0 (dead-code removal) implemented as a pure refactor:
+### Phase 0 (dead-code removal) implemented as a pure refactor:
 
 - Deleted the empty [`apps/app_adjustment/views.py`](apps/app_adjustment/views.py)
   stub (never imported or routed).
@@ -282,3 +282,22 @@ Phase 0 (dead-code removal) implemented as a pure refactor:
 **Verification:** `manage.py check` clean; `makemigrations --check` → no schema
 changes; targeted suites green; full app suite (ui_tests excluded)
 `--parallel=10 --keepdb` → **1460 tests OK**.
+
+### Phase 2 (stock-detail direction classification → stock.py) implemented:
+
+- Added [`stock.portfolio_direction_q()`](apps/app_inventory/stock.py) — returns
+  the `Product`-level `Q` for inbound/outbound movement classification (the
+  `movement_lines__` traversal prefix included), mirroring `movement_delta()`:
+  PURCHASE/BIRTH inbound, DEATH/CONSUMPTION outbound, SALE inbound for a buyer
+  receipt (product owned by the SALE source) and outbound for a seller dispatch;
+  active lines only.
+- [`stock_detail`](apps/app_inventory/views.py) now delegates to
+  `portfolio_direction_q("in")` / `portfolio_direction_q("out")` inside its
+  `Case/When` sums; the inline `incoming_ops` / `received_on_sale` /
+  `active_lines` / `incoming_q` / `outgoing_q` block was removed, along with the
+  now-unused `OperationType` import in that view. Behavior and generated SQL are
+  unchanged (same `Q` semantics).
+
+**Verification:** `manage.py check` clean; targeted stock/movement suites green
+(61 tests); full app suite (ui_tests excluded) `--parallel=10 --keepdb` →
+**1460 tests OK**.

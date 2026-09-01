@@ -28,8 +28,11 @@ def stock_detail(request, entity_pk):
     from django.core.paginator import Paginator
     from django.db.models import Case, DecimalField, F, Q, Sum, Value, When
 
-    from apps.app_inventory.stock import pending_items, portfolio as stock_portfolio
-    from apps.app_operation.models.operation_type import OperationType
+    from apps.app_inventory.stock import (
+        pending_items,
+        portfolio as stock_portfolio,
+        portfolio_direction_q,
+    )
 
     entity = get_object_or_404(
         Entity, pk=entity_pk, error_message="Entity not found or has been deleted."
@@ -53,36 +56,15 @@ def stock_detail(request, entity_pk):
             | Q(unique_id__icontains=search_query)
         )
 
-    # Direction-aware net movement quantity (incoming − outgoing). A SALE
-    # movement is INCOMING for the buyer (product owned by the SALE source, e.g.
-    # an internal-client receipt) and OUTGOING for the seller.
-    incoming_ops = [OperationType.PURCHASE, OperationType.BIRTH]
-    other_outgoing_ops = [OperationType.DEATH, OperationType.CONSUMPTION]
-    received_on_sale = Q(
-        movement_lines__operation__operation_type=OperationType.SALE,
-        movement_lines__operation__source_id=F("entity"),
-    )
-
-    active_lines = Q(movement_lines__reversal_of__isnull=True) & Q(
-        movement_lines__reversed_by__isnull=True
-    )
-    incoming_q = active_lines & (
-        Q(movement_lines__operation__operation_type__in=incoming_ops)
-        | received_on_sale
-    )
-    outgoing_q = active_lines & (
-        Q(movement_lines__operation__operation_type__in=other_outgoing_ops)
-        | (
-            Q(movement_lines__operation__operation_type=OperationType.SALE)
-            & ~received_on_sale
-        )
-    )
-
+    # Direction-aware net movement quantity (incoming − outgoing). The direction
+    # classification lives in stock.portfolio_direction_q() (mirrors
+    # stock.movement_delta): SALE is incoming for a buyer receipt, outgoing for
+    # a seller dispatch; only active lines count.
     products_with_qty = base_qs.annotate(
         incoming=Sum(
             Case(
                 When(
-                    incoming_q,
+                    portfolio_direction_q("in"),
                     then=F("movement_lines__quantity"),
                 ),
                 default=Value(Decimal("0.00")),
@@ -92,7 +74,7 @@ def stock_detail(request, entity_pk):
         outgoing=Sum(
             Case(
                 When(
-                    outgoing_q,
+                    portfolio_direction_q("out"),
                     then=F("movement_lines__quantity"),
                 ),
                 default=Value(Decimal("0.00")),
