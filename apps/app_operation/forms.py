@@ -2,10 +2,12 @@ from decimal import Decimal
 
 from django import forms
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from apps.app_base.form_logging import LoggingFormMixin
 from apps.app_entity.models import Entity, Stakeholder, StakeholderRole
+from apps.app_inventory.models import Product
 
 
 class PurchaseWizardStep1Form(LoggingFormMixin, forms.Form):
@@ -400,3 +402,42 @@ class PaymentForm(LoggingFormMixin, forms.Form):
         if amount and amount < Decimal("0.01"):
             raise forms.ValidationError(_("Amount must be at least 0.01."))
         return amount
+
+
+class EvaluationForm(forms.Form):
+    """Form for evaluating a product at a new unit price (capital gain/loss)."""
+
+    product = forms.ModelChoiceField(
+        queryset=Product.objects.none(),
+        label=_("Product"),
+        empty_label=_("— Select a product —"),
+    )
+    new_unit_price = forms.DecimalField(
+        label=_("New unit price"),
+        min_value=Decimal("0.01"),
+        max_digits=15,
+        decimal_places=2,
+    )
+    date = forms.DateField(
+        label=_("Date"),
+        widget=forms.DateInput(attrs={"type": "date"}),
+    )
+    description = forms.CharField(
+        label=_("Notes"),
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 2}),
+    )
+
+    def __init__(self, *args, project=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if project:
+            # Ownership-restricted: only products physically owned by the project
+            # can be evaluated (avoids recording a gain/loss on another entity's
+            # asset just because its template is assigned here).
+            self.fields["product"].queryset = (
+                Product.objects.filter(entity=project)
+                .select_related("product_template")
+                .order_by("product_template__name", "pk")
+            )
+        if not self.data and "date" not in kwargs.get("initial", {}):
+            self.fields["date"].initial = timezone.now().date()

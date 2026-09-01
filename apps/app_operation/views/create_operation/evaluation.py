@@ -1,63 +1,35 @@
 import json
 import traceback
-from decimal import Decimal
 
-from django import forms
 from django.contrib import messages
 from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.utils.translation import gettext as _
+from django.views import View
 
 from apps.app_base.debug import DebugContext, debug_view
 from apps.app_entity.models import Entity
 from apps.app_inventory.models import Product
+from apps.app_operation.forms import EvaluationForm
 from apps.app_operation.models.proxies.op_capital_valuation import (
     CapitalValuationOperation,
 )
 from farm.shortcuts import get_object_or_404
 
-from . import OperationCreateView
 
+class EvaluationCreateView(View):
+    """
+    Revalue an existing product at a new unit price.
 
-class EvaluationForm(forms.Form):
-    product = forms.ModelChoiceField(
-        queryset=Product.objects.none(),
-        label=_("Product"),
-        empty_label=_("— Select a product —"),
-    )
-    new_unit_price = forms.DecimalField(
-        label=_("New unit price"),
-        min_value=Decimal("0.01"),
-        max_digits=15,
-        decimal_places=2,
-    )
-    date = forms.DateField(
-        label=_("Date"),
-        widget=forms.DateInput(attrs={"type": "date"}),
-    )
-    description = forms.CharField(
-        label=_("Notes"),
-        required=False,
-        widget=forms.Textarea(attrs={"rows": 2}),
-    )
+    The evaluation-specific workflow (pick a product + new price) is a plain
+    :class:`django.views.View` — it is intentionally decoupled from the generic
+    ``OperationCreateView`` because it has a completely different form and
+    template. All the valuation business logic lives in
+    ``CapitalValuationOperation.create_with_valuation()`` (which also picks the
+    capital-gain vs capital-loss direction from the delta sign).
+    """
 
-    def __init__(self, *args, project=None, **kwargs):
-        super().__init__(*args, **kwargs)
-        if project:
-            # Ownership-restricted: only products physically owned by the project
-            # can be evaluated (avoids recording a gain/loss on another entity's
-            # asset just because its template is assigned here).
-            self.fields["product"].queryset = (
-                Product.objects.filter(entity=project)
-                .select_related("product_template")
-                .order_by("product_template__name", "pk")
-            )
-        if not self.data and "date" not in kwargs.get("initial", {}):
-            self.fields["date"].initial = timezone.now().date()
-
-
-class EvaluationCreateView(OperationCreateView):
     template_name = "app_operation/evaluation_form.html"
 
     @method_decorator(debug_view)
@@ -87,9 +59,8 @@ class EvaluationCreateView(OperationCreateView):
                 DebugContext.success("Product loaded", {"product_id": self.product.pk})
             else:
                 self.product = None
-            from django.views import View
 
-        return View.dispatch(self, request, *args, **kwargs)
+        return super().dispatch(request, *args, **kwargs)
 
     def get(self, request, *args, **kwargs):
         with DebugContext.section(
