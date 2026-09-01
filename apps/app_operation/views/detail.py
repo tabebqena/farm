@@ -56,6 +56,76 @@ def _build_navigation_overrides(operation):
 class OperationDetailView(View):
     """Display operation details with all related transactions and items."""
 
+    def _items_and_valuations(self, operation):
+        """Fetch invoice items (+ movement data) and capital valuations.
+
+        Returns ``(items, items_data, capital_valuations)``.
+        """
+        items = operation.items.all() if type(operation).has_invoice else None
+        logger.debug(
+            f"Invoice items fetched | count={len(items) if items else 0} | "
+            f"has_invoice={type(operation).has_invoice} | operation_id={operation.pk}"
+        )
+
+        capital_valuations = None
+        if type(operation).has_capital_valuation:
+            capital_valuations = operation.capital_valuations.select_related(
+                "product", "product__product_template", "officer"
+            )
+            logger.debug(
+                f"Capital valuations fetched | count={len(capital_valuations)} | "
+                f"operation_id={operation.pk}"
+            )
+
+        logger.debug(
+            f"Computing items_data for invoice items | operation_id={operation.pk} | "
+            f"has_invoice={type(operation).has_invoice}"
+        )
+        items_data = operation.get_items_data()
+        logger.debug(
+            f"Items data computed | items_count={len(items_data)} | operation_id={operation.pk}"
+        )
+        return items, items_data, capital_valuations
+
+    def _adjustments(self, operation):
+        """Fetch the active accounting + item adjustments for the operation."""
+        adjustments = list(
+            operation.adjustments.filter(reversal_of__isnull=True).order_by("date")
+        )
+        item_adjustments = list(
+            operation.item_adjustments.filter(reversal_of__isnull=True).order_by("date")
+        )
+        return adjustments, item_adjustments
+
+    def _payment_balance(self, operation):
+        """Compute the settlement/payment-balance summary for the operation.
+
+        Returns a dict with ``has_settlement`` and the payment_balance
+        components (paid, outstanding, net adjustment, overpayment,
+        over-repayment).
+        """
+        logger.debug(f"Computing payment balance | operation_id={operation.pk}")
+        # The non-accounting operations (Birth / Death / Consumption / Capital
+        # Gain / Capital Loss) do not track settlement — they are fully settled
+        # at their amount. Only accounting operations expose the settlement
+        # mixin members, so guard has_settlement here (it is reused below for
+        # the payment-transaction and one-shot flags).
+        has_settlement = hasattr(operation, "amount_settled")
+
+        payment_balance = operation.payment_balance()
+        result = {
+            "has_settlement": has_settlement,
+            "paid_amount": payment_balance["paid_amount"],
+            "outstanding_balance": payment_balance["outstanding_balance"],
+            "net_adjustment": payment_balance["net_adjustment"],
+            "overpayment_amount": payment_balance["overpayment_amount"],
+            "over_repayment_amount": payment_balance["over_repayment_amount"],
+        }
+        logger.debug(
+            f"Payment balance computed | {payment_balance} | operation_id={operation.pk}"
+        )
+        return result
+
     def get(self, request, *args, **kwargs):
         pk = kwargs["pk"]
         logger.debug(
@@ -76,53 +146,16 @@ class OperationDetailView(View):
             f"Transactions fetched | count={len(transactions)} | operation_id={operation.pk}"
         )
 
-        items = operation.items.all() if type(operation).has_invoice else None
-        logger.debug(
-            f"Invoice items fetched | count={len(items) if items else 0} | "
-            f"has_invoice={type(operation).has_invoice} | operation_id={operation.pk}"
-        )
+        items, items_data, capital_valuations = self._items_and_valuations(operation)
+        adjustments, item_adjustments = self._adjustments(operation)
 
-        capital_valuations = None
-        if type(operation).has_capital_valuation:
-            capital_valuations = operation.capital_valuations.select_related(
-                "product", "product__product_template", "officer"
-            )
-            logger.debug(
-                f"Capital valuations fetched | count={len(capital_valuations)} | "
-                f"operation_id={operation.pk}"
-            )
-
-        adjustments = list(
-            operation.adjustments.filter(reversal_of__isnull=True).order_by("date")
-        )
-        item_adjustments = list(
-            operation.item_adjustments.filter(reversal_of__isnull=True).order_by("date")
-        )
-
-        logger.debug(
-            f"Computing items_data for invoice items | operation_id={operation.pk} | "
-            f"has_invoice={type(operation).has_invoice}"
-        )
-        items_data = operation.get_items_data()
-        logger.debug(
-            f"Items data computed | items_count={len(items_data)} | operation_id={operation.pk}"
-        )
-
-        logger.debug(f"Computing payment balance | operation_id={operation.pk}")
-        # The non-accounting operations (Birth / Death / Consumption / Capital
-        # Gain / Capital Loss) do not track settlement — they are fully settled
-        # at their amount. Only accounting operations expose the settlement
-        # mixin members, so guard has_settlement here (it is reused below for
-        # the payment-transaction and one-shot flags).
-        has_settlement = hasattr(operation, "amount_settled")
-
-        payment_balance = operation.payment_balance()
-        paid_amount = payment_balance["paid_amount"]
-        outstanding_balance = payment_balance["outstanding_balance"]
-        net_adjustment = payment_balance["net_adjustment"]
-        overpayment_amount = payment_balance["overpayment_amount"]
-        over_repayment_amount = payment_balance["over_repayment_amount"]
-        logger.debug(f"Payment balance computed | {payment_balance} | operation_id={operation.pk}")
+        payment = self._payment_balance(operation)
+        has_settlement = payment["has_settlement"]
+        paid_amount = payment["paid_amount"]
+        outstanding_balance = payment["outstanding_balance"]
+        net_adjustment = payment["net_adjustment"]
+        overpayment_amount = payment["overpayment_amount"]
+        over_repayment_amount = payment["over_repayment_amount"]
 
         # Set navigation overrides for entity detail links (see
         # _build_navigation_overrides): real entity names + an operations-list link.

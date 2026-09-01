@@ -103,6 +103,50 @@ class RecordAccountingAdjustmentView(View):
 
         return operation, None
 
+    def _adjustment_context(self, form, operation):
+        """Shared record-adjustment context (type metadata + prior net)."""
+        return {
+            "form": form,
+            "operation": operation,
+            "adjustment_type_data": _build_adjustment_type_data(),
+            "prior_adjustments_net": str(operation.effective_amount - operation.amount),
+        }
+
+    def _render_adjustment(self, request, form, operation):
+        """Render the accounting-adjustment form with the shared context."""
+        return render(
+            request,
+            "app_adjustment/record_adjustment.html",
+            self._adjustment_context(form, operation),
+        )
+
+    def _create_adjustment(self, operation, form, request):
+        """Closed-period guard + ``Adjustment`` build + ``full_clean`` + ``save``.
+
+        Raises on any validation failure — the caller presents the error.
+        """
+        # Reject adjustments dated inside a closed financial period.
+        from apps.app_operation.models.period import is_date_in_closed_period
+
+        if is_date_in_closed_period(
+            operation.period_entity, form.cleaned_data["date"]
+        ):
+            raise forms.ValidationError(
+                _("Cannot record an adjustment dated within a closed financial period.")
+            )
+
+        # Create and save the adjustment
+        adj = Adjustment(
+            operation=operation,
+            type=form.cleaned_data["type"],
+            amount=form.cleaned_data["amount"],
+            reason=form.cleaned_data.get("reason", ""),
+            date=form.cleaned_data["date"],
+            officer=request.user,
+        )
+        adj.full_clean()
+        adj.save()
+
     def get(self, request, *args, **kwargs):
         pk = kwargs["pk"]
         operation, response = self._setup(pk)
@@ -110,21 +154,11 @@ class RecordAccountingAdjustmentView(View):
             return response
         assert operation is not None
 
-        # Build adjustment type metadata for the template (json_script filter serializes it)
-        adjustment_type_data = _build_adjustment_type_data()
-        prior_adjustments_net = str(operation.effective_amount - operation.amount)
-
         form = AccountingAdjustmentForm(
             initial={"date": timezone.now().date()},
             operation_type=operation.operation_type,
         )
-        context = {
-            "form": form,
-            "operation": operation,
-            "adjustment_type_data": adjustment_type_data,
-            "prior_adjustments_net": prior_adjustments_net,
-        }
-        return render(request, "app_adjustment/record_adjustment.html", context)
+        return self._render_adjustment(request, form, operation)
 
     def post(self, request, *args, **kwargs):
         pk = kwargs["pk"]
@@ -133,66 +167,29 @@ class RecordAccountingAdjustmentView(View):
             return response
         assert operation is not None
 
-        # Build adjustment type metadata for the template (json_script filter serializes it)
-        adjustment_type_data = _build_adjustment_type_data()
-        prior_adjustments_net = str(operation.effective_amount - operation.amount)
-
         form = AccountingAdjustmentForm(
             request.POST, operation_type=operation.operation_type
         )
 
         if not form.is_valid():
-            context = {
-                "form": form,
-                "operation": operation,
-                "adjustment_type_data": adjustment_type_data,
-                "prior_adjustments_net": prior_adjustments_net,
-            }
             messages.error(request, _("Please correct the errors below."))
-            return render(request, "app_adjustment/record_adjustment.html", context)
+            return self._render_adjustment(request, form, operation)
 
         try:
-            # Reject adjustments dated inside a closed financial period.
-            from apps.app_operation.models.period import is_date_in_closed_period
-
-            if is_date_in_closed_period(
-                operation.period_entity, form.cleaned_data["date"]
-            ):
-                raise forms.ValidationError(
-                    _("Cannot record an adjustment dated within a closed financial period.")
-                )
-
-            # Create and save the adjustment
-            adj = Adjustment(
-                operation=operation,
-                type=form.cleaned_data["type"],
-                amount=form.cleaned_data["amount"],
-                reason=form.cleaned_data.get("reason", ""),
-                date=form.cleaned_data["date"],
-                officer=request.user,
-            )
-            adj.full_clean()
-            adj.save()
-
-            amount = form.cleaned_data["amount"]
-            messages.success(
-                request,
-                _("Adjustment of ${} recorded successfully.").format(amount),
-            )
-            return redirect("operation_detail_view", pk=pk)
-
+            self._create_adjustment(operation, form, request)
         except Exception as e:
             messages.error(request, _("Error: {}").format(str(e)))
             form = AccountingAdjustmentForm(
                 request.POST, operation_type=operation.operation_type
             )
-            context = {
-                "form": form,
-                "operation": operation,
-                "adjustment_type_data": adjustment_type_data,
-                "prior_adjustments_net": prior_adjustments_net,
-            }
-            return render(request, "app_adjustment/record_adjustment.html", context)
+            return self._render_adjustment(request, form, operation)
+
+        amount = form.cleaned_data["amount"]
+        messages.success(
+            request,
+            _("Adjustment of ${} recorded successfully.").format(amount),
+        )
+        return redirect("operation_detail_view", pk=pk)
 
 
 class RecordItemAdjustmentView(View):
@@ -231,35 +228,28 @@ class RecordItemAdjustmentView(View):
 
         return operation, items, None
 
-    def _item_context(self, operation, items):
+    def _item_adjustment_context(self, operation, items):
         return {
             "operation": operation,
             "items": items,
             "today": timezone.now().date(),
         }
 
-    def get(self, request, *args, **kwargs):
-        pk = kwargs["pk"]
-        operation, items, response = self._setup(pk)
-        if response is not None:
-            return response
-        assert operation is not None
-        assert items is not None
+    def _render_item_adjustment(self, request, operation, items):
+        """Render the item-adjustment form with the shared context."""
         return render(
             request,
             "app_adjustment/record_item_adjustment.html",
-            self._item_context(operation, items),
+            self._item_adjustment_context(operation, items),
         )
 
-    def post(self, request, *args, **kwargs):
-        pk = kwargs["pk"]
-        operation, items, response = self._setup(pk)
-        if response is not None:
-            return response
-        assert operation is not None
-        assert items is not None
+    def _validate_item_adjustment_post(self, request, operation, items):
+        """Parse + validate the item-adjustment POST.
 
-        # POST: parse per-item changes and create InvoiceItemAdjustment
+        Returns ``(date, reason, changed_items_data)`` on success, or a
+        rendered error response (with the error message already set) when
+        validation fails.
+        """
         date = request.POST.get("date")
         reason = request.POST.get("reason", "")
 
@@ -271,11 +261,7 @@ class RecordItemAdjustmentView(View):
             date = date_field.clean(date)
         except forms.ValidationError as e:
             messages.error(request, _("Invalid date: {}").format(str(e)))
-            return render(
-                request,
-                "app_adjustment/record_item_adjustment.html",
-                self._item_context(operation, items),
-            )
+            return self._render_item_adjustment(request, operation, items)
 
         # Reject adjustments dated inside a closed financial period.
         from apps.app_operation.models.period import is_date_in_closed_period
@@ -285,31 +271,46 @@ class RecordItemAdjustmentView(View):
                 request,
                 _("Cannot record an item adjustment dated within a closed financial period."),
             )
-            return render(
-                request,
-                "app_adjustment/record_item_adjustment.html",
-                self._item_context(operation, items),
-            )
+            return self._render_item_adjustment(request, operation, items)
 
         # Parse the per-item changes from the POST fields
         try:
             changed_items_data = parse_item_changes(request.POST, items)
         except ValueError as e:
             messages.error(request, str(e))
-            return render(
-                request,
-                "app_adjustment/record_item_adjustment.html",
-                self._item_context(operation, items),
-            )
+            return self._render_item_adjustment(request, operation, items)
 
         # Validate at least one item changed
         if not changed_items_data:
             messages.error(request, _("No items were modified."))
-            return render(
-                request,
-                "app_adjustment/record_item_adjustment.html",
-                self._item_context(operation, items),
-            )
+            return self._render_item_adjustment(request, operation, items)
+
+        return date, reason, changed_items_data
+
+    def get(self, request, *args, **kwargs):
+        pk = kwargs["pk"]
+        operation, items, response = self._setup(pk)
+        if response is not None:
+            return response
+        assert operation is not None
+        assert items is not None
+        return self._render_item_adjustment(request, operation, items)
+
+    def post(self, request, *args, **kwargs):
+        pk = kwargs["pk"]
+        operation, items, response = self._setup(pk)
+        if response is not None:
+            return response
+        assert operation is not None
+        assert items is not None
+
+        # POST: parse per-item changes and create InvoiceItemAdjustment
+        validation = self._validate_item_adjustment_post(
+            request, operation, items
+        )
+        if not isinstance(validation, tuple):
+            return validation
+        date, reason, changed_items_data = validation
 
         try:
             with db_transaction.atomic():
@@ -331,11 +332,7 @@ class RecordItemAdjustmentView(View):
 
         except Exception as e:
             messages.error(request, _("Error: {}").format(str(e)))
-            return render(
-                request,
-                "app_adjustment/record_item_adjustment.html",
-                self._item_context(operation, items),
-            )
+            return self._render_item_adjustment(request, operation, items)
 
 
 class ReverseAdjustmentView(View):

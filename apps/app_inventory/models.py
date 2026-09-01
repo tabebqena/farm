@@ -1407,6 +1407,65 @@ class InventoryMovementLine(ImmutableMixin, BaseModel):
             created_count += 1
         return created_count
 
+    @classmethod
+    def create_received_movement_lines(
+        cls,
+        *,
+        operation,
+        invoice_item,
+        quantity,
+        date,
+        officer,
+        group_key,
+        lazy_unique_id=None,
+    ):
+        """
+        Create inbound ``InventoryMovementLine``(s) for a received quantity.
+
+        INDIVIDUAL templates → one qty-1 line per head, each lazy-creating its
+        own tagged ``Product``; the first head takes *lazy_unique_id* (the
+        user-typed tag), subsequent heads auto-generate from the template's
+        tag prefix. COMMODITY → a single flat line with the full quantity.
+
+        Shared by the ``create_from_session`` factories (Purchase / Sale
+        internal-client receipt) and mirrors the INDIVIDUAL-expansion contract
+        of ``create_for_operation``. Returns the number of lines created.
+        """
+        if (
+            invoice_item.product_template.tracking_mode
+            == ProductTemplate.TrackingMode.INDIVIDUAL
+        ):
+            created_count = 0
+            uid = lazy_unique_id
+            for _head_idx in range(max(int(quantity), 1)):
+                line = cls(
+                    operation=operation,
+                    invoice_item=invoice_item,
+                    product=None,  # lazy-created by save()
+                    quantity=Decimal("1"),
+                    date=date,
+                    officer=officer,
+                    notes="",
+                    group_key=group_key,
+                )
+                line._lazy_unique_id = uid
+                line.save()
+                uid = None  # subsequent heads auto-generate their tag
+                created_count += 1
+            return created_count
+
+        cls.objects.create(
+            operation=operation,
+            invoice_item=invoice_item,
+            product=None,  # lazy-created by save()
+            quantity=quantity,
+            date=date,
+            officer=officer,
+            notes="",
+            group_key=group_key,
+        )
+        return 1
+
     def __str__(self):
         return (
             f"MovementLine {self.pk} — {self.invoice_item} "

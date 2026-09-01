@@ -738,6 +738,26 @@ class Operation(
         return invoice_items
 
     @classmethod
+    def _resolve_counterparty(cls, session_data, key, label):
+        """
+        Look up the operation's counterparty entity from wizard session data.
+
+        Used by proxy ``create_from_session`` factories (Sale → client,
+        Purchase → vendor). Raises a translated ``ValidationError`` when the
+        selected counterparty has been deleted since the wizard opened.
+        """
+        from django.utils.translation import gettext as _
+
+        from apps.app_entity.models import Entity
+
+        try:
+            return Entity.objects.get(pk=session_data[key])
+        except Entity.DoesNotExist:
+            raise ValidationError(
+                _("%(label)s not found or has been deleted.") % {"label": label}
+            )
+
+    @classmethod
     def create(
         cls,
         *,

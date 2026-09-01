@@ -29,6 +29,17 @@ STEPS = {
 }
 
 
+def _project_not_found(request, step):
+    """Guard for a missing project: log, audit, message and redirect to start."""
+    logger.warning("Project not found")
+    audit_logger.info(
+        f"wizard_step{step}_project_not_found | ProjectSetupWizard:None | "
+        f"user={request.user.username}"
+    )
+    messages.error(request, gettext("Project not found."))
+    return redirect("project_setup")
+
+
 def project_setup_wizard_view(request, entity_pk=None, step=1):
     """
     Multi-step project setup wizard.
@@ -113,6 +124,59 @@ def project_setup_wizard_view(request, entity_pk=None, step=1):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+def _apply_step1_post(
+    request,
+    entity,
+    *,
+    name,
+    description,
+    is_internal,
+    is_vendor,
+    is_client,
+    active,
+):
+    """Create or update the project entity (step 1) inside an atomic block.
+
+    Returns the (possibly newly created) entity after mutation + audit.
+    """
+    with transaction.atomic():
+        logger.debug(
+            f"Saving project | action={'edit' if entity else 'create'} | name={name}"
+        )
+        if entity:
+            # Edit mode
+            entity.name = name
+            entity.description = description
+            entity.is_internal = is_internal
+            entity.is_vendor = is_vendor
+            entity.is_client = is_client
+            entity.active = active
+            entity.save()
+            logger.debug(f"Project updated | project_id={entity.pk}")
+            audit_logger.info(
+                f"wizard_project_updated | ProjectSetupWizard:{entity.pk} | "
+                f"user={request.user.username} | name={name}"
+            )
+        else:
+            # Create mode
+            entity = Entity.create(
+                entity_type=EntityType.PROJECT,
+                name=name,
+                description=description,
+                is_internal=is_internal,
+                is_vendor=is_vendor,
+                is_client=is_client,
+                active=active,
+            )
+            request.session["wizard_entity_pk"] = entity.pk
+            logger.debug(f"Project created | project_id={entity.pk}")
+            audit_logger.info(
+                f"wizard_project_created | ProjectSetupWizard:{entity.pk} | "
+                f"user={request.user.username} | name={name}"
+            )
+    return entity
+
+
 def _handle_step_1_post(request, entity):
     """Create or edit project entity."""
     logger.debug(
@@ -135,58 +199,18 @@ def _handle_step_1_post(request, entity):
         messages.error(request, gettext("Project name is required."))
         return redirect("project_setup")
 
+    is_edit = entity is not None
     try:
-        with transaction.atomic():
-            logger.debug(
-                f"Saving project | action={'edit' if entity else 'create'} | name={name}"
-            )
-            if entity:
-                # Edit mode
-                entity.name = name
-                entity.description = description
-                entity.is_internal = is_internal
-                entity.is_vendor = is_vendor
-                entity.is_client = is_client
-                entity.active = active
-                entity.save()
-                logger.debug(f"Project updated | project_id={entity.pk}")
-                audit_logger.info(
-                    f"wizard_project_updated | ProjectSetupWizard:{entity.pk} | "
-                    f"user={request.user.username} | name={name}"
-                )
-                messages.success(
-                    request, gettext("Project updated successfully.")
-                )
-                return redirect(
-                    "project_setup_step", entity_pk=entity.pk, step=2
-                )
-            else:
-                # Create mode
-                entity = Entity.create(
-                    entity_type=EntityType.PROJECT,
-                    name=name,
-                    description=description,
-                    is_internal=is_internal,
-                    is_vendor=is_vendor,
-                    is_client=is_client,
-                    active=active,
-                )
-                request.session["wizard_entity_pk"] = entity.pk
-                logger.debug(f"Project created | project_id={entity.pk}")
-                audit_logger.info(
-                    f"wizard_project_created | ProjectSetupWizard:{entity.pk} | "
-                    f"user={request.user.username} | name={name}"
-                )
-                messages.success(
-                    request,
-                    gettext(
-                        "Project '%(name)s' created. Proceeding with setup..."
-                    )
-                    % {"name": entity.name},
-                )
-                return redirect(
-                    "project_setup_step", entity_pk=entity.pk, step=2
-                )
+        entity = _apply_step1_post(
+            request,
+            entity,
+            name=name,
+            description=description,
+            is_internal=is_internal,
+            is_vendor=is_vendor,
+            is_client=is_client,
+            active=active,
+        )
     except Exception as e:
         error_details = {
             "exception_type": type(e).__name__,
@@ -206,10 +230,78 @@ def _handle_step_1_post(request, entity):
         )
         return redirect("project_setup")
 
+    if is_edit:
+        messages.success(request, gettext("Project updated successfully."))
+    else:
+        messages.success(
+            request,
+            gettext(
+                "Project '%(name)s' created. Proceeding with setup..."
+            )
+            % {"name": entity.name},
+        )
+    return redirect("project_setup_step", entity_pk=entity.pk, step=2)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Step 2: Financial Categories
 # ─────────────────────────────────────────────────────────────────────────────
+
+
+def _apply_step2_post(request, entity, selected_pks):
+    """Update/create/activate category relations for *entity* (step 2) inside
+    an atomic block. Returns the number of newly created relations."""
+    with transaction.atomic():
+        logger.debug(
+            f"Updating category relations | entity_id={entity.pk} | "
+            f"selected_count={len(selected_pks)}"
+        )
+        # Get all existing relations for this entity
+        existing_relations = {
+            r.category.id: r
+            for r in FinancialCategoriesEntitiesRelations.objects.filter(
+                entity=entity
+            ).select_related("category")
+        }
+
+        # Handle existing relations: activate if selected, deactivate if not
+        for category_id, relation in existing_relations.items():
+            if category_id in selected_pks:
+                if not relation.is_active:
+                    relation.is_active = True
+                    relation.save()
+            else:
+                if relation.is_active:
+                    relation.is_active = False
+                    relation.save()
+
+        # Create new relations for newly selected categories
+        new_count = 0
+        for category_id in selected_pks - existing_relations.keys():
+            try:
+                category = FinancialCategory.objects.get(pk=category_id)
+                FinancialCategoriesEntitiesRelations.objects.get_or_create(
+                    entity=entity,
+                    category=category,
+                    defaults={
+                        "is_active": True,
+                        "max_limit": Decimal("0.00"),
+                    },
+                )
+                new_count += 1
+            except FinancialCategory.DoesNotExist:
+                pass
+
+        logger.debug(
+            f"Categories updated | entity_id={entity.pk} | new_count={new_count} | "
+            f"total_selected={len(selected_pks)}"
+        )
+        audit_logger.info(
+            f"wizard_categories_updated | ProjectSetupWizard:{entity.pk} | "
+            f"user={request.user.username} | selected_count={len(selected_pks)} | "
+            f"new_count={new_count}"
+        )
+    return new_count
 
 
 def _handle_step_2_post(request, entity):
@@ -219,13 +311,7 @@ def _handle_step_2_post(request, entity):
         f"entity_id={entity.pk if entity else None} | user={request.user.username}"
     )
     if not entity:
-        logger.warning("Project not found")
-        audit_logger.info(
-            f"wizard_step2_project_not_found | ProjectSetupWizard:None | "
-            f"user={request.user.username}"
-        )
-        messages.error(request, gettext("Project not found."))
-        return redirect("project_setup")
+        return _project_not_found(request, step=2)
 
     selected_pks = set(request.POST.getlist("selected_categories"))
     # Convert to integers for comparison
@@ -241,57 +327,7 @@ def _handle_step_2_post(request, entity):
         return redirect("project_setup_step", entity_pk=entity.pk, step=2)
 
     try:
-        with transaction.atomic():
-            logger.debug(
-                f"Updating category relations | entity_id={entity.pk} | "
-                f"selected_count={len(selected_pks)}"
-            )
-            # Get all existing relations for this entity
-            existing_relations = {
-                r.category.id: r
-                for r in FinancialCategoriesEntitiesRelations.objects.filter(
-                    entity=entity
-                ).select_related("category")
-            }
-
-            # Handle existing relations: activate if selected, deactivate if not
-            for category_id, relation in existing_relations.items():
-                if category_id in selected_pks:
-                    if not relation.is_active:
-                        relation.is_active = True
-                        relation.save()
-                else:
-                    if relation.is_active:
-                        relation.is_active = False
-                        relation.save()
-
-            # Create new relations for newly selected categories
-            new_count = 0
-            for category_id in selected_pks - existing_relations.keys():
-                try:
-                    category = FinancialCategory.objects.get(pk=category_id)
-                    FinancialCategoriesEntitiesRelations.objects.get_or_create(
-                        entity=entity,
-                        category=category,
-                        defaults={
-                            "is_active": True,
-                            "max_limit": Decimal("0.00"),
-                        },
-                    )
-                    new_count += 1
-                except FinancialCategory.DoesNotExist:
-                    pass
-
-            logger.debug(
-                f"Categories updated | entity_id={entity.pk} | new_count={new_count} | "
-                f"total_selected={len(selected_pks)}"
-            )
-            audit_logger.info(
-                f"wizard_categories_updated | ProjectSetupWizard:{entity.pk} | "
-                f"user={request.user.username} | selected_count={len(selected_pks)} | "
-                f"new_count={new_count}"
-            )
-
+        _apply_step2_post(request, entity, selected_pks)
         messages.success(request, gettext("Categories updated successfully."))
     except Exception as e:
         error_details = {
@@ -319,6 +355,24 @@ def _handle_step_2_post(request, entity):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+def _apply_step3_post(request, entity, template_ids):
+    """Assign product templates to *entity* (step 3) inside an atomic block."""
+    with transaction.atomic():
+        logger.debug(
+            f"Assigning product templates | entity_id={entity.pk} | "
+            f"template_count={len(template_ids)}"
+        )
+        entity.product_templates.set(template_ids)
+        logger.debug(
+            f"Templates assigned | entity_id={entity.pk} | "
+            f"template_count={len(template_ids)}"
+        )
+        audit_logger.info(
+            f"wizard_templates_assigned | ProjectSetupWizard:{entity.pk} | "
+            f"user={request.user.username} | template_count={len(template_ids)}"
+        )
+
+
 def _handle_step_3_post(request, entity):
     """Assign product templates to entity."""
     logger.debug(
@@ -326,13 +380,7 @@ def _handle_step_3_post(request, entity):
         f"entity_id={entity.pk if entity else None} | user={request.user.username}"
     )
     if not entity:
-        logger.warning("Project not found")
-        audit_logger.info(
-            f"wizard_step3_project_not_found | ProjectSetupWizard:None | "
-            f"user={request.user.username}"
-        )
-        messages.error(request, gettext("Project not found."))
-        return redirect("project_setup")
+        return _project_not_found(request, step=3)
 
     if not request.user.is_staff:
         logger.warning(f"User lacks staff permission | user={request.user.username}")
@@ -349,28 +397,14 @@ def _handle_step_3_post(request, entity):
     template_ids = request.POST.getlist("product_templates")
 
     try:
-        with transaction.atomic():
-            logger.debug(
-                f"Assigning product templates | entity_id={entity.pk} | "
-                f"template_count={len(template_ids)}"
+        _apply_step3_post(request, entity, template_ids)
+        if template_ids:
+            messages.success(
+                request,
+                gettext("Product templates assigned successfully."),
             )
-            entity.product_templates.set(template_ids)
-            logger.debug(
-                f"Templates assigned | entity_id={entity.pk} | "
-                f"template_count={len(template_ids)}"
-            )
-            audit_logger.info(
-                f"wizard_templates_assigned | ProjectSetupWizard:{entity.pk} | "
-                f"user={request.user.username} | template_count={len(template_ids)}"
-            )
-
-            if template_ids:
-                messages.success(
-                    request,
-                    gettext("Product templates assigned successfully."),
-                )
-            else:
-                messages.info(request, gettext("No product templates selected."))
+        else:
+            messages.info(request, gettext("No product templates selected."))
     except Exception as e:
         error_details = {
             "exception_type": type(e).__name__,

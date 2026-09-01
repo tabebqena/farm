@@ -121,18 +121,10 @@ class SaleOperation(AdjustableTransactionMixin, Operation):
         any integrity failure — the caller is responsible for catching and
         presenting the error.
         """
-        from apps.app_entity.models import Entity
-        from apps.app_inventory.models import (
-            InventoryMovementLine,
-            InvoiceItem,
-            Product,
-        )
+        from apps.app_inventory.models import InvoiceItem, Product
 
         date_val = datetime.fromisoformat(session_data["date"]).date()
-        try:
-            client = Entity.objects.get(pk=session_data["client_id"])
-        except Entity.DoesNotExist:
-            raise ValidationError(_("Client not found or has been deleted."))
+        client = cls._resolve_counterparty(session_data, "client_id", _("Client"))
 
         desc = session_data.get("description", "")
         total = Decimal(session_data["total_amount"])
@@ -164,30 +156,11 @@ class SaleOperation(AdjustableTransactionMixin, Operation):
         for item_data in items_data:
             # The selected product already exists in the project's stock — the
             # sale AFFECTS it (SALE_MOVEMENT), it is never minted here.
-            product = Product.objects.filter(
-                pk=item_data["product_id"], entity=project
-            ).first()
-            if product is None:
-                raise ValidationError(
-                    _("Selected product not found or does not belong to this project.")
-                )
-            product.validate_active()
+            product = cls._resolve_sold_product(item_data, project)
+            cls._check_sale_availability(product, Decimal(item_data["quantity"]), date_val)
 
             qty = Decimal(item_data["quantity"])
             unit_price = Decimal(item_data["unit_price"])
-
-            # Availability: cannot sell more than the physically-present on-hand.
-            from apps.app_inventory.stock import movement_state
-
-            available = movement_state(product, as_of=date_val)["quantity"]
-            if qty > available:
-                raise ValidationError(
-                    _(
-                        "Insufficient stock: %(qty)s requested but only %(avail)s "
-                        "available for '%(p)s'."
-                    )
-                    % {"qty": qty, "avail": available, "p": product}
-                )
 
             # ── 4. InvoiceItem (from the selected product's template) ───
             invoice_item = InvoiceItem.objects.create(
@@ -199,46 +172,17 @@ class SaleOperation(AdjustableTransactionMixin, Operation):
             )
 
             # ── 5. Link the sold product + record the outbound movement ──
-            #      The product leaves the seller's stock (status → SOLD via the
-            #      linked SALE item); SALE_MOVEMENT writes the ledger row.
-            product.invoice_items.add(invoice_item)
-            InventoryMovementLine.objects.create(
-                operation=op,
-                invoice_item=invoice_item,
+            #      (also mints + receives the buyer's copy for internal clients)
+            cls._link_sold_product(
                 product=product,
-                quantity=qty,
+                invoice_item=invoice_item,
+                qty=qty,
                 date=date_val,
                 officer=officer,
-                notes="",
                 group_key=group_key,
+                client=client,
+                unit_price=unit_price,
             )
-
-            # ── 5b. Internal client: the buyer receives the goods ─────────
-            #      The sale preselects the product, so the exact template,
-            #      quantity and price are known. Create the buyer's copy owned
-            #      by the client (direction-aware status → ACTIVE) and record
-            #      its receipt (inbound movement, direction-aware ledger).
-            if client.is_internal:
-                buyer_products = InvoiceItem.create_products_for_item(
-                    invoice_item=invoice_item,
-                    entity=client,
-                    quantity=qty,
-                    unit_price=unit_price,
-                )
-                per_product_qty = (
-                    Decimal("1") if len(buyer_products) > 1 else qty
-                )
-                for buyer_product in buyer_products:
-                    InventoryMovementLine.objects.create(
-                        operation=op,
-                        invoice_item=invoice_item,
-                        product=buyer_product,
-                        quantity=per_product_qty,
-                        date=date_val,
-                        officer=officer,
-                        notes="",
-                        group_key=group_key,
-                    )
 
         # ── 6. Payment processing (shared base method) ─────────────────
         if paid > Decimal("0"):
@@ -250,3 +194,89 @@ class SaleOperation(AdjustableTransactionMixin, Operation):
             )
 
         return op
+
+    @classmethod
+    def _resolve_sold_product(cls, item_data, project):
+        """Look up the selected (existing) product in the project's stock and
+        validate that it is active. The sale AFFECTS the existing product — it
+        is never minted here."""
+        from apps.app_inventory.models import Product
+
+        product = Product.objects.filter(
+            pk=item_data["product_id"], entity=project
+        ).first()
+        if product is None:
+            raise ValidationError(
+                _("Selected product not found or does not belong to this project.")
+            )
+        product.validate_active()
+        return product
+
+    @classmethod
+    def _check_sale_availability(cls, product, qty, date_val):
+        """Availability guard: cannot sell more than the physically-present
+        on-hand quantity as of *date_val*."""
+        from apps.app_inventory.stock import movement_state
+
+        available = movement_state(product, as_of=date_val)["quantity"]
+        if qty > available:
+            raise ValidationError(
+                _(
+                    "Insufficient stock: %(qty)s requested but only %(avail)s "
+                    "available for '%(p)s'."
+                )
+                % {"qty": qty, "avail": available, "p": product}
+            )
+
+    @classmethod
+    def _link_sold_product(
+        cls,
+        *,
+        product,
+        invoice_item,
+        qty,
+        date,
+        officer,
+        group_key,
+        client,
+        unit_price,
+    ):
+        """Link the sold product to its SALE invoice item and record the
+        outbound ``SALE_MOVEMENT`` line (the product leaves the seller's stock,
+        status → SOLD). For internal clients, also mint the buyer's copy owned
+        by the client and record its inbound receipt."""
+        from apps.app_inventory.models import InventoryMovementLine, InvoiceItem
+
+        product.invoice_items.add(invoice_item)
+        InventoryMovementLine.objects.create(
+            operation=invoice_item.operation,
+            invoice_item=invoice_item,
+            product=product,
+            quantity=qty,
+            date=date,
+            officer=officer,
+            notes="",
+            group_key=group_key,
+        )
+
+        # Internal client: the buyer receives the goods. The sale preselects
+        # the product, so the exact template, quantity and price are known.
+        if client.is_internal:
+            buyer_products = InvoiceItem.create_products_for_item(
+                invoice_item=invoice_item,
+                entity=client,
+                quantity=qty,
+                unit_price=unit_price,
+            )
+            per_product_qty = Decimal("1") if len(buyer_products) > 1 else qty
+            for buyer_product in buyer_products:
+                InventoryMovementLine.objects.create(
+                    operation=invoice_item.operation,
+                    invoice_item=invoice_item,
+                    product=buyer_product,
+                    quantity=per_product_qty,
+                    date=date,
+                    officer=officer,
+                    notes="",
+                    group_key=group_key,
+                )

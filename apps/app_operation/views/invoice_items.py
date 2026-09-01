@@ -21,6 +21,76 @@ class InvoiceItemsListView(View):
     - Inventory movement status
     """
 
+    def _fetch_capital_valuations(self, operation):
+        """Fetch capital valuations (value-only ops) with related rows loaded."""
+        capital_valuations = []
+        if type(operation).has_capital_valuation:
+            capital_valuations = operation.capital_valuations.select_related(
+                "product", "product__product_template", "officer"
+            )
+            logger.debug(
+                f"Capital valuations fetched | count={len(capital_valuations)} | "
+                f"operation_id={operation.pk}"
+            )
+        return capital_valuations
+
+    def _fetch_item_adjustment_lines(self, operation):
+        """Prefetch active item-adjustment lines and group them by invoice item."""
+        item_adjustments = (
+            InvoiceItemAdjustmentLine.objects.filter(
+                invoice_item__operation=operation,
+                adjustment__reversed_by__isnull=True,
+            )
+            .select_related("adjustment", "adjustment__officer")
+            .order_by("-adjustment__date", "-adjustment__pk")
+        )
+        logger.debug(
+            f"Item adjustment lines fetched | count={len(item_adjustments)} | "
+            f"operation_id={operation.pk}"
+        )
+        return self._group_by_item(item_adjustments, operation)
+
+    def _group_by_item(self, lines, operation):
+        """Group adjustment lines by invoice_item_id for quick lookup."""
+        adj_lines_by_item: dict[int, list[InvoiceItemAdjustmentLine]] = defaultdict(
+            list
+        )
+        for line in lines:
+            adj_lines_by_item[line.invoice_item_id].append(line)
+        logger.debug(
+            f"Adjustment lines grouped by invoice item | "
+            f"items_with_adj={len(adj_lines_by_item)} | operation_id={operation.pk}"
+        )
+        return adj_lines_by_item
+
+    def _fetch_grouped_adjustments(self, operation):
+        """Fetch item adjustments (for reversed/original info per adjustment group)."""
+        item_adjustments_grouped = (
+            InvoiceItemAdjustment.objects.filter(
+                operation=operation,
+            )
+            .select_related("officer", "adjustment")
+            .order_by("-date", "-pk")
+        )
+        logger.debug(
+            f"Item adjustments (grouped) fetched | count={len(item_adjustments_grouped)} | "
+            f"operation_id={operation.pk}"
+        )
+        return item_adjustments_grouped
+
+    def _merge_items(self, items, adj_lines_by_item, items_data_by_pk):
+        """Merge items with their adjustment lines and movement data."""
+        merged_items = []
+        for item in items:
+            merged_items.append(
+                {
+                    "item": item,
+                    "adjustment_lines": adj_lines_by_item.get(item.pk, []),
+                    "movement_data": items_data_by_pk.get(item.pk),
+                }
+            )
+        return merged_items
+
     def get(self, request, *args, **kwargs):
         pk = kwargs["pk"]
         logger.debug(
@@ -46,53 +116,9 @@ class InvoiceItemsListView(View):
             f"Invoice items fetched | count={len(items)} | operation_id={operation.pk}"
         )
 
-        capital_valuations = []
-        if type(operation).has_capital_valuation:
-            capital_valuations = operation.capital_valuations.select_related(
-                "product", "product__product_template", "officer"
-            )
-            logger.debug(
-                f"Capital valuations fetched | count={len(capital_valuations)} | "
-                f"operation_id={operation.pk}"
-            )
-
-        # Prefetch item-adjustment lines per invoice item
-        item_adjustments = (
-            InvoiceItemAdjustmentLine.objects.filter(
-                invoice_item__operation=operation,
-                adjustment__reversed_by__isnull=True,
-            )
-            .select_related("adjustment", "adjustment__officer")
-            .order_by("-adjustment__date", "-adjustment__pk")
-        )
-        logger.debug(
-            f"Item adjustment lines fetched | count={len(item_adjustments)} | "
-            f"operation_id={operation.pk}"
-        )
-
-        # Group adjustment lines by invoice_item_id for quick lookup
-        adj_lines_by_item: dict[int, list[InvoiceItemAdjustmentLine]] = defaultdict(
-            list
-        )
-        for line in item_adjustments:
-            adj_lines_by_item[line.invoice_item_id].append(line)
-        logger.debug(
-            f"Adjustment lines grouped by invoice item | "
-            f"items_with_adj={len(adj_lines_by_item)} | operation_id={operation.pk}"
-        )
-
-        # Fetch item adjustments (for reversed/original info per adjustment group)
-        item_adjustments_grouped = (
-            InvoiceItemAdjustment.objects.filter(
-                operation=operation,
-            )
-            .select_related("officer", "adjustment")
-            .order_by("-date", "-pk")
-        )
-        logger.debug(
-            f"Item adjustments (grouped) fetched | count={len(item_adjustments_grouped)} | "
-            f"operation_id={operation.pk}"
-        )
+        capital_valuations = self._fetch_capital_valuations(operation)
+        adj_lines_by_item = self._fetch_item_adjustment_lines(operation)
+        item_adjustments_grouped = self._fetch_grouped_adjustments(operation)
 
         items_data = operation.get_items_data()
         logger.debug(
@@ -104,15 +130,7 @@ class InvoiceItemsListView(View):
         items_data_by_pk = {entry["item"].pk: entry for entry in items_data}
 
         # Merge items with their adjustment lines and movement data
-        merged_items = []
-        for item in items:
-            merged_items.append(
-                {
-                    "item": item,
-                    "adjustment_lines": adj_lines_by_item.get(item.pk, []),
-                    "movement_data": items_data_by_pk.get(item.pk),
-                }
-            )
+        merged_items = self._merge_items(items, adj_lines_by_item, items_data_by_pk)
 
         # Compute total from items' adjusted prices (sum of adjusted_total_price)
         total_adjusted = sum(

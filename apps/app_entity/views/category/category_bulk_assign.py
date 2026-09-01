@@ -33,15 +33,17 @@ class CategoryBulkAssignView(View):
         )
         return parent_entity, categories, None
 
+    def _existing_relation_pks(self, entity):
+        """Active category pks already linked to the entity."""
+        existing_names = FinancialCategoriesEntitiesRelations.objects.filter(
+            entity=entity, is_active=True
+        ).values_list("category__pk", flat=True)
+        return set(existing_names)
+
     def get(self, request, *args, **kwargs):
         parent_entity, categories, response = self._setup(kwargs["parent_entity_id"])
         if response is not None:
             return response
-
-        existing_names = FinancialCategoriesEntitiesRelations.objects.filter(
-            entity=parent_entity, is_active=True
-        ).values_list("category__pk", flat=True)
-        existing_pks_set = set(existing_names)
 
         return render(
             request,
@@ -49,9 +51,70 @@ class CategoryBulkAssignView(View):
             {
                 "parent": parent_entity,
                 "categories": categories,
-                "existing_category_names": existing_pks_set,
+                "existing_category_names": self._existing_relation_pks(parent_entity),
             },
         )
+
+    def _apply_bulk_assign(self, request, parent_entity, categories):
+        """Apply the bulk category assignment inside an atomic block — the
+        per-row get-or-create/activate/deactivate loop. Returns
+        ``(created_count, removed_count)``."""
+        selected_pks = request.POST.getlist("selected_categories")
+        created_count = 0
+        removed_count = 0
+        with transaction.atomic():
+            logger.debug(
+                f"Updating category relations | selected_count={len(selected_pks)} | "
+                f"total_categories={categories.count()}"
+            )
+            for cat in categories:
+                # if category in selected_pks => create relation or activate it
+                # if not set is_active = False
+                relation_created = False
+                if str(cat.pk) in selected_pks:
+                    relation, relation_created = (
+                        FinancialCategoriesEntitiesRelations.objects.get_or_create(
+                            entity=parent_entity, category=cat
+                        )
+                    )
+                    relation.is_active = True
+                    relation.save()
+                else:
+                    relation = FinancialCategoriesEntitiesRelations.objects.filter(
+                        entity=parent_entity,
+                        category=cat,
+                    ).first()
+                    if relation:
+                        relation.is_active = False
+                        relation.save()
+                        removed_count += 1
+
+                if relation_created:
+                    created_count += 1
+
+            logger.debug(
+                f"Category relations updated | created_count={created_count} | "
+                f"removed_count={removed_count}"
+            )
+        return created_count, removed_count
+
+    def _bulk_assign_post(self, request, parent_entity, categories):
+        """Handle the bulk-assign POST: apply relations, then audit + message."""
+        created_count, removed_count = self._apply_bulk_assign(
+            request, parent_entity, categories
+        )
+        if created_count > 0 or removed_count > 0:
+            audit_logger.info(
+                f"categories_bulk_assigned | FinancialCategory:{parent_entity.pk} | "
+                f"user={request.user.username} | created_count={created_count} | "
+                f"removed_count={removed_count}"
+            )
+            messages.success(
+                request,
+                f"Successfully added {created_count} categories, remove {removed_count} categories.",
+            )
+        else:
+            messages.warning(request, "No new categories were added.")
 
     def post(self, request, *args, **kwargs):
         parent_entity, categories, response = self._setup(kwargs["parent_entity_id"])
@@ -62,57 +125,8 @@ class CategoryBulkAssignView(View):
             f"Processing bulk category assignment | entity_id={parent_entity.pk} | "
             f"user={request.user.username}"
         )
-        selected_pks = request.POST.getlist("selected_categories")
-        created_count = 0
-        removed_count = 0
         try:
-            with transaction.atomic():
-                logger.debug(
-                    f"Updating category relations | selected_count={len(selected_pks)} | "
-                    f"total_categories={categories.count()}"
-                )
-                for cat in categories:
-                    # if category in selected_pks => create relation or activate it
-                    # if not set is_active = False
-                    relation_created = False
-                    if str(cat.pk) in selected_pks:
-                        relation, relation_created = (
-                            FinancialCategoriesEntitiesRelations.objects.get_or_create(
-                                entity=parent_entity, category=cat
-                            )
-                        )
-                        relation.is_active = True
-                        relation.save()
-                    else:
-                        relation = FinancialCategoriesEntitiesRelations.objects.filter(
-                            entity=parent_entity,
-                            category=cat,
-                        ).first()
-                        if relation:
-                            relation.is_active = False
-                            relation.save()
-                            removed_count += 1
-
-                    if relation_created:
-                        created_count += 1
-
-                logger.debug(
-                    f"Category relations updated | created_count={created_count} | "
-                    f"removed_count={removed_count}"
-                )
-
-                if created_count > 0 or removed_count > 0:
-                    audit_logger.info(
-                        f"categories_bulk_assigned | FinancialCategory:{parent_entity.pk} | "
-                        f"user={request.user.username} | created_count={created_count} | "
-                        f"removed_count={removed_count}"
-                    )
-                    messages.success(
-                        request,
-                        f"Successfully added {created_count} categories, remove {removed_count} categories.",
-                    )
-                else:
-                    messages.warning(request, "No new categories were added.")
+            self._bulk_assign_post(request, parent_entity, categories)
         except Exception as e:
             error_details = {
                 "exception_type": type(e).__name__,

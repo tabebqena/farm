@@ -57,25 +57,16 @@ def _build_consume_raw_post(quantity, unit_price, description, product):
 class StockDetailView(View):
     """Display the physical stock portfolio for an entity."""
 
-    def get(self, request, *args, **kwargs):
+    def _base_products_qs(self, entity, search_query):
+        """All products belonging to *entity* with movement lines, optionally
+        filtered by *search_query*, annotated with the direction-aware net
+        movement quantity (incoming − outgoing)."""
         from decimal import Decimal
 
         from django.db.models import Case, DecimalField, F, Q, Sum, Value, When
 
-        from apps.app_inventory.stock import (
-            pending_items,
-            portfolio as stock_portfolio,
-            portfolio_direction_q,
-        )
+        from apps.app_inventory.stock import portfolio_direction_q
 
-        entity_pk = kwargs["entity_pk"]
-        entity = get_object_or_404(
-            Entity, pk=entity_pk, error_message="Entity not found or has been deleted."
-        )
-
-        # ------------------------------------------------------------------
-        # 1. All products belonging to this entity with movement lines
-        # ------------------------------------------------------------------
         base_qs = (
             Product.objects.filter(entity=entity)
             .select_related("product_template")
@@ -84,7 +75,6 @@ class StockDetailView(View):
         )
 
         # Search: template name or unique tag
-        search_query = request.GET.get("q", "").strip()
         if search_query:
             base_qs = base_qs.filter(
                 Q(product_template__name__icontains=search_query)
@@ -95,7 +85,7 @@ class StockDetailView(View):
         # classification lives in stock.portfolio_direction_q() (mirrors
         # stock.movement_delta): SALE is incoming for a buyer receipt, outgoing for
         # a seller dispatch; only active lines count.
-        products_with_qty = base_qs.annotate(
+        return base_qs.annotate(
             incoming=Sum(
                 Case(
                     When(
@@ -119,9 +109,11 @@ class StockDetailView(View):
             net_qty=F("incoming") - F("outgoing"),
         )
 
-        # ------------------------------------------------------------------
-        # 2. Physically present products (ledger-based, per-product cards)
-        # ------------------------------------------------------------------
+    def _physically_present_products(self, products_with_qty, entity):
+        """Physically present products = ledger portfolio AND a positive net
+        movement (reversal-aware). Returns ``(products_qs, card_rows)``."""
+        from apps.app_inventory.stock import portfolio as stock_portfolio
+
         # stock.portfolio() returns one row per physically present product with a
         # positive net quantity (computed from the movement lines, no ledger).
         portfolio = stock_portfolio(entity, today_date.today())
@@ -141,21 +133,36 @@ class StockDetailView(View):
             products_qs = products_with_qty.none()
 
         # Build one dict per physically present product for the per-product cards.
-        physically_present_products = _stock_portfolio_rows(
-            products_qs, portfolio_by_product
-        )
+        return products_qs, _stock_portfolio_rows(products_qs, portfolio_by_product)
 
-        # ------------------------------------------------------------------
-        # 3. Obligated outbound — aggregate warning only (not per-card metric)
-        # ------------------------------------------------------------------
+    def _obligated_outbound_qty(self, entity):
+        """Obligated outbound — aggregate warning only (not per-card metric)."""
+        from apps.app_inventory.stock import pending_items
+
         pending = pending_items(entity=entity, as_of=today_date.today())
-        obligated_outbound_qty = sum(
+        return sum(
             abs(p["pending_qty"]) for p in pending if p["pending_qty"] < 0
         )
 
-        # ------------------------------------------------------------------
+    def get(self, request, *args, **kwargs):
+        entity_pk = kwargs["entity_pk"]
+        entity = get_object_or_404(
+            Entity, pk=entity_pk, error_message="Entity not found or has been deleted."
+        )
+
+        # 1. All products with movement lines (+ search filter + net-qty annotate)
+        search_query = request.GET.get("q", "").strip()
+        products_with_qty = self._base_products_qs(entity, search_query)
+
+        # 2. Physically present products (ledger-based, per-product cards)
+        products_qs, physically_present_products = self._physically_present_products(
+            products_with_qty, entity
+        )
+
+        # 3. Obligated outbound — aggregate warning only (not per-card metric)
+        obligated_outbound_qty = self._obligated_outbound_qty(entity)
+
         # 4. Pagination (live physically present products table)
-        # ------------------------------------------------------------------
         page_obj, paginator = paginate(request, products_qs)
 
         return render(
@@ -176,21 +183,15 @@ class StockDetailView(View):
 class StockHistoryView(View):
     """Display the movement-line history for an entity's stock."""
 
-    def get(self, request, *args, **kwargs):
-        from django.core.paginator import Paginator
+    def _history_queryset(self, entity, request):
+        """Movement lines for an entity's stock with all filters applied.
+
+        Returns ``(movements, active_direction, active_op_type, search_query,
+        from_date, to_date)``.
+        """
         from django.db.models import Q
 
-        from apps.app_inventory.stock import (
-            history_direction_q,
-            line_direction,
-            pending_items,
-        )
-        from apps.app_operation.models.operation_type import OperationType
-
-        entity_pk = kwargs["entity_pk"]
-        entity = get_object_or_404(
-            Entity, pk=entity_pk, error_message="Entity not found or has been deleted."
-        )
+        from apps.app_inventory.stock import history_direction_q
 
         movements = (
             InventoryMovementLine.objects.filter(product__entity=entity)
@@ -208,9 +209,7 @@ class StockHistoryView(View):
             .order_by("-date", "-created_at")
         )
 
-        # ------------------------------------------------------------------
         # Filters (direction / op-type / search / date range)
-        # ------------------------------------------------------------------
         active_direction = request.GET.get("direction", "all")
         active_op_type = request.GET.get("op_type", "")
         search_query = request.GET.get("q", "").strip()
@@ -238,33 +237,76 @@ class StockHistoryView(View):
         if parsed_to:
             movements = movements.filter(date__lte=parsed_to)
 
-        # ------------------------------------------------------------------
-        # Summary counts (IN / OUT) over the filtered queryset
-        # ------------------------------------------------------------------
-        inbound_count = movements.filter(history_direction_q("in")).count()
-        outbound_count = movements.filter(history_direction_q("out")).count()
+        return (
+            movements,
+            active_direction,
+            active_op_type,
+            search_query,
+            from_date,
+            to_date,
+        )
 
-        # Attach a per-row direction label for display (reversal-aware, shared
-        # with stock.line_direction).
-        movement_rows = [
+    def _history_rows(self, movements):
+        """Attach a per-row direction label for display (reversal-aware, shared
+        with stock.line_direction)."""
+        from apps.app_inventory.stock import line_direction
+
+        return [
             {"line": line, "direction": line_direction(line)} for line in movements
         ]
 
-        paginator = Paginator(movement_rows, 25)
-        page_obj = paginator.get_page(request.GET.get("page"))
+    def _history_pending(self, entity):
+        """Pending inbound / outbound obligations (moved from stock detail)."""
+        from apps.app_inventory.stock import pending_items
 
-        # Pending inbound / outbound obligations (moved from stock detail)
         pending = pending_items(entity=entity, as_of=today_date.today())
         pending_inbound = [p for p in pending if p["pending_qty"] > 0]
         pending_outbound = [p for p in pending if p["pending_qty"] < 0]
+        return pending_inbound, pending_outbound
 
-        op_type_choices = [
+    def _history_op_type_choices(self):
+        """Operation-type choices for the history filter dropdown."""
+        from apps.app_operation.models.operation_type import OperationType
+
+        return [
             (OperationType.PURCHASE.value, OperationType.PURCHASE.label),
             (OperationType.BIRTH.value, OperationType.BIRTH.label),
             (OperationType.SALE.value, OperationType.SALE.label),
             (OperationType.DEATH.value, OperationType.DEATH.label),
             (OperationType.CONSUMPTION.value, OperationType.CONSUMPTION.label),
         ]
+
+    def get(self, request, *args, **kwargs):
+        from django.core.paginator import Paginator
+
+        from apps.app_inventory.stock import history_direction_q
+
+        entity_pk = kwargs["entity_pk"]
+        entity = get_object_or_404(
+            Entity, pk=entity_pk, error_message="Entity not found or has been deleted."
+        )
+
+        (
+            movements,
+            active_direction,
+            active_op_type,
+            search_query,
+            from_date,
+            to_date,
+        ) = self._history_queryset(entity, request)
+
+        # Summary counts (IN / OUT) over the filtered queryset
+        inbound_count = movements.filter(history_direction_q("in")).count()
+        outbound_count = movements.filter(history_direction_q("out")).count()
+
+        movement_rows = self._history_rows(movements)
+        paginator = Paginator(movement_rows, 25)
+        page_obj = paginator.get_page(request.GET.get("page"))
+
+        # Pending inbound / outbound obligations (moved from stock detail)
+        pending_inbound, pending_outbound = self._history_pending(entity)
+
+        op_type_choices = self._history_op_type_choices()
 
         return render(
             request,
@@ -688,6 +730,100 @@ class _InventoryMovementCreateView(View):
             },
         )
 
+    def _build_formset(self, request, operation, data=None):
+        """Construct the movement-line formset (bound to *data* when provided)."""
+        return InventoryMovementLineFormSet(
+            data,
+            queryset=InventoryMovementLine.objects.none(),
+            operation=operation,
+            prefix="lines",
+        )
+
+    def _parse_movement_post(self, request, operation, invoice_items_json):
+        """Parse + guard the movement POST date/notes.
+
+        Returns ``(date, notes)`` on success, or a rendered error response (with
+        the error message set) when validation fails.
+        """
+        date_str = request.POST.get("date", "").strip()
+        notes = request.POST.get("notes", "").strip()
+
+        try:
+            date = parse_date(date_str) if date_str else today_date.today()
+            if not date:
+                raise ValueError(_("Invalid date format."))
+
+            # Reject movements dated inside a closed financial period of the
+            # operation's governing entity.
+            from apps.app_operation.models.period import is_date_in_closed_period
+
+            if is_date_in_closed_period(operation.period_entity, date):
+                raise ValidationError(
+                    _(
+                        "Cannot record a movement dated within a closed financial period."
+                    )
+                )
+            return date, notes
+        except Exception as e:
+            traceback.print_exc()
+            messages.error(request, _("Error: %(error)s") % {"error": str(e)})
+            formset = self._build_formset(request, operation, data=request.POST)
+            return self._render_movement_form(
+                operation, formset, invoice_items_json
+            )
+
+    def _create_movement_lines_post(
+        self, request, operation, date, notes, invoice_items_json
+    ):
+        """Run the atomic movement-line creation from the POST formset.
+
+        Returns the redirect response on success, a rendered error response on
+        exception, or ``None`` when the formset is invalid (the caller falls
+        through to re-render the blank form).
+        """
+        try:
+            with db_transaction.atomic():
+                # Concurrency: lock the operation's products so concurrent
+                # movements on the same stock serialize against the
+                # availability check (SELECT ... FOR UPDATE; no-op on SQLite).
+                Product.lock_ids(
+                    Product.objects.filter(
+                        invoice_items__operation=operation
+                    ).values_list("pk", flat=True)
+                )
+                formset = self._build_formset(request, operation, data=request.POST)
+                if formset.is_valid():
+                    # Movement creation rules (INDIVIDUAL expansion, product
+                    # derivation, ownership guard) live on the model so the
+                    # purchase/sale flows share one implementation.
+                    created_count = InventoryMovementLine.create_for_operation(
+                        operation=operation,
+                        formset=formset,
+                        date=date,
+                        officer=request.user,
+                        notes=notes,
+                    )
+                    messages.success(
+                        request,
+                        _("Inventory movement created with %(count)s line(s).")
+                        % {"count": created_count},
+                    )
+                    return redirect("operation_detail_view", pk=operation.pk)
+                else:
+                    messages.error(
+                        request,
+                        _("Please check the items below for errors."),
+                    )
+                    return None
+        except Exception as e:
+            traceback.print_exc()
+            messages.error(request, _("Error: %(error)s") % {"error": str(e)})
+            formset = self._build_formset(request, operation, data=request.POST)
+            return self._render_movement_form(
+                operation, formset, invoice_items_json
+            )
+        return None
+
     def _handle(self, request, *args, **kwargs):
         from apps.app_operation.models.operation import Operation
 
@@ -720,81 +856,18 @@ class _InventoryMovementCreateView(View):
         invoice_items_json = InvoiceItem.build_movement_json(operation)
 
         if request.method == "POST":
-            date_str = request.POST.get("date", "").strip()
-            notes = request.POST.get("notes", "").strip()
+            parsed = self._parse_movement_post(request, operation, invoice_items_json)
+            if not isinstance(parsed, tuple):
+                return parsed
+            date, notes = parsed
 
-            try:
-                date = parse_date(date_str) if date_str else today_date.today()
-                if not date:
-                    raise ValueError(_("Invalid date format."))
+            response = self._create_movement_lines_post(
+                request, operation, date, notes, invoice_items_json
+            )
+            if response is not None:
+                return response
 
-                # Reject movements dated inside a closed financial period of the
-                # operation's governing entity.
-                from apps.app_operation.models.period import is_date_in_closed_period
-
-                if is_date_in_closed_period(operation.period_entity, date):
-                    raise ValidationError(
-                        _(
-                            "Cannot record a movement dated within a closed financial period."
-                        )
-                    )
-
-                with db_transaction.atomic():
-                    # Concurrency: lock the operation's products so concurrent
-                    # movements on the same stock serialize against the
-                    # availability check (SELECT ... FOR UPDATE; no-op on SQLite).
-                    Product.lock_ids(
-                        Product.objects.filter(
-                            invoice_items__operation=operation
-                        ).values_list("pk", flat=True)
-                    )
-                    formset = InventoryMovementLineFormSet(
-                        request.POST,
-                        queryset=InventoryMovementLine.objects.none(),
-                        operation=operation,
-                        prefix="lines",
-                    )
-                    if formset.is_valid():
-                        # Movement creation rules (INDIVIDUAL expansion, product
-                        # derivation, ownership guard) live on the model so the
-                        # purchase/sale flows share one implementation.
-                        created_count = InventoryMovementLine.create_for_operation(
-                            operation=operation,
-                            formset=formset,
-                            date=date,
-                            officer=request.user,
-                            notes=notes,
-                        )
-                        messages.success(
-                            request,
-                            _("Inventory movement created with %(count)s line(s).")
-                            % {"count": created_count},
-                        )
-                        return redirect("operation_detail_view", pk=operation_pk)
-                    else:
-                        messages.error(
-                            request,
-                            _("Please check the items below for errors."),
-                        )
-            except Exception as e:
-                traceback.print_exc()
-                messages.error(request, _("Error: %(error)s") % {"error": str(e)})
-                formset = InventoryMovementLineFormSet(
-                    request.POST,
-                    queryset=InventoryMovementLine.objects.none(),
-                    operation=operation,
-                    prefix="lines",
-                )
-                return self._render_movement_form(
-                    operation, formset, invoice_items_json
-                )
-
-        formset = InventoryMovementLineFormSet(
-            queryset=InventoryMovementLine.objects.none(),
-            operation=operation,
-            prefix="lines",
-        )
-
+        formset = self._build_formset(request, operation)
         return self._render_movement_form(operation, formset, invoice_items_json)
 
     def get(self, request, *args, **kwargs):
@@ -1061,13 +1134,95 @@ class RegisterDeferredMovementsView(View):
             {"form": form, "operation": operation},
         )
 
-    def post(self, request, *args, **kwargs):
+    def _deferred_form_context(self, form, operation):
+        """Shared deferred-movement form context."""
+        return {"form": form, "operation": operation}
+
+    def _remaining_moveable_qty(self, invoice_item):
+        """Remaining qty that can be moved (net of reversals — originals that
+        have since been reversed no longer count)."""
         from decimal import Decimal
 
         from django.db.models import Sum
 
-        from apps.app_inventory.forms import DeferredMovementForm
         from apps.app_inventory.stock import active_lines_for_item
+
+        already_moved = (
+            active_lines_for_item(invoice_item).aggregate(total=Sum("quantity"))[
+                "total"
+            ]
+            or Decimal("0.00")
+        )
+        return invoice_item.quantity - already_moved
+
+    def _register_deferred_post(self, request, operation, form):
+        """Handle a valid deferred-movement POST (remaining-qty guard, atomic
+        line creation). Returns the response."""
+        from apps.app_inventory.forms import DeferredMovementForm
+
+        invoice_item = form.cleaned_data["invoice_item"]
+        qty_to_move = form.cleaned_data["quantity"]
+        notes = form.cleaned_data.get("notes", "")
+
+        # Determine remaining qty that can be moved (net of reversals —
+        # originals that have since been reversed no longer count).
+        remaining = self._remaining_moveable_qty(invoice_item)
+        if qty_to_move > remaining:
+            messages.error(
+                request,
+                _("Cannot move %(qty)s — only %(rem)s remaining for item %(item)s.")
+                % {
+                    "qty": qty_to_move,
+                    "rem": remaining,
+                    "item": invoice_item,
+                },
+            )
+            return render(
+                request,
+                "app_inventory/deferred_movement_form.html",
+                self._deferred_form_context(form, operation),
+            )
+
+        group_key = uuid.uuid4().hex[:8]
+
+        try:
+            with db_transaction.atomic():
+                # Concurrency: lock the item's products before the
+                # availability/remaining checks and line inserts.
+                Product.lock_ids(
+                    invoice_item.products.values_list("pk", flat=True)
+                )
+                created_count = invoice_item.create_movements(
+                    operation=operation,
+                    qty_to_move=qty_to_move,
+                    date=operation.date,
+                    officer=request.user,
+                    notes=notes,
+                    group_key=group_key,
+                )
+
+            messages.success(
+                request,
+                _("%(count)d movement line(s) created for item %(item)s.")
+                % {"count": created_count, "item": invoice_item},
+            )
+            return redirect("operation_detail_view", pk=operation.pk)
+
+        except Exception as e:
+            traceback.print_exc()
+            messages.error(
+                request,
+                _("Error creating movements: %(error)s") % {"error": str(e)},
+            )
+
+        return render(
+            request,
+            "app_inventory/deferred_movement_form.html",
+            self._deferred_form_context(form, operation),
+        )
+
+    def post(self, request, *args, **kwargs):
+        from apps.app_inventory.forms import DeferredMovementForm
 
         operation, response = self._setup(kwargs["operation_pk"])
         if response is not None:
@@ -1076,72 +1231,11 @@ class RegisterDeferredMovementsView(View):
 
         form = DeferredMovementForm(request.POST, operation=operation)
         if form.is_valid():
-            invoice_item = form.cleaned_data["invoice_item"]
-            qty_to_move = form.cleaned_data["quantity"]
-            notes = form.cleaned_data.get("notes", "")
+            return self._register_deferred_post(request, operation, form)
 
-            # Determine remaining qty that can be moved (net of reversals —
-            # originals that have since been reversed no longer count).
-            already_moved = (
-                active_lines_for_item(invoice_item).aggregate(total=Sum("quantity"))[
-                    "total"
-                ]
-                or Decimal("0.00")
-            )
-            remaining = invoice_item.quantity - already_moved
-            if qty_to_move > remaining:
-                messages.error(
-                    request,
-                    _("Cannot move %(qty)s — only %(rem)s remaining for item %(item)s.")
-                    % {
-                        "qty": qty_to_move,
-                        "rem": remaining,
-                        "item": invoice_item,
-                    },
-                )
-                return render(
-                    request,
-                    "app_inventory/deferred_movement_form.html",
-                    {"form": form, "operation": operation},
-                )
-
-            group_key = uuid.uuid4().hex[:8]
-
-            try:
-                with db_transaction.atomic():
-                    # Concurrency: lock the item's products before the
-                    # availability/remaining checks and line inserts.
-                    Product.lock_ids(
-                        invoice_item.products.values_list("pk", flat=True)
-                    )
-                    created_count = invoice_item.create_movements(
-                        operation=operation,
-                        qty_to_move=qty_to_move,
-                        date=operation.date,
-                        officer=request.user,
-                        notes=notes,
-                        group_key=group_key,
-                    )
-
-                messages.success(
-                    request,
-                    _("%(count)d movement line(s) created for item %(item)s.")
-                    % {"count": created_count, "item": invoice_item},
-                )
-                return redirect("operation_detail_view", pk=operation.pk)
-
-            except Exception as e:
-                traceback.print_exc()
-                messages.error(
-                    request,
-                    _("Error creating movements: %(error)s") % {"error": str(e)},
-                )
-
-        else:
-            messages.error(request, _("Please check the form for errors."))
-
+        messages.error(request, _("Please check the form for errors."))
         return render(
             request,
             "app_inventory/deferred_movement_form.html",
-            {"form": form, "operation": operation},
+            self._deferred_form_context(form, operation),
         )

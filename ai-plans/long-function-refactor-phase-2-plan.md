@@ -442,3 +442,64 @@ reduced per-method size without extra refactoring:
 All Phase targets above were updated to the CBV method names and current line
 numbers. The plan's split boundaries are unchanged — they apply to the new
 `get`/`post`/`_handle` methods.
+
+---
+
+## Phase 2–10 Implementation — 2026-09-01
+
+Implemented as a **pure refactor** (no behavior/schema/spec/dependency changes).
+Verified with `manage.py check` (no issues) and `manage.py makemigrations --check`
+("No changes detected"). The `Transaction.create`/`Transaction.reverse` and
+`_handle_stakeholder_post`/`_handle_step_6_post` paths were left untouched per
+Out of Scope / Phase 8 notes.
+
+- **Phase 2** — Sale/Purchase `create_from_session`: shared
+  [`Operation._resolve_counterparty()`](apps/app_operation/models/operation.py:740)
+  and [`InventoryMovementLine.create_received_movement_lines()`](apps/app_inventory/models.py:1411);
+  sale-only `_resolve_sold_product` / `_check_sale_availability` / `_link_sold_product`.
+  Line counts: purchase factory 111→84, sale factory 155→99.
+- **Phase 3** — `RecordAccountingAdjustmentView` (`_adjustment_context`,
+  `_render_adjustment`, `_create_adjustment`) and `RecordItemAdjustmentView`
+  (`_item_adjustment_context`, `_render_item_adjustment`,
+  `_validate_item_adjustment_post`); both `post()` are now thin orchestrators.
+- **Phase 4** — `InvoiceItemsListView` data builders: `_fetch_capital_valuations`,
+  `_fetch_item_adjustment_lines`, `_group_by_item`, `_fetch_grouped_adjustments`,
+  `_merge_items`.
+- **Phase 5** — `CategoryRelationEditView` (`_relation_audit`,
+  `_relation_success_message`, `_apply_relation_action`, `_relation_error` +
+  action tables) and `CategoryBulkAssignView` (`_existing_relation_pks`,
+  `_apply_bulk_assign`, `_bulk_assign_post`).
+- **Phase 6** — inventory CBVs: `RegisterDeferredMovementsView`
+  (`_deferred_form_context`, `_remaining_moveable_qty`, `_register_deferred_post`);
+  `_InventoryMovementCreateView` (`_build_formset`, `_parse_movement_post`,
+  `_create_movement_lines_post`); `StockDetailView` (`_base_products_qs`,
+  `_physically_present_products`, `_obligated_outbound_qty`); `StockHistoryView`
+  (`_history_queryset`, `_history_rows`, `_history_pending`, `_history_op_type_choices`).
+- **Phase 7** — `Entity.profit_loss` 109→70 via lazy `_profit_loss_income_types` /
+  `_profit_loss_cost_types` + `_fund_transaction_sum`. The type lists are built lazily
+  to avoid a circular import (`transaction_type` builds `_TX_OPERATION_MAP` at import).
+- **Phase 8** — wizard step handlers 1/2/3 only: `_apply_step1_post`,
+  `_apply_step2_post`, `_apply_step3_post` plus a shared `_project_not_found` guard.
+  The shared stakeholder path (steps 4/5/6, `_handle_stakeholder_post`) was not re-touched.
+- **Phase 9** — `OperationDetailView` 105→68 (`_items_and_valuations`, `_adjustments`,
+  `_payment_balance`); `_build_navigation_overrides` left as-is. `_merge_items` was not
+  reused here because the detail template renders `items` + `items_data` separately
+  (no merged-item cards).
+- **Phase 10** — seed `_create_product_templates` 140→80 (`_template_defaults`,
+  `_animal_template_defaults`, `_upsert_template`). The non-animal update path keeps
+  its historical field subset (excludes `nature`/`default_unit`/`has_tag`), while the
+  animal path updates every `defaults` key.
+
+Verification results:
+- `manage.py check` → no issues; `manage.py makemigrations --check` → no changes.
+- Full non-UI suite: **1471 tests OK** (`manage.py test --parallel=10 --keepdb`).
+  `ui_tests/` not run (repo policy).
+- AST scan (`tmp/find_long_functions.py --threshold 40`): every Phase 2–10 target line
+  count dropped (e.g. `OperationDetailView.get` 105→68, `StockDetailView.get` 114→<40,
+  `InvoiceItemsListView.get` 111→<40, `RecordItemAdjustmentView.post` 85→<40,
+  `profit_loss` 109→70, `_create_product_templates` 140→80); **no new ≥80-line functions**
+  were introduced (largest new helper is 65 lines). The total ≥40-line count went 99→104
+  because the plan's design extracts cohesive named helpers that are themselves 40–65 lines.
+- Grep for all extracted helper names confirmed a single definition each (the
+  `_build_formset` in `apps/app_operation/views/create_operation/base.py` is a
+  pre-existing, unrelated module-level formset-selection helper).

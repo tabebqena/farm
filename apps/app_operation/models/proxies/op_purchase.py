@@ -125,16 +125,12 @@ class PurchaseOperation(AdjustableTransactionMixin, Operation):
         any integrity failure — the caller is responsible for catching and
         presenting the error.
         """
-        from apps.app_entity.models import Entity
-        from apps.app_inventory.models import (
-            InventoryMovementLine,
-        )
+        from apps.app_inventory.models import InventoryMovementLine
 
         date_val = datetime.fromisoformat(session_data["date"]).date()
-        try:
-            vendor = Entity.objects.get(pk=session_data["vendor_id"])
-        except Entity.DoesNotExist:
-            raise ValidationError(_("Vendor not found or has been deleted."))
+        vendor = cls._resolve_counterparty(
+            session_data, "vendor_id", _("Vendor")
+        )
 
         desc = session_data.get("description", "")
         total = Decimal(session_data["total_amount"])
@@ -164,44 +160,21 @@ class PurchaseOperation(AdjustableTransactionMixin, Operation):
         #      lazy-create materialises its own tagged Product, so buying 10
         #      heads creates 10 individual Products (one per animal).
         #      COMMODITY  → one line with the full quantity.
-        from apps.app_inventory.models import ProductTemplate
-
         group_key = uuid.uuid4().hex[:8]
         for item_data, invoice_item in zip(items_data, invoice_items):
             received_qty = Decimal(item_data.get("received_qty", "0"))
             if received_qty <= Decimal("0"):
                 continue
-            template = invoice_item.product_template
             uid = (item_data.get("unique_id") or "").strip() or None
-            if template.tracking_mode == ProductTemplate.TrackingMode.INDIVIDUAL:
-                # One movement line per head — each lazy-creates one tagged
-                # Product.  The user-typed tag applies to the first head;
-                # the rest auto-generate from the template's tag prefix.
-                for head_idx in range(max(int(received_qty), 1)):
-                    line = InventoryMovementLine(
-                        operation=op,
-                        invoice_item=invoice_item,
-                        product=None,  # lazy-created by save()
-                        quantity=Decimal("1"),
-                        date=date_val,
-                        officer=officer,
-                        notes="",
-                        group_key=group_key,
-                    )
-                    line._lazy_unique_id = uid
-                    line.save()
-                    uid = None  # subsequent heads auto-generate their tag
-            else:
-                InventoryMovementLine.objects.create(
-                    operation=op,
-                    invoice_item=invoice_item,
-                    product=None,  # lazy-created by save()
-                    quantity=received_qty,
-                    date=date_val,
-                    officer=officer,
-                    notes="",
-                    group_key=group_key,
-                )
+            InventoryMovementLine.create_received_movement_lines(
+                operation=op,
+                invoice_item=invoice_item,
+                quantity=received_qty,
+                date=date_val,
+                officer=officer,
+                group_key=group_key,
+                lazy_unique_id=uid,
+            )
 
         # ── 5. Payment processing (shared base method) ─────────────────
         if paid > Decimal("0"):

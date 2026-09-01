@@ -19,6 +19,85 @@ if typing.TYPE_CHECKING:
 User = get_user_model()
 
 
+def _profit_loss_income_types():
+    """Income transaction-type lists driving ``Entity.profit_loss()``.
+
+    Returns ``(increase_types, decrease_types)``. Imported lazily to avoid a
+    circular import (``transaction_type`` builds an operation map at import).
+    See the method docstring for the project-as-vendor direction semantics.
+    """
+    from apps.app_transaction.transaction_type import TransactionType
+
+    return (
+        [
+            TransactionType.SALE_ISSUANCE,
+            TransactionType.CORRECTION_CREDIT_ISSUANCE,
+            TransactionType.PURCHASE_ISSUANCE,  # project as vendor
+            TransactionType.SALE_ADJUSTMENT_INCREASE,
+            TransactionType.PURCHASE_ADJUSTMENT_INCREASE,  # project as vendor
+        ],
+        [
+            TransactionType.SALE_ADJUSTMENT_DECREASE,
+            TransactionType.PURCHASE_ADJUSTMENT_DECREASE,  # project as vendor
+        ],
+    )
+
+
+def _profit_loss_cost_types():
+    """Cost transaction-type lists driving ``Entity.profit_loss()``.
+
+    Returns ``(increase_types, decrease_types)``. Imported lazily to avoid a
+    circular import (``transaction_type`` builds an operation map at import).
+    See the method docstring for the project-as-client direction semantics.
+    """
+    from apps.app_transaction.transaction_type import TransactionType
+
+    return (
+        [
+            TransactionType.PURCHASE_ISSUANCE,
+            TransactionType.EXPENSE_ISSUANCE,
+            TransactionType.CORRECTION_DEBIT_ISSUANCE,
+            TransactionType.SALE_ISSUANCE,  # project as client
+            TransactionType.PURCHASE_ADJUSTMENT_INCREASE,
+            TransactionType.SALE_ADJUSTMENT_INCREASE,  # project as client
+            TransactionType.EXPENSE_ADJUSTMENT_INCREASE,
+        ],
+        [
+            TransactionType.PURCHASE_ADJUSTMENT_DECREASE,
+            TransactionType.SALE_ADJUSTMENT_DECREASE,  # project as client
+            TransactionType.EXPENSE_ADJUSTMENT_DECREASE,
+        ],
+    )
+
+
+def _fund_transaction_sum(fund, *, direction, types, tx_valid):
+    """Signed sum of transactions on the given side of the *fund*.
+
+    ``direction`` is ``"target"`` (the fund receives → income) or ``"source"``
+    (the fund pays → cost). Reversal transactions are negated so cross-period
+    reversals land in the correct period with the correct sign.
+    """
+    from django.db.models import Case, F, Sum, When
+
+    from apps.app_transaction.models import Transaction
+
+    return (
+        Transaction.objects.filter(
+            **{direction: fund},
+            type__in=types,
+            **tx_valid,
+        ).aggregate(
+            total=Sum(
+                Case(
+                    When(reversal_of__isnull=False, then=-F("amount")),
+                    default=F("amount"),
+                )
+            )
+        )["total"]
+        or Decimal("0.00")
+    )
+
+
 class EntityType(models.TextChoices):
     PERSON = "person", _("Person")
     PROJECT = "project", _("Project")
@@ -488,14 +567,8 @@ class Entity(ImmutableMixin, BaseModel):
 
         Raises ValueError if the fund's entity is not a project.
         """
-        from apps.app_transaction.transaction_type import TransactionType
-
         if self.entity_type != EntityType.PROJECT:
             raise ValueError(_("profit_loss() is only defined for project funds."))
-
-        from django.db.models import Case, F, Sum, When
-
-        from apps.app_transaction.models import Transaction
 
         fund = self
         # Include both originals and their reversals so that cross-period reversals
@@ -509,71 +582,38 @@ class Entity(ImmutableMixin, BaseModel):
             if period.end_date is not None:
                 tx_valid["date__date__lt"] = period.end_date
 
-        def _signed_sum(qs):
-            """Sum amounts, negating reversal transactions for cross-period correctness."""
-            return qs.aggregate(
-                total=Sum(
-                    Case(
-                        When(reversal_of__isnull=False, then=-F("amount")),
-                        default=F("amount"),
-                    )
-                )
-            )["total"] or Decimal("0.00")
-
         # fund direction disambiguates edge cases naturally:
         # - target=fund + PURCHASE_ISSUANCE → project acting as vendor (income)
         # - source=fund + PURCHASE_ISSUANCE → project acting as buyer  (cost)
         # - target=fund + SALE_ISSUANCE     → project acting as seller (income)
         # - source=fund + SALE_ISSUANCE     → project acting as client (cost)
-        income = _signed_sum(
-            Transaction.objects.filter(
-                target=fund,
-                type__in=[
-                    TransactionType.SALE_ISSUANCE,
-                    TransactionType.CORRECTION_CREDIT_ISSUANCE,
-                    TransactionType.PURCHASE_ISSUANCE,  # project as vendor
-                    TransactionType.SALE_ADJUSTMENT_INCREASE,
-                    TransactionType.PURCHASE_ADJUSTMENT_INCREASE,  # project as vendor
-                ],
-                **tx_valid,
-            )
+        income_types, income_decrease_types = _profit_loss_income_types()
+        cost_types, cost_decrease_types = _profit_loss_cost_types()
+
+        income = _fund_transaction_sum(
+            fund,
+            direction="target",
+            types=income_types,
+            tx_valid=tx_valid,
         )
-        income -= _signed_sum(
-            Transaction.objects.filter(
-                target=fund,
-                type__in=[
-                    TransactionType.SALE_ADJUSTMENT_DECREASE,
-                    TransactionType.PURCHASE_ADJUSTMENT_DECREASE,  # project as vendor
-                ],
-                **tx_valid,
-            )
+        income -= _fund_transaction_sum(
+            fund,
+            direction="target",
+            types=income_decrease_types,
+            tx_valid=tx_valid,
         )
 
-        costs = _signed_sum(
-            Transaction.objects.filter(
-                source=fund,
-                type__in=[
-                    TransactionType.PURCHASE_ISSUANCE,
-                    TransactionType.EXPENSE_ISSUANCE,
-                    TransactionType.CORRECTION_DEBIT_ISSUANCE,
-                    TransactionType.SALE_ISSUANCE,  # project as client
-                    TransactionType.PURCHASE_ADJUSTMENT_INCREASE,
-                    TransactionType.SALE_ADJUSTMENT_INCREASE,  # project as client
-                    TransactionType.EXPENSE_ADJUSTMENT_INCREASE,
-                ],
-                **tx_valid,
-            )
+        costs = _fund_transaction_sum(
+            fund,
+            direction="source",
+            types=cost_types,
+            tx_valid=tx_valid,
         )
-        costs -= _signed_sum(
-            Transaction.objects.filter(
-                source=fund,
-                type__in=[
-                    TransactionType.PURCHASE_ADJUSTMENT_DECREASE,
-                    TransactionType.SALE_ADJUSTMENT_DECREASE,  # project as client
-                    TransactionType.EXPENSE_ADJUSTMENT_DECREASE,
-                ],
-                **tx_valid,
-            )
+        costs -= _fund_transaction_sum(
+            fund,
+            direction="source",
+            types=cost_decrease_types,
+            tx_valid=tx_valid,
         )
 
         return income - costs

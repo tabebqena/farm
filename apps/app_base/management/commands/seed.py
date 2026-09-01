@@ -358,6 +358,89 @@ class Command(BaseCommand):
         """Derive the ProductTemplate name from an ANIMAL_TEMPLATES entry."""
         return f"{entry['animal_type']} {entry['stage']} {entry['gender'].title()}"
 
+    def _template_defaults(self, nature, unit, tag, sub_cat):
+        """Build the defaults dict for a non-animal (FEED/MEDICINE/PRODUCT)
+        template."""
+        from apps.app_inventory.models import ProductTemplate
+
+        # Derive minimum_quantity from nature
+        if nature == "ANIMAL" or nature == "PRODUCT":
+            min_qty = Decimal("1")
+        else:  # FEED or MEDICINE
+            min_qty = Decimal("0.01")
+
+        tracking_mode = (
+            ProductTemplate.TrackingMode.INDIVIDUAL
+            if nature == "ANIMAL"
+            else ProductTemplate.TrackingMode.COMMODITY
+        )
+        return {
+            "nature": nature,
+            "default_unit": unit,
+            "has_tag": tag,
+            "sub_category": sub_cat,
+            "minimum_quantity": min_qty,
+            "tracking_mode": tracking_mode,
+            "tag_prefix": "",
+            "animal_type": "",
+            "gender": ProductTemplate.Gender.NA,
+            "can_die": nature == "ANIMAL",
+            "can_be_consumed": nature != "ANIMAL",
+        }
+
+    def _animal_template_defaults(self, entry):
+        """Build the defaults dict for an ANIMAL_TEMPLATES entry."""
+        from apps.app_inventory.models import ProductTemplate
+
+        return {
+            "name_ar": "",
+            "nature": ProductTemplate.Nature.ANIMAL,
+            "sub_category": self.SPECIES_SUB_CATEGORY[entry["animal_type"]],
+            "default_unit": "Head",
+            "has_tag": True,
+            "tag_prefix": entry.get("tag_prefix", ""),
+            "minimum_quantity": Decimal("1"),
+            "tracking_mode": ProductTemplate.TrackingMode.INDIVIDUAL,
+            "animal_type": entry["animal_type"],
+            "gender": entry["gender"],
+            "can_die": True,
+            "can_be_consumed": False,
+        }
+
+    def _upsert_template(
+        self, template, is_new, defaults, update_fields=None, extra_values=None
+    ):
+        """Persist *template* from *defaults*, returning ``(created, updated)``
+        increments (one of them is 1, the other 0).
+
+        On an existing template, the fields named in ``update_fields``
+        (defaults to every ``defaults`` key) are compared and written only when
+        they differ. ``extra_values`` provides additional field→value pairs not
+        present in ``defaults`` (e.g. the non-animal ``name_ar`` get-or-create
+        argument). This preserves the historical field-compare behavior: the
+        non-animal path updates only its explicit subset (excluding
+        ``nature``/``default_unit``/``has_tag``), while the animal path updates
+        every ``defaults`` key.
+        """
+        if is_new:
+            return 1, 0
+
+        fields = update_fields if update_fields is not None else list(defaults.keys())
+        values = dict(defaults)
+        if extra_values:
+            values.update(extra_values)
+
+        changed = False
+        for field in fields:
+            value = values[field]
+            if getattr(template, field) != value:
+                setattr(template, field, value)
+                changed = True
+        if changed:
+            template.save()
+            return 0, 1
+        return 0, 0
+
     def _create_product_templates(self):
         from apps.app_inventory.models import ProductTemplate
 
@@ -366,102 +449,42 @@ class Command(BaseCommand):
 
         # ── Non-animal templates (FEED / MEDICINE / PRODUCT) ──────────────
         for name, name_ar, nature, unit, tag, sub_cat in PRODUCT_TEMPLATES:
-            # Derive minimum_quantity from nature
-            if nature == "ANIMAL" or nature == "PRODUCT":
-                min_qty = Decimal("1")
-            else:  # FEED or MEDICINE
-                min_qty = Decimal("0.01")
-
-            tracking_mode = (
-                ProductTemplate.TrackingMode.INDIVIDUAL
-                if nature == "ANIMAL"
-                else ProductTemplate.TrackingMode.COMMODITY
-            )
-            defaults = {
-                "nature": nature,
-                "default_unit": unit,
-                "has_tag": tag,
-                "sub_category": sub_cat,
-                "minimum_quantity": min_qty,
-                "tracking_mode": tracking_mode,
-                "tag_prefix": "",
-                "animal_type": "",
-                "gender": ProductTemplate.Gender.NA,
-                "can_die": nature == "ANIMAL",
-                "can_be_consumed": nature != "ANIMAL",
-            }
+            defaults = self._template_defaults(nature, unit, tag, sub_cat)
             template, is_new = ProductTemplate.objects.get_or_create(
                 name=name,
                 name_ar=name_ar,
                 defaults=defaults,
             )
-            if is_new:
-                created += 1
-            else:
-                changed = False
-                if template.name_ar != name_ar:
-                    template.name_ar = name_ar
-                    changed = True
-                if template.sub_category != sub_cat:
-                    template.sub_category = sub_cat
-                    changed = True
-                if template.minimum_quantity != min_qty:
-                    template.minimum_quantity = min_qty
-                    changed = True
-                if template.tracking_mode != tracking_mode:
-                    template.tracking_mode = tracking_mode
-                    changed = True
-                if template.tag_prefix != defaults["tag_prefix"]:
-                    template.tag_prefix = defaults["tag_prefix"]
-                    changed = True
-                if template.animal_type != defaults["animal_type"]:
-                    template.animal_type = defaults["animal_type"]
-                    changed = True
-                if template.gender != defaults["gender"]:
-                    template.gender = defaults["gender"]
-                    changed = True
-                if template.can_die != defaults["can_die"]:
-                    template.can_die = defaults["can_die"]
-                    changed = True
-                if template.can_be_consumed != defaults["can_be_consumed"]:
-                    template.can_be_consumed = defaults["can_be_consumed"]
-                    changed = True
-                if changed:
-                    template.save()
-                    updated += 1
+            c, u = self._upsert_template(
+                template,
+                is_new,
+                defaults,
+                update_fields=[
+                    "sub_category",
+                    "minimum_quantity",
+                    "tracking_mode",
+                    "tag_prefix",
+                    "animal_type",
+                    "gender",
+                    "can_die",
+                    "can_be_consumed",
+                ],
+                extra_values={"name_ar": name_ar},
+            )
+            created += c
+            updated += u
 
         # ── Animal templates (Cow / Buffalo / Sheep / Goat) ───────────────
         for entry in ANIMAL_TEMPLATES:
             name = self._animal_template_name(entry)
-            defaults = {
-                "name_ar": "",
-                "nature": ProductTemplate.Nature.ANIMAL,
-                "sub_category": self.SPECIES_SUB_CATEGORY[entry["animal_type"]],
-                "default_unit": "Head",
-                "has_tag": True,
-                "tag_prefix": entry.get("tag_prefix", ""),
-                "minimum_quantity": Decimal("1"),
-                "tracking_mode": ProductTemplate.TrackingMode.INDIVIDUAL,
-                "animal_type": entry["animal_type"],
-                "gender": entry["gender"],
-                "can_die": True,
-                "can_be_consumed": False,
-            }
+            defaults = self._animal_template_defaults(entry)
             template, is_new = ProductTemplate.objects.get_or_create(
                 name=name,
                 defaults=defaults,
             )
-            if is_new:
-                created += 1
-            else:
-                changed = False
-                for field, value in defaults.items():
-                    if getattr(template, field) != value:
-                        setattr(template, field, value)
-                        changed = True
-                if changed:
-                    template.save()
-                    updated += 1
+            c, u = self._upsert_template(template, is_new, defaults)
+            created += c
+            updated += u
 
         # ── Relationship resolution (after all templates exist) ───────────
         for entry in ANIMAL_TEMPLATES:
