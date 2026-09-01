@@ -725,17 +725,12 @@ class InvoiceItemAdjustmentLine(
         return last_price if last_price is not None else self.invoice_item.unit_price
 
     def clean(self):
-        # ⚠️ REGISTERED DIVERGENCE from Sale/Purchase spec VA3
-        # ("new qty ≥ already moved"): this guard is intentionally NOT enforced.
-        # Item adjustments are purely financial — they no longer re-sync products /
-        # movements (the former ``_sync_products()`` was removed in the
-        # "Flatten products / Deferred movement" refactor). Consequently an item can
-        # be shrunk below its already-moved quantity, producing a negative
-        # ``remaining_qty`` in ``Operation.get_items_data`` and a ledger that moved
-        # more than the item's adjusted quantity. See
-        # ``docs/specs/operations/op_14_sale.md`` §5.5.1 (VA3) + §9 for the registered
-        # conflict; ``apps/app_adjustment/tests/test_invoice_item_adjustment_validation.py``
-        # (DecreaseWithMovementsTest) pins the current (allow) behaviour.
+        # Sale/Purchase spec VA3 — "new qty ≥ already moved": an item may not be
+        # shrunk below the quantity that has already been moved (delivered for
+        # SALE, received for PURCHASE). Item adjustments remain purely financial
+        # (no product/movement re-sync since the "Flatten products / Deferred
+        # movement" refactor), so the moved quantity is read from the active
+        # movement lines only — see ``Operation.get_items_data``.
         if self.new_quantity is None and self.new_unit_price is None:
             raise ValidationError(
                 _("At least one of new_quantity or new_unit_price must be set.")
@@ -749,6 +744,31 @@ class InvoiceItemAdjustmentLine(
             raise ValidationError(
                 _("The invoice item does not belong to the adjustment's operation.")
             )
+        # VA3: new quantity must not be less than the already-moved quantity.
+        if self.new_quantity is not None:
+            from django.db.models import Sum
+
+            from apps.app_inventory.stock import active_lines_for_item
+
+            moved = (
+                active_lines_for_item(self.invoice_item).aggregate(
+                    total=Sum("quantity")
+                )["total"]
+                or Decimal("0")
+            )
+            if self.new_quantity < moved:
+                raise ValidationError(
+                    _(
+                        "New quantity (%(new)s) cannot be less than the already-moved "
+                        "quantity (%(moved)s) for '%(item)s'. Reverse the movements "
+                        "first, then adjust the quantity."
+                    )
+                    % {
+                        "new": self.new_quantity,
+                        "moved": moved,
+                        "item": self.invoice_item.product_template.name,
+                    }
+                )
         return super().clean()
 
     def save(self, *args, **kwargs):

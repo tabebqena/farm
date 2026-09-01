@@ -304,17 +304,16 @@ Invoice-item correction (qty / unit price) via `record_item_adjustment`. This is
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
 | VA1 | Adjustable + not reversed / not a reversal | `is_items_adjustable=True`; no active reversal | `ValidationError` | — | `InvoiceItemAdjustment` | `ValidationTest.test_item_adjustment_requires_purchase_or_sale` · `test_type_must_match_operation` |
 | VA2 | ≥ 1 item changed; qty/price parse | at least one delta, valid decimal | `ValidationError` | — | item-adjustment finalize | `ValidationTest.test_line_requires_at_least_one_change_field` · `test_line_must_belong_to_same_operation` |
-| VA3 | New qty ≥ already moved | `new_qty ≥ moved_qty` | `ValidationError` | — | ⚠️ **NOT IMPLEMENTED** (see note below) | **divergent** — `DecreaseWithMovementsTest.test_decrease_quantity_with_moved_products_succeeds` · `test_decrease_price_with_moved_products_succeeds` assert decrease-on-moved items **succeeds** |
+| VA3 | New qty ≥ already moved | `new_qty ≥ moved_qty` | `ValidationError` | `"New quantity (%(new)s) cannot be less than the already-moved quantity (%(moved)s) for '%(item)s'…"` | `InvoiceItemAdjustmentLine.clean` | `DecreaseWithMovementsTest.test_decrease_below_moved_quantity_raises` · `test_decrease_to_moved_quantity_succeeds` · `test_sale_decrease_below_moved_quantity_raises` · `test_decrease_quantity_with_moved_products_succeeds` |
 
-> **⚠️ Registered divergence (VA3):** The `new_qty ≥ moved_qty` guard is **not enforced**.
-> `InvoiceItemAdjustmentLine.clean()` only requires ≥ 1 field set + item belongs to the
-> operation (`InvoiceItemAdjustmentLine.clean`); the former `_sync_products()` guard was removed during the
-> "Flatten products / Deferred movement" refactor. Item adjustments are now treated as
-> **purely financial** (no product/movement re-sync). Consequence: an officer can shrink an item
-> below its already-moved quantity, producing a negative `remaining_qty`
-> (`adjusted_quantity − moved_qty < 0` in `Operation.get_items_data`) and a ledger that moved more
-> than the item's adjusted quantity. This is a spec-vs-code conflict: the spec intends the guard
-> (fix the code) while the code deliberately allows the decrease (fix the spec). Unresolved.
+> **VA3 — implemented:** the `new_qty ≥ moved_qty` guard is enforced in
+> `InvoiceItemAdjustmentLine.clean()`. Item adjustments remain **purely financial** (no
+> product/movement re-sync since the "Flatten products / Deferred movement" refactor — see
+> `ai-plans/sale-va3-new-qty-moved-guard-plan.md`), but the contract may no longer be shrunk
+> below what has already been moved (delivered for SALE, received for PURCHASE). `moved_qty`
+> is read from the same `active_lines_for_item()` helper used by `Operation.get_items_data`,
+> so the guard matches the detail page's "moved" figure. To lower the quantity below moved,
+> reverse the movements first, then adjust. Applies to PURCHASE and SALE alike.
 
 #### 5.5.2 Success effects
 
@@ -415,7 +414,7 @@ Accounting adjustment on the operation amount via `record_accounting_adjustment`
 
 **move items — effects:** SM1 SALE_MOVEMENT ledger, no mint · SM2 full disposal → SOLD/0 · SM3 partial → ACTIVE · SM4 individual animal moved · SM5 internal client buyer copy · SM6 movements reversible
 
-**adjust items — validation:** VA1 adjustable + not reversed · VA2 ≥1 changed · VA3 qty ≥ moved ⚠️ **NOT IMPLEMENTED** (registered divergence — see §5.5.1) · **effects:** SA1 item adjustment + lines · SA2 accounting adj + tx · SA3 ledger entries
+**adjust items — validation:** VA1 adjustable + not reversed · VA2 ≥1 changed · VA3 qty ≥ moved (`InvoiceItemAdjustmentLine.clean`) · **effects:** SA1 item adjustment + lines · SA2 accounting adj + tx · SA3 ledger entries
 
 **adjust — validation:** VA4 adjustable + not reversed · VA5 type allowed · VA6 amount>0/staff · VA7 reduction ≥ 0 · **effects:** SA4 `SALE_ADJUSTMENT_*` (non-cash) + `effective_amount` delta
 

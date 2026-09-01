@@ -30,10 +30,11 @@
                           <div class="py-1 d-flex align-items-center" style="min-height: calc(1.5em + .5rem + 2px);">
                             <span class="fw-bold">{{ item.adjusted_quantity }}</span>
                           </div>
+                          <div class="small text-muted">{% trans 'Moved' %}: {{ item.moved_qty }}</div>
                         </div>
                         <div class="col-6 col-md-3">
                           <label class="small text-muted d-block">{% trans 'New Qty' %}</label>
-                          <input type="number" class="form-control form-control-sm new-quantity" name="item_{{ item.pk }}_new_quantity" placeholder="{{ item.adjusted_quantity }}" step="{{ item.product_template.minimum_quantity }}" min="0" />
+                          <input type="number" class="form-control form-control-sm new-quantity" name="item_{{ item.pk }}_new_quantity" placeholder="{{ item.adjusted_quantity }}" step="{{ item.product_template.minimum_quantity }}" min="{{ item.moved_qty }}" />
                         </div>
                         <div class="col-6 col-md-3 mt-2 mt-md-0">
                           <label class="small text-muted d-block">{% trans 'Current Unit Price' %}</label>

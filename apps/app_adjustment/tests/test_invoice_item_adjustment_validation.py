@@ -242,11 +242,11 @@ class ValidationTest(TestCase):
 class DecreaseWithMovementsTest(TestCase):
     """Decreasing quantity when products have inventory movements.
 
-    ⚠️ REGISTERED DIVERGENCE from spec VA3 ("new qty ≥ already moved"): these
-    tests pin the CURRENT behaviour — decreasing qty/price on an item whose
-    products have movements must NOT raise. The spec's VA3 guard is therefore
-    NOT implemented (item adjustments are financial-only since
-    ``_sync_products()`` was removed). See
+    Spec VA3 ("new qty ≥ already moved") is enforced in
+    ``InvoiceItemAdjustmentLine.clean()``: an item may not be shrunk below its
+    already-moved quantity. Allowed: price-only decreases, increases, and
+    quantity decreases that stay >= moved_qty. Blocked: quantity decreases
+    below moved_qty (PURCHASE and SALE). See
     ``docs/specs/operations/op_14_sale.md`` §5.5.1 (VA3) + §9.
     """
 
@@ -280,12 +280,12 @@ class DecreaseWithMovementsTest(TestCase):
         )
 
     def test_decrease_quantity_with_moved_products_succeeds(self):
-        """Decreasing qty on an item whose products have movements must NOT raise."""
+        """Decreasing qty to a value still >= moved_qty (5) must NOT raise."""
         self._simulate_movement()
         ia = _make_item_adj(
             self.op, InvoiceItemAdjustmentType.PURCHASE_ITEM_DECREASE, self.officer
         )
-        # This would have raised ValidationError before _sync_products() was removed
+        # 8 >= moved (5) → allowed under VA3
         line = InvoiceItemAdjustmentLine(
             adjustment=ia,
             invoice_item=self.item,
@@ -333,6 +333,71 @@ class DecreaseWithMovementsTest(TestCase):
         line = _make_line(ia, self.item, new_quantity=Decimal("8.00"))
         self.assertEqual(line.quantity_delta, Decimal("-2.00"))
         self.assertEqual(line.value_delta, Decimal("-200.00"))
+
+    def test_decrease_below_moved_quantity_raises(self):
+        """Decreasing qty below the already-moved quantity (5) must raise (VA3)."""
+        self._simulate_movement()
+        ia = _make_item_adj(
+            self.op, InvoiceItemAdjustmentType.PURCHASE_ITEM_DECREASE, self.officer
+        )
+        line = InvoiceItemAdjustmentLine(
+            adjustment=ia,
+            invoice_item=self.item,
+            new_quantity=Decimal("3.00"),
+        )
+        with self.assertRaises(ValidationError):
+            line.full_clean()
+
+    def test_decrease_to_moved_quantity_succeeds(self):
+        """Decreasing qty exactly to the already-moved quantity (5) is allowed."""
+        self._simulate_movement()
+        ia = _make_item_adj(
+            self.op, InvoiceItemAdjustmentType.PURCHASE_ITEM_DECREASE, self.officer
+        )
+        line = InvoiceItemAdjustmentLine(
+            adjustment=ia,
+            invoice_item=self.item,
+            new_quantity=Decimal("5.00"),
+        )
+        line.full_clean()  # must not raise
+        line.save()
+
+    def test_sale_decrease_below_moved_quantity_raises(self):
+        """SALE: shrinking an item below its already-moved (delivered) quantity
+        must raise (spec VA3)."""
+        client = _make_client("Buyer")
+        _link_client(self.project, client)
+        sale_op = _make_sale_op(client, self.project, self.officer)
+        item = _make_invoice_with_item(
+            sale_op, self.template, Decimal("10"), Decimal("100.00")
+        )
+        product = _make_product_for_item(self.template, item, Decimal("100.00"))
+        # A SALE moves stock out of the selling project, so the product must
+        # belong to the project entity (ownership check in
+        # ``InventoryMovementLine.clean()``).
+        product.entity = self.project
+        product.save()
+
+        from apps.app_inventory.models import InventoryMovementLine
+
+        InventoryMovementLine.objects.create(
+            operation=sale_op,
+            invoice_item=item,
+            product=product,
+            quantity=Decimal("8.00"),
+            date=date.today(),
+            officer=self.officer,
+        )
+        ia = _make_item_adj(
+            sale_op, InvoiceItemAdjustmentType.SALE_ITEM_DECREASE, self.officer
+        )
+        line = InvoiceItemAdjustmentLine(
+            adjustment=ia,
+            invoice_item=item,
+            new_quantity=Decimal("5.00"),
+        )
+        with self.assertRaises(ValidationError):
+            line.full_clean()
 
 
 # ---------------------------------------------------------------------------

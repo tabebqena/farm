@@ -293,7 +293,7 @@ Invoice-item correction (qty / unit price) via `record_item_adjustment`. This is
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
 | VA1 | Adjustable + not reversed / not a reversal | `is_items_adjustable=True`; no active reversal | `ValidationError` | — | `InvoiceItemAdjustment` | `ValidationTest.test_item_adjustment_requires_purchase_or_sale` · `test_type_must_match_operation` |
 | VA2 | ≥ 1 item changed; qty/price parse | at least one delta, valid decimal | `ValidationError` | — | item-adjustment finalize | `ValidationTest.test_line_requires_at_least_one_change_field` · `test_line_must_belong_to_same_operation` |
-| VA3 | New qty ≥ already moved | `new_qty ≥ moved_qty` | `ValidationError` | — | item-adjustment finalize | `DecreaseWithMovementsTest.test_decrease_quantity_with_moved_products_succeeds` (allowed — see note in Sale spec) |
+| VA3 | New qty ≥ already moved | `new_qty ≥ moved_qty` | `ValidationError` | — | `InvoiceItemAdjustmentLine.clean` | `DecreaseWithMovementsTest.test_decrease_below_moved_quantity_raises` · `test_decrease_to_moved_quantity_succeeds` (see note in Sale spec) |
 
 #### 5.5.2 Success effects
 

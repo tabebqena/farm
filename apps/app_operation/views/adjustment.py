@@ -4,6 +4,7 @@ from decimal import Decimal
 from django import forms
 from django.contrib import messages
 from django.db import transaction as db_transaction
+from django.db.models import Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -16,6 +17,7 @@ from apps.app_adjustment.models import (
     InvoiceItemAdjustmentLine,
     InvoiceItemAdjustmentType,
 )
+from apps.app_inventory.stock import active_lines_for_item
 from apps.app_base.debug import DebugContext, debug_view
 from apps.app_operation.models import Operation
 from apps.app_operation.models.operation_type import OperationType
@@ -154,7 +156,14 @@ def record_item_adjustment(request, pk):
         )
         return redirect("operation_detail_view", pk=pk)
 
-    items = operation.items.all()
+    items = list(operation.items.all())
+    for item in items:
+        # Spec VA3: expose the already-moved quantity so the form can floor
+        # the New Qty input and show it to the officer.
+        item.moved_qty = (
+            active_lines_for_item(item).aggregate(total=Sum("quantity"))["total"]
+            or Decimal("0")
+        )
 
     if request.method == "GET":
         context = {
