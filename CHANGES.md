@@ -16,6 +16,45 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 
 ---
 
+## 2026-09-01 — Full UI test coverage for all operation actions
+
+Completed the spec-driven browser UI suite for **every operation action's happy
+path** ([`ai-plans/auto-ui-test-suite-plan.md`](ai-plans/auto-ui-test-suite-plan.md)),
+checking all expected visible results per operation and honouring the dependency
+chain between operations (e.g. a Sale requires an active project, received
+purchase stock, and an active client). The full `ui_tests` suite now runs
+**54 tests OK** (was 44).
+
+### Added
+- op_13 **Purchase** happy path ([`ui_tests/operations/test_purchase.py`](ui_tests/operations/test_purchase.py)):
+  wizard create → receive items → pay → reverse; asserts flash, detail totals,
+  movement status, fund movement and settlement.
+- op_14 **Sale** happy path ([`ui_tests/operations/test_sale.py`](ui_tests/operations/test_sale.py)):
+  dependency-aware (active project + received purchase stock + active funded
+  client), wizard create → dispatch goods → collect → reverse (movement undone first).
+- op_17 **Birth** happy path ([`ui_tests/operations/test_birth.py`](ui_tests/operations/test_birth.py)):
+  mother → newborn; auto inbound movement, ACTIVE newborn, no transactions, reverse
+  removes the newborn.
+- op_18 **Death** happy path ([`ui_tests/operations/test_death.py`](ui_tests/operations/test_death.py)):
+  write-off an existing animal; DEAD status, reverse restores ACTIVE.
+- op_19 **Consumption** happy path ([`ui_tests/operations/test_consumption.py`](ui_tests/operations/test_consumption.py)):
+  consume a FEED batch; CONSUMED status, reverse restores ACTIVE.
+- Wizard/frame helpers in [`ui_tests/base.py`](ui_tests/base.py): `click_wizard_next`,
+  `goto_query`, `fill_date`, `reverse_transaction`; `make_product_template` now
+  derives the tracking mode from the nature in [`ui_tests/operations/helpers.py`](ui_tests/operations/helpers.py);
+  new clauses registered in [`ui_tests/manifest.py`](ui_tests/manifest.py).
+
+### Fixed
+- [`invoice_formset.html`](apps/app_operation/templates/app_operation/snippets/create-form/invoice_formset.html)
+  now renders the select-mode `selected_product` picker for **Death/Consumption**
+  create forms — previously only the create-mode `product_template` was rendered,
+  leaving those forms unusable through the browser (spec §8 contract restored).
+- Pre-existing UI tests: Capital Gain/Loss evaluation now fills the required `date`
+  field; Expense happy path reverses the payment transaction before the operation
+  reversal (matching the VR3 reversal guard).
+
+---
+
 ## 2026-09-01 — Fresh refactor scan: logging standardization & error-details dedup
 
 A behavior-preserving cleanup following the fresh refactor scan

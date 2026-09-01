@@ -243,6 +243,23 @@ class UiTestCase(LiveServerTestCase):
         el.send_keys(str(value))
         return el
 
+    def fill_date(self, name, value):
+        """Set a ``<input type=date>`` via JS.
+
+        Native ``send_keys`` on a date input is parsed in the browser's locale
+        (MM/DD/YYYY), so an ISO ``YYYY-MM-DD`` string is rejected ("Enter a valid
+        date"). Setting ``element.value`` directly keeps the ISO contract.
+        """
+        self.driver.execute_script(
+            "var el=document.querySelector('input[name=%(name)s]');"
+            "if(el){el.value=arguments[0];"
+            "el.dispatchEvent(new Event('input',{bubbles:true}));"
+            "el.dispatchEvent(new Event('change',{bubbles:true}));}"
+            % {"name": name},
+            str(value),
+        )
+        return self
+
     def fill_amount(self, value, name="amount"):
         """Fill a formatter-managed amount input (visible + hidden name twin).
 
@@ -326,6 +343,38 @@ class UiTestCase(LiveServerTestCase):
             f"expected no element matching {css_selector!r}",
         )
 
+    def click_wizard_next(self):
+        """Click the Purchase/Sale wizard's footer submit button.
+
+        The wizard templates render the submit button *outside* the form element,
+        linked to it via ``form="wizard-form"`` (``app_operation/{sale,purchase}_wizard.html``).
+        ``click_submit`` cannot find it because it only looks inside ``<form>``.
+        """
+        xpath = (
+            "//main[@id='main-content']"
+            "//button[@type='submit'][@form='wizard-form']"
+        )
+        el = self.driver.find_element(By.XPATH, xpath)
+        self.driver.execute_script(
+            "arguments[0].scrollIntoView({block:'center', inline:'center'});", el
+        )
+        try:
+            el.click()
+        except Exception:
+            self.driver.execute_script("arguments[0].click();", el)
+        return self
+
+    def goto_query(self, name, *args, **query):
+        """Navigate to ``name`` (with args) plus a raw ``?k=v`` query string.
+
+        The sale/purchase item forms require a ``product_id`` / ``template_id``
+        query parameter that the plain ``goto`` helper cannot express.
+        """
+        qs = "&".join(f"{k}={v}" for k, v in query.items())
+        url = self.absurl(name, *args) + (f"?{qs}" if qs else "")
+        self.driver.get(url)
+        return self
+
     # ------------------------------------------------------------------
     # Operation clause helpers
     # ------------------------------------------------------------------
@@ -352,6 +401,19 @@ class UiTestCase(LiveServerTestCase):
 
     def reverse_operation(self, op, reason="UI test reversal"):
         self.goto("operation_reverse_view", op.pk)
+        self.driver.find_element(By.NAME, "reversal_reason").send_keys(reason)
+        self.click_submit()
+        self.wait_for_url_contains("detail")
+        return self
+
+    def reverse_transaction(self, tx, reason="UI transaction reversal"):
+        """Reverse a single financial transaction (TransactionReverseView).
+
+        Used to undo a standalone payment/collection before reversing the
+        operation it belongs to (operations with explicit payments are guarded
+        from operation-level reversal until their transactions are reversed).
+        """
+        self.goto("transaction_reverse_view", tx.pk)
         self.driver.find_element(By.NAME, "reversal_reason").send_keys(reason)
         self.click_submit()
         self.wait_for_url_contains("detail")

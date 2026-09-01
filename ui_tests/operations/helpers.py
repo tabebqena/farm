@@ -39,7 +39,14 @@ def make_product_template(
     minimum_quantity=Decimal("1.00"),
     **kwargs,
 ):
-    """A product template assigned to ``project``."""
+    """A product template assigned to ``project``.
+
+    ``tracking_mode`` defaults from the nature (ANIMAL → INDIVIDUAL, otherwise
+    COMMODITY), mirroring what ``ProductTemplate.clean()`` would derive —
+    ``objects.create`` bypasses ``clean()``, so the caller must set it.
+    """
+    if "tracking_mode" not in kwargs:
+        kwargs["tracking_mode"] = ProductTemplate.tracking_mode_for_nature(nature)
     template = ProductTemplate.objects.create(
         name=name,
         nature=nature,

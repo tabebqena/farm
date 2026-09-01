@@ -3,6 +3,7 @@
 The happy path (per repo guidance) is: evaluate a product -> reverse. Valuation is
 value-only (no physical inventory movement).
 """
+from datetime import date
 from decimal import Decimal
 
 from apps.app_inventory.models import Product, ProductTemplate
@@ -45,6 +46,8 @@ class CapitalValuationUiTests(UiTestCase):
         self.login_as_officer()
         self.goto("evaluation_create_view", self.project.pk, product.pk)
         self.fill_amount(f"{new_unit_price:.2f}", "new_unit_price")
+        # The evaluation form requires a date (not auto-prefilled on submit).
+        self.fill_date("date", date.today().isoformat())
         self.click_submit()
         self.wait_for_url_contains("detail")
 

@@ -17,9 +17,9 @@
 
 ---
 
-## 0. Implementation status (2026-08-14)
+## 0. Implementation status (2026-09-01)
 
-**Implemented and green (44 UI tests, `python3 manage.py test ui_tests --keepdb`):**
+**Implemented and green (54 UI tests, `python3 manage.py test ui_tests --keepdb`):**
 
 - **Harness** — `ui_tests/base.py` (`UiTestCase(LiveServerTestCase)`):
   Selenium/headless-Chrome, real-login helper, stable form/amount/select helpers
@@ -42,15 +42,31 @@
 
 **Not yet implemented (tracked as gaps; the harness pattern is established):**
 
-- op_5 / op_6 Capital Gain & Loss (product-evaluation flow via
-  `/<pk>/evaluate/<product_pk>/`).
-- op_12 Expense (requires financial-category setup on the project).
-- op_13 Purchase / op_14 Sale (multi-step wizard + invoice formsets + movements).
-- op_17 Birth / op_18 Death / op_19 Consumption (product templates + movements).
 - Feature specs: stock, adjustment (UI section is open in the spec), financial
   period.
 - Remaining global flows: project setup wizard, stakeholders, profile edit,
   admin load.
+
+**Implemented since the original status (2026-09-01):**
+
+- op_5 / op_6 Capital Gain & Loss — `ui_tests/operations/test_capital_valuation.py`
+  (create + reverse happy path; evaluation `date` field now filled).
+- op_12 Expense — `ui_tests/operations/test_expense.py` (create → pay → reverse,
+  undoing the payment transaction first per the VR3 guard).
+- op_13 Purchase — `ui_tests/operations/test_purchase.py` (wizard create →
+  receive → pay → reverse, asserting all visible effects).
+- op_14 Sale — `ui_tests/operations/test_sale.py` (dependency-aware: active
+  project + received purchase stock + active funded client; wizard create →
+  dispatch → collect → reverse, undoing the SALE movement first).
+- op_17 Birth / op_18 Death / op_19 Consumption —
+  `ui_tests/operations/test_birth.py`, `test_death.py`, `test_consumption.py`
+  (create + verify stock event / status / movement + reverse).
+- Harness additions in `ui_tests/base.py`: `click_wizard_next`, `goto_query`,
+  `fill_date`, `reverse_transaction`; `ui_tests/manifest.py` registers the new
+  clauses.
+- **UI bug fixed:** `app_operation/snippets/create-form/invoice_formset.html`
+  renders the select-mode `selected_product` picker for Death/Consumption forms
+  (previously those forms could never be completed in the browser).
 
 ---
 

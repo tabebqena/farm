@@ -1,12 +1,16 @@
 """UI happy-path tests for op_12 Expense (docs/specs/operations/op_12_expense.md).
 
-Happy path per repo guidance: create -> pay -> reverse.
+Happy path per repo guidance: create -> pay -> reverse. Per spec §5.2 (VR3) an
+expense with an active payment cannot be reversed until that payment transaction
+is reversed first, so the full happy path also undoes the payment before the
+operation-level reversal.
 """
 from decimal import Decimal
 
 from django.db.models import Q
 
 from apps.app_operation.models.operation_type import OperationType
+from apps.app_transaction.transaction_type import TransactionType
 
 from ui_tests.base import UiTestCase
 from ui_tests.operations.helpers import make_category
@@ -37,7 +41,8 @@ class ExpenseUiTests(UiTestCase):
         return self._latest_expense()
 
     def test_happy_path_create_pay_reverse(self):
-        """Create -> pay (partial) -> reverse; each step leaves a visible trace."""
+        """Create -> pay (partial) -> reverse payment -> reverse; each step leaves
+        a visible trace."""
         op = self._create_expense()
         self.assert_flash_contains("recorded successfully")
         self.assert_visible_text("Expense")
@@ -48,6 +53,15 @@ class ExpenseUiTests(UiTestCase):
         self.assert_flash_contains("Payment")
         self.assert_visible_text("100.00")
 
-        # reverse
+        # VR3: an expense with an active payment is blocked from operation-level
+        # reversal — undo the payment transaction first.
+        payment_tx = (
+            op.get_all_transactions().filter(type=TransactionType.EXPENSE_PAYMENT)
+            .latest("created_at")
+        )
+        self.reverse_transaction(payment_tx, reason="UI payment data entry error")
+        self.assert_flash_contains("reversed successfully")
+
+        # reverse the operation
         self.reverse_operation(op, reason="UI test data entry error")
         self.assert_visible_text("Operation Voided (Reversed)")
