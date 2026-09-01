@@ -12,7 +12,6 @@ from apps.app_entity.models import (
     EntityType,
     Stakeholder,
 )
-from apps.app_entity.models import Entity
 from apps.app_entity.models.category import (
     FinancialCategoriesEntitiesRelations,
     FinancialCategory,

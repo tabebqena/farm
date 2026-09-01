@@ -47,7 +47,7 @@
           <span class="ms-2 badge bg-danger">{% trans 'External' %}</span>
         {% endif %}
       </div>
-      <p class="text-muted mt-1 mb-0">{{ entity.owner.description|default:'No description provided.' }}</p>
+      <p class="text-muted mt-1 mb-0">{{ entity.description|default:'No description provided.' }}</p>
     </span>
     <span class="d-flex align-items-center">
       <span class="ms-2 gap-2"><a class="btn btn-outline-secondary" href="{% url 'entity_payment_transactions_list' entity.pk %}"><i class="bi bi-arrow-left-right me-2"></i>{% trans 'Payment Transactions' %}</a></span>

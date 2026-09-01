@@ -96,16 +96,3 @@ def operation_update_view(request, pk):
         "is_update": True,
     }
     return render(request, "app_operation/generic_edit_form.html", context)
-
-
-# class CashInjectionUpdateView(LoginRequiredMixin, UpdateView):
-#     model = Operation
-#     fields = ["date", "description"]  # Only allow editing non-critical fields
-#     template_name = "app_cash_injection/cash_injection_edit.html"
-
-#     def get_success_url(self):
-#         return reverse("operation_detail_view", kwargs={"pk": self.object.pk})
-
-#     def form_valid(self, form):
-#         messages.success(self.request, "Entry updated successfully.")
-#         return super().form_valid(form)

@@ -37,11 +37,6 @@ urlpatterns = [
         views.EvaluationCreateView.as_view(),
         name="evaluation_create_view",
     ),
-    # path(
-    #     "<int:pk>/evaluate/",
-    #     views.EvaluationCreateView.as_view(),
-    #     name="evaluation_create_view_no_product",
-    # ),
     path(
         "<int:pk>/birth/create",
         views.BirthCreateView.as_view(),
@@ -52,11 +47,6 @@ urlpatterns = [
         views.DeathCreateView.as_view(),
         name="death_create_view",
     ),
-    # path(
-    #     "<int:pk>/purchase/create",
-    #     views.PurchaseCreateView.as_view(),
-    #     name="purchase_create_view",
-    # ),
     # Just for testing
     path(
         "<int:pk>/purchase/wizard/",

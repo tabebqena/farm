@@ -273,15 +273,6 @@ class Entity(ImmutableMixin, BaseModel):
     def is_person(self) -> bool:
         return self.entity_type == EntityType.PERSON
 
-    # TODO remove
-    @property
-    def owner(self):
-        return self
-
-    @property
-    def type(self):
-        return self.entity_type
-
     def get_display_name(self):
         return self.name
 
@@ -401,7 +392,8 @@ class Entity(ImmutableMixin, BaseModel):
             e.save()
             return e
 
-    # TODO remove
+    # Sentinel used by operation proxies via hasattr(self.source, "fund") to
+    # detect fund-backed entities (e.g. WorkerAdvanceOperation.clean()).
     @property
     def fund(self):
         return self

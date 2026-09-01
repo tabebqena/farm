@@ -23,16 +23,11 @@ from farm.shortcuts import get_object_or_404
 
 
 def stock_detail(request, entity_pk):
-    from datetime import date
     from decimal import Decimal
 
     from django.core.paginator import Paginator
     from django.db.models import Case, DecimalField, F, Q, Sum, Value, When
 
-    from apps.app_entity.models import Entity
-    from apps.app_inventory.models import (
-        Product,
-    )
     from apps.app_inventory.stock import pending_items, portfolio as stock_portfolio
     from apps.app_operation.models.operation_type import OperationType
 
@@ -112,7 +107,7 @@ def stock_detail(request, entity_pk):
     # ------------------------------------------------------------------
     # stock.portfolio() returns one row per physically present product with a
     # positive net quantity (computed from the movement lines, no ledger).
-    portfolio = stock_portfolio(entity, date.today())
+    portfolio = stock_portfolio(entity, today_date.today())
     portfolio_by_product = {row["product_id"]: row for row in portfolio}
     present_product_ids = list(portfolio_by_product.keys())
 
@@ -144,7 +139,7 @@ def stock_detail(request, entity_pk):
     # ------------------------------------------------------------------
     # 3. Obligated outbound — aggregate warning only (not per-card metric)
     # ------------------------------------------------------------------
-    pending = pending_items(entity=entity, as_of=date.today())
+    pending = pending_items(entity=entity, as_of=today_date.today())
     obligated_outbound_qty = sum(
         abs(p["pending_qty"]) for p in pending if p["pending_qty"] < 0
     )
@@ -171,14 +166,9 @@ def stock_detail(request, entity_pk):
 
 
 def stock_history(request, entity_pk):
-    from datetime import date
-
     from django.core.paginator import Paginator
     from django.db.models import Q
-    from django.utils.dateparse import parse_date
 
-    from apps.app_entity.models import Entity
-    from apps.app_inventory.models import InventoryMovementLine
     from apps.app_inventory.stock import (
         history_direction_q,
         line_direction,
@@ -252,7 +242,7 @@ def stock_history(request, entity_pk):
     page_obj = paginator.get_page(request.GET.get("page"))
 
     # Pending inbound / outbound obligations (moved from stock detail)
-    pending = pending_items(entity=entity, as_of=date.today())
+    pending = pending_items(entity=entity, as_of=today_date.today())
     pending_inbound = [p for p in pending if p["pending_qty"] > 0]
     pending_outbound = [p for p in pending if p["pending_qty"] < 0]
 
@@ -302,8 +292,7 @@ def quick_consume(request, entity_pk):
     """
     from decimal import Decimal
 
-    from apps.app_entity.models import Entity, EntityType
-    from apps.app_inventory.models import Product
+    from apps.app_entity.models import EntityType
     from apps.app_inventory.stock import movement_state
     from apps.app_operation.models.operation_type import OperationType
     from apps.app_operation.models.proxies import ConsumptionOperation
