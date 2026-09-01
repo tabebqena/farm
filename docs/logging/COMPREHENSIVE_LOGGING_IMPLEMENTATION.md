@@ -459,6 +459,6 @@ tail -f logs/errors.log
 ## References
 
 - [Comprehensive Logging Standards](LOGGING_STANDARDS.md)
-- [LoggingFormMixin](../forms.py)
-- [DebugContext API](../../app_base/debug.py)
-- [Middleware Configuration](../../middlewares_audit.py)
+- [LoggingFormMixin](../../apps/app_base/forms.py)
+- [DebugContext API](../../apps/app_base/debug.py)
+- [Middleware Configuration](../../farm/middlewares_audit.py)

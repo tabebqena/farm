@@ -51,9 +51,9 @@ python manage.py runserver
 | **DEBUG_IMPLEMENTATION_SUMMARY.md** | Architects | Reference | Technical implementation details |
 
 ### Start Here
-👉 **First time?** → Read [DEBUG_QUICK_REFERENCE.md](DEBUG_QUICK_REFERENCE.md) (2 min)  
-👉 **Want deep dive?** → Read [PROJECT_WALKTHROUGH.md](PROJECT_WALKTHROUGH.md) (5-10 min)  
-👉 **Need to find something?** → Use [DEBUG_POINTS_INDEX.md](DEBUG_POINTS_INDEX.md) (reference)  
+👉 **First time?** → Read [DEBUG_QUICK_REFERENCE.md](DEBUG_QUICK_REFERENCE.md) (2 min)
+👉 **Want deep dive?** → Read [PROJECT_WALKTHROUGH.md](../guides/PROJECT_WALKTHROUGH.md) (5-10 min)
+👉 **Need to find something?** → Use [DEBUG_POINTS_INDEX.md](DEBUG_POINTS_INDEX.md) (reference)
 
 ---
 
@@ -362,7 +362,7 @@ A: Console (when running `runserver`), log files (if configured), or any handler
 
 ### For Questions About...
 - **"How do I use X?"** → [DEBUG_QUICK_REFERENCE.md](DEBUG_QUICK_REFERENCE.md)
-- **"How does this feature work?"** → [PROJECT_WALKTHROUGH.md](PROJECT_WALKTHROUGH.md)
+- **"How does this feature work?"** → [PROJECT_WALKTHROUGH.md](../guides/PROJECT_WALKTHROUGH.md)
 - **"Where is debug point Y?"** → [DEBUG_POINTS_INDEX.md](DEBUG_POINTS_INDEX.md)
 - **"Technical implementation?"** → [DEBUG_IMPLEMENTATION_SUMMARY.md](DEBUG_IMPLEMENTATION_SUMMARY.md)
 

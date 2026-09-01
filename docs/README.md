@@ -12,7 +12,7 @@ Organized by topic for easy navigation.
 
 ## Specifications
 
-See [`/specs`](../specs/) for detailed specifications:
-- **[Epics](../specs/epics/)** - High-level feature epics
-- **[Operations](../specs/operations/)** - Operation type specifications
-- **[Features](../specs/features/)** - Feature specifications
+See [`/specs`](specs/) for detailed specifications:
+- **[Epics](specs/README.md#epics)** - High-level feature epics
+- **[Operations](specs/operations/)** - Operation type specifications
+- **[Features](specs/features/)** - Feature specifications

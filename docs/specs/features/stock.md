@@ -31,7 +31,7 @@ How this spec is kept true:
 > [`op_13_purchase.md`](../operations/op_13_purchase.md) / [`op_14_sale.md`](../operations/op_14_sale.md) /
 > [`op_17_birth.md`](../operations/op_17_birth.md) / [`op_18_death.md`](../operations/op_18_death.md) /
 > [`op_19_consumption.md`](../operations/op_19_consumption.md) /
-> [`capital_valuation_operation.md`](../operations/capital_valuation_operation.md) for the operations that drive stock (movement lines and value).
+> [`capital_valuation_operation.md`](../operations/op_20_capital_valuation_operation.md) for the operations that drive stock (movement lines and value).
 
 ---
 
@@ -177,7 +177,7 @@ quantity = Σ movement_delta(active lines as of as_of)          # net direction-
 value    = quantity * valuation_unit_cost(product) + capital_delta(product)
 ```
 
-> **Value-only writers.** `CAPITAL_GAIN` / `CAPITAL_LOSS` do **not** create movement lines — each records a `ProductCapitalValuation` row whose signed amount feeds `capital_delta` (quantity untouched, product stays `ACTIVE`). See [`capital_valuation_operation.md`](../operations/capital_valuation_operation.md).
+> **Value-only writers.** `CAPITAL_GAIN` / `CAPITAL_LOSS` do **not** create movement lines — each records a `ProductCapitalValuation` row whose signed amount feeds `capital_delta` (quantity untouched, product stays `ACTIVE`). See [`capital_valuation_operation.md`](../operations/op_20_capital_valuation_operation.md).
 
 | Function | Returns | Excludes |
 |----------|---------|----------|
