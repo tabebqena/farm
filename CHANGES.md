@@ -16,6 +16,35 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 
 ---
 
+## 2026-09-02 — Complete Arabic (ar) translation of the UI
+
+Completed the Arabic localization of the whole application. The Arabic catalog
+([`locale/ar/LC_MESSAGES/django.po`](locale/ar/LC_MESSAGES/django.po)) previously
+covered only ~486 strings from an April snapshot; the current codebase carries
+~1,216 translation-wrapped strings, so roughly **814 UI strings fell back to
+English** when Arabic was selected.
+
+### Changed
+- Expanded the Arabic catalog from **486 → 1,216** message entries (labels,
+  buttons, help text, validation messages, report headings, statuses, and
+  screen text) across all apps and templates.
+- Translated **6 plural counters** (`product(s)`, `movement(s)`, `item(s)`,
+  `operation(s)`, `period(s)`, `transaction(s)`) with the full **6-form Arabic
+  plural** set matching the catalog's `Plural-Forms` rule.
+- Recompiled the binary catalog [`django.mo`](locale/ar/LC_MESSAGES/django.mo)
+  from the updated `.po` (it had been stale since 2026-04-16).
+- Pruned **84 stale entries** that no longer correspond to any string in the
+  current source (removed features/old file paths).
+
+### Verification
+- All translation keys present in the source are now in the catalog and every
+  entry has a non-empty Arabic translation.
+- Confirmed end-to-end via Django: `Accounting System`, reports, forms and
+  RTL screens resolve to Arabic, and plural counters inflect correctly
+  (e.g. `7 عمليات`, `2 منتجان`, `12 حركةً`).
+- `manage.py check` clean; full test suite **1,471 tests OK** (126 app_base /
+  app_report / app_adjustment + 1,345 across the other apps).
+
 ## 2026-09-01 — Full UI test coverage for all operation actions
 
 Completed the spec-driven browser UI suite for **every operation action's happy
