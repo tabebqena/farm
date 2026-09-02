@@ -1,3 +1,9 @@
+"""Financial category-relation detail view.
+
+:class:`CategoryRelationDetailView` displays a single category-entity
+assignment, including its usage percentage against ``max_limit``.
+"""
+
 from django.shortcuts import render
 from django.views import View
 

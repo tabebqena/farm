@@ -1,3 +1,11 @@
+"""Shared base model classes used across every app.
+
+:class:`BaseModel` provides the common ``id`` plus ``created_at`` / ``updated_at``
+audit fields and soft-delete support via ``deleted_at``. :class:`ReversableModel`
+extends it for records that an officer can reverse, guarding the original record
+against mutation and coordinating the reversal of its related transactions.
+"""
+
 import typing
 from typing import Collection, List
 

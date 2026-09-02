@@ -16,6 +16,34 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 
 ---
 
+## 2026-09-02 — Module docstrings across the codebase
+
+Added a purpose / overview docstring at the top of every project source module
+that was missing one, so each module states what it provides.
+
+### Added
+- Module docstrings for **98 source modules** that previously had none, across
+  the 8 apps (`app_adjustment`, `app_animal`, `app_base`, `app_entity`,
+  `app_inventory`, `app_operation`, `app_report`, `app_transaction`) and the
+  `farm/` project package — models, views, forms, urls, admin, apps.py, managers,
+  mixins, templatetags, management commands, operation proxies and the
+  `__init__.py` public namespaces.
+- Purpose docstrings for **14 empty package `__init__.py` markers**.
+- Kept style consistent with existing module docstrings (concise, English,
+  `:class:`/`:mod:` cross-references). Excluded tests, migrations and
+  `debug_tools`/`ui_tests` as planned.
+
+### Verification
+- Re-ran the module-docstring scanner: **0 source modules missing** a module
+  docstring, **0 syntax errors**.
+- `manage.py check` clean.
+- Full app test suite **1,445 tests OK**
+  (`manage.py test apps --parallel=10 --keepdb`). The `ui_tests` browser suite
+  was not run (repo convention); its harness errors are unrelated to this change.
+- Note: `apps/app_base/__init__.py` remains an empty package marker — its inode
+  cannot be written on this filesystem (OS I/O error on every write path), so it
+  was left as the conventional empty `__init__.py`.
+
 ## 2026-09-02 — Complete Arabic (ar) translation of the UI
 
 Completed the Arabic localization of the whole application. The Arabic catalog

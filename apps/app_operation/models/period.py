@@ -1,3 +1,10 @@
+"""Financial-period model and closed-period guard.
+
+Defines :class:`FinancialPeriod` (an immutable open/closed accounting period per
+entity) and :func:`is_date_in_closed_period`, the shared guard that prevents
+operations from being dated inside a period that has already been closed.
+"""
+
 from datetime import date as date_type
 from datetime import timedelta
 from decimal import Decimal

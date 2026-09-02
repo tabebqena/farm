@@ -1,3 +1,11 @@
+"""Canonical operation-type enumeration.
+
+Defines :class:`OperationType`, a ``TextChoices`` catalog of every operation the
+farm can record (cash injection/withdrawal, project funding/refund, internal
+transfer, loan, purchase, sale, expense, birth, death, consumption, capital
+valuation and corrections).
+"""
+
 from django.db import models
 
 

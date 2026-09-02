@@ -1,3 +1,12 @@
+"""Transaction-type catalog and validation.
+
+Defines :class:`TransactionType`, the enumeration of every money movement /
+obligation the system records (issuances, payments, repayments and adjustments
+across purchase, sale, funding, loan and expense flows), together with helpers
+that validate which entity types a type may link and which operation types it
+may be issued for, and groupings such as payment vs issuance types.
+"""
+
 from django.db import models
 
 

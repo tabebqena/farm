@@ -1,3 +1,5 @@
+"""App configuration for the ``app_animal`` (Animal Health) Django application."""
+
 from django.apps import AppConfig
 
 

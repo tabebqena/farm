@@ -1,3 +1,9 @@
+"""Correction-operation proxy.
+
+:class:`CorrectionOperation` posts a one-shot corrective transaction used to fix
+a previously recorded operation's financial effect.
+"""
+
 from django.core.exceptions import ValidationError
 
 from apps.app_operation.models.operation import OneShotTransactionMixin, Operation

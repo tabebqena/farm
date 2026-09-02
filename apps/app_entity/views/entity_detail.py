@@ -1,3 +1,9 @@
+"""Entity detail view.
+
+:class:`EntityDetailView` shows a single entity together with its financial
+summary — current payables, receivables and inventory value.
+"""
+
 from datetime import date
 
 from django.conf import settings

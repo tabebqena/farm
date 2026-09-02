@@ -1,3 +1,9 @@
+"""Cash-withdrawal operation proxy.
+
+:class:`CashWithdrawalOperation` records capital taken out of a fund as a
+one-shot transaction.
+"""
+
 from django.core.exceptions import ValidationError
 
 from apps.app_operation.models.operation import OneShotTransactionMixin, Operation

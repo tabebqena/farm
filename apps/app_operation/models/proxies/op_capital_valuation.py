@@ -1,3 +1,9 @@
+"""Capital-valuation operation proxy.
+
+:class:`CapitalValuationOperation` revalues stock products and records the
+valuation difference, updating inventory value through stock events.
+"""
+
 from django.core.exceptions import ValidationError
 
 from apps.app_operation.models.operation import Operation, StockEventMixin

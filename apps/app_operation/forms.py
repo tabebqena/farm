@@ -1,3 +1,10 @@
+"""Forms for the operation app.
+
+Provides the multi-step purchase and sale wizard forms (step forms plus the
+per-item item forms), the :class:`PaymentForm` for recording payments /
+repayments, and :class:`EvaluationForm` for capital-valuation operations.
+"""
+
 from decimal import Decimal
 
 from django import forms

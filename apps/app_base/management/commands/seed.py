@@ -1,3 +1,11 @@
+"""Management command that seeds initial demo data.
+
+Creates users (an ``admin`` superuser and an ``officer``), the World and System
+entities, inventory product templates (animal species × stage × gender plus the
+output templates they produce) and the default entity categories. The command is
+idempotent and safe to run repeatedly.
+"""
+
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model

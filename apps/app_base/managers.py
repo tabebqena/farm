@@ -1,3 +1,11 @@
+"""Custom model managers and querysets used by the farm models.
+
+:class:`SafeQuerySet` blocks bulk ``update`` / ``bulk_create`` / ``delete`` so
+rows only change through validated, individual ``save()`` calls.
+:class:`ActiveManager` exposes only non-soft-deleted rows (``deleted_at`` null)
+and :data:`DefaultManager` is the default manager factory for models.
+"""
+
 from django import conf
 from django.db import models
 from django.utils.translation import gettext_lazy as _

@@ -1,3 +1,9 @@
+"""Consumption-operation proxy.
+
+:class:`ConsumptionOperation` records feed / medicine / consumables taken out of
+stock; as a stock event it also drives the corresponding inventory movements.
+"""
+
 from django.core.exceptions import ValidationError
 
 from apps.app_operation.models.operation import Operation, StockEventMixin

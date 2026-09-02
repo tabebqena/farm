@@ -1,3 +1,9 @@
+"""Birth-operation proxy.
+
+:class:`BirthOperation` records the birth of animals into the herd; as a stock
+event it also drives the corresponding inventory movements.
+"""
+
 from django.core.exceptions import ValidationError
 
 from apps.app_operation.models.operation import Operation, StockEventMixin

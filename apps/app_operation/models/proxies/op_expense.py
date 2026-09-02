@@ -1,3 +1,9 @@
+"""Expense-operation proxy.
+
+:class:`ExpenseOperation` records an expense against a project / vendor; the
+amount is adjustable and a linked payment transaction is created.
+"""
+
 from django.core.exceptions import ValidationError
 
 from apps.app_operation.models.operation import AdjustableTransactionMixin, Operation

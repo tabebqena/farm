@@ -1,3 +1,10 @@
+"""Forms for editing :class:`Entity` records.
+
+:class:`PersonForm` and :class:`ProjectForm` create / update person and project
+entities, enforcing that the entity name is unique (excluding the instance being
+edited) and styling the fields for the project UI.
+"""
+
 from django import forms
 from django.utils.translation import gettext_lazy as _
 

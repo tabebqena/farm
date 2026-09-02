@@ -1,3 +1,10 @@
+"""Function-based purchase wizard.
+
+A multi-step, session-based flow that builds a purchase invoice (project, item
+templates and quantities) in the session and submits it through the purchase
+operation proxy, creating the receive movements and vendor settlement.
+"""
+
 from django.contrib import messages
 from django.shortcuts import redirect, render
 from django.utils.translation import gettext as _

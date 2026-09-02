@@ -1,3 +1,14 @@
+"""Reusable model mixins shared across the project.
+
+Provides common behaviour used by many models: protecting immutable fields
+(:class:`ImmutableMixin`), cleaning monetary amounts (:class:`AmountCleanMixin`),
+recording an officer (:class:`OfficerMixin`), computing adjustable effective
+amounts (:class:`AdjustableMixin`), linking payment source / target funds, and
+automatically creating the related transactions for issuances, payments and
+repayments (``LinkedIssuanceTransactionMixin`` / ``LinkedPaymentTransactionMixin``
+/ ``LinkedRePaymentTransactionMixin``).
+"""
+
 import typing
 from decimal import Decimal
 

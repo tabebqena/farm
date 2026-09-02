@@ -1,3 +1,11 @@
+"""Views for adding stakeholders to a project.
+
+:class:`AddStakeholderView` (with its ``AddVendorView`` / ``AddClientView`` /
+``AddWorkerView`` / ``AddShareholderView`` subclasses) links an eligible person
+to a project under a role, validating that the target entity qualifies for that
+role.
+"""
+
 from django.contrib import messages
 from django.http import Http404
 from django.shortcuts import redirect, render

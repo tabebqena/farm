@@ -1,3 +1,9 @@
+"""Entity list view.
+
+:class:`EntityListView` renders the searchable, filterable list of entities
+(filtering by type, deletion state, activation and name search).
+"""
+
 from django.shortcuts import render
 from django.views import View
 

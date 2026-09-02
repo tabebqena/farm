@@ -1,3 +1,11 @@
+"""Operation proxy registry.
+
+Imports every concrete operation proxy and exposes ``PROXY_MAP`` keyed by
+operation type, plus :func:`get_canonical_type` and
+:func:`get_operation_class` to resolve an operation-type value back to its
+proxy class.
+"""
+
 from typing import Union
 
 from apps.app_operation.models.operation import Operation

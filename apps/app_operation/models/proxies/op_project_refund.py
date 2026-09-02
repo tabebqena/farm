@@ -1,3 +1,9 @@
+"""Project-refund operation proxy.
+
+:class:`ProjectRefundOperation` records funds returned from a project back to an
+external source as a one-shot transaction.
+"""
+
 from django.core.exceptions import ValidationError
 
 from apps.app_entity.models import EntityType

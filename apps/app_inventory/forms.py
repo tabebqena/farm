@@ -1,3 +1,10 @@
+"""Forms and formsets for inventory data entry.
+
+Provides forms for product templates and invoice items (create and select
+variants), inventory movement lines for purchase receive / sale dispatch, and
+the deferred-movement registration form used by the inventory flows.
+"""
+
 import uuid
 from datetime import date
 from decimal import Decimal

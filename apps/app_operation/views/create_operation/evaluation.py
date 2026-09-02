@@ -1,3 +1,9 @@
+"""Capital-valuation create view.
+
+:class:`EvaluationCreateView` records a capital valuation operation that
+revalues the project's stock and posts the resulting gain or loss.
+"""
+
 import json
 
 from django.contrib import messages

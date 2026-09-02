@@ -1,3 +1,11 @@
+"""Models for the animal-health app.
+
+Defines :class:`MedicalRecord`, a veterinary / health record linked to an
+individual animal (an inventory :class:`~apps.app_inventory.models.Product`
+whose template has an ANIMAL nature). Records track check-ups, vaccinations,
+treatments and diagnoses together with the animal's health status at the time.
+"""
+
 from datetime import date as today_date
 
 from django.conf import settings

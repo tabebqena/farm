@@ -1,3 +1,10 @@
+"""URL routing for the entity app.
+
+Covers entity list/detail, person and project create/edit, the multi-step
+project setup wizard, stakeholder and contact-info management, and category
+relation views.
+"""
+
 from django.urls import path
 
 from . import views

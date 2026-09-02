@@ -1,3 +1,10 @@
+"""URL routing for the inventory app.
+
+Covers stock detail / history / quick-consume, product and product-template
+pages, purchase and sale inventory-movement creation, movement-line reversal,
+and deferred movement registration.
+"""
+
 from django.urls import path
 
 from . import views

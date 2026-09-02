@@ -1,3 +1,10 @@
+"""Transaction views.
+
+Provides an entity's payment-transaction list, its payables and receivables
+lists (with running balances), transaction detail, and the view for reversing a
+transaction.
+"""
+
 from datetime import date
 
 from django.conf import settings

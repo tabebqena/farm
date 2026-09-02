@@ -1,3 +1,9 @@
+"""View for adding contact information to an entity.
+
+:class:`AddContactInfoView` lets the user attach a new contact record (phone,
+email, etc.) to an existing entity.
+"""
+
 from django.contrib import messages
 from django.db import transaction
 from django.shortcuts import redirect, render

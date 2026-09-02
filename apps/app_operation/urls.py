@@ -1,3 +1,10 @@
+"""URL routing for the operation app.
+
+Wires up the operation list / detail / create / edit / reverse flows, the
+purchase and sale wizards, adjustment and invoice-item views, payment and
+repayment recording, and the financial-period views.
+"""
+
 from django.urls import path
 
 from . import views

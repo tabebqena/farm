@@ -1,3 +1,11 @@
+"""Report views.
+
+Provides the report hub and the financial-statement views — income statement
+(P&L), balance sheet, cash-flow statement and statement of changes in equity —
+scoped to an entity and its selected financial period. Statement data is built
+in :mod:`apps.app_report.reporting`.
+"""
+
 from datetime import date
 
 from django.conf import settings

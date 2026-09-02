@@ -1,3 +1,9 @@
+"""Financial-period views.
+
+Provides period detail / list, the close-period action (blocking further
+mutations within the closed period) and a ledger view for a period.
+"""
+
 from datetime import date
 
 from django.contrib.auth.mixins import LoginRequiredMixin

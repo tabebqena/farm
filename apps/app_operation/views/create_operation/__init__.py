@@ -1,3 +1,10 @@
+"""Public namespace for operation-creation views.
+
+Re-exports the generic :class:`OperationCreateView`, the birth / death and
+capital-valuation create views, and the purchase / sale wizard view functions so
+they can be imported from ``apps.app_operation.views.create_operation``.
+"""
+
 from .base import OperationCreateView
 from .create_birth_view import BirthCreateView
 from .create_death_view import (

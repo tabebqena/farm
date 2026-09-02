@@ -1,3 +1,9 @@
+"""Project-funding operation proxy.
+
+:class:`ProjectFundingOperation` records funds injected into a project from an
+external source as a one-shot transaction.
+"""
+
 from django.core.exceptions import ValidationError
 
 from apps.app_entity.models import EntityType

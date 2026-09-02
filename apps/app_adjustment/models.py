@@ -1,4 +1,14 @@
  
+"""Models for the adjustment app.
+
+Defines the adjustment-type catalog (:class:`AdjustmentType`), the
+:class:`Adjustment` model for accounting adjustments on PURCHASE / SALE /
+EXPENSE operations, and the :class:`InvoiceItemAdjustment` /
+:class:`InvoiceItemAdjustmentLine` models used to correct individual invoice
+items (quantity / unit price). Includes immutability, reversal and
+ledger-entry behaviour.
+"""
+
 from decimal import Decimal
 from typing import List
 

@@ -1,3 +1,10 @@
+"""Sale-operation proxy.
+
+:class:`SaleOperation` records stock sold to a client: it validates the invoice
+items, applies the dispatch movements out of inventory, and records the client
+payment.
+"""
+
 import uuid
 from datetime import datetime
 from decimal import Decimal

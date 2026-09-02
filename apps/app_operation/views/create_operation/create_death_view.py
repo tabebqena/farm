@@ -1,3 +1,9 @@
+"""Death-operation create view.
+
+:class:`DeathCreateView` creates a :class:`DeathOperation` for an individual
+animal.
+"""
+
 from apps.app_base.logging_utils import logger
 from apps.app_operation.models.proxies.op_death import DeathOperation
 

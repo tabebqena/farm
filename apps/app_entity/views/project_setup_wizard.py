@@ -1,3 +1,11 @@
+"""Multi-step project setup wizard.
+
+A function-based view (:func:`project_setup_wizard_view`) that walks through six
+setup steps — project info, financial categories, product templates, and worker
+/ vendor / shareholder stakeholders — creating or updating the project entity
+atomically at each step.
+"""
+
 from decimal import Decimal
 
 from django.contrib import messages

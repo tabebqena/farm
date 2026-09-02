@@ -1,3 +1,12 @@
+"""Transaction model.
+
+Defines :class:`Transaction`, the immutable ledger record that moves money (or
+creates an obligation) between a source and a target fund for a given
+:class:`~apps.app_transaction.transaction_type.TransactionType`. It supports
+generic linking back to the owning document (operation / adjustment), provides
+factory creation helpers and can be reversed by an officer.
+"""
+
 import datetime
 import typing
 from decimal import Decimal

@@ -1,3 +1,12 @@
+"""Entity domain models.
+
+Defines :class:`Entity` (persons, projects, and system / virtual / world
+entities), :class:`ContactInfo`, :class:`Stakeholder` and the
+:class:`EntityType` / :class:`StakeholderRole` choice sets, together with the
+balance, payables, receivables and profit/loss computations that derive from the
+entity's financial transactions.
+"""
+
 import typing
 from datetime import date as date_type
 from decimal import Decimal

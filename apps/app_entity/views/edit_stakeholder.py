@@ -1,3 +1,9 @@
+"""View for editing an existing stakeholder relationship.
+
+:class:`EditStakeholderView` lets the user change the details of a project's
+stakeholder relation.
+"""
+
 from django.contrib import messages
 from django.shortcuts import redirect, render
 from django.views import View

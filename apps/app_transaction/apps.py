@@ -1,3 +1,5 @@
+"""App configuration for the ``app_transaction`` Django application."""
+
 from django.apps import AppConfig
 
 

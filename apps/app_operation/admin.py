@@ -1,3 +1,9 @@
+"""Admin configuration for the operation app.
+
+Registers :class:`Operation` and :class:`FinancialPeriod` with custom admin
+classes.
+"""
+
 from django.contrib import admin
 from django.urls import reverse
 from django.utils.html import format_html

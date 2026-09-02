@@ -1,3 +1,9 @@
+"""Operation reversal view.
+
+:class:`OperationReverseView` reverses an operation through the shared reversal
+service, guarding against invalid reversal states.
+"""
+
 from django.contrib import messages
 from django.shortcuts import redirect, render
 from django.utils import timezone

@@ -1,3 +1,5 @@
+"""URL routing for the base app (user profile pages)."""
+
 from django.urls import path
 from . import views
 

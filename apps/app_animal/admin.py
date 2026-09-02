@@ -1,3 +1,9 @@
+"""Admin configuration for the animal-health app.
+
+Registers :class:`MedicalRecord` with list/search/filter options for browsing
+veterinary records.
+"""
+
 from django.contrib import admin
 
 from .models import MedicalRecord

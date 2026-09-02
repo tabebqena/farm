@@ -1,3 +1,10 @@
+"""Function-based sale wizard.
+
+A multi-step, session-based flow that builds a sale invoice (project, products
+and quantities) in the session and submits it through the sale operation proxy,
+creating the dispatch movements and client settlement.
+"""
+
 from datetime import date
 
 from django.contrib import messages

@@ -1,3 +1,9 @@
+"""URL routing for the transaction app.
+
+Covers an entity's payment transactions, payables and receivables lists, plus
+transaction detail and reversal views.
+"""
+
 from django.urls import path
 
 from . import views

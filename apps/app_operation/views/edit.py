@@ -1,3 +1,9 @@
+"""Operation editing view.
+
+:class:`OperationUpdateView` allows editing a not-yet-finalized operation's
+editable fields.
+"""
+
 from django.contrib import messages
 from django.db import transaction as db_transaction
 from django.shortcuts import redirect, render

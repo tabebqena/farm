@@ -1,3 +1,10 @@
+"""Financial-category models.
+
+Defines :class:`FinancialCategory` (a named, typed category such as EXPENSE)
+and :class:`FinancialCategoriesEntitiesRelations`, the through model linking
+categories to entities with an optional spending ``max_limit``.
+"""
+
 import logging
 from decimal import Decimal
 

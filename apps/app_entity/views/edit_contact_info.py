@@ -1,3 +1,9 @@
+"""View for editing existing entity contact information.
+
+:class:`EditContactInfoView` updates a contact record's label, value and primary
+flag, demoting any other primary contacts of the same entity when needed.
+"""
+
 from django.contrib import messages
 from django.db import transaction
 from django.shortcuts import redirect, render

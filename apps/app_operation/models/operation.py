@@ -1,4 +1,12 @@
 
+"""Core operation model and its mixins.
+
+Defines the shared :class:`Operation` base record (officer, dates, period,
+amounts and related-transaction behaviour) that every concrete operation proxy
+subclasses, together with :class:`InventoryOperationMixin` for stock-bearing
+operations and the transaction / stock-event mixins used by the proxies.
+"""
+
 from datetime import date as today_date
 from decimal import Decimal
 from typing import List

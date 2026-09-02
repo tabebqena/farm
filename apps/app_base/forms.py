@@ -1,3 +1,9 @@
+"""Forms for the base app.
+
+:class:`UserProfileForm` edits a Django user's first name, last name and email,
+styling the fields with the project's ``form-control`` CSS class.
+"""
+
 from django import forms
 from django.contrib.auth.models import User
 

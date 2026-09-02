@@ -1,3 +1,10 @@
+"""Views for the inventory app.
+
+Provides the stock detail / history / quick-consume pages, product and
+product-template views, and the purchase-receive / sale-dispatch inventory
+movement creation, reversal and deferred-movement registration flows.
+"""
+
 import uuid
 from datetime import date as today_date
 

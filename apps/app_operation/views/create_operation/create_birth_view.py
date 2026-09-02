@@ -1,3 +1,9 @@
+"""Birth-operation create view.
+
+:class:`BirthCreateView` creates a :class:`BirthOperation`, typically adding one
+or more new animals to the herd.
+"""
+
 from apps.app_base.logging_utils import logger
 from apps.app_operation.models.proxies.op_birth import BirthOperation
 

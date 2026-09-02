@@ -1,3 +1,9 @@
+"""Loan-operation proxy.
+
+:class:`LoanOperation` records a loan extended between entities and tracks the
+outstanding balance through repayments via the repayable-transaction mixin.
+"""
+
 from typing import List
 
 from django.core.exceptions import ValidationError

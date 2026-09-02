@@ -1,3 +1,9 @@
+"""Operation detail view.
+
+:class:`OperationDetailView` renders a single operation with its navigation
+overrides (edit / reverse links etc.).
+"""
+
 from django.conf import settings
 from django.shortcuts import render
 from django.urls import reverse

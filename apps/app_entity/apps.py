@@ -1,3 +1,5 @@
+"""App configuration for the ``app_entity`` Django application."""
+
 from django.apps import AppConfig
 
 

@@ -1,3 +1,9 @@
+"""Category-entity relation editing view.
+
+:class:`CategoryRelationEditView` supports remove, activate and save (max limit
+update) actions on a :class:`FinancialCategoriesEntitiesRelations` record.
+"""
+
 from decimal import Decimal
 
 from django.contrib import messages

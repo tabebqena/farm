@@ -1,3 +1,9 @@
+"""View for creating a new Person entity.
+
+:class:`PersonCreateView` renders the person form and, on a valid submission,
+creates the Person entity (with its fund) inside an atomic transaction.
+"""
+
 from django.contrib import messages
 from django.db import transaction
 from django.shortcuts import redirect, render

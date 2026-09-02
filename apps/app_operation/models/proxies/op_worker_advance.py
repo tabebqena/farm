@@ -1,3 +1,9 @@
+"""Worker-advance operation proxy.
+
+:class:`WorkerAdvanceOperation` records an advance given to a worker and tracks
+the outstanding balance through repayments against the worker's wages.
+"""
+
 from django.core.exceptions import ValidationError
 
 from apps.app_operation.models.operation import (

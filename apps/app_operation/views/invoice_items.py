@@ -1,3 +1,9 @@
+"""Invoice-items view.
+
+:class:`InvoiceItemsListView` lists an operation's invoice items together with
+their adjustment state (quantity / price deltas from item adjustments).
+"""
+
 from collections import defaultdict
 from decimal import Decimal
 

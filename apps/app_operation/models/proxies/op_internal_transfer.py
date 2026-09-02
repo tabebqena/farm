@@ -1,3 +1,9 @@
+"""Internal-transfer operation proxy.
+
+:class:`InternalTransferOperation` moves funds between two entities that belong
+to the same owner, posting a one-shot transaction between their funds.
+"""
+
 from django.core.exceptions import ValidationError
 
 from apps.app_entity.models import EntityType

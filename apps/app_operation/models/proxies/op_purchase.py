@@ -1,3 +1,10 @@
+"""Purchase-operation proxy.
+
+:class:`PurchaseOperation` records stock bought from a vendor: it validates the
+invoice items, applies the receive movements into inventory, and settles the
+vendor through the purchase payment.
+"""
+
 import uuid
 from datetime import datetime
 from decimal import Decimal

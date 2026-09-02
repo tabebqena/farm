@@ -1,3 +1,9 @@
+"""Adjustment views.
+
+Provides views to record accounting adjustments and invoice-item adjustments on
+operations, and to reverse an existing adjustment (accounting or item-level).
+"""
+
 from decimal import Decimal
 
 from django import forms

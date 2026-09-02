@@ -1,3 +1,10 @@
+"""Public view namespace for the entity app.
+
+Re-exports the entity list/detail, person & project create/edit, project setup
+wizard, stakeholder, contact-info and category-relation views so they can be
+imported directly from ``apps.app_entity.views``.
+"""
+
 from .add_contact_info import AddContactInfoView
 from .add_stakeholder import (
     AddClientView,

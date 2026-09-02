@@ -1,3 +1,10 @@
+"""Public model namespace for the operation app.
+
+Re-exports :class:`Operation`, :class:`OperationType`,
+:class:`FinancialPeriod` and every concrete operation proxy (via
+``PROXY_MAP``) for convenient import from ``apps.app_operation.models``.
+"""
+
 from .operation import Operation
 from .operation_type import OperationType
 from .period import FinancialPeriod

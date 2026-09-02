@@ -1,3 +1,10 @@
+"""Custom querysets and managers for operations.
+
+Provides :class:`OperationQuerySet` (which blocks bulk ``update`` /
+``bulk_create`` so operations only change through validated saves) together with
+the default and all-objects managers used by :class:`Operation`.
+"""
+
 from django.conf import settings
 from django.db import models
 from django.utils.translation import gettext_lazy as _

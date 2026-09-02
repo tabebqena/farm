@@ -1,3 +1,9 @@
+"""View for editing an existing Project entity.
+
+:class:`ProjectEditView` loads the entity, verifies it is actually a Project,
+and updates it through :class:`~apps.app_entity.forms.ProjectForm`.
+"""
+
 from django.contrib import messages
 from django.db import transaction
 from django.shortcuts import redirect, render

@@ -1,3 +1,9 @@
+"""Cash-injection operation proxy.
+
+:class:`CashInjectionOperation` records capital injected into a fund as a
+one-shot issuance transaction.
+"""
+
 from django.core.exceptions import ValidationError
 
 from apps.app_operation.models.operation import OneShotTransactionMixin, Operation

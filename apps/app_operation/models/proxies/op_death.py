@@ -1,3 +1,9 @@
+"""Death-operation proxy.
+
+:class:`DeathOperation` records the death of an individual animal; as a stock
+event it also drives the corresponding inventory movement.
+"""
+
 from django.core.exceptions import ValidationError
 
 from apps.app_operation.models.operation import Operation, StockEventMixin

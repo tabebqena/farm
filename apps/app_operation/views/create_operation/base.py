@@ -1,3 +1,10 @@
+"""Shared class-based create view for simple operations.
+
+:class:`OperationCreateView` renders the generic operation form (with its item
+formsets) and creates the operation through its proxy class in one atomic step;
+concrete subclasses such as the birth / death views only set ``proxy_cls``.
+"""
+
 from decimal import Decimal
 from typing import TYPE_CHECKING
 

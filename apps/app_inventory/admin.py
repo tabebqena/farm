@@ -1,3 +1,10 @@
+"""Admin configuration for the inventory app.
+
+Registers :class:`ProductTemplate`, :class:`Product` and
+:class:`ProductCapitalValuation`, and provides the
+:class:`InvoiceItemInline` tabular inline.
+"""
+
 from django.contrib import admin
 
 from .models import (

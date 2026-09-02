@@ -1,3 +1,9 @@
+"""Adjustments list view.
+
+:class:`AdjustmentsListView` shows the accounting and invoice-item adjustments
+recorded against a given operation.
+"""
+
 from django.conf import settings
 from django.shortcuts import render
 from django.views import View

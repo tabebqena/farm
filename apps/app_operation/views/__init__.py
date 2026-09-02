@@ -1,3 +1,10 @@
+"""Public view namespace for the operation app.
+
+Re-exports the operation list / detail / create / edit / reverse views, the
+adjustment and invoice-item views, payment-recording views and the
+financial-period views so they can be imported from ``apps.app_operation.views``.
+"""
+
 from .adjustment import (
     RecordAccountingAdjustmentView,
     RecordItemAdjustmentView,

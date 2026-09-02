@@ -1,3 +1,9 @@
+"""Operation list view.
+
+:class:`OperationListView` renders the paginated, filterable list of operations
+for an entity.
+"""
+
 from django.conf import settings
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db.models import Q

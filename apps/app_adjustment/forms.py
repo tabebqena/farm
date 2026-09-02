@@ -1,3 +1,10 @@
+"""Forms for recording accounting adjustments.
+
+:class:`AccountingAdjustmentForm` captures the adjustment type, amount, reason
+and date for PURCHASE, SALE or EXPENSE operations, dynamically exposing only
+the adjustment types that are valid for the selected operation type.
+"""
+
 from decimal import Decimal
 
 from django import forms

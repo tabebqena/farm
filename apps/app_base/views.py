@@ -1,3 +1,10 @@
+"""Views for the base app.
+
+:class:`LoginView` redirects already-authenticated users away from the login
+page, while :class:`ProfileView` and :class:`ProfileEditView` provide read-only
+and editable views of the current user's profile.
+"""
+
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import views as auth_views

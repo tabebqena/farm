@@ -1,3 +1,11 @@
+"""Admin configuration for the adjustment app.
+
+Registers the :class:`Adjustment` model and provides
+:class:`FinancialAdjustmentTypeFilter`, an admin list filter that exposes only
+user-facing financial adjustment types (internal item-correction types are
+hidden).
+"""
+
 from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
 

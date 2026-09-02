@@ -1,3 +1,9 @@
+"""String-utility template filters.
+
+Registers ``split`` / ``split_filter`` (split a string by a separator) and
+``trim`` (strip surrounding whitespace).
+"""
+
 from django import template
 
 register = template.Library()

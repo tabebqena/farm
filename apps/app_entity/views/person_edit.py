@@ -1,3 +1,9 @@
+"""View for editing an existing Person entity.
+
+:class:`PersonEditView` loads the entity, verifies it is actually a Person, and
+updates it through :class:`~apps.app_entity.forms.PersonForm`.
+"""
+
 from django.contrib import messages
 from django.db import transaction
 from django.shortcuts import redirect, render

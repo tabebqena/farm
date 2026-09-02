@@ -1,3 +1,10 @@
+"""Custom middleware for the farm project.
+
+:class:`LoginRequiredMiddleware` redirects unauthenticated visitors to the login
+page (keeping the ``next`` URL), exempting the login page, the admin index and
+the ``/i18n/`` language-switching endpoint.
+"""
+
 from django.shortcuts import redirect
 from django.urls import reverse
 

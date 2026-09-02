@@ -1,3 +1,10 @@
+"""Bulk category-assignment view.
+
+:class:`CategoryBulkAssignView` assigns or removes financial categories for an
+entity in one atomic operation, activating or deactivating the category-entity
+relations accordingly.
+"""
+
 from django.contrib import messages
 from django.db import transaction
 from django.shortcuts import redirect, render

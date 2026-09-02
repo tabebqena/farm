@@ -1,3 +1,10 @@
+"""Payment / repayment recording views.
+
+Provides the shared :class:`_TransactionRecordView` base and its subclasses
+:class:`RecordTransactionPaymentView` / :class:`RecordTransactionRepaymentView`
+for settling an operation's outstanding amount.
+"""
+
 from django.conf import settings
 from django.contrib import messages
 from django.db import transaction as db_transaction

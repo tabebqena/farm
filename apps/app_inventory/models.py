@@ -1,3 +1,12 @@
+"""Inventory domain models.
+
+Defines :class:`ProductTemplate` (the catalog entry with its nature, animal
+attributes and tagging rules), :class:`InvoiceItem` (a priced line on a purchase
+or sale invoice), :class:`Product` (individual or quantity-tracked stock items),
+:class:`InventoryMovementLine` (the immutable stock movement ledger) and
+:class:`ProductCapitalValuation`.
+"""
+
 from datetime import date as today_date
 from decimal import Decimal
 

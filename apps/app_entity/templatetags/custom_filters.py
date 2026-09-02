@@ -1,3 +1,9 @@
+"""Custom template filters for the entity app.
+
+Registers ``get_item`` (look up an item in a dict or list by key/index) and
+``add`` (add two integer values, returning the input unchanged on failure).
+"""
+
 from django import template
 
 register = template.Library()
