@@ -172,6 +172,14 @@ class Adjustment(
     ReversableModel,
     BaseModel,
 ):
+    """A financial adjustment applied to a PURCHASE / SALE / EXPENSE operation.
+
+    Records an increase or decrease of the operation's amount under an
+    :class:`AdjustmentType` (reduction types flow against the operation
+    direction). Immutable once saved and reversible through a linked issuance
+    transaction.
+    """
+
     _immutable_fields = {
         "operation": {},
         "type": {},

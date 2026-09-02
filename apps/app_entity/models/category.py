@@ -22,6 +22,13 @@ logger = logging.getLogger(__name__)
 
 
 class FinancialCategory(BaseModel):
+    """A named, typed spending category (e.g. an EXPENSE aspect).
+
+    Categories are linked to entities through
+    :class:`FinancialCategoriesEntitiesRelations`, which can cap the category
+    per entity via ``max_limit``.
+    """
+
     name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True, null=True)
     category_type = models.CharField(max_length=10, default="EXPENSE", editable=False)
@@ -40,6 +47,12 @@ class FinancialCategory(BaseModel):
 
 
 class FinancialCategoriesEntitiesRelations(BaseModel):
+    """Through model linking a :class:`FinancialCategory` to an :class:`Entity`.
+
+    Carries an optional ``max_limit`` on the category for that entity and an
+    ``is_active`` flag; relations are deactivated rather than hard-deleted.
+    """
+
     entity = models.ForeignKey(
         "Entity",
         on_delete=models.CASCADE,

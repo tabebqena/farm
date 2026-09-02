@@ -11,6 +11,12 @@ from apps.app_transaction.transaction_type import TransactionType
 
 
 class CashInjectionOperation(OneShotTransactionMixin, Operation):
+    """Concrete operation proxy for a cash injection.
+
+    Records capital injected from the world into a project fund as a one-shot
+    issuance transaction.
+    """
+
     _issuance_transaction_type = TransactionType.CASH_INJECTION_ISSUANCE
     _payment_transaction_type = TransactionType.CASH_INJECTION_PAYMENT
 

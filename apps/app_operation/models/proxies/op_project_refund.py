@@ -12,6 +12,12 @@ from apps.app_transaction.transaction_type import TransactionType
 
 
 class ProjectRefundOperation(OneShotTransactionMixin, Operation):
+    """Concrete operation proxy for a project refund.
+
+    Records funds returned from a project back to an external source as a one-shot
+    transaction.
+    """
+
     _issuance_transaction_type = TransactionType.PROJECT_REFUND_ISSUANCE
     _payment_transaction_type = TransactionType.PROJECT_REFUND_PAYMENT
 

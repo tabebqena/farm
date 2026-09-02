@@ -14,6 +14,12 @@ from apps.app_transaction.transaction_type import TransactionType
 
 
 class LoanOperation(RepayableTransactionMixin, Operation):
+    """Concrete operation proxy for a loan.
+
+    Records an amount lent by one entity to another and tracks the outstanding
+    balance through repayments (the loan itself is not paid in a single shot).
+    """
+
     _issuance_transaction_type = TransactionType.LOAN_ISSUANCE
     _payment_transaction_type = TransactionType.LOAN_PAYMENT
     _repayment_transaction_type = TransactionType.LOAN_REPAYMENT

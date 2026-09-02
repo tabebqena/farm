@@ -12,6 +12,12 @@ from apps.app_transaction.transaction_type import TransactionType
 
 
 class InternalTransferOperation(OneShotTransactionMixin, Operation):
+    """Concrete operation proxy for an internal transfer.
+
+    Moves funds between two entities that belong to the same owner via a one-shot
+    transaction between their funds.
+    """
+
     _issuance_transaction_type = TransactionType.INTERNAL_TRANSFER_ISSUANCE
     _payment_transaction_type = TransactionType.INTERNAL_TRANSFER_PAYMENT
 

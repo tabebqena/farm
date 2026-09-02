@@ -17,6 +17,12 @@ from apps.app_transaction.transaction_type import TransactionType
 class WorkerAdvanceOperation(
     OneShotTransactionMixin, LinkedRePaymentTransactionMixin, Operation
 ):
+    """Concrete operation proxy for a worker advance.
+
+    Records an advance given to a worker and tracks the outstanding balance
+    through repayments made against the worker's wages.
+    """
+
     _issuance_transaction_type = TransactionType.WORKER_ADVANCE_ISSUANCE
     _payment_transaction_type = TransactionType.WORKER_ADVANCE_PAYMENT
     _repayment_transaction_type = TransactionType.WORKER_ADVANCE_REPAYMENT

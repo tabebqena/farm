@@ -37,6 +37,13 @@ if typing.TYPE_CHECKING:
 
 
 class Transaction(AmountCleanMixin, ImmutableMixin, BaseModel):
+    """A single ledger entry that moves money between two entity funds.
+
+    ``source`` pays ``target`` an ``amount`` under a ``type`` on behalf of the
+    owning ``document`` (an operation or adjustment). Transactions are immutable
+    once saved and can only be undone by a linked reversal.
+    """
+
     _immutable_fields = {
         "source": {},
         "target": {},

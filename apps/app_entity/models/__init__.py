@@ -108,6 +108,8 @@ def _fund_transaction_sum(fund, *, direction, types, tx_valid):
 
 
 class EntityType(models.TextChoices):
+    """The kind of an :class:`Entity`: person, project, system or world."""
+
     PERSON = "person", _("Person")
     PROJECT = "project", _("Project")
     SYSTEM = "system", _("System")
@@ -115,6 +117,12 @@ class EntityType(models.TextChoices):
 
 
 class ContactInfo(ImmutableMixin, BaseModel):
+    """Contact details (phone / email / address / website) attached to an entity.
+
+    Values are immutable once saved; a single record per entity may be flagged
+    as the primary contact.
+    """
+
     TYPES = [
         ("phone", _("Phone")),
         ("email", _("Email")),
@@ -178,6 +186,8 @@ class ContactInfo(ImmutableMixin, BaseModel):
 
 
 class StakeholderRole(models.TextChoices):
+    """The role a person holds in a project: worker, client, vendor or shareholder."""
+
     WORKER = "worker", _("Worker")
     CLIENT = "client", _("Client")
     VENDOR = "vendor", _("Vendor")
@@ -185,6 +195,13 @@ class StakeholderRole(models.TextChoices):
 
 
 class Stakeholder(ImmutableMixin, BaseModel):
+    """Links a person to a project under a fixed role.
+
+    ``parent`` (a project or person) owns the relationship and ``target`` is the
+    person acting in ``role`` — worker, vendor, client or shareholder. Both
+    parties must be person / project entities and the role/parties are immutable.
+    """
+
     _immutable_fields = {"parent": {}, "target": {}, "role": {}}
 
     parent = models.ForeignKey(
@@ -264,6 +281,14 @@ class Stakeholder(ImmutableMixin, BaseModel):
 
 
 class Entity(ImmutableMixin, BaseModel):
+    """A participant in the farm's financial world.
+
+    Persons, projects and the system / world entities all live on this table,
+    and each entity doubles as a fund whose balance, payables and receivables
+    are derived from its transactions. ``entity_type`` and the role flags are
+    immutable after creation.
+    """
+
     _immutable_fields = {
         "entity_type": {},
         "user": {},

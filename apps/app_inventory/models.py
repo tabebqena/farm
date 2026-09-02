@@ -24,6 +24,13 @@ from apps.app_operation.models.operation_type import OperationType
 
 
 class ProductTemplate(BaseModel):
+    """Catalog entry that defines an inventory product.
+
+    Describes the product's nature (animal / feed / medicine / output), its
+    tracking mode (individual tag vs commodity quantity), default unit and — for
+    animals — species / gender plus what the animal produces or gives birth to.
+    """
+
     class TrackingMode(models.TextChoices):
         INDIVIDUAL = "INDIVIDUAL", _("Individual (Tag ID)")
         COMMODITY = "COMMODITY", _("Quantity (Weight/Volume)")
@@ -280,6 +287,13 @@ class ProductTemplate(BaseModel):
 
 
 class InvoiceItem(AmountCleanMixin, BaseModel):
+    """A priced line on an operation's invoice (purchase or sale).
+
+    References the operation, the product template and the ordered quantity /
+    unit price; the effective quantity and unit price reflect any active item
+    adjustments.
+    """
+
     _amount_name = "quantity"
 
     operation = models.ForeignKey(
@@ -629,6 +643,14 @@ class InvoiceItem(AmountCleanMixin, BaseModel):
 
 
 class Product(AmountCleanMixin, BaseModel):
+    """A stock unit owned by an entity.
+
+    An individual animal (tagged with a ``unique_id``) or a commodity quantity
+    whose lifecycle is derived from its invoice items and inventory movement
+    lines, determining its current status (active / sold / dead / consumed /
+    removed).
+    """
+
     _amount_name = "unit_price"
 
     class Status(models.TextChoices):

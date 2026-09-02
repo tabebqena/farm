@@ -33,6 +33,13 @@ from .mixins import HasRelatedTransactions
 # Base Model
 # -----------------------------
 class BaseModel(models.Model):
+    """Abstract base model shared by every record in the project.
+
+    Provides the common ``id`` plus the ``created_at`` / ``updated_at`` audit
+    timestamps, soft-delete support via ``deleted_at``, the superuser-only
+    ``deletable`` flag, and full validation on every ``save()``.
+    """
+
     id: models.BigAutoField
     created_at = models.DateTimeField(_("created at"), auto_now_add=True)
     updated_at = models.DateTimeField(_("updated at"), auto_now=True)
@@ -139,6 +146,12 @@ class BaseModel(models.Model):
 
 
 class ReversableModel(HasRelatedTransactions, BaseModel):
+    """Abstract base for records that an officer can reverse.
+
+    Ties the record to its counterpart through ``reversal_of`` / ``reversed_by``
+    and provides the reversal guards plus the generic ``reverse()`` that creates
+    a mirror record and reverses its related transactions.
+    """
 
     reversal_of = models.OneToOneField(
         "self",

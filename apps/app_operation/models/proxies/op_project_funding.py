@@ -12,6 +12,12 @@ from apps.app_transaction.transaction_type import TransactionType
 
 
 class ProjectFundingOperation(OneShotTransactionMixin, Operation):
+    """Concrete operation proxy for project funding.
+
+    Records funds injected into a project from an external source as a one-shot
+    transaction.
+    """
+
     _issuance_transaction_type = TransactionType.PROJECT_FUNDING_ISSUANCE
     _payment_transaction_type = TransactionType.PROJECT_FUNDING_PAYMENT
 

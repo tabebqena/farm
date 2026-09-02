@@ -16,6 +16,36 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 
 ---
 
+## 2026-09-02 — Class docstrings for model classes
+
+Added a class-level docstring to every Django model class that lacked one, so
+each record type states what it represents and how it is used.
+
+### Added
+- Class docstrings for the core model classes across all apps:
+  - [`app_base`](apps/app_base/models.py): `BaseModel`, `ReversableModel`.
+  - [`app_entity`](apps/app_entity/models/__init__.py): `Entity`, `Stakeholder`,
+    `ContactInfo`, `EntityType`, `StakeholderRole`; [`category.py`](apps/app_entity/models/category.py):
+    `FinancialCategory`, `FinancialCategoriesEntitiesRelations`.
+  - [`app_inventory`](apps/app_inventory/models.py): `ProductTemplate`,
+    `InvoiceItem`, `Product`.
+  - [`app_transaction`](apps/app_transaction/models.py): `Transaction`.
+  - [`app_adjustment`](apps/app_adjustment/models.py): `Adjustment`.
+  - [`app_operation`](apps/app_operation/models/proxies/): the 10 operation
+    proxies without docstrings (`CashInjectionOperation`,
+    `CashWithdrawalOperation`, `ExpenseOperation`, `InternalTransferOperation`,
+    `LoanOperation`, `ProjectFundingOperation`, `ProjectRefundOperation`,
+    `PurchaseOperation`, `SaleOperation`, `WorkerAdvanceOperation`).
+- Docstrings describe each model's role, key fields and invariants (immutability,
+  reversibility, stock/money effects), matching the surrounding code style.
+
+### Verification
+- Re-ran the model-class scanner: **every model class** in the project now has a
+  class docstring; **0 syntax errors**.
+- `manage.py check` clean.
+- Full app test suite **1,445 tests OK**
+  (`manage.py test apps --parallel=10 --keepdb`).
+
 ## 2026-09-02 — Module docstrings across the codebase
 
 Added a purpose / overview docstring at the top of every project source module

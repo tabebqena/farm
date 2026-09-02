@@ -11,6 +11,12 @@ from apps.app_transaction.transaction_type import TransactionType
 
 
 class ExpenseOperation(AdjustableTransactionMixin, Operation):
+    """Concrete operation proxy for an expense.
+
+    Records an adjustable expense charged by a project / vendor; the project fund
+    is the payer, so it is partially payable and each payment is balance-checked.
+    """
+
     _issuance_transaction_type = TransactionType.EXPENSE_ISSUANCE
     _payment_transaction_type = TransactionType.EXPENSE_PAYMENT
 

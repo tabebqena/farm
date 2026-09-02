@@ -11,6 +11,12 @@ from apps.app_transaction.transaction_type import TransactionType
 
 
 class CashWithdrawalOperation(OneShotTransactionMixin, Operation):
+    """Concrete operation proxy for a cash withdrawal.
+
+    Records capital taken out of a project fund back to the world as a one-shot
+    transaction (the fund's balance is checked at payment time).
+    """
+
     _issuance_transaction_type = TransactionType.CAPITAL_WITHDRAWAL_ISSUANCE
     _payment_transaction_type = TransactionType.CAPITAL_WITHDRAWAL_PAYMENT
 

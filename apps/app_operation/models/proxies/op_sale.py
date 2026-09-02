@@ -18,6 +18,12 @@ from apps.app_transaction.transaction_type import TransactionType
 
 
 class SaleOperation(AdjustableTransactionMixin, Operation):
+    """Concrete operation proxy for a sale.
+
+    Records stock sold to a client: it validates the invoice items, dispatches
+    the items out of inventory and collects the client's payment.
+    """
+
     _issuance_transaction_type = TransactionType.SALE_ISSUANCE
     _payment_transaction_type = TransactionType.SALE_COLLECTION
 

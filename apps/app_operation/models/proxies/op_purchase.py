@@ -18,6 +18,12 @@ from apps.app_transaction.transaction_type import TransactionType
 
 
 class PurchaseOperation(AdjustableTransactionMixin, Operation):
+    """Concrete operation proxy for a purchase.
+
+    Records stock bought from a vendor: it validates the invoice items, receives
+    the items into inventory and settles the vendor through the purchase payment.
+    """
+
     _issuance_transaction_type = TransactionType.PURCHASE_ISSUANCE
     _payment_transaction_type = TransactionType.PURCHASE_PAYMENT
 
