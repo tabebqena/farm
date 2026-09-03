@@ -16,6 +16,5 @@ Organized by topic for easy navigation.
 
 ## Specifications
 
-See [`/specs`](specs/) for detailed specifications:
 - **[Operations](specs/operations/)** - Operation type specifications
 - **[Features](specs/features/)** - Feature specifications

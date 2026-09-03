@@ -40,7 +40,7 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     _md = None
 
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, REPO_ROOT)
 
 DOCS_DIR = os.path.join(REPO_ROOT, "docs")
@@ -53,17 +53,20 @@ EXCLUDED_FILES = {"wsgi.py", "asgi.py", "settings.py", "manage.py"}
 # Markdown entry points around the generated pages. Pages live in
 # docs/api-docs/, so "../" reaches the docs/ root (served as DOCS_DIR). Kept
 # commented out to keep the API index focused on the generated pages only.
-DOCS_LINKS = []
+DOCS_LINKS = [
+    ("Home", "/"),
+]
 
 # Top-level destinations shown in the header navigation bar.
 NAV_SECTIONS = [
     ("Home", "/"),
     ("Guides", "/guides/"),
-    ("Specs", "/specs/"),
-    ("Operations", "/specs/operations/"),
-    ("Features", "/specs/features/"),
-    ("Testing", "/testing/"),
+    ("Features", "/features/"),
+    
+    ("Operations", "/operations/"),
+    
     ("Logging", "/logging/"),
+    ("Testing", "/testing/"),
     ("API reference", "/api-docs/"),
 ]
 
@@ -424,7 +427,6 @@ def cmd_serve(port):
     httpd = ThreadingHTTPServer(("127.0.0.1", port), DocsHandler)
     print(f"Serving docs from {DOCS_DIR}")
     print(f"  docs home   -> http://127.0.0.1:{port}/")
-    print(f"  API pages   -> http://127.0.0.1:{port}/api-docs/")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
