@@ -16,6 +16,26 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 
 ---
 
+## 2026-09-03 — pydoc API-docs generator
+
+Added a pydoc-based tool that renders the project's docstrings as static HTML
+API reference pages.
+
+### Added
+- [`debug_tools/build_pydoc_api.py`](debug_tools/build_pydoc_api.py) — bootstraps
+  Django (`DJANGO_SETTINGS_MODULE=farm.settings`, `django.setup()`), discovers
+  every source module under `apps/` and `farm/` (excluding migrations, tests,
+  `ui_tests`, `wsgi`/`asgi`/`settings`), writes one standalone pydoc HTML page
+  per module into `api-docs/`, and builds a grouped `index.html`.
+- Output is intentionally git-ignored (`api-docs/**`); regenerate with
+  `.venv/bin/python debug_tools/build_pydoc_api.py`.
+
+### Verification
+- Full run renders **129 module pages with 0 failures**; pages carry the
+  docstrings added across the models/mixins/proxies/views (verified in rendered
+  HTML, e.g. `Entity.create`, `Entity.is_system`, `LoanOperation.clean_source`).
+- `manage.py check` clean.
+
 ## 2026-09-03 — Method & remaining class docstrings
 
 Added docstrings to the **business-logic methods** that lacked them, and the
