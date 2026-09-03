@@ -48,6 +48,7 @@ class CategoryBulkAssignView(View):
         return set(existing_names)
 
     def get(self, request, *args, **kwargs):
+        """Render the bulk category-assignment form."""
         parent_entity, categories, response = self._setup(kwargs["parent_entity_id"])
         if response is not None:
             return response
@@ -124,6 +125,7 @@ class CategoryBulkAssignView(View):
             messages.warning(request, "No new categories were added.")
 
     def post(self, request, *args, **kwargs):
+        """Apply the bulk assignment and redirect back to the entity."""
         parent_entity, categories, response = self._setup(kwargs["parent_entity_id"])
         if response is not None:
             return response

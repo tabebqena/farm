@@ -16,6 +16,8 @@ from .models import (
 
 
 class InvoiceItemInline(admin.TabularInline):
+    """Tabular inline for editing an entity's invoice items."""
+
     model = InvoiceItem
     extra = 1
     fields = ("product", "description", "quantity", "unit_price")
@@ -23,6 +25,8 @@ class InvoiceItemInline(admin.TabularInline):
 
 @admin.register(ProductTemplate)
 class ProductTemplateAdmin(admin.ModelAdmin):
+    """Admin for :class:`ProductTemplate`."""
+
     list_display = (
         "name",
         "nature",
@@ -73,6 +77,8 @@ class ProductTemplateAdmin(admin.ModelAdmin):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
+    """Admin for :class:`Product` (individual animals / commodities)."""
+
     list_display = (
         "unique_id",
         "product_template",
@@ -90,6 +96,8 @@ class ProductAdmin(admin.ModelAdmin):
 
 @admin.register(ProductCapitalValuation)
 class ProductCapitalValuationAdmin(admin.ModelAdmin):
+    """Admin for :class:`ProductCapitalValuation`."""
+
     list_display = ("product", "amount", "date", "operation", "officer")
     list_filter = ("operation__operation_type", "date")
     search_fields = ("product__unique_id", "product__product_template__name")

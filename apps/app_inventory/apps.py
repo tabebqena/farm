@@ -4,4 +4,6 @@ from django.apps import AppConfig
 
 
 class AppInventoryConfig(AppConfig):
+    """Django app configuration for the inventory app."""
+
     name = "apps.app_inventory"

@@ -37,6 +37,7 @@ class EvaluationCreateView(View):
     template_name = "app_operation/evaluation_form.html"
 
     def dispatch(self, request, *args, **kwargs):
+        """Load the target project (and optional product) for this request."""
         logger.debug(
             f"Setting up evaluation creation view | project_pk={kwargs.get('pk')} | "
             f"product_pk={kwargs.get('product_pk')} | user={request.user.username}"
@@ -62,6 +63,7 @@ class EvaluationCreateView(View):
         return super().dispatch(request, *args, **kwargs)
 
     def get(self, request, *args, **kwargs):
+        """Render the product-evaluation form."""
         logger.debug(
             f"Rendering evaluation form | project_id={self.project.pk} | "
             f"product_pk={self.product_pk}"
@@ -76,6 +78,7 @@ class EvaluationCreateView(View):
         )
 
     def post(self, request, *args, **kwargs):
+        """Record a capital-valuation operation from the submitted form."""
         logger.debug(
             f"Processing product evaluation | project_id={self.project.pk} | "
             f"user={request.user.username}"
@@ -170,6 +173,7 @@ class EvaluationCreateView(View):
             )
 
     def _build_evaluation_context(self, form, errors=None):
+        """Build the evaluation form template context (incl. product values)."""
         from django.conf import settings
 
         product_data = {}

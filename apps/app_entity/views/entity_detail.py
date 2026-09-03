@@ -21,6 +21,7 @@ class EntityDetailView(View):
     """Display entity detail page."""
 
     def get(self, request, *args, **kwargs):
+        """Render an entity's detail page with its financial summary."""
         pk = kwargs["pk"]
         logger.debug(
             f"Fetching entity details | entity_pk={pk} | user={request.user.username}"

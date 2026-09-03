@@ -29,12 +29,15 @@ class ConsumptionOperation(StockEventMixin, Operation):
 
     @property
     def project(self):
+        """The project consuming the product (the source entity)."""
         return self.source
 
     def clean_source(self):
+        """Require the consumption source to be a Project entity."""
         if not self.source.is_project:
             raise ValidationError("Consumption source must be a Project entity.")
 
     def clean_destination(self):
+        """Require the consumption destination to be the System entity."""
         if not self.destination.is_system:
             raise ValidationError("Consumption destination must be the System entity.")

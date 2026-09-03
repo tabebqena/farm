@@ -47,20 +47,25 @@ class ExpenseOperation(AdjustableTransactionMixin, Operation):
 
     @property
     def payment_source_fund(self):
+        """The project fund paying the expense."""
         return self.source  # clean_source ensures this is a project (pays)
 
     @property
     def payment_target_fund(self):
+        """The destination fund receiving the expense payment."""
         return self.destination  # clean_destination ensures this is world
 
     @property
     def project(self):
+        """The project incurring the expense (the source entity)."""
         return self.source
 
     def clean_source(self):
+        """Require the expense source to be a Project entity."""
         if not self.source.is_project:
             raise ValidationError("Expense source must be a Project entity.")
 
     def clean_destination(self):
+        """Require the expense destination to be the World entity."""
         if not self.destination.is_world:
             raise ValidationError("Expense destination must be the World entity.")

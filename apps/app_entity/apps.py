@@ -4,4 +4,6 @@ from django.apps import AppConfig
 
 
 class AppEntityConfig(AppConfig):
+    """Django app configuration for the entity app."""
+
     name = "apps.app_entity"

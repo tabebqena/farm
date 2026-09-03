@@ -30,9 +30,11 @@ class DeathOperation(StockEventMixin, Operation):
         verbose_name = "Death"
 
     def clean_source(self):
+        """Require the death source to be a Project entity."""
         if not self.source.is_project:
             raise ValidationError("Death source must be a Project entity.")
 
     def clean_destination(self):
+        """Require the death destination to be the System entity."""
         if not self.destination.is_system:
             raise ValidationError("Death destination must be the System entity.")

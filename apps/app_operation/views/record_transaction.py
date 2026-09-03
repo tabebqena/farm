@@ -138,6 +138,7 @@ class RecordTransactionPaymentView(_TransactionRecordView):
         return operation, None
 
     def get(self, request, *args, **kwargs):
+        """Render the payment-recording form."""
         operation, response = self._setup(kwargs["pk"])
         if response is not None:
             return response
@@ -159,6 +160,7 @@ class RecordTransactionPaymentView(_TransactionRecordView):
         )
 
     def post(self, request, *args, **kwargs):
+        """Record a payment transaction toward the operation's settlement."""
         operation, response = self._setup(kwargs["pk"])
         if response is not None:
             return response
@@ -226,6 +228,7 @@ class RecordTransactionRepaymentView(_TransactionRecordView):
         return operation, remaining_amount, None
 
     def get(self, request, *args, **kwargs):
+        """Render the repayment-recording form."""
         operation, remaining_amount, response = self._setup(kwargs["pk"])
         if response is not None:
             return response
@@ -249,6 +252,7 @@ class RecordTransactionRepaymentView(_TransactionRecordView):
         )
 
     def post(self, request, *args, **kwargs):
+        """Record a repayment transaction against the outstanding balance."""
         operation, remaining_amount, response = self._setup(kwargs["pk"])
         if response is not None:
             return response

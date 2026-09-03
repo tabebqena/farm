@@ -20,12 +20,15 @@ class OperationReverseView(View):
     """Reverse a financial operation (critical audit operation)."""
 
     def get(self, request, *args, **kwargs):
+        """Show the operation reversal confirmation (delegates to ``_handle``)."""
         return self._handle(request, *args, **kwargs)
 
     def post(self, request, *args, **kwargs):
+        """Reverse the operation (delegates to ``_handle``)."""
         return self._handle(request, *args, **kwargs)
 
     def _handle(self, request, *args, **kwargs):
+        """Guard and perform (or confirm) an operation reversal."""
         pk = kwargs["pk"]
         logger.debug(
             f"Fetching operation for reversal | operation_pk={pk} | "

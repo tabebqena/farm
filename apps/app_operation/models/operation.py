@@ -873,6 +873,7 @@ class Operation(
 
     @classmethod
     def get_related_entities(cls, url_entity, config):
+        """Default candidate-entity set for the create form's destination picker."""
         from apps.app_entity.models import Entity
 
         config_dest = config["dest"]
@@ -902,6 +903,7 @@ class Operation(
 
     @property
     def _reversable_transaction_types(self) -> List[TransactionType]:
+        """Transaction types that must be reversed together with the operation."""
         rv = []
         # Non-accounting operations (Birth / Death / Consumption / Capital)
         # do not define *_transaction_type attrs — getattr keeps them empty.
@@ -913,6 +915,7 @@ class Operation(
 
     @property
     def _implicit_reversable_transaction_types(self) -> List[TransactionType]:
+        """Transaction types reversed implicitly (issuance; one-shot payment too)."""
         rv = []
         if getattr(self, "_issuance_transaction_type", None):
             rv.append(self._issuance_transaction_type)
@@ -940,6 +943,7 @@ class Operation(
         return None
 
     def cast(self):
+        """Re-cast this instance to its operation proxy subclass."""
         return Operation.objects.cast(self)
 
     @property
@@ -958,6 +962,7 @@ class Operation(
     # ------------------------------------------------------------------
 
     def clean(self):
+        """Validate entity activity, closed periods, and category requirements."""
         logger.debug(
             f"Operation.clean() ({self.operation_type}) | "
             f"is_new={self.pk is None} | pk={self.pk} | date={self.date}"
@@ -1027,6 +1032,7 @@ class Operation(
         return super().clean()
 
     def save(self, *args, **kwargs):
+        """Auto-assign the covering financial period, then save and validate items."""
         is_new = self.pk is None
 
         # Auto-assign the period that contains this operation's date (never creates one).

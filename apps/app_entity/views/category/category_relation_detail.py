@@ -18,6 +18,7 @@ class CategoryRelationDetailView(View):
     """Display financial category assignment details."""
 
     def get(self, request, *args, **kwargs):
+        """Render the category-relation detail page."""
         pk = kwargs["pk"]
         logger.debug(f"Fetching category relation | relation_pk={pk}")
         relation = get_object_or_404(

@@ -32,10 +32,14 @@ class ProductTemplate(BaseModel):
     """
 
     class TrackingMode(models.TextChoices):
+        """How products of this template are tracked: by tag or by quantity."""
+
         INDIVIDUAL = "INDIVIDUAL", _("Individual (Tag ID)")
         COMMODITY = "COMMODITY", _("Quantity (Weight/Volume)")
 
     class Nature(models.TextChoices):
+        """Product nature: animal, consumable, biological or production output."""
+
         ANIMAL = "ANIMAL", _("Livestock Asset")
         FEED = "FEED", _("Consumable")
         MEDICINE = "MEDICINE", _("Biological")
@@ -95,6 +99,8 @@ class ProductTemplate(BaseModel):
     # ------------------------------------------------------------------
 
     class Gender(models.TextChoices):
+        """Default sex options for an animal template."""
+
         MALE = "MALE", _("Male")
         FEMALE = "FEMALE", _("Female")
         MIXED = "MIXED", _("Mixed")
@@ -176,6 +182,7 @@ class ProductTemplate(BaseModel):
     }
 
     def accepts_operation(self, op_type: str) -> bool:
+        """True if products of this template may take part in *op_type*."""
         from apps.app_operation.models.operation_type import OperationType
 
         allowed = self._ALLOWED_OP_TYPES.get(self.nature, frozenset())
@@ -196,6 +203,7 @@ class ProductTemplate(BaseModel):
         return cls.TrackingMode.COMMODITY
 
     def clean(self) -> None:
+        """Derive tracking mode and enforce animal-template consistency rules."""
         # Tracking mode is derived from nature — there is no free choice.
         if self.nature:
             self.tracking_mode = self.tracking_mode_for_nature(self.nature)
@@ -317,6 +325,7 @@ class InvoiceItem(AmountCleanMixin, BaseModel):
 
     @property
     def total_price(self):
+        """Raw line total (original quantity × unit price, before adjustments)."""
         return self.quantity * self.unit_price
 
     # ------------------------------------------------------------------
@@ -374,10 +383,12 @@ class InvoiceItem(AmountCleanMixin, BaseModel):
         ).exists()
 
     def clean_unit_price(self):
+        """Reject negative unit prices."""
         if self.unit_price < 0:
             raise ValidationError(_("Unit price cannot be negative"))
 
     def clean(self) -> None:
+        """Reject products whose template is incompatible with the operation."""
         # TODO: not well implemented,
         # The operation_type is empty
         try:
@@ -654,6 +665,8 @@ class Product(AmountCleanMixin, BaseModel):
     _amount_name = "unit_price"
 
     class Status(models.TextChoices):
+        """Lifecycle state of a product, derived from its movements."""
+
         ACTIVE = "ACTIVE", _("Active")
         SOLD = "SOLD", _("Sold")
         DEAD = "DEAD", _("Dead")
@@ -683,6 +696,8 @@ class Product(AmountCleanMixin, BaseModel):
 
     # --- Per-animal attributes (only meaningful for ANIMAL templates) ---
     class Gender(models.TextChoices):
+        """Sex of an individual animal product."""
+
         MALE = "MALE", _("Male")
         FEMALE = "FEMALE", _("Female")
         UNKNOWN = "UNKNOWN", _("Unknown")
@@ -915,6 +930,7 @@ class Product(AmountCleanMixin, BaseModel):
             )
 
     def clean(self) -> None:
+        """Validate the product against its linked invoice items' operations."""
         logger.debug(
             f"Product.clean() | pk={self.pk} | "
             f"product={self.product_template.name if self.product_template else ''} | "
@@ -1287,6 +1303,7 @@ class InventoryMovementLine(ImmutableMixin, BaseModel):
         )
 
     def save(self, *args, **kwargs):
+        """Persist the movement line, lazily materialising its product if missing."""
         is_new = self.pk is None
         # Lazy-create Product if not provided (e.g. purchase flow where the
         # caller passes product=None expecting save() to materialise it from
@@ -1562,6 +1579,7 @@ class ProductCapitalValuation(ImmutableMixin, BaseModel):
     )
 
     def clean(self) -> None:
+        """Restrict valuations to Gain/Loss operations with the correct signed amount."""
         from apps.app_operation.models.operation_type import OperationType
 
         if self.operation_id is not None:

@@ -73,21 +73,26 @@ class CapitalValuationOperation(StockEventMixin, Operation):
     # ------------------------------------------------------------------
 
     def _variant(self):
+        """Per-type config dict for this row's operation type."""
         return self._VARIANT_CONFIG[self.operation_type]
 
     @property
     def label(self):
+        """Display label for this variant."""
         return self._variant()["label"]
 
     @property
     def _source_role(self):
+        """How the source entity is resolved for this variant."""
         return self._variant()["_source_role"]
 
     @property
     def _dest_role(self):
+        """How the destination entity is resolved for this variant."""
         return self._variant()["_dest_role"]
 
     def clean_source(self):
+        """Enforce the correct source entity type for each valuation variant."""
         if self.operation_type == OperationType.CAPITAL_GAIN:
             if not self.source.is_system:
                 raise ValidationError(
@@ -100,6 +105,7 @@ class CapitalValuationOperation(StockEventMixin, Operation):
                 )
 
     def clean_destination(self):
+        """Enforce the correct destination entity type for each valuation variant."""
         if self.operation_type == OperationType.CAPITAL_GAIN:
             if not self.destination.is_project:
                 raise ValidationError(

@@ -4,5 +4,7 @@ from django.apps import AppConfig
 
 
 class AppPersonalOperationConfig(AppConfig):
+    """Django app configuration for the operations app."""
+
     name = "apps.app_operation"
 

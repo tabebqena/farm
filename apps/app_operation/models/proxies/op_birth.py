@@ -31,9 +31,11 @@ class BirthOperation(StockEventMixin, Operation):
         verbose_name = "Birth"
 
     def clean_source(self):
+        """Require the birth source to be the System entity."""
         if not self.source.is_system:
             raise ValidationError("Birth source must be the System entity.")
 
     def clean_destination(self):
+        """Require the birth destination to be a Project entity."""
         if not self.destination.is_project:
             raise ValidationError("Birth destination must be a Project entity.")

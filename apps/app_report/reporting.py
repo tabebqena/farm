@@ -98,6 +98,7 @@ def _plain_sum(qs):
 
 
 def _period_filter(period):
+    """Build the common transaction filter dict for a financial period."""
     filters = {"deleted_at__isnull": True, "date__date__gte": period.start_date}
     if period.end_date is not None:
         filters["date__date__lt"] = period.end_date

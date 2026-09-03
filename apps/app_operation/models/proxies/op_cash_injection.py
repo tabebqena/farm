@@ -33,16 +33,20 @@ class CashInjectionOperation(OneShotTransactionMixin, Operation):
 
     @property
     def payment_source_fund(self):
+        """The world entity acting as the payer."""
         return self.source  # clean_source ensures this is the world entity
 
     @property
     def payment_target_fund(self):
+        """The person/project fund receiving the injection."""
         return self.destination  # clean_destination ensures this is a person
 
     def clean_source(self):
+        """Require the injection source to be the World entity."""
         if not self.source.is_world:
             raise ValidationError("Cash Injection source must be the World entity.")
 
     def clean_destination(self):
+        """Require the injection destination to be a Person entity."""
         if not self.destination.is_person:
             raise ValidationError("Cash Injection must target a Person entity.")

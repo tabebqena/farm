@@ -51,6 +51,7 @@ class Wizard:
         operation_list_url_name="operation_list_view",
         detail_url_name="operation_detail_view",
     ):
+        """Configure the wizard's URLs, forms, templates and session prefix."""
         self.prefix = prefix
         self.steps = steps
         self.counterpart_field = counterpart_field
@@ -73,16 +74,20 @@ class Wizard:
     # ------------------------------------------------------------------
 
     def _key(self, pk):
+        """Session key under which this wizard's state for *pk* is stored."""
         return f"{self.prefix}_{pk}"
 
     def get_session(self, request, pk):
+        """Read the wizard's saved session state for the project."""
         return request.session.get(self._key(pk), {})
 
     def save_session(self, request, pk, data):
+        """Persist the wizard state to the session."""
         request.session[self._key(pk)] = data
         request.session.modified = True
 
     def clear_session(self, request, pk):
+        """Remove the wizard's session state for the project."""
         key = self._key(pk)
         request.session.pop(key, None)
         request.session.modified = True
@@ -92,6 +97,7 @@ class Wizard:
     # ------------------------------------------------------------------
 
     def cancel(self, request, pk):
+        """Clear the session and bounce back to the operation list."""
         self.clear_session(request, pk)
         return redirect(self.operation_list_url_name, person_pk=pk)
 
@@ -183,6 +189,7 @@ class Wizard:
         )
 
     def delete_item(self, request, pk, idx):
+        """Remove the item at *idx* from the session's pending invoice."""
         if request.method != "POST":
             return redirect(self.invoice_url, pk=pk)
 
@@ -229,6 +236,7 @@ class Wizard:
     # ------------------------------------------------------------------
 
     def _handle_step_1_post(self, request, project, session):
+        """Validate step 1 (date/counterpart/description) into the session."""
         form = self.step1_form_class(request.POST, project=project)
         if not form.is_valid():
             return render(
@@ -256,6 +264,7 @@ class Wizard:
         return redirect(self.step_new_url, pk=project.pk, step=2)
 
     def _handle_step_2_post(self, request, project, session):
+        """Validate step 2 (total amount) and route to invoice or step 3."""
         next_param = request.POST.get("next", "")
         form = self.step2_form_class(request.POST)
         if not form.is_valid():
@@ -279,6 +288,7 @@ class Wizard:
         return redirect(self.step_new_url, pk=project.pk, step=3)
 
     def _handle_step_3_post(self, request, project, session):
+        """Validate step 3 (amount paid) and route to the invoice hub."""
         next_param = request.POST.get("next", "")
         form = self.step3_form_class(request.POST)
         if not form.is_valid():

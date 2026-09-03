@@ -32,22 +32,27 @@ class ProjectFundingOperation(OneShotTransactionMixin, Operation):
 
     @property
     def payment_source_fund(self):
+        """The funder (person/shareholder) fund providing the funds."""
         return self.source  # funder (person/shareholder)
 
     @property
     def payment_target_fund(self):
+        """The project fund receiving the funding."""
         return self.destination  # clean_destination ensures this is a project
 
     @property
     def funder(self):
+        """The person injecting the funds."""
         return self.source
 
     @property
     def project(self):
+        """The project being funded (the destination entity)."""
         return self.destination
 
     @classmethod
     def get_related_entities(cls, url_entity, config):
+        """Projects that list *url_entity* as an active shareholder."""
         from apps.app_entity.models import Entity, StakeholderRole
 
         return (
@@ -62,16 +67,19 @@ class ProjectFundingOperation(OneShotTransactionMixin, Operation):
         )
 
     def clean_source(self):
+        """Require the funding source to be a Person entity."""
         if not self.source.is_person:
             raise ValidationError("Project Funding source must be a Person entity.")
 
     def clean_destination(self):
+        """Require the funding destination to be a Project entity."""
         if not self.destination.is_project:
             raise ValidationError(
                 "Project Funding destination must be a Project entity."
             )
 
     def clean(self):
+        """Require the funder to be a shareholder; check the balance on create."""
         super().clean()
         # Shareholder check
         try:

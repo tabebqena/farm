@@ -95,6 +95,7 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
 
     @property
     def is_closed(self) -> bool:
+        """True when the period has ended (end_date set and in the past)."""
         return self.end_date is not None and self.end_date < date_type.today()
 
     @property
@@ -146,10 +147,12 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
 
     @property
     def is_profit(self) -> bool:
+        """True when this closed period shows a profit."""
         return self.amount is not None and self.amount > Decimal("0.00")
 
     @property
     def is_loss(self) -> bool:
+        """True when this closed period shows a loss."""
         return self.amount is not None and self.amount < Decimal("0.00")
 
     # ------------------------------------------------------------------
@@ -444,10 +447,12 @@ class FinancialPeriod(ImmutableMixin, BaseModel):
     # ------------------------------------------------------------------
 
     def clean_end_date(self):
+        """Require ``end_date`` to be strictly after ``start_date``."""
         if self.end_date and self.end_date <= self.start_date:
             raise ValidationError("end_date must be strictly greater than start_date.")
 
     def clean(self):
+        """Reject periods for inactive entities or with overlapping date ranges."""
         if self.pk is None and self.entity_id and not self.entity.active:
             raise ValidationError(
                 "Cannot create a financial period for an inactive entity."

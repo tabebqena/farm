@@ -9,8 +9,15 @@ from .models import Entity, Stakeholder
 
 
 @admin.register(Entity)
-class EntityClass(admin.ModelAdmin): ...
+class EntityClass(admin.ModelAdmin):
+    """Admin for :class:`Entity`."""
+
+    ...
+
 
 
 @admin.register(Stakeholder)
-class StakeholderClass(admin.ModelAdmin): ...
+class StakeholderClass(admin.ModelAdmin):
+    """Admin for :class:`Stakeholder`."""
+
+    ...

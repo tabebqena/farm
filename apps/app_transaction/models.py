@@ -102,14 +102,17 @@ class Transaction(AmountCleanMixin, ImmutableMixin, BaseModel):
 
     @property
     def owner(self):
+        """The document (operation/adjustment) this transaction belongs to."""
         return self.document
 
     @property
     def is_reversed(self):
+        """True when a counter-reversal transaction exists for this one."""
         return getattr(self, "reversed_by", None) is not None
 
     @property
     def is_reversal(self):
+        """True when this transaction is itself a reversal mirror."""
         return self.reversal_of is not None
 
     def clean_type(self, **kwargs): ...
@@ -118,6 +121,7 @@ class Transaction(AmountCleanMixin, ImmutableMixin, BaseModel):
         return super().save(*args, **kwargs)
 
     def clean(self) -> None:
+        """Require distinct source and target funds."""
         logger.debug(
             f"Transaction.clean() | type={self.type} | source={self.source} | "
             f"target={self.target} | amount={float(self.amount)}"
@@ -143,6 +147,11 @@ class Transaction(AmountCleanMixin, ImmutableMixin, BaseModel):
         note="",
         date=None,
     ):
+        """Create a validated Transaction between two funds.
+
+        Validates the transaction type against the entity types and the document's
+        operation type, resolves the date and audit-logs the creation.
+        """
         logger.debug(
             f"Transaction.create() | type={tx_type} | source={source} | target={target} | "
             f"amount={float(amount)} | document_type={type(document).__name__} | "
@@ -287,4 +296,5 @@ class Transaction(AmountCleanMixin, ImmutableMixin, BaseModel):
         return reversal
 
     def get_absolute_url(self):
+        """URL of this transaction's detail page."""
         return reverse("transaction_detail", kwargs={"transaction_pk": self.pk})

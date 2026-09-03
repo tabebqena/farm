@@ -31,6 +31,14 @@ from apps.app_transaction.models import TransactionType
 
 
 class AdjustmentType(models.TextChoices):
+    """Catalog of adjustment reasons for PURCHASE / SALE / EXPENSE operations.
+
+    Each type encodes whether it increases or decreases the operation amount and
+    whether it flows with (reduction) or against (increase) the operation
+    direction; helpers such as :meth:`is_reduction` and :meth:`is_general`
+    classify the types.
+    """
+
     # ==========================
     # PURCHASE ADJUSTMENTS (Our Debts)
     # ==========================
@@ -111,6 +119,7 @@ class AdjustmentType(models.TextChoices):
     # ==========================
     @classmethod
     def is_item_correction(cls, tp):
+        """True for the ``*_ITEM_*`` correction types."""
         return tp in (
             AdjustmentType.PURCHASE_ITEM_CORRECTION_INCREASE,
             AdjustmentType.PURCHASE_ITEM_CORRECTION_DECREASE,
@@ -120,6 +129,7 @@ class AdjustmentType(models.TextChoices):
 
     @classmethod
     def is_general(cls, tp):
+        """True for the general (reason-required) increase/decrease types."""
         return tp in (
             AdjustmentType.PURCHASE_GENERAL_INCREASE,
             AdjustmentType.PURCHASE_GENERAL_REDUCTION,
@@ -158,6 +168,12 @@ class AdjustmentType(models.TextChoices):
 
 
 class InvoiceItemAdjustmentType(models.TextChoices):
+    """Per-invoice-item correction directions for PURCHASE / SALE.
+
+    Mirrors the ``*_ITEM_*`` values of :class:`AdjustmentType` for
+    :class:`~apps.app_adjustment.models.InvoiceItemAdjustmentLine` records.
+    """
+
     PURCHASE_ITEM_INCREASE = "PUR_ITEM_INC", _("Purchase Item: Increase")
     PURCHASE_ITEM_DECREASE = "PUR_ITEM_DEC", _("Purchase Item: Decrease")
     SALE_ITEM_INCREASE = "SALE_ITEM_INC", _("Sale Item: Increase")
@@ -208,6 +224,7 @@ class Adjustment(
     # Source always pays target — consistent with all other operation types.
     @property
     def payment_source_fund(self):
+        """The paying fund: reversed for reduction types."""
         op = self._cast_operation()
         if AdjustmentType.is_reduction(self.type):
             return op.payment_target_fund
@@ -215,6 +232,7 @@ class Adjustment(
 
     @property
     def payment_target_fund(self):
+        """The receiving fund: reversed for reduction types."""
         op = self._cast_operation()
         if AdjustmentType.is_reduction(self.type):
             return op.payment_source_fund
@@ -243,6 +261,7 @@ class Adjustment(
 
     @property
     def _issuance_transaction_type(self):
+        """The matching adjustment transaction type for this operation/type."""
         if AdjustmentType.is_reduction(self.type):
             return {
                 OperationType.PURCHASE: TransactionType.PURCHASE_ADJUSTMENT_DECREASE,
@@ -256,6 +275,7 @@ class Adjustment(
         }.get(self.operation.operation_type)
 
     def clean(self):
+        """Allow adjustments only on PURCHASE/SALE/EXPENSE; require reasons for general types."""
         logger.debug(
             f"Adjustment.clean() for operation {self.operation.pk} | "
             f"type={self.type} | operation_type={self.operation.operation_type} | "
@@ -312,10 +332,12 @@ class Adjustment(
 
     @property
     def _reversable_transaction_types(self) -> List[TransactionType]:
+        """The adjustment issuance transaction is reversed with the document."""
         return [self._issuance_transaction_type]  # type: ignore
 
     @property
     def _implicit_reversable_transaction_types(self):
+        """The adjustment transaction reverses implicitly."""
         return [self._issuance_transaction_type]  # type: ignore
 
     def reverse(self, officer, date=None, reason=None, _from_item_adjustment=False):
@@ -394,6 +416,7 @@ class InvoiceItemAdjustment(
     )
 
     def clean(self):
+        """Require a PURCHASE/SALE operation and a matching item type."""
         if self.operation.operation_type not in (
             OperationType.PURCHASE,
             OperationType.SALE,
@@ -697,6 +720,7 @@ class InvoiceItemAdjustmentLine(
         return last_price if last_price is not None else self.invoice_item.unit_price
 
     def clean(self):
+        """Validate the line fields and enforce the VA3 moved-quantity guard."""
         # Sale/Purchase spec VA3 — "new qty ≥ already moved": an item may not be
         # shrunk below the quantity that has already been moved (delivered for
         # SALE, received for PURCHASE). Item adjustments remain purely financial
@@ -744,6 +768,7 @@ class InvoiceItemAdjustmentLine(
         return super().clean()
 
     def save(self, *args, **kwargs):
+        """Save the adjustment line with debug logging."""
         logger.debug(
             f"InvoiceItemAdjustmentLine.save() | pk={self.pk} | "
             f"adjustment_pk={self.adjustment_id} | invoice_item_pk={self.invoice_item_id} | "

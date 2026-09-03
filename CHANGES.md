@@ -16,6 +16,73 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 
 ---
 
+## 2026-09-03 — Method & remaining class docstrings
+
+Added docstrings to the **business-logic methods** that lacked them, and the
+remaining non-model **class** docstrings, across all apps. Documentation-only —
+no behavior changes.
+
+### Added
+- Method docstrings on the core model classes and mixins:
+  - [`app_base`](apps/app_base/models.py): `BaseModel` (`__setattr__`,
+    `post_save`, `save`, `delete`), `ReversableModel` (`is_reversed`,
+    `is_reversal`, validation guards, `_get_reverse_kwargs`, `reverse`).
+  - [`app_base/mixins.py`](apps/app_base/mixins.py): `ImmutableMixin`,
+    `AmountCleanMixin`, `OfficerMixin`, `AdjustableMixin`, the fund mixins,
+    `HasRelatedTransactions`, `AutoTransactionMixin`, and the issuance /
+    payment / repayment mixins.
+  - [`app_base/managers.py`](apps/app_base/managers.py): `SafeQuerySet`
+    methods and `ActiveManager.get_queryset`.
+  - [`app_entity`](apps/app_entity/models/__init__.py): `Stakeholder.clean`,
+    `Entity` type predicates, `create`, `payables_at` / `receivables_at`,
+    `can_pay`, `save`; [`category.py`](apps/app_entity/models/category.py).
+  - [`app_operation`](apps/app_operation/models/operation.py): reversal type
+    lists, `get_related_entities`, `cast`, `clean`, `save`;
+    [`period.py`](apps/app_operation/models/period.py);
+    [`managers.py`](apps/app_operation/models/managers.py); every operation
+    proxy in [`proxies/`](apps/app_operation/models/proxies/) (`clean_source`,
+    `clean_destination`, fund/project/client/vendor properties, `clean`,
+    reversal helpers).
+  - [`app_inventory`](apps/app_inventory/models.py): `ProductTemplate`,
+    `InvoiceItem`, `Product`, `InventoryMovementLine`, `ProductCapitalValuation`.
+  - [`app_adjustment`](apps/app_adjustment/models.py): `AdjustmentType`
+    classifiers, `Adjustment`, `InvoiceItemAdjustment`,
+    `InvoiceItemAdjustmentLine`.
+  - [`app_transaction`](apps/app_transaction/models.py): `owner`, reversal
+    predicates, `clean`, `create`, `get_absolute_url`.
+  - [`app_animal`](apps/app_animal/models.py): `MedicalRecord` choices.
+- Remaining class docstrings:
+  - The 7 `app_base` mixins (`BaseModelMixin`, `OfficerMixin`,
+    `SourceFundMixin`, `TargetFundMixin`, `HasRelatedTransactions`,
+    `LinkedIssuanceTransactionMixin`, `LinkedRePaymentTransactionMixin`) plus
+    `SafeQuerySet`, `OperationQuerySet` / `OperationManager`.
+  - The 4 view classes still missing one: `LoginView`, `OperationCreateView`,
+    `BirthCreateView`, `DeathCreateView`.
+  - The 8 `AppConfig` classes (each `apps.py`), the 11 choices/enum classes
+    (`AdjustmentType`, `InvoiceItemAdjustmentType`, `OperationType`,
+    `TransactionType`, `RecordType`, `HealthStatus`, `TrackingMode`, `Nature`,
+    both `Gender`s, `Status`) and the 11 admin classes.
+- Docstrings on **non-boilerplate view methods** across every app: entity
+  (add/edit contact, stakeholder, person/project, category-relation views,
+  detail/list), inventory (`StockDetailView`, `StockHistoryView`,
+  `QuickConsumeView`, movement create/reverse/register views), operation
+  (generic create, evaluation, purchase/sale wizards, adjustment recording,
+  record payment/repayment, period close, operation reverse, list/detail/
+  invoice-items/edit), transaction (payment list, payables/receivables,
+  transaction detail/reverse), report (hub + statement views) and `app_base`
+  (login/profile).
+- Style kept consistent with the existing docstrings (concise English).
+
+### Verification
+- Re-ran the missing-docstring AST scanner: all class-level gaps in the four
+  target areas are closed; remaining uncovered items are out-of-scope
+  boilerplate/helpers (form `clean`/`__init__`, seed-command internals,
+  module-level transaction-type helpers, validators, middleware, templatetag
+  helpers).
+- `manage.py check` clean; full app suite **1,471 tests OK**
+  (`manage.py test apps --parallel=10 --keepdb`). The `ui_tests` browser suite
+  was not run (repo convention).
+
 ## 2026-09-02 — Class docstrings for model classes
 
 Added a class-level docstring to every Django model class that lacked one, so

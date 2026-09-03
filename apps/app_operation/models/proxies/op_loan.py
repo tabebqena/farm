@@ -47,33 +47,40 @@ class LoanOperation(RepayableTransactionMixin, Operation):
 
     @property
     def payment_source_fund(self):
+        """The creditor fund disbursing the loan."""
         return self.source  # creditor disburses
 
     @property
     def payment_target_fund(self):
+        """The debtor fund receiving the loan."""
         return self.destination  # debtor receives
 
     @property
     def creditor(self):
+        """The entity lending the money."""
         return self.source
 
     @property
     def debtor(self):
+        """The entity borrowing the money."""
         return self.destination
 
     def clean_source(self):
+        """Require the loan source (creditor) to be a Person or Project."""
         if not (self.source.is_person or self.source.is_project):
             raise ValidationError(
                 "Loan source (creditor) must be a Person or Project entity."
             )
 
     def clean_destination(self):
+        """Require the loan destination (debtor) to be a Person or Project."""
         if not (self.destination.is_person or self.destination.is_project):
             raise ValidationError(
                 "Loan destination (debtor) must be a Person or Project entity."
             )
 
     def clean(self):
+        """Require the creditor and debtor to be distinct entities."""
         # Enforce that creditor and debtor are distinct entities.
         if (
             self.source_id is not None
@@ -87,11 +94,13 @@ class LoanOperation(RepayableTransactionMixin, Operation):
 
     @property
     def _reversable_transaction_types(self) -> List[TransactionType]:
+        """Issuance + payment transactions must be reversed with the loan."""
         # Loans must have repayments manually cleared before reversal is allowed.
         return [TransactionType.LOAN_ISSUANCE, TransactionType.LOAN_PAYMENT]
 
     @classmethod
     def get_related_entities(cls, url_entity, config):
+        """Projects/people (other than the URL entity) that may borrow or lend."""
         from django.db.models import Q
         from apps.app_entity.models import Entity
 
@@ -105,10 +114,12 @@ class LoanOperation(RepayableTransactionMixin, Operation):
 
     @property
     def _implicit_reversable_transaction_types(self) -> List[TransactionType]:
+        """Only the issuance reverses implicitly; payments/repayments clear manually."""
         # Only the issuance is implicitly reversed; payments & repayments must be cleared manually.
         return [TransactionType.LOAN_ISSUANCE]
 
     def _requires_transaction_reversal(self, all_txs) -> bool:
+        """Block reversal while active loan repayments still exist."""
         if super()._requires_transaction_reversal(all_txs):
             return True
         repayments = all_txs.filter(

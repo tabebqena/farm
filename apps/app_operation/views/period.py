@@ -26,6 +26,7 @@ class PeriodDetailView(LoginRequiredMixin, View):
     """View financial period details."""
 
     def get(self, request, *args, **kwargs):
+        """Render a financial period's detail page."""
         period_pk = kwargs["period_pk"]
         logger.debug(
             f"Fetching financial period | period_pk={period_pk} | "
@@ -55,6 +56,7 @@ class PeriodListView(LoginRequiredMixin, View):
     """List all financial periods for an entity."""
 
     def get(self, request, *args, **kwargs):
+        """Render the paginated list of an entity's financial periods."""
         entity_pk = kwargs["entity_pk"]
         logger.debug(
             f"Fetching entity and periods | entity_pk={entity_pk} | "
@@ -126,6 +128,7 @@ class PeriodCloseView(LoginRequiredMixin, View):
         return period, None
 
     def get(self, request, *args, **kwargs):
+        """Render the close-period confirmation page with closure warnings."""
         period, response = self._setup(kwargs["period_pk"])
         if response is not None:
             return response
@@ -141,6 +144,7 @@ class PeriodCloseView(LoginRequiredMixin, View):
         return render(request, "app_operation/period_close.html", context)
 
     def post(self, request, *args, **kwargs):
+        """Close the period with the submitted end date."""
         period, response = self._setup(kwargs["period_pk"])
         if response is not None:
             return response
@@ -190,6 +194,7 @@ class PeriodLedgerView(LoginRequiredMixin, View):
     """Show running-balance cash ledger for a financial period."""
 
     def get(self, request, *args, **kwargs):
+        """Render the running-balance cash ledger for a financial period."""
         from django.db.models import Q
 
         from apps.app_transaction.models import Transaction

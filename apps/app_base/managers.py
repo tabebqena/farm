@@ -18,17 +18,27 @@ from django.utils.translation import gettext_lazy as _
 # Custom Managers
 # -----------------------------
 class SafeQuerySet(models.QuerySet):
+    """QuerySet that blocks bulk writes and deletes.
+
+    ``update()`` / ``bulk_create()`` / ``bulk_update()`` / ``delete()`` raise
+    (except when ``DEBUG`` is on) so rows only change through validated,
+    individual ``save()`` calls.
+    """
+
     def update(self, **kwargs):
+        """Block direct bulk updates; require validated individual saves."""
         raise NotImplementedError(
             _("Direct .update() is blocked. Use individual .save() for validation.")
         )
 
     def bulk_create(self, objs, **kwargs):
+        """Block bulk creation; require validated individual saves."""
         raise NotImplementedError(
             _("Direct .bulk_create() is blocked. Save objects individually.")
         )
 
     def bulk_update(self, objs, fields, **kwargs):
+        """Block bulk updates outside ``DEBUG``; require validated individual saves."""
         if conf.settings.DEBUG:
             return super().bulk_update(objs, fields, **kwargs)
         raise NotImplementedError(
@@ -36,6 +46,7 @@ class SafeQuerySet(models.QuerySet):
         )
 
     def delete(self):
+        """Block bulk deletes outside ``DEBUG`` unless the model is ``deletable``."""
         if conf.settings.DEBUG:
             return super().delete()
 
@@ -54,6 +65,7 @@ class ActiveManager(models.Manager):
     """
 
     def get_queryset(self):
+        """Return non-soft-deleted rows only."""
         # This overrides the "base" query for everything
         return SafeQuerySet(self.model, using=self._db).filter(deleted_at__isnull=True)
 

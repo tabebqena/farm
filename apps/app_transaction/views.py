@@ -65,6 +65,7 @@ def _build_obligation_transactions(
     )
 
     def _classify(tx):
+        """Classify a transaction as an increase or decrease for this entity."""
         if tx.source == entity and tx.type in increase_source_types:
             return "increase", tx.amount
         if tx.target == entity and tx.type in increase_target_types:
@@ -94,6 +95,7 @@ class EntityPaymentTransactionsView(View):
     """
 
     def get(self, request, *args, **kwargs):
+        """Render the entity's payment transactions with a running balance."""
         entity_pk = kwargs["entity_pk"]
         logger.debug(
             f"Fetching entity transactions | entity_pk={entity_pk} | "
@@ -279,6 +281,7 @@ class _ObligationListView(View):
         return render(request, self.template_name, context)
 
     def get(self, request, *args, **kwargs):
+        """Render the payables/receivables page (delegates to the obligation builder)."""
         return self._obligation_context()
 
 
@@ -317,6 +320,7 @@ class TransactionDetailView(View):
     """
 
     def get(self, request, *args, **kwargs):
+        """Render a single transaction's detail page."""
         transaction_pk = kwargs["transaction_pk"]
         logger.debug(
             f"Fetching transaction details | transaction_pk={transaction_pk} | "
@@ -353,12 +357,15 @@ class TransactionReverseView(View):
     """
 
     def get(self, request, *args, **kwargs):
+        """Show the transaction reversal confirmation (delegates to ``_handle``)."""
         return self._handle(request, *args, **kwargs)
 
     def post(self, request, *args, **kwargs):
+        """Reverse the transaction (delegates to ``_handle``)."""
         return self._handle(request, *args, **kwargs)
 
     def _handle(self, request, *args, **kwargs):
+        """Guard and perform (or confirm) a single transaction reversal."""
         pk = kwargs["pk"]
         logger.debug(
             f"Fetching transaction for reversal | transaction_pk={pk} | "

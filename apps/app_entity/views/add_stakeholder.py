@@ -174,6 +174,7 @@ class AddStakeholderView(View):
         return redirect("entity_detail", pk=parent_project.id)
 
     def _render_form(self, parent_project, available_entities, role_type):
+        """Render the add-stakeholder form with the given eligible entities."""
         return render(
             self.request,
             self.template_name,
@@ -190,6 +191,7 @@ class AddStakeholderView(View):
         return self._render_form(parent_project, Entity.objects.none(), role_type)
 
     def get(self, request, *args, **kwargs):
+        """Render the add-stakeholder form with role-eligible entities."""
         parent_project = self._load_parent(kwargs["pk"])
         role_type = self.role_type
 
@@ -208,6 +210,7 @@ class AddStakeholderView(View):
         return self._render_form(parent_project, available, role_type)
 
     def post(self, request, *args, **kwargs):
+        """Create the stakeholder after validating the role/target selection."""
         parent_project = self._load_parent(kwargs["pk"])
         role_type = self.role_type
         logger.debug(

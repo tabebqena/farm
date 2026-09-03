@@ -98,6 +98,7 @@ class InvoiceItemsListView(View):
         return merged_items
 
     def get(self, request, *args, **kwargs):
+        """Render the invoice-items list for an operation."""
         pk = kwargs["pk"]
         logger.debug(
             f"Fetching operation for invoice items list | operation_pk={pk} | "

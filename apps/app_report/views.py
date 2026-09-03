@@ -52,6 +52,7 @@ class _ReportBaseView(LoginRequiredMixin, View):
         return entity, periods, period
 
     def _base_context(self, entity, periods, period):
+        """Build the shared report template context."""
         set_entity_navigation(self.request, entity)
         return {
             "entity": entity,
@@ -62,6 +63,7 @@ class _ReportBaseView(LoginRequiredMixin, View):
         }
 
     def get(self, request, *args, **kwargs):
+        """Render the report page for the selected entity/period."""
         entity, periods, period = self._resolve(kwargs["entity_pk"])
         context = self._base_context(entity, periods, period)
         return render(request, self.template_name, context)
@@ -79,6 +81,7 @@ class IncomeStatementView(_ReportBaseView):
     template_name = "app_report/income_statement.html"
 
     def get(self, request, *args, **kwargs):
+        """Render the income statement (project entities only)."""
         entity, periods, period = self._resolve(kwargs["entity_pk"])
         if not entity.is_project:
             raise PermissionDenied(
@@ -95,6 +98,7 @@ class BalanceSheetView(_ReportBaseView):
     template_name = "app_report/balance_sheet.html"
 
     def get(self, request, *args, **kwargs):
+        """Render the balance sheet (project entities only)."""
         entity, periods, period = self._resolve(kwargs["entity_pk"])
         if not entity.is_project:
             raise PermissionDenied(
@@ -111,6 +115,7 @@ class CashFlowView(_ReportBaseView):
     template_name = "app_report/cash_flow.html"
 
     def get(self, request, *args, **kwargs):
+        """Render the cash-flow statement."""
         entity, periods, period = self._resolve(kwargs["entity_pk"])
         context = self._base_context(entity, periods, period)
         context["statement"] = reporting.cash_flow(period) if period else None
@@ -123,6 +128,7 @@ class EquityStatementView(_ReportBaseView):
     template_name = "app_report/equity_statement.html"
 
     def get(self, request, *args, **kwargs):
+        """Render the statement of changes in equity."""
         entity, periods, period = self._resolve(kwargs["entity_pk"])
         context = self._base_context(entity, periods, period)
         context["statement"] = reporting.equity(period) if period else None

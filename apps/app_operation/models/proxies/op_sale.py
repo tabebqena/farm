@@ -54,23 +54,28 @@ class SaleOperation(AdjustableTransactionMixin, Operation):
 
     @property
     def payment_source_fund(self):
+        """The client fund paying for the sale."""
         return self.source  # clean_source ensures this is a client (pays)
 
     @property
     def payment_target_fund(self):
+        """The project fund collecting the sale proceeds."""
         return (
             self.destination
         )  # clean_destination ensures this is a project (collects)
 
     @property
     def project(self):
+        """The project selling the stock (the destination entity)."""
         return self.destination
 
     @property
     def client(self):
+        """The client buying the stock."""
         return self.source
 
     def clean_source(self):
+        """Require an active client of the destination project."""
         if not self.source.is_client:
             raise ValidationError("Sale source must be a Client entity.")
         from apps.app_entity.models import Stakeholder, StakeholderRole
@@ -87,6 +92,7 @@ class SaleOperation(AdjustableTransactionMixin, Operation):
 
     @classmethod
     def get_related_entities(cls, url_entity, config):
+        """Entities registered as active clients of the project."""
         from apps.app_entity.models import Stakeholder, StakeholderRole
 
         relationships = (
@@ -99,6 +105,7 @@ class SaleOperation(AdjustableTransactionMixin, Operation):
         return [s.target for s in relationships]
 
     def clean_destination(self):
+        """Require the sale destination to be a Project entity."""
         if not self.destination.is_project:
             raise ValidationError("Sale destination must be a Project entity.")
 

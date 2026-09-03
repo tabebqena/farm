@@ -78,6 +78,13 @@ def _compute_amount(has_invoice, formset, raw_amount):
 
 
 class OperationCreateView(View):
+    """Create a simple operation through its proxy class in one atomic step.
+
+    Renders the generic operation form (with its item formsets) for a resolved
+    project/operation-type; concrete subclasses (birth, death, sale) only set
+    ``proxy_cls``.
+    """
+
     template_name = "app_operation/generic_form.html"
 
     # Declared here for type-checker visibility; assigned in dispatch() after guard.
@@ -90,6 +97,7 @@ class OperationCreateView(View):
     # ---- lifecycle ----------------------------------------------------------
 
     def _setup_view(self, pk, request):
+        """Resolve the canonical operation type and per-view data."""
         # A proxy may serve multiple operation types (e.g. CorrectionOperation
         # serves both CORRECTION_CREDIT and CORRECTION_DEBIT), so resolve the
         # canonical type from the URL slug when the proxy supports it; otherwise
@@ -109,6 +117,7 @@ class OperationCreateView(View):
         self.project = self.data["url_entity"]
 
     def dispatch(self, request, *args, **kwargs):
+        """Resolve the proxy class from the URL and set up the view."""
         logger.debug(
             f"Setting up operation creation view | op_type={kwargs.get('op_type')} | "
             f"pk={kwargs.get('pk')} | user={request.user.username}"
@@ -147,6 +156,7 @@ class OperationCreateView(View):
     # ---- HTTP handlers ------------------------------------------------------
 
     def get(self, request, *args, **kwargs):
+        """Render the operation creation form."""
         logger.debug(
             f"Rendering operation creation form | op_type={self.canonical_op_type} | "
             f"has_invoice={self.has_invoice}"
@@ -158,6 +168,7 @@ class OperationCreateView(View):
         )
 
     def post(self, request, *args, **kwargs):
+        """Validate and create the operation from the submitted form."""
         logger.debug(
             f"Processing operation creation | op_type={self.canonical_op_type} | "
             f"user={request.user.username}"
@@ -340,6 +351,7 @@ class OperationCreateView(View):
     # ---- view helpers (no business logic) -----------------------------------
 
     def _make_formset(self, data=None, instance=None):
+        """Build the invoice-item formset (or None for non-invoice operations)."""
         if not self.has_invoice:
             return None
         return _build_formset(
@@ -378,6 +390,7 @@ class OperationCreateView(View):
         selected_category_id=None,
         errors=None
     ):
+        """Build the template context for the operation create form."""
         categories = []
         if self.proxy_cls.has_category:
             categories = FinancialCategory.objects.filter(

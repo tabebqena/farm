@@ -133,6 +133,7 @@ class OperationDetailView(View):
         return result
 
     def get(self, request, *args, **kwargs):
+        """Render the operation detail page (transactions, items, settlement)."""
         pk = kwargs["pk"]
         logger.debug(
             f"Fetching operation details | operation_pk={pk} | user={request.user.username}"

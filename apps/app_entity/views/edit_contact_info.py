@@ -33,6 +33,7 @@ class EditContactInfoView(View):
         return contact, entity, None
 
     def get(self, request, *args, **kwargs):
+        """Render the contact-edit form."""
         contact, entity, response = self._setup(kwargs["pk"])
         if response is not None:
             return response
@@ -46,6 +47,7 @@ class EditContactInfoView(View):
         return render(request, "app_entity/contact_form.html", context)
 
     def post(self, request, *args, **kwargs):
+        """Update the contact, demoting other primaries when needed."""
         contact, entity, response = self._setup(kwargs["pk"])
         if response is not None:
             return response

@@ -11,17 +11,27 @@ from django.utils.translation import gettext_lazy as _
 
 
 class OperationQuerySet(models.QuerySet):
+    """QuerySet that blocks bulk writes and can re-cast rows to proxies.
+
+    Bulk ``update`` / ``bulk_create`` / ``delete`` raise (``delete`` is allowed
+    when ``DEBUG`` is on); :meth:`cast` re-types each result into its operation
+    proxy subclass.
+    """
+
     def update(self, **kwargs):
+        """Block direct bulk updates; require validated individual saves."""
         raise NotImplementedError(
             _("Direct .update() is blocked. Use individual .save() for validation.")
         )
 
     def bulk_create(self, objs, **kwargs):
+        """Block bulk creation; require validated individual saves."""
         raise NotImplementedError(
             _("Direct .bulk_create() is blocked. Save objects individually.")
         )
 
     def delete(self):
+        """Block bulk deletes outside ``DEBUG``."""
         if settings.DEBUG:
             return super().delete()
         raise NotImplementedError(_("Bulk delete is blocked."))
@@ -43,7 +53,10 @@ class OperationQuerySet(models.QuerySet):
 
 
 class OperationManager(models.Manager):
+    """Default manager: non-soft-deleted operations, with proxy casting."""
+
     def get_queryset(self):
+        """Return non-soft-deleted operations only."""
         return OperationQuerySet(self.model, using=self._db).filter(
             deleted_at__isnull=True
         )
@@ -62,4 +75,5 @@ class AllOperationManager(models.Manager):
     """Manager that includes soft-deleted records."""
 
     def get_queryset(self):
+        """Return all operations, including soft-deleted ones."""
         return OperationQuerySet(self.model, using=self._db)

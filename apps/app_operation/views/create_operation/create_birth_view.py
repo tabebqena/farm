@@ -11,6 +11,8 @@ from . import OperationCreateView
 
 
 class BirthCreateView(OperationCreateView):
+    """Create a birth operation that adds new animals to the herd."""
+
     proxy_cls = BirthOperation
     template_name = "app_operation/birth_form.html"
 

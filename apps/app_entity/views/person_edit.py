@@ -46,6 +46,7 @@ class PersonEditView(View):
         return entity, None
 
     def get(self, request, *args, **kwargs):
+        """Render the person-edit form."""
         entity, response = self._setup(kwargs["pk"])
         if response is not None:
             return response
@@ -59,6 +60,7 @@ class PersonEditView(View):
         return render(request, "app_entity/person_form.html", context)
 
     def post(self, request, *args, **kwargs):
+        """Update the person entity from a valid form submission."""
         entity, response = self._setup(kwargs["pk"])
         if response is not None:
             return response

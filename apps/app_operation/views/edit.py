@@ -49,6 +49,7 @@ class OperationUpdateView(View):
         return operation, None
 
     def get(self, request, *args, **kwargs):
+        """Render the operation edit form."""
         operation, response = self._setup(kwargs["pk"])
         if response is not None:
             return response
@@ -62,6 +63,7 @@ class OperationUpdateView(View):
         return render(request, "app_operation/generic_edit_form.html", context)
 
     def post(self, request, *args, **kwargs):
+        """Update the operation's non-financial fields from the form."""
         operation, response = self._setup(kwargs["pk"])
         if response is not None:
             return response

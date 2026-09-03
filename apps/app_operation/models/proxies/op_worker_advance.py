@@ -42,18 +42,22 @@ class WorkerAdvanceOperation(
 
     @property
     def payment_source_fund(self):
+        """The project fund advancing the money."""
         return self.source  # clean_source ensures this is a project (advances)
 
     @property
     def payment_target_fund(self):
+        """The worker fund receiving the advance."""
         return self.destination  # clean_destination ensures this is an active worker
 
     def clean_source(self):
+        """Require the advance source to be a Project entity."""
         if not self.source.is_project:
             raise ValidationError("Worker advance source should be a project.")
 
     @classmethod
     def get_related_entities(cls, url_entity, config):
+        """Workers registered as active in the project."""
         from apps.app_entity.models import Stakeholder, StakeholderRole
 
         relationships = (
@@ -66,6 +70,7 @@ class WorkerAdvanceOperation(
         return [s.target for s in relationships]
 
     def clean_destination(self):
+        """Require an active worker of the source project."""
         if not self.destination.is_person:
             raise ValidationError("Worker Advance destination must be a person entity.")
         from apps.app_entity.models import Stakeholder, StakeholderRole
@@ -81,6 +86,7 @@ class WorkerAdvanceOperation(
             )
 
     def clean(self):
+        """Check the project can pay the advance amount on create."""
         super().clean()
         if self.source_id:
             # Route through can_pay so the virtual (system/world) exemption and the
@@ -92,6 +98,7 @@ class WorkerAdvanceOperation(
                 )
 
     def _requires_transaction_reversal(self, all_txs) -> bool:
+        """Block reversal while active advance repayments still exist."""
         if super()._requires_transaction_reversal(all_txs):
             return True
         repayments = all_txs.filter(

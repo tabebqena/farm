@@ -17,6 +17,7 @@ class EntityListView(View):
     """List entities with filtering and search."""
 
     def get(self, request, *args, **kwargs):
+        """Render the filtered, searchable list of entities."""
         logger.debug(f"Building entity list query | user={request.user.username}")
         queryset = Entity.objects
 

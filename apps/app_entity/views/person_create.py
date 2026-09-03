@@ -18,6 +18,7 @@ class PersonCreateView(View):
     """Create a new Person entity."""
 
     def get(self, request, *args, **kwargs):
+        """Render an empty person-creation form."""
         logger.debug("GET request - initializing empty person form")
         form = PersonForm()
         return render(
@@ -25,6 +26,7 @@ class PersonCreateView(View):
         )
 
     def post(self, request, *args, **kwargs):
+        """Create a new Person entity from a valid form submission."""
         logger.debug(
             f"Processing person creation request | user={request.user.username} | "
             f"method=POST"

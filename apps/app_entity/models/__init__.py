@@ -248,6 +248,7 @@ class Stakeholder(ImmutableMixin, BaseModel):
         return super().delete(*args, **kwargs)
 
     def clean(self) -> None:
+        """Validate the parent/target entity types and role compatibility."""
         allowed = {EntityType.PERSON, EntityType.PROJECT}
         if self.parent.entity_type not in allowed:
             raise ValidationError(
@@ -331,34 +332,42 @@ class Entity(ImmutableMixin, BaseModel):
 
     @property
     def is_system(self) -> bool:
+        """True for the singleton System entity."""
         return self.entity_type == EntityType.SYSTEM
 
     @property
     def is_world(self) -> bool:
+        """True for the singleton World entity."""
         return self.entity_type == EntityType.WORLD
 
     @property
     def is_virtual(self) -> bool:
+        """True for the virtual System or World entities."""
         return self.entity_type in (EntityType.SYSTEM, EntityType.WORLD)
 
     @property
     def is_project(self) -> bool:
+        """True for Project entities."""
         return self.entity_type == EntityType.PROJECT
 
     @property
     def is_person(self) -> bool:
+        """True for Person entities."""
         return self.entity_type == EntityType.PERSON
 
     def get_display_name(self):
+        """Human-readable name for templates/links."""
         return self.name
 
     def get_absolute_url(self):
+        """URL of the entity's detail page."""
         return reverse("entity_detail", kwargs={"pk": self.pk})
 
     def __str__(self) -> str:
         return self.name or _("Entity #%(pk)s") % {"pk": self.pk}
 
     def clean(self) -> None:
+        """Enforce type rules and the System/World singletons on create."""
         logger.debug(
             f"Entity.clean() | is_new={self.pk is None} | pk={self.pk} | "
             f"entity_type={self.entity_type} | name={self.name[:50] if self.name else ''}"
@@ -414,12 +423,12 @@ class Entity(ImmutableMixin, BaseModel):
         start_date=None,
         end_date=None,
     ):
+        """Create an entity (person/project/system/world) with proper defaults."""
         with db_transaction.atomic():
             # Resolve entity_type from legacy kwargs or owner type
 
             e = Entity()
             e.entity_type = entity_type
-
             # Canonical names for virtual singletons
             if entity_type == EntityType.SYSTEM:
                 name = "System"
@@ -516,6 +525,7 @@ class Entity(ImmutableMixin, BaseModel):
         ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
 
     def payables_at(self, dt) -> Decimal:
+        """Amount this entity owes as of *dt* (net, reversal-aware)."""
         from apps.app_transaction.transaction_type import TransactionType as T
 
         increase_as_source = [
@@ -549,6 +559,7 @@ class Entity(ImmutableMixin, BaseModel):
         )
 
     def receivables_at(self, dt) -> Decimal:
+        """Amount owed to this entity as of *dt* (net, reversal-aware)."""
         from apps.app_transaction.transaction_type import TransactionType as T
 
         increase_as_source = [T.WORKER_ADVANCE_PAYMENT, T.LOAN_PAYMENT]
@@ -654,23 +665,27 @@ class Entity(ImmutableMixin, BaseModel):
 
     @property
     def balance(self) -> Decimal:
+        """Current fund balance (as of today)."""
         from datetime import date
 
         return self.balance_at(date.today())
 
     @property
     def payables(self) -> Decimal:
+        """Current payables (as of today)."""
         from datetime import date
 
         return self.payables_at(date.today())
 
     @property
     def receivables(self) -> Decimal:
+        """Current receivables (as of today)."""
         from datetime import date
 
         return self.receivables_at(date.today())
 
     def can_pay(self, amount: Decimal) -> bool:
+        """True if the entity is active and (for real internal funds) can cover *amount*."""
         if not self.active:
             return False
         # Only real (non-virtual) internal funds are balance-checked. External
@@ -681,6 +696,11 @@ class Entity(ImmutableMixin, BaseModel):
         return self.balance >= amount
 
     def save(self, *args, **kwargs):
+        """Persist the entity and keep its open financial period in sync.
+
+        On activation/creation an open period is auto-created; on deactivation
+        the open period is closed.
+        """
         is_new = self.pk is None
         from apps.app_operation.models.period import FinancialPeriod
 

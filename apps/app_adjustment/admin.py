@@ -34,6 +34,8 @@ class FinancialAdjustmentTypeFilter(admin.SimpleListFilter):
 
 @admin.register(Adjustment)
 class AdjustmentAdmin(admin.ModelAdmin):
+    """Admin for :class:`Adjustment` with a user-facing financial-type filter."""
+
     list_display = ["id", "operation", "type", "amount", "date", "officer"]
     list_filter = [FinancialAdjustmentTypeFilter]
     readonly_fields = ["created_at", "updated_at"]

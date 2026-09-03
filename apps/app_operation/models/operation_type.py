@@ -10,6 +10,8 @@ from django.db import models
 
 
 class OperationType(models.TextChoices):
+    """Canonical catalog of every recordable farm operation."""
+
     CASH_INJECTION = "CASH_INJECTION", "Cash Injection"
     CASH_WITHDRAWAL = "CASH_WITHDRAWAL", "Cash Withdrawal"
     PROJECT_FUNDING = "PROJECT_FUNDING", "Project Funding"

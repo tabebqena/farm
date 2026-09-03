@@ -22,6 +22,7 @@ class OperationListView(View):
     """List all operations involving a person."""
 
     def get(self, request, *args, **kwargs):
+        """Render the operations involving an entity."""
         person_pk = kwargs["person_pk"]
         logger.debug(
             f"Fetching entity for operation listing | entity_pk={person_pk} | "

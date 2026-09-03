@@ -25,6 +25,8 @@ class MedicalRecord(BaseModel):
     """
 
     class RecordType(models.TextChoices):
+        """Kind of health/veterinary record."""
+
         CHECKUP = "CHECKUP", _("Check-up")
         VACCINATION = "VACCINATION", _("Vaccination")
         TREATMENT = "TREATMENT", _("Treatment")
@@ -32,6 +34,8 @@ class MedicalRecord(BaseModel):
         OTHER = "OTHER", _("Other")
 
     class HealthStatus(models.TextChoices):
+        """Animal health state recorded on a medical record."""
+
         HEALTHY = "HEALTHY", _("Healthy")
         SICK = "SICK", _("Sick")
         UNDER_TREATMENT = "UNDER_TREATMENT", _("Under treatment")

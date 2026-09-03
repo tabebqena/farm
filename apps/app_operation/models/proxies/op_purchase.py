@@ -54,26 +54,32 @@ class PurchaseOperation(AdjustableTransactionMixin, Operation):
 
     @property
     def payment_source_fund(self):
+        """The project fund paying for the purchase."""
         return self.source  # clean_source ensures this is a project (pays)
 
     @property
     def payment_target_fund(self):
+        """The vendor fund receiving the purchase payment."""
         return self.destination  # clean_destination ensures this is a vendor (receives)
 
     @property
     def project(self):
+        """The project buying the stock (the source entity)."""
         return self.source
 
     @property
     def vendor(self):
+        """The vendor selling the stock."""
         return self.destination
 
     def clean_source(self):
+        """Require the purchase source to be a Project entity."""
         if not self.source.is_project:
             raise ValidationError("Purchase source must be a Project entity.")
 
     @classmethod
     def get_related_entities(cls, url_entity, config):
+        """External entities registered as active vendors of the project."""
         from apps.app_entity.models import Stakeholder, StakeholderRole
 
         # Internal entities cannot be vendors — purchases are external-only.
@@ -88,6 +94,7 @@ class PurchaseOperation(AdjustableTransactionMixin, Operation):
         return [s.target for s in relationships]
 
     def clean_destination(self):
+        """Require an active, non-internal vendor of the source project."""
         if not self.destination.is_vendor:
             raise ValidationError("Purchase destination must be a Vendor entity.")
         # Internal entities cannot be vendors — purchases are external-only and

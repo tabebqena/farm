@@ -14,6 +14,12 @@ from django.db import models
 # Transaction Types
 # -----------------------------
 class TransactionType(models.TextChoices):
+    """Catalog of every money movement / obligation the system records.
+
+    Groups issuances, payments, repayments and adjustments across the purchase,
+    sale, funding, loan and expense flows.
+    """
+
     # --- Operational ---
 
     # Source: Project | Destination: Vendor

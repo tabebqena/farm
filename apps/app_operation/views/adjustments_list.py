@@ -22,6 +22,7 @@ class AdjustmentsListView(View):
     """
 
     def get(self, request, *args, **kwargs):
+        """Render all accounting + item adjustments for an operation."""
         pk = kwargs["pk"]
         logger.debug(
             f"Fetching operation for adjustments list | operation_pk={pk} | "

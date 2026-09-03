@@ -11,6 +11,8 @@ from . import OperationCreateView
 
 
 class DeathCreateView(OperationCreateView):
+    """Create a death operation for an individual animal."""
+
     proxy_cls = DeathOperation
     template_name = "app_operation/death_form.html"
 

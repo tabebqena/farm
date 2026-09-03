@@ -32,14 +32,17 @@ class InternalTransferOperation(OneShotTransactionMixin, Operation):
 
     @property
     def payment_source_fund(self):
+        """The internal entity fund being debited."""
         return self.source  # clean ensures this is an internal entity
 
     @property
     def payment_target_fund(self):
+        """The internal entity fund being credited."""
         return self.destination  # clean ensures this is an internal entity
 
     @classmethod
     def get_related_entities(cls, url_entity, config):
+        """Other internal person entities available as transfer partners."""
         from apps.app_entity.models import Entity
 
         return (
@@ -49,6 +52,7 @@ class InternalTransferOperation(OneShotTransactionMixin, Operation):
         )
 
     def clean(self):
+        """Require internal, non-system/world entities and sufficient source funds."""
         if not self.source.is_internal:
             raise ValidationError(
                 "Internal Transfer source must be an internal entity."

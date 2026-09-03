@@ -11,6 +11,8 @@ from .models import MedicalRecord
 
 @admin.register(MedicalRecord)
 class MedicalRecordAdmin(admin.ModelAdmin):
+    """Admin for :class:`MedicalRecord` with list/filter/search options."""
+
     list_display = (
         "product",
         "date",

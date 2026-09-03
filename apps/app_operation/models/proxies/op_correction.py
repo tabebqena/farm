@@ -82,45 +82,56 @@ class CorrectionOperation(OneShotTransactionMixin, Operation):
     # ------------------------------------------------------------------
 
     def _variant(self):
+        """Per-type config dict for this row's operation type."""
         return self._VARIANT_CONFIG[self.operation_type]
 
     @property
     def _issuance_transaction_type(self):
+        """The issuance transaction type for this variant."""
         return self._variant()["_issuance_transaction_type"]
 
     @property
     def _payment_transaction_type(self):
+        """The payment transaction type for this variant."""
         return self._variant()["_payment_transaction_type"]
 
     @property
     def label(self):
+        """Display label for this variant."""
         return self._variant()["label"]
 
     @property
     def theme_color(self):
+        """Bootstrap theme colour for this variant."""
         return self._variant()["theme_color"]
 
     @property
     def theme_icon(self):
+        """Bootstrap icon name for this variant."""
         return self._variant()["theme_icon"]
 
     @property
     def _source_role(self):
+        """How the source entity is resolved for this variant."""
         return self._variant()["_source_role"]
 
     @property
     def _dest_role(self):
+        """How the destination entity is resolved for this variant."""
         return self._variant()["_dest_role"]
 
     @property
     def payment_source_fund(self):
+        """The paying fund: system (credit) or project (debit)."""
         return self.source  # system (credit) or project (debit)
 
     @property
     def payment_target_fund(self):
+        """The receiving fund: project (credit) or system (debit)."""
         return self.destination  # project (credit) or system (debit)
 
     def clean_source(self):
+        """Enforce the correct source entity type for each correction variant."""
         if self.operation_type == OperationType.CORRECTION_CREDIT:
             if not self.source.is_system:
                 raise ValidationError(
@@ -133,6 +144,7 @@ class CorrectionOperation(OneShotTransactionMixin, Operation):
                 )
 
     def clean_destination(self):
+        """Enforce the correct destination entity type for each correction variant."""
         if self.operation_type == OperationType.CORRECTION_CREDIT:
             if not self.destination.is_project:
                 raise ValidationError(

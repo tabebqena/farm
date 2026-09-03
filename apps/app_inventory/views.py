@@ -152,6 +152,7 @@ class StockDetailView(View):
         )
 
     def get(self, request, *args, **kwargs):
+        """Render the physical stock portfolio for an entity."""
         entity_pk = kwargs["entity_pk"]
         entity = get_object_or_404(
             Entity, pk=entity_pk, error_message="Entity not found or has been deleted."
@@ -284,6 +285,7 @@ class StockHistoryView(View):
         ]
 
     def get(self, request, *args, **kwargs):
+        """Render the filtered movement history for an entity's stock."""
         from django.core.paginator import Paginator
 
         from apps.app_inventory.stock import history_direction_q
@@ -412,6 +414,7 @@ class QuickConsumeView(View):
         return (quantity, unit_price, date, description), None
 
     def get(self, request, *args, **kwargs):
+        """Guard quick-consume GETs and bounce back to the stock detail page."""
         entity_pk = kwargs["entity_pk"]
         if not request.user.is_staff:
             return self._consume_error_redirect(
@@ -420,6 +423,7 @@ class QuickConsumeView(View):
         return redirect("stock_detail", entity_pk=entity_pk)
 
     def post(self, request, *args, **kwargs):
+        """Create a consumption operation from the one-step stock form."""
         from decimal import Decimal
 
         from apps.app_entity.models import EntityType
@@ -500,6 +504,7 @@ class ProductDetailView(View):
     """Display a single product's detail (movement-based stock state)."""
 
     def get(self, request, *args, **kwargs):
+        """Render a product's detail page with its physical stock state."""
         from apps.app_inventory.stock import movement_state
 
         pk = kwargs["pk"]
@@ -532,6 +537,7 @@ class ProjectProductTemplatesSetupView(View):
     """
 
     def _setup(self, entity_pk):
+        """Load the target entity and check officer permission."""
         try:
             target_entity = get_object_or_404(
                 Entity, pk=entity_pk, error_message="Entity not found or has been deleted."
@@ -544,6 +550,7 @@ class ProjectProductTemplatesSetupView(View):
         return target_entity
 
     def get(self, request, *args, **kwargs):
+        """Render the product-template toggle form for an entity."""
         target_entity = self._setup(kwargs["entity_pk"])
 
         all_templates = ProductTemplate.objects.all().order_by(
@@ -564,6 +571,7 @@ class ProjectProductTemplatesSetupView(View):
         )
 
     def post(self, request, *args, **kwargs):
+        """Sync the entity's assigned product templates from the submitted ids."""
         entity_pk = kwargs["entity_pk"]
         target_entity = self._setup(entity_pk)
 
@@ -606,6 +614,7 @@ class ProductTemplateDetailView(View):
     """Display a single product template's detail."""
 
     def get(self, request, *args, **kwargs):
+        """Render a single product-template detail page."""
         pk = kwargs["pk"]
         template = get_object_or_404(
             ProductTemplate.objects.prefetch_related(
@@ -636,6 +645,7 @@ class EntityProductTemplatesListView(View):
     """List product templates assigned to an entity."""
 
     def get(self, request, *args, **kwargs):
+        """Render the list of product templates assigned to an entity."""
         entity_pk = kwargs["entity_pk"]
         entity = get_object_or_404(
             Entity, pk=entity_pk, error_message="Entity not found or has been deleted."
@@ -663,6 +673,7 @@ class CreateProductTemplateView(View):
     """
 
     def get(self, request, *args, **kwargs):
+        """Render an empty product-template creation form."""
         if not request.user.is_staff:
             raise Http404("Not an officer")
 
@@ -678,6 +689,7 @@ class CreateProductTemplateView(View):
         )
 
     def post(self, request, *args, **kwargs):
+        """Create a product template from a valid form submission."""
         if not request.user.is_staff:
             raise Http404("Not an officer")
 
@@ -723,6 +735,7 @@ class _InventoryMovementCreateView(View):
     """
 
     def get_expected_type(self):
+        """Return the operation type this view creates movements for."""
         raise NotImplementedError()
 
     def _render_movement_form(self, operation, formset, invoice_items_json):
@@ -832,6 +845,7 @@ class _InventoryMovementCreateView(View):
         return None
 
     def _handle(self, request, *args, **kwargs):
+        """Route GET/POST movement creation for the expected operation type."""
         from apps.app_operation.models.operation import Operation
 
         operation_pk = kwargs["operation_pk"]
@@ -878,9 +892,11 @@ class _InventoryMovementCreateView(View):
         return self._render_movement_form(operation, formset, invoice_items_json)
 
     def get(self, request, *args, **kwargs):
+        """Render the movement form (delegates to ``_handle``)."""
         return self._handle(request, *args, **kwargs)
 
     def post(self, request, *args, **kwargs):
+        """Create movements from the submitted formset (delegates to ``_handle``)."""
         return self._handle(request, *args, **kwargs)
 
 
@@ -896,6 +912,7 @@ class CreatePurchaseMovementView(_InventoryMovementCreateView):
     """
 
     def get_expected_type(self):
+        """PURCHASE receive movements."""
         from apps.app_operation.models.operation_type import OperationType
 
         return OperationType.PURCHASE
@@ -910,6 +927,7 @@ class CreateSaleMovementView(_InventoryMovementCreateView):
     """
 
     def get_expected_type(self):
+        """SALE dispatch movements."""
         from apps.app_operation.models.operation_type import OperationType
 
         return OperationType.SALE
@@ -924,6 +942,7 @@ class CreateInventoryMovementRedirectView(View):
     """
 
     def dispatch(self, request, *args, **kwargs):
+        """Redirect to the type-specific purchase/sale movement view."""
         from apps.app_operation.models.operation import Operation
         from apps.app_operation.models.operation_type import OperationType
 
@@ -946,6 +965,7 @@ class ReverseInventoryMovementLineView(View):
     """
 
     def _ensure_officer(self):
+        """Redirect non-officers away with an error message."""
         if not self.request.user.is_staff:
             messages.error(
                 self.request, _("You must be an officer to reverse movement lines.")
@@ -954,6 +974,7 @@ class ReverseInventoryMovementLineView(View):
         return None
 
     def _load_line(self, pk):
+        """Load the movement line by primary key."""
         return get_object_or_404(
             InventoryMovementLine,
             pk=pk,
@@ -961,6 +982,7 @@ class ReverseInventoryMovementLineView(View):
         )
 
     def _already_reversed(self, line):
+        """Return a redirect when the line has already been reversed."""
         if InventoryMovementLine.objects.filter(reversal_of=line).exists():
             messages.warning(
                 self.request, _("This movement line has already been reversed.")
@@ -969,6 +991,7 @@ class ReverseInventoryMovementLineView(View):
         return None
 
     def get(self, request, *args, **kwargs):
+        """Render the single-line reversal confirmation page."""
         response = self._ensure_officer()
         if response is not None:
             return response
@@ -983,6 +1006,7 @@ class ReverseInventoryMovementLineView(View):
         )
 
     def post(self, request, *args, **kwargs):
+        """Reverse the movement line after confirmation."""
         response = self._ensure_officer()
         if response is not None:
             return response
@@ -1016,6 +1040,7 @@ class BatchReverseInventoryMovementLinesView(View):
     """
 
     def _ensure_officer(self):
+        """Redirect non-officers away with an error message."""
         if not self.request.user.is_staff:
             messages.error(
                 self.request, _("You must be an officer to reverse movements.")
@@ -1024,6 +1049,7 @@ class BatchReverseInventoryMovementLinesView(View):
         return None
 
     def _load_lines(self, group_key):
+        """Load the non-reversed lines sharing the group key."""
         lines = InventoryMovementLine.objects.filter(
             group_key=group_key,
             reversal_of__isnull=True,
@@ -1041,6 +1067,7 @@ class BatchReverseInventoryMovementLinesView(View):
         return lines, None
 
     def get(self, request, *args, **kwargs):
+        """Render the batch-reversal confirmation page."""
         response = self._ensure_officer()
         if response is not None:
             return response
@@ -1056,6 +1083,7 @@ class BatchReverseInventoryMovementLinesView(View):
         )
 
     def post(self, request, *args, **kwargs):
+        """Reverse all lines sharing the group key after confirmation."""
         response = self._ensure_officer()
         if response is not None:
             return response
@@ -1128,6 +1156,7 @@ class RegisterDeferredMovementsView(View):
         return operation, None
 
     def get(self, request, *args, **kwargs):
+        """Render the deferred-movement registration form."""
         from apps.app_inventory.forms import DeferredMovementForm
 
         operation, response = self._setup(kwargs["operation_pk"])
@@ -1229,6 +1258,7 @@ class RegisterDeferredMovementsView(View):
         )
 
     def post(self, request, *args, **kwargs):
+        """Register deferred movement lines for the selected invoice item."""
         from apps.app_inventory.forms import DeferredMovementForm
 
         operation, response = self._setup(kwargs["operation_pk"])

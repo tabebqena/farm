@@ -58,6 +58,7 @@ class BaseModel(models.Model):
         abstract = True
 
     def __setattr__(self, name, value):
+        """Guard the ``deletable`` flag so only a superuser can change it."""
         # 1. Check if the attribute being changed is 'deletable'
         # 2. Check if the object is already in the DB (has a PK)
         if name == "deletable" and self.pk is not None:
@@ -112,10 +113,12 @@ class BaseModel(models.Model):
         return super().clean_fields(exclude)
 
     def post_save(self, post_save_tasks):
+        """Run the queued post-save tasks after a successful ``save()``."""
         for f, f_args, f_kwargs in post_save_tasks:
             f(*f_args, **f_kwargs)
 
     def save(self, *args, **kwargs):
+        """Full-validate, default ``deletable`` on new rows, then run post-save tasks."""
         self.full_clean()
         is_new = self.pk is None
         if is_new and not isinstance(self.deletable, bool):
@@ -131,6 +134,11 @@ class BaseModel(models.Model):
         return rv
 
     def delete(self, *args, **kwargs):
+        """Hard-delete for superusers, otherwise soft-delete via ``deleted_at``.
+
+        Bulk deletion is blocked unless ``deletable`` is set and the caller is
+        a superuser.
+        """
         if conf.settings.DEBUG:
             return super().delete(*args, **kwargs)
         if not self.deletable:
@@ -164,10 +172,12 @@ class ReversableModel(HasRelatedTransactions, BaseModel):
 
     @property
     def is_reversed(self) -> bool:
+        """True when this record already has a reversal counter-document."""
         return getattr(self, "reversed_by", None) is not None
 
     @property
     def is_reversal(self) -> bool:
+        """True when this record is itself a reversal counter-document."""
         return getattr(self, "reversal_of", None) is not None
 
     def _get_issuance_transaction_type(self):
@@ -179,6 +189,7 @@ class ReversableModel(HasRelatedTransactions, BaseModel):
         return getattr(self, "_payment_transaction_type", None)
 
     def _validate_requires_not_reversed(self):
+        """Raise if this record has already been reversed."""
         if self.is_reversed:
             raise ValidationError(
                 _("This invoice is reversed by %(reversed_by)s.")
@@ -186,10 +197,12 @@ class ReversableModel(HasRelatedTransactions, BaseModel):
             )
 
     def _validate_requires_not_reversal(self):
+        """Raise if this record is itself a reversal counter-document."""
         if self.is_reversal:
             raise ValidationError(_("This invoice is a reversal."))
 
     def _validate_can_be_reversed(self):
+        """Raise unless this record may be reversed (not a reversal, not reversed)."""
         if self.reversal_of is not None:
             raise ValidationError(
                 _(
@@ -203,6 +216,7 @@ class ReversableModel(HasRelatedTransactions, BaseModel):
             raise ValidationError(_("The transaction is already reversed."))
 
     def _get_reverse_kwargs(self, **overwrite):
+        """Build the field kwargs for a mirror record, honouring ``_reverse_*`` hooks."""
         fields = self._meta.concrete_fields
         kwargs = {}
 
@@ -222,6 +236,7 @@ class ReversableModel(HasRelatedTransactions, BaseModel):
         return kwargs
 
     def _requires_transaction_reversal(self, all_txs: models.QuerySet) -> bool:
+        """True when active explicit transactions still block the reversal."""
         # All transactions that are reversable and
         # should be explicity reversed
         # by the user before reversing thier document.
@@ -260,6 +275,12 @@ class ReversableModel(HasRelatedTransactions, BaseModel):
         return []
 
     def reverse(self, officer, date=None, reason=None):
+        """Reverse this record: guards, mirrors it and reverses its transactions.
+
+        Validates that no explicit transactions or adjustments remain active,
+        reverses the reversible ones, then clones the record linked via
+        ``reversal_of``.
+        """
         self._validate_can_be_reversed()
         date = date or timezone.now()
         # Identify related transactions (payments/collections/transactions)

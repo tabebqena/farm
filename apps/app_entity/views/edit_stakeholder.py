@@ -33,6 +33,7 @@ class EditStakeholderView(View):
         return stakeholder, parent, None
 
     def get(self, request, *args, **kwargs):
+        """Render the stakeholder-edit form."""
         stakeholder, parent, response = self._setup(kwargs["pk"])
         if response is not None:
             return response
@@ -40,6 +41,7 @@ class EditStakeholderView(View):
         return render(request, "app_entity/stakeholder_form.html", context)
 
     def post(self, request, *args, **kwargs):
+        """Update the stakeholder's notes and active state."""
         stakeholder, parent, response = self._setup(kwargs["pk"])
         if response is not None:
             return response

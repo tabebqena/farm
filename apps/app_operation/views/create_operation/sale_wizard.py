@@ -85,10 +85,12 @@ def _load_project(request, pk):
 
 
 def cancel_sale_wizard_view(request, pk):
+    """Cancel the sale wizard and clear its session."""
     return SALE_WIZARD.cancel(request, pk)
 
 
 def sale_wizard_view(request, pk, step=1):
+    """Route a sale-wizard step (GET render or POST handler)."""
     project, redir = _load_project(request, pk)
     if redir:
         return redir
@@ -101,6 +103,7 @@ def sale_wizard_view(request, pk, step=1):
 
 
 def sale_invoice_view(request, pk):
+    """Render the sale invoice hub for the session items."""
     project, redir = _load_project(request, pk)
     if redir:
         return redir
@@ -265,6 +268,7 @@ def sale_add_item_view(request, pk, idx=None):
 
 
 def sale_delete_item_view(request, pk, idx):
+    """Delete the session invoice item at *idx*."""
     return SALE_WIZARD.delete_item(request, pk, idx)
 
 
@@ -286,6 +290,7 @@ def _do_submit(request, project, session_data):
 
 
 def sale_submit_view(request, pk):
+    """Submit the session invoice to create the SaleOperation."""
     if request.method != "POST":
         return redirect("sale_invoice", pk=pk)
 

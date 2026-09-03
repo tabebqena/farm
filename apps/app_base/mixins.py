@@ -31,6 +31,12 @@ from .managers import SafeQuerySet
 
 
 class BaseModelMixin:
+    """Base for model mixins.
+
+    Provides the ``pk`` / ``all_objects`` type annotations and a plain
+    ``save()`` passthrough that concrete mixins chain via ``super()``.
+    """
+
     pk: models.BigAutoField
     all_objects: models.Manager
 
@@ -45,12 +51,18 @@ class ImmutableMixin(BaseModelMixin):
 
     @property
     def immutable_field_names(self):
+        """Names of the fields this model protects from later mutation."""
         rv = []
         for f in self._immutable_fields:
             rv.append(f if isinstance(f, str) else f[0])
         return rv
 
     def save(self, *args, **kwargs):
+        """Block updates to immutable fields once set, unless permitted.
+
+        ``ALLOW_SET`` / ``NULL_VALUES`` per-field rules may relax the guard for
+        explicitly whitelisted transitions.
+        """
         if self.pk and self._immutable_fields:
             original = self.__class__.all_objects.only(*self.immutable_field_names).get(
                 pk=self.pk
@@ -78,6 +90,7 @@ class AmountCleanMixin(BaseModelMixin):
     _amount_name = "amount"
 
     def clean(self) -> None:
+        """Reject amounts that are zero or negative."""
         amount = getattr(
             self, self._amount_name
         )  # don't add default, let the code to fail if the var name is incorrect
@@ -89,7 +102,10 @@ class AmountCleanMixin(BaseModelMixin):
 
 
 class OfficerMixin(BaseModelMixin):
+    """Require the linked ``officer`` user to be an active staff member."""
+
     def clean(self):
+        """Require the linked officer to be an active staff user."""
         if not self.officer.is_staff:
             raise ValidationError(_("Officer should be a staff user."))
         if not self.officer.is_active:
@@ -105,6 +121,7 @@ class AdjustableMixin(BaseModelMixin):
 
     @property
     def effective_amount(self):
+        """Net amount after applying active (non-reversed) adjustments."""
         if not hasattr(self, self._amount_field_name):
             raise AttributeError(
                 _("%(class)s must define amount field %(field)s.")
@@ -136,11 +153,18 @@ class AdjustableMixin(BaseModelMixin):
 
 
 class SourceFundMixin(BaseModelMixin):
+    """Validate the payment source (payer) fund exists and is active.
+
+    Subclasses implement :attr:`payment_source_fund`; ``clean()`` rejects a
+    missing/inactive fund.
+    """
+
     @property
     def payment_source_fund(self):
         raise NotImplementedError()
 
     def _validate_payment_source_fund_exists(self):
+        """Ensure the payment source fund resolves and is active."""
         try:
             if not self.payment_source_fund:
                 raise ValidationError(_("Payment source fund is not existing."))
@@ -151,16 +175,24 @@ class SourceFundMixin(BaseModelMixin):
             raise ValidationError(_("The Payment source entity should be active."))
 
     def clean(self) -> None:
+        """Validate the payment source fund before saving."""
         self._validate_payment_source_fund_exists()
         return super().clean()
 
 
 class TargetFundMixin(BaseModelMixin):
+    """Validate the payment target (receiver) fund exists and is active.
+
+    Subclasses implement :attr:`payment_target_fund`; ``clean()`` rejects a
+    missing/inactive fund.
+    """
+
     @property
     def payment_target_fund(self):
         raise NotImplementedError()
 
     def _validate_payment_target_fund_exists(self):
+        """Ensure the payment target fund resolves and is active."""
         try:
             if not self.payment_target_fund:
                 raise ValidationError(_("Payment target fund is not existing."))
@@ -171,14 +203,22 @@ class TargetFundMixin(BaseModelMixin):
             raise ValidationError(_("The Payment target entity should be active."))
 
     def clean(self) -> None:
+        """Validate the payment target fund before saving."""
         self._validate_payment_target_fund_exists()
         return super().clean()
 
 
 class HasRelatedTransactions(BaseModelMixin):
+    """Expose the transactions attached to a record via its content type.
+
+    Provides ``get_all_transactions()`` (all rows) and
+    ``get_undeleted_transactions()`` (soft-delete aware) querysets.
+    """
+
     _related_transaction_name = "transactions"
 
     def get_all_transactions(self) -> SafeQuerySet:
+        """Return the transactions attached to this record via content type."""
         # Ensure your Transaction model has content_type and object_id fields
         from django.contrib.contenttypes.models import ContentType
 
@@ -189,6 +229,7 @@ class HasRelatedTransactions(BaseModelMixin):
         return Transaction.objects.filter(content_type=ct, object_id=self.pk)
 
     def get_undeleted_transactions(self):
+        """Return the record's transactions excluding soft-deleted ones."""
         return self.get_all_transactions().filter(deleted_at__isnull=True)
 
 
@@ -214,6 +255,7 @@ class AutoTransactionMixin(BaseModelMixin):
         """Hook for subclasses to append their ``post_save_tasks``. No-op by default."""
 
     def save(self, *args, **kwargs) -> None:
+        """Atomically schedule transaction tasks for new, non-reversal records."""
         with db_transaction.atomic():
             if self.pk is None and not self._is_reversal_record():
                 self._schedule_transaction_tasks(kwargs)
@@ -223,6 +265,13 @@ class AutoTransactionMixin(BaseModelMixin):
 class LinkedIssuanceTransactionMixin(
     SourceFundMixin, TargetFundMixin, HasRelatedTransactions, AutoTransactionMixin
 ):
+    """Auto-create the single issuance transaction when a new record is saved.
+
+    On insert (unless the record is a reversal counter-document) the record's
+    configured ``_issuance_transaction_type`` is created between its source and
+    target funds.
+    """
+
     _issuance_transaction_type: "TransactionType"
 
     @property
@@ -292,6 +341,10 @@ class LinkedPaymentTransactionMixin(
 
     @property
     def amount_settled(self):
+        """Net amount settled: money moved toward the receiver minus refunds.
+
+        Based on valid (non-reversed, non-deleted) payment transactions only.
+        """
         # valid transactions returns all transactions
         # except: the reversed, the reversals & the deleted ones.
         # So, the reversed transactions are exclused from the start.
@@ -315,25 +368,30 @@ class LinkedPaymentTransactionMixin(
 
     @property
     def total_settlable_amount(self):
+        """Total amount this record is due to settle (effective when available)."""
         if hasattr(self, "effective_amount"):
             return self.effective_amount
         return getattr(self, self._amount_field_name, 0)
 
     @property
     def amount_remaining_to_settle(self):
+        """Amount still owed to reach full settlement."""
         return self.total_settlable_amount - self.amount_settled
 
     @property
     def is_fully_settled(self) -> bool:
+        """True when the settled amount covers the total settlable amount."""
         # Precision check: useful when dealing with floating point math / Decimals
         return self.amount_settled >= self.total_settlable_amount
 
     @property
     def is_overpayed_settled(self) -> bool:
+        """True when more than the settlable amount has been paid."""
         # Precision check: useful when dealing with floating point math / Decimals
         return self.amount_settled > self.total_settlable_amount
 
     def validate_settlement_amount(self, amount_to_pay: Decimal):
+        """Raise unless *amount_to_pay* is positive and within the remaining balance."""
         # Todo use calculate repayments in the methods
         if amount_to_pay <= 0:
             raise ValidationError(_("The amount should be more than 0"))
@@ -375,6 +433,11 @@ class LinkedPaymentTransactionMixin(
     def create_payment_transaction(
         self, amount, officer, date, description="", note=""
     ):
+        """Create and save a payment transaction toward this record's settlement.
+
+        Runs inside one atomic block, optionally balance-checks and locks the
+        payer fund, and enforces one-shot / closed-period / overpayment rules.
+        """
         from apps.app_transaction.models import Transaction
 
         # The whole method runs inside one transaction so the balance check and
@@ -442,6 +505,7 @@ class LinkedPaymentTransactionMixin(
             )
 
     def _schedule_transaction_tasks(self, kwargs: dict) -> None:
+        """Append the auto payment task for one-shot operations on insert."""
         if self._is_one_shot_operation:
             if not self._has_single_payment_transaction:
                 raise ValidationError(
@@ -468,6 +532,13 @@ class LinkedPaymentTransactionMixin(
 class LinkedRePaymentTransactionMixin(
     SourceFundMixin, TargetFundMixin, HasRelatedTransactions, BaseModelMixin
 ):
+    """Expose the repayment / remaining-amount API for repayable records.
+
+    Computes how much of a disbursement (e.g. a loan) has been repaid through
+    repayment transactions and how much is still owed, bounded by what was
+    actually paid out.
+    """
+
     # ################################################
     # Indicates the type of the issuance transaction
     _repayment_transaction_type: "TransactionType"
@@ -477,6 +548,7 @@ class LinkedRePaymentTransactionMixin(
 
     @property
     def total_repayable_amount(self):
+        """Total amount that could be repaid (effective when available)."""
         if hasattr(self, "effective_amount"):
             return self.effective_amount
         return getattr(self, self._amount_field_name, Decimal("0.00"))
@@ -495,6 +567,7 @@ class LinkedRePaymentTransactionMixin(
 
     @property
     def amount_repayed(self):
+        """Net amount already repaid back to the payer, net of reversals."""
         # Net-of-reversal approach (mirrors amount_settled): sum money flowing
         # into the source fund (repayments) minus money flowing back out of it
         # (the mirror reversals of reversed repayments). Without the offset term
@@ -514,17 +587,21 @@ class LinkedRePaymentTransactionMixin(
 
     @property
     def amount_remaining_to_repay(self):
+        """Amount still owed to fully repay."""
         return self.repayable_amount - self.amount_repayed
 
     @property
     def is_fully_repayed(self) -> bool:
+        """True when the repaid amount covers the repayable amount."""
         return self.amount_repayed >= self.repayable_amount
 
     @property
     def is_overpaid_repayed(self) -> bool:
+        """True when more than the repayable amount has been repaid."""
         return self.amount_repayed > self.repayable_amount
 
     def validate_repayement_amount(self, amount_to_pay: Decimal):
+        """Raise unless *amount_to_pay* is positive and within the remaining balance."""
         if amount_to_pay <= 0:
             raise ValidationError(_("The amount should be more than 0"))
         if amount_to_pay > self.amount_remaining_to_repay:
@@ -550,6 +627,11 @@ class LinkedRePaymentTransactionMixin(
     def create_repayment_transaction(
         self, amount, officer, date, description="", note=""
     ):
+        """Create and save a repayment transaction back to the payer.
+
+        Validates the amount and rejects repayments dated inside a closed
+        financial period.
+        """
         from apps.app_transaction.models import Transaction
 
         self.validate_repayement_amount(amount)

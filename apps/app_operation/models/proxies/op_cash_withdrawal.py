@@ -32,17 +32,21 @@ class CashWithdrawalOperation(OneShotTransactionMixin, Operation):
 
     @property
     def payment_source_fund(self):
+        """The person/project fund being debited."""
         return self.source  # clean_source ensures this is a person
 
     @property
     def payment_target_fund(self):
+        """The world entity receiving the withdrawn capital."""
         return self.destination  # clean_destination ensures this is the world entity
 
     def clean_source(self):
+        """Require the withdrawal source to be a Person entity."""
         if not self.source.is_person:
             raise ValidationError("Cash Withdrawal source must be a Person entity.")
 
     def clean_destination(self):
+        """Require the withdrawal destination to be the World entity."""
         if not self.destination.is_world:
             raise ValidationError(
                 "Cash Withdrawal destination must be the World entity."

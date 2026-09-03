@@ -56,6 +56,7 @@ class CategoryRelationEditView(View):
         return relation, category, parent, None
 
     def get(self, request, *args, **kwargs):
+        """Render the category-relation edit form."""
         relation, category, parent, response = self._setup(kwargs["pk"])
         if response is not None:
             return response
@@ -171,6 +172,7 @@ class CategoryRelationEditView(View):
         )
 
     def post(self, request, *args, **kwargs):
+        """Apply the requested relation action (remove/activate/save)."""
         relation, category, parent, response = self._setup(kwargs["pk"])
         if response is not None:
             return response

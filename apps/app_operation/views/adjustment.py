@@ -154,6 +154,7 @@ class RecordAccountingAdjustmentView(View):
         adj.save()
 
     def get(self, request, *args, **kwargs):
+        """Render the accounting-adjustment form for an operation."""
         pk = kwargs["pk"]
         operation, response = self._setup(pk)
         if response is not None:
@@ -167,6 +168,7 @@ class RecordAccountingAdjustmentView(View):
         return self._render_adjustment(request, form, operation)
 
     def post(self, request, *args, **kwargs):
+        """Create the accounting adjustment from a valid form submission."""
         pk = kwargs["pk"]
         operation, response = self._setup(pk)
         if response is not None:
@@ -235,6 +237,7 @@ class RecordItemAdjustmentView(View):
         return operation, items, None
 
     def _item_adjustment_context(self, operation, items):
+        """Build the shared item-adjustment template context."""
         return {
             "operation": operation,
             "items": items,
@@ -294,6 +297,7 @@ class RecordItemAdjustmentView(View):
         return date, reason, changed_items_data
 
     def get(self, request, *args, **kwargs):
+        """Render the item-adjustment form."""
         pk = kwargs["pk"]
         operation, items, response = self._setup(pk)
         if response is not None:
@@ -303,6 +307,7 @@ class RecordItemAdjustmentView(View):
         return self._render_item_adjustment(request, operation, items)
 
     def post(self, request, *args, **kwargs):
+        """Create an invoice item adjustment from the submitted item changes."""
         pk = kwargs["pk"]
         operation, items, response = self._setup(pk)
         if response is not None:
@@ -345,12 +350,15 @@ class ReverseAdjustmentView(View):
     """Reverse an accounting adjustment."""
 
     def get(self, request, *args, **kwargs):
+        """Show the adjustment reversal confirmation (delegates to ``_handle``)."""
         return self._handle(request, *args, **kwargs)
 
     def post(self, request, *args, **kwargs):
+        """Reverse the adjustment (delegates to ``_handle``)."""
         return self._handle(request, *args, **kwargs)
 
     def _handle(self, request, *args, **kwargs):
+        """Guard and perform (or confirm) an adjustment reversal."""
         adjustment_id = kwargs["adjustment_id"]
         adjustment = get_object_or_404(Adjustment, pk=adjustment_id)
         operation = adjustment.operation
@@ -432,12 +440,15 @@ class ReverseItemAdjustmentView(View):
     """Reverse an invoice item adjustment."""
 
     def get(self, request, *args, **kwargs):
+        """Show the item-adjustment reversal confirmation (delegates to ``_handle``)."""
         return self._handle(request, *args, **kwargs)
 
     def post(self, request, *args, **kwargs):
+        """Reverse the item adjustment (delegates to ``_handle``)."""
         return self._handle(request, *args, **kwargs)
 
     def _handle(self, request, *args, **kwargs):
+        """Guard and perform (or confirm) an item-adjustment reversal."""
         item_adjustment_id = kwargs["item_adjustment_id"]
         item_adjustment = get_object_or_404(InvoiceItemAdjustment, pk=item_adjustment_id)
         operation = item_adjustment.operation

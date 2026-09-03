@@ -19,6 +19,7 @@ class AddContactInfoView(View):
     """Add contact information to an entity."""
 
     def _load_entity(self, entity_id):
+        """Load the entity the new contact will be attached to."""
         logger.debug(f"Fetching entity for contact addition | entity_id={entity_id}")
         entity = get_object_or_404(
             Entity,
@@ -31,6 +32,7 @@ class AddContactInfoView(View):
         return entity
 
     def get(self, request, *args, **kwargs):
+        """Render the contact-add form for an entity."""
         entity = self._load_entity(kwargs["entity_id"])
         context = {
             "entity": entity,
@@ -40,6 +42,7 @@ class AddContactInfoView(View):
         return render(request, "app_entity/contact_form.html", context)
 
     def post(self, request, *args, **kwargs):
+        """Create a contact record from the submitted form data."""
         entity = self._load_entity(kwargs["entity_id"])
         logger.debug(
             f"Processing contact information addition | entity_id={entity.id} | "

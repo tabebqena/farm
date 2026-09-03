@@ -81,10 +81,12 @@ def _load_project(request, pk):
 
 
 def cancel_purchase_wizard_view(request, pk):
+    """Cancel the purchase wizard and clear its session."""
     return PURCHASE_WIZARD.cancel(request, pk)
 
 
 def purchase_wizard_view(request, pk, step=1):
+    """Route a purchase-wizard step (GET render or POST handler)."""
     project, redir = _load_project(request, pk)
     if redir:
         return redir
@@ -97,6 +99,7 @@ def purchase_wizard_view(request, pk, step=1):
 
 
 def purchase_invoice_view(request, pk):
+    """Render the purchase invoice hub for the session items."""
     project, redir = _load_project(request, pk)
     if redir:
         return redir
@@ -118,6 +121,7 @@ def purchase_invoice_view(request, pk):
 
 
 def purchase_select_template_view(request, pk):
+    """Render the product-template picker for adding a purchase item."""
     project, redir = _load_project(request, pk)
     if redir:
         return redir
@@ -146,6 +150,7 @@ def purchase_select_template_view(request, pk):
 
 
 def purchase_add_item_view(request, pk, idx=None):
+    """Add (or edit, when *idx* is given) an item in the session invoice."""
     project, redir = _load_project(request, pk)
     if redir:
         return redir
@@ -260,6 +265,7 @@ def purchase_add_item_view(request, pk, idx=None):
 
 
 def purchase_delete_item_view(request, pk, idx):
+    """Delete the session invoice item at *idx*."""
     return PURCHASE_WIZARD.delete_item(request, pk, idx)
 
 
@@ -281,6 +287,7 @@ def _do_submit(request, project, session_data):
 
 
 def purchase_submit_view(request, pk):
+    """Submit the session invoice to create the PurchaseOperation."""
     if request.method != "POST":
         return redirect("purchase_invoice", pk=pk)
 
