@@ -61,8 +61,13 @@ def discover_modules():
 
 
 def module_out_path(module_name):
-    """``api-docs/apps/app_entity/models.html`` for ``apps.app_entity.models``."""
-    return os.path.join(OUT_DIR, module_name.replace(".", os.sep) + ".html")
+    """``api-docs/apps.app_entity.models.html`` for ``apps.app_entity.models``.
+
+    pydoc pages cross-link other modules using *dotted* filenames, so pages are
+    written flat (``<module>.html``) rather than as nested directories — that
+    keeps the intra-documentation navigation working.
+    """
+    return os.path.join(OUT_DIR, module_name + ".html")
 
 
 def render_module(module_name):
@@ -89,7 +94,7 @@ def build_index(pages):
     links = []
     for group in sorted(groups):
         rows = "\n".join(
-            f'      <li><a href="{module_name.replace(".", "/")}.html">'
+            f'      <li><a href="{module_name}.html">'
             f"<code>{escape(module_name)}</code></a>"
             f"<div class=\"doc\">{escape(doc)}</div></li>"
             for module_name, doc in groups[group]
