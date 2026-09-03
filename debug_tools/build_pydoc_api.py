@@ -2,19 +2,19 @@
 
 Bootstraps Django first (importing ``apps.app_*`` modules requires the app
 registry), then walks ``apps/`` (plus the ``farm`` package) and writes one
-standalone pydoc HTML page per source module under ``api-docs/``, finishing
-with an ``index.html`` that groups the pages by app and links to the raw
-Markdown content in ``docs/``.
+standalone pydoc HTML page per source module under ``docs/api-docs/``,
+finishing with an ``index.html`` that groups the pages by app and links to the
+raw Markdown documentation around it.
 
 Usage (from the repo root):
     .venv/bin/python debug_tools/build_pydoc_api.py
     .venv/bin/python debug_tools/build_pydoc_api.py apps.app_entity.models
 
-Serve the result (serve the REPO ROOT so ``api-docs/`` and ``docs/`` live on
-one origin and the index's ``../docs/...`` links resolve):
-    python -m http.server 8766
+Serve the result with ``docs/`` as the documentation root (one origin for both
+the raw Markdown and the generated API pages):
+    python -m http.server 8766 --directory docs
+    # docs home  -> http://localhost:8766/README.md
     # pydoc API  -> http://localhost:8766/api-docs/      (index.html)
-    # raw docs   -> http://localhost:8766/docs/README.md
 """
 
 import importlib
@@ -31,23 +31,24 @@ import django  # noqa: E402
 
 django.setup()
 
-OUT_DIR = os.path.join(REPO_ROOT, "api-docs")
+OUT_DIR = os.path.join(REPO_ROOT, "docs", "api-docs")
 
 # Directories / files never rendered (generated, env-specific or non-API).
 EXCLUDED_DIRS = {"migrations", "tests", "ui_tests", "__pycache__", "debug_tools"}
 EXCLUDED_FILES = {"wsgi.py", "asgi.py", "settings.py", "manage.py"}
 
-# Markdown entry points under docs/ surfaced from the pydoc index.
+# Markdown entry points around the generated pages. Pages live in
+# docs/api-docs/, so "../" reaches the docs/ root (served with --directory docs).
 DOCS_LINKS = [
-    ("Documentation home", "../docs/README.md"),
-    ("Guides", "../docs/guides/README.md"),
-    ("Specifications index", "../docs/specs/README.md"),
-    ("Operations specs", "../docs/specs/operations/README.md"),
-    ("Feature specs", "../docs/specs/features/"),
-    ("Testing", "../docs/testing/README.md"),
-    ("Logging", "../docs/logging/README.md"),
-    ("Debugging", "../docs/debugging/README.md"),
-    ("Notes", "../docs/notes/README.md"),
+    ("Documentation home", "../README.md"),
+    ("Guides", "../guides/README.md"),
+    ("Specifications index", "../specs/README.md"),
+    ("Operations specs", "../specs/operations/README.md"),
+    ("Feature specs", "../specs/features/"),
+    ("Testing", "../testing/README.md"),
+    ("Logging", "../logging/README.md"),
+    ("Debugging", "../debugging/README.md"),
+    ("Notes", "../notes/README.md"),
 ]
 
 
@@ -77,7 +78,7 @@ def discover_modules():
 
 
 def module_out_path(module_name):
-    """``api-docs/apps.app_entity.models.html`` for ``apps.app_entity.models``.
+    """``docs/api-docs/apps.app_entity.models.html`` for ``apps.app_entity.models``.
 
     pydoc pages cross-link other modules using *dotted* filenames, so pages are
     written flat (``<module>.html``) rather than as nested directories — that
@@ -112,13 +113,14 @@ def build_index(pages):
         for label, href in DOCS_LINKS
     )
     docs_block = (
-        "    <h2>Project docs <span class=\"hint\">(docs/, raw Markdown)</span></h2>\n"
+        "    <h2>Project docs <span class=\"hint\">(raw Markdown)</span></h2>\n"
         f"    <ul>\n{docs_links}\n    </ul>\n"
         "    <p class=\"hint\">Pages below are rendered from the modules' live "
         "docstrings. Regenerate with "
-        "<code>.venv/bin/python debug_tools/build_pydoc_api.py</code>. Serve the "
-        "repo root (<code>python -m http.server 8766</code>) so these "
-        "<code>../docs/</code> links resolve.</p>\n"
+        "<code>.venv/bin/python debug_tools/build_pydoc_api.py</code>. Serve "
+        "<code>docs/</code> as the documentation root "
+        "(<code>python -m http.server 8766 --directory docs</code>) so these "
+        "<code>../</code> links resolve.</p>\n"
     )
 
     links = []

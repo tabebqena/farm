@@ -10,4 +10,4 @@ test_results.txt
 **/.*.csv#
 *.sqlite3
 tmp/**
-api-docs/**
+docs/api-docs/**

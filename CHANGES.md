@@ -16,6 +16,30 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 
 ---
 
+## 2026-09-03 — docs/ as the documentation root (styled Markdown site)
+
+Made `docs/` the single documentation root and added a server that renders the
+Markdown pages as a styled, cross-linked site next to the pydoc API pages.
+
+### Changed
+- Generated pydoc API pages now live under `docs/api-docs/` (git-ignored);
+  [`docs/README.md`](docs/README.md) links to them and the API index links back
+  to the Markdown categories.
+- Added [`debug_tools/serve_docs.py`](debug_tools/serve_docs.py): a stdlib HTTP
+  server that renders every `docs/**/*.md` into styled HTML on the fly (shared
+  CSS, top navigation bar, breadcrumbs, and an auto-generated "Related pages"
+  sidebar), while serving `api-docs/` and other static files unchanged. It needs
+  the pure-Python `markdown` package (`pip install markdown`).
+
+### Usage
+- Serve the docs root: `.venv/bin/python debug_tools/serve_docs.py` →
+  http://localhost:8766/ (docs home) and http://localhost:8766/api-docs/ (API).
+
+### Verification
+- Home, guides, specs, operation specs, directory READMEs and `api-docs/` all
+  return HTTP 200 as styled HTML; relative `.md` links resolve to rendered
+  pages.
+
 ## 2026-09-03 — pydoc API-docs generator
 
 Added a pydoc-based tool that renders the project's docstrings as static HTML
@@ -26,13 +50,14 @@ API reference pages.
   Django (`DJANGO_SETTINGS_MODULE=farm.settings`, `django.setup()`), discovers
   every source module under `apps/` and `farm/` (excluding migrations, tests,
   `ui_tests`, `wsgi`/`asgi`/`settings`), writes one standalone pydoc HTML page
-  per module into `api-docs/` (flat dotted filenames so pydoc's cross-module
-  links resolve), and builds a grouped `index.html`.
-- The generated index also links to the raw Markdown under `docs/`, so both are
-  browsable on one origin. Serve the repo root to use it:
-  `python -m http.server 8766` → http://localhost:8766/api-docs/ (API) and
-  http://localhost:8766/docs/README.md (Markdown docs).
-- Output is intentionally git-ignored (`api-docs/**`); regenerate with
+  per module into `docs/api-docs/` (flat dotted filenames so pydoc's
+  cross-module links resolve), and builds a grouped `index.html`.
+- `docs/` is the documentation root: [`docs/README.md`](docs/README.md) links to
+  the generated API pages, and the API index links back to the raw Markdown
+  categories. Serve `docs/` to browse everything on one origin:
+  `python -m http.server 8766 --directory docs` → http://localhost:8766/ (docs
+  home) and http://localhost:8766/api-docs/ (API reference).
+- Output is intentionally git-ignored (`docs/api-docs/**`); regenerate with
   `.venv/bin/python debug_tools/build_pydoc_api.py`.
 
 ### Verification
