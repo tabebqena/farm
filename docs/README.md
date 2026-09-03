@@ -11,8 +11,8 @@ Organized by topic for easy navigation.
 ## API reference
 
 - **[API reference](api-docs/index.html)** - pydoc-generated pages from the
-  code docstrings. Regenerate with
-  `.venv/bin/python debug_tools/build_pydoc_api.py`.
+  code docstrings. Regenerate (and serve) with
+  `.venv/bin/python debug_tools/docs.py build`.
 
 ## Specifications
 

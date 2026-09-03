@@ -16,6 +16,40 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 
 ---
 
+## 2026-09-03 — Merge docs tooling into one docs.py pipeline
+
+Consolidated the two standalone docs tools
+([`debug_tools/build_pydoc_api.py`](debug_tools/build_pydoc_api.py) and
+[`debug_tools/serve_docs.py`](debug_tools/serve_docs.py)) into a single pipeline
+file [`debug_tools/docs.py`](debug_tools/docs.py) so the whole site (pydoc API
+pages + rendered Markdown) is produced and served with one command.
+
+### Added
+- [`debug_tools/docs.py`](debug_tools/docs.py) — one entry point for the docs
+  pipeline with subcommands:
+  - `docs.py build [modules...]` — generate the pydoc API pages under
+    `docs/api-docs/` (Django is bootstrapped lazily, only for this subcommand);
+  - `docs.py serve [port]` — serve `docs/` as the styled site (default port
+    8766);
+  - `docs.py` (no args) — full pipeline: build, then serve on 8766.
+- Kept the previous `build` behaviour of rendering a single named module, e.g.
+  `docs.py build apps.app_entity.models`.
+
+### Removed
+- `debug_tools/build_pydoc_api.py` and `debug_tools/serve_docs.py` (folded into
+  `debug_tools/docs.py`; run `.venv/bin/python debug_tools/docs.py` instead).
+
+### Updated
+- [`docs/README.md`](docs/README.md) — regenerate command now points to
+  `debug_tools/docs.py build`.
+
+### Verification
+- Full `docs.py build` renders 129 module pages with 0 failures;
+  `docs.py serve` returns HTTP 200 for the docs home, `README.md`, and
+  `api-docs/`; the no-arg pipeline builds then serves successfully.
+
+---
+
 ## 2026-09-03 — Consolidate logging & debugging docs into docs/logging
 
 Merged the overlapping `docs/debugging/` and `docs/logging/` sections into one
