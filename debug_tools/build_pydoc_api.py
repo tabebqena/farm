@@ -48,7 +48,6 @@ DOCS_LINKS = [
     ("Testing", "../testing/README.md"),
     ("Logging", "../logging/README.md"),
     ("Debugging", "../debugging/README.md"),
-    ("Notes", "../notes/README.md"),
 ]
 
 

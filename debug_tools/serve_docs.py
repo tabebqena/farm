@@ -44,7 +44,6 @@ NAV_SECTIONS = [
     ("Testing", "/testing/"),
     ("Logging", "/logging/"),
     ("Debugging", "/debugging/"),
-    ("Notes", "/notes/"),
     ("API reference", "/api-docs/"),
 ]
 
