@@ -25,7 +25,6 @@
 | Source role | `post` (a Client entity, selected) | |
 | Destination role | `url` (a Project entity) | |
 | Registered in | `PROXY_MAP` | |
-| Cross-op reference | row SA | [`operations-comparison.md`](operations-comparison.md) |
 
 **Configuration flags**:
 

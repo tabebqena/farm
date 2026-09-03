@@ -26,7 +26,6 @@
 | Destination role | `url` (must be a Project) | `system` | / |
 | Registered in | `PROXY_MAP` (both types → `CorrectionOperation`) | `PROXY_MAP` (both types → `CorrectionOperation`) | / |
 | Config dispatch | per-type keys in `CorrectionOperation._VARIANT_CONFIG`, read on `operation_type` | same | / |
-| Cross-op reference | row CC | row CD | [`operations-comparison.md`](operations-comparison.md) |
 
 **Configuration flags:**
 

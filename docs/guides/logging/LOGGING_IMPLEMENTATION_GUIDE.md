@@ -1,7 +1,7 @@
 # Logging Implementation Guide
 
 This guide shows how to add standard Python logging to Farm modules using the
-shared loggers from [`apps/app_base/logging_utils.py`](../../apps/app_base/logging_utils.py).
+shared loggers from [`apps/app_base/logging_utils.py`](../../../apps/app_base/logging_utils.py).
 
 ## Imports
 
@@ -51,7 +51,7 @@ def my_view(request, pk):
 
 ## Forms
 
-Forms inherit [`apps/app_base/form_logging.py`](../../apps/app_base/form_logging.py)
+Forms inherit [`apps/app_base/form_logging.py`](../../../apps/app_base/form_logging.py)
 (`LoggingFormMixin`), which logs at `debug` level and emits a
 `form_create`/`form_update` audit line on commit. No per-form logging code is
 required.
@@ -65,7 +65,7 @@ for failures, keeping the existing `action` strings (e.g. `transaction_reversed`
 ## Enabling DEBUG traces
 
 `logger.debug(...)` calls are silent because the `farm` logger defaults to
-`INFO` in [`farm/settings.py`](../../farm/settings.py). To trace, temporarily set:
+`INFO` in [`farm/settings.py`](../../../farm/settings.py). To trace, temporarily set:
 
 ```python
 "farm": {"handlers": ["console", "debug_file"], "level": "DEBUG", "propagate": False},
@@ -76,4 +76,4 @@ for failures, keeping the existing `action` strings (e.g. `transaction_reversed`
 - `manage.py check`
 - `manage.py test apps --parallel=10 --keepdb`
 
-See [`docs/logging/LOGGING_STANDARDS.md`](LOGGING_STANDARDS.md) for conventions.
+See [`docs/guides/logging/LOGGING_STANDARDS.md`](LOGGING_STANDARDS.md) for conventions.

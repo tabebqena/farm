@@ -27,7 +27,6 @@
 | Source role | `url` (must be a Project) | |
 | Destination role | `world` | |
 | Registered in | `PROXY_MAP` | |
-| Cross-op reference | row EX | [`operations-comparison.md`](operations-comparison.md) |
 
 **Configuration flags**:
 

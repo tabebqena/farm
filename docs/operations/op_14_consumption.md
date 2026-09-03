@@ -26,7 +26,6 @@
 | Source role | `url` (must be a Project) | |
 | Destination role | `system` | |
 | Registered in | `PROXY_MAP` | |
-| Cross-op reference | row CO | [`operations-comparison.md`](operations-comparison.md) |
 
 **Configuration flags**:
 
@@ -152,8 +151,8 @@ Entry points: model `ConsumptionOperation.save()` (tests) or `Operation.create()
 
 | # | Branch | Pass condition | Failure outcome | Error (on failure) | Enforced by | Pinned by test |
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
-| VC1 | Source is Project | `source.is_project` | `ValidationError` | `"Consumption source must be a Project entity."` | `clean_source` | `ConsumptionCreateValidationTest.test_source_must_be_a_project_entity` / `test_source_system_entity_raises_validation_error` — mirror of [`op_18`](op_18_death.md) VC1 |
-| VC2 | Destination is System | `destination.is_system` | `ValidationError` | `"Consumption destination must be the System entity."` | `clean_destination` | `ConsumptionCreateValidationTest.test_destination_must_be_system_entity` / `test_destination_person_entity_raises_validation_error` — mirror of [`op_18`](op_18_death.md) VC2 |
+| VC1 | Source is Project | `source.is_project` | `ValidationError` | `"Consumption source must be a Project entity."` | `clean_source` | `ConsumptionCreateValidationTest.test_source_must_be_a_project_entity` / `test_source_system_entity_raises_validation_error` — mirror of [`op_13`](op_13_death.md) VC1 |
+| VC2 | Destination is System | `destination.is_system` | `ValidationError` | `"Consumption destination must be the System entity."` | `clean_destination` | `ConsumptionCreateValidationTest.test_destination_must_be_system_entity` / `test_destination_person_entity_raises_validation_error` — mirror of [`op_13`](op_13_death.md) VC2 |
 | VC3 | Source entity active | `source.active` | `ValidationError` | `"Entity '%(name)s' must be active…"` | `Operation.clean()` | `ConsumptionCreateValidationTest.test_source_must_be_active` |
 | VC4 | Destination entity active | `destination.active` | `ValidationError` | same as VC3 | `Operation.clean()` | shared engine suite (System always active) |
 | VC5 | Amount positive | `amount > 0` | `ValidationError` | `"Amount should be positive, got …"` | `AmountCleanMixin` | `ConsumptionCreateValidationTest.test_amount_zero_raises_validation_error` / `test_amount_negative_raises_validation_error` |

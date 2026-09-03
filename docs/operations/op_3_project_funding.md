@@ -24,7 +24,6 @@
 | Source role | `url` (must be a Person) | |
 | Destination role | `post` (must be a Project, picked from secondary field) | |
 | Registered in | `PROXY_MAP` | |
-| Cross-op reference | row PF | [`operations-comparison.md`](operations-comparison.md) |
 
 **Configuration flags**:
 

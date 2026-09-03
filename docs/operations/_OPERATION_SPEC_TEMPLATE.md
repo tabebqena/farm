@@ -47,7 +47,6 @@ Steps to widen a new operation:
 | Source role | `<world/system/url/post>` | |
 | Destination role | `<world/system/url/post>` | |
 | Registered in | `PROXY_MAP` | |
-| Cross-op reference | row `<code>` | [`operations-comparison.md`](operations-comparison.md) |
 
 **Configuration flags:**
 
@@ -171,7 +170,7 @@ Steps to widen a new operation:
 
 ### 5.5 `adjust` / `adjust items` / `move items`
 
-(only for Purchase/Sale/Expense-style ops — see operations-comparison.md)
+(only for Purchase/Sale/Expense-style ops)
 
 ### 5.6 Immutability
 

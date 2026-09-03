@@ -3,7 +3,7 @@
 ## Overview
 
 The project uses **standard Python logging** with two channels configured via
-`LOGGING` in [`farm/settings.py`](../../farm/settings.py):
+`LOGGING` in [`farm/settings.py`](../../../farm/settings.py):
 
 | Logger | Purpose | Handlers | Default level |
 | --- | --- | --- | --- |
@@ -11,7 +11,7 @@ The project uses **standard Python logging** with two channels configured via
 | `farm_audit` | Compliance-only audit channel | `audit_file` (`logs/audit.log`) | `INFO` |
 
 Both loggers are exposed from
-[`apps/app_base/logging_utils.py`](../../apps/app_base/logging_utils.py):
+[`apps/app_base/logging_utils.py`](../../../apps/app_base/logging_utils.py):
 `from apps.app_base.logging_utils import logger, audit_logger`.
 
 - The `farm` logger defaults to `INFO`, so `logger.debug(...)` calls are silent
@@ -93,11 +93,11 @@ explicitly at `debug`, and emit `audit_logger` lines for compliance events.
 
 | File | Logging |
 | --- | --- |
-| [`apps/app_transaction/models.py`](../../apps/app_transaction/models.py) | `clean()`/`create()` at debug; `reverse()` audits (`transaction_start`/`transaction_reversed`/`transaction_reversal_failed`) |
-| [`apps/app_adjustment/models.py`](../../apps/app_adjustment/models.py) | `clean()`/`save()`/`delete()`/`finalize()`/`reverse()` at debug + `adjustment_*` audits |
-| [`apps/app_inventory/models.py`](../../apps/app_inventory/models.py) | `Product.clean()`/`save()`/`delete()` at debug + `product_*` audits |
-| [`apps/app_operation/models/operation.py`](../../apps/app_operation/models/operation.py) | `clean()`/`save()`/`delete()`/`reverse()` at debug + `operation_*` audits |
-| [`apps/app_entity/models/__init__.py`](../../apps/app_entity/models/__init__.py) | entity/stakeholder/contact save/delete at debug + `entity_*`/`stakeholder_*`/`contact_info_*` audits |
+| [`apps/app_transaction/models.py`](../../../apps/app_transaction/models.py) | `clean()`/`create()` at debug; `reverse()` audits (`transaction_start`/`transaction_reversed`/`transaction_reversal_failed`) |
+| [`apps/app_adjustment/models.py`](../../../apps/app_adjustment/models.py) | `clean()`/`save()`/`delete()`/`finalize()`/`reverse()` at debug + `adjustment_*` audits |
+| [`apps/app_inventory/models.py`](../../../apps/app_inventory/models.py) | `Product.clean()`/`save()`/`delete()` at debug + `product_*` audits |
+| [`apps/app_operation/models/operation.py`](../../../apps/app_operation/models/operation.py) | `clean()`/`save()`/`delete()`/`reverse()` at debug + `operation_*` audits |
+| [`apps/app_entity/models/__init__.py`](../../../apps/app_entity/models/__init__.py) | entity/stakeholder/contact save/delete at debug + `entity_*`/`stakeholder_*`/`contact_info_*` audits |
 
 ### Views
 
@@ -106,12 +106,12 @@ explicitly at `debug`, and emit `audit_logger` lines for compliance events.
 | `apps/app_entity/views/*` | entity/contact/stakeholder/category views: fetch + processing at debug, `*_created`/`*_updated`/`*_failed` audits |
 | `apps/app_operation/views/*` | operation detail/list/edit/period/reverse/record views: fetch + processing at debug, reversal/creation audits |
 | `apps/app_operation/views/create_operation/*` | create views (base/birth/death/evaluation/wizards): setup + creation at debug, `operation_created`/`operation_creation_failed` audits |
-| [`apps/app_transaction/views.py`](../../apps/app_transaction/views.py) | transaction list/detail/reverse: fetch + processing at debug, reversal audits |
-| [`apps/app_report/views.py`](../../apps/app_report/views.py) | report scope resolution at debug |
+| [`apps/app_transaction/views.py`](../../../apps/app_transaction/views.py) | transaction list/detail/reverse: fetch + processing at debug, reversal audits |
+| [`apps/app_report/views.py`](../../../apps/app_report/views.py) | report scope resolution at debug |
 
 ### Forms
 
-All forms inherit [`apps/app_base/form_logging.py`](../../apps/app_base/form_logging.py)
+All forms inherit [`apps/app_base/form_logging.py`](../../../apps/app_base/form_logging.py)
 (`LoggingFormMixin`):
 
 - `clean()` logs at debug; validation errors log a warning.

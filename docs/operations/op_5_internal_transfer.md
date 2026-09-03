@@ -24,7 +24,6 @@
 | Source role | `url` (must be an internal Person) | |
 | Destination role | `post` (must be an internal Person, picked from secondary field) | |
 | Registered in | `PROXY_MAP` | |
-| Cross-op reference | row IT | [`operations-comparison.md`](operations-comparison.md) |
 
 **Configuration flags**:
 

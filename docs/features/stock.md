@@ -28,10 +28,10 @@ How this spec is kept true:
 > Every clause below is registered to its implementing code (query module → model → movement line → view) and to its pinning test.
 > Where code and spec disagree, the spec states the *intended* behavior — fix the code, not the spec.
 > See [`_OPERATION_SPEC_TEMPLATE.md`](../operations/_OPERATION_SPEC_TEMPLATE.md) for the shared structure and
-> [`op_13_purchase.md`](../operations/op_13_purchase.md) / [`op_14_sale.md`](../operations/op_14_sale.md) /
-> [`op_17_birth.md`](../operations/op_17_birth.md) / [`op_18_death.md`](../operations/op_18_death.md) /
-> [`op_19_consumption.md`](../operations/op_19_consumption.md) /
-> [`capital_valuation_operation.md`](../operations/op_20_capital_valuation_operation.md) for the operations that drive stock (movement lines and value).
+> [`op_9_purchase.md`](../operations/op_9_purchase.md) / [`op_10_sale.md`](../operations/op_10_sale.md) /
+> [`op_12_birth.md`](../operations/op_12_birth.md) / [`op_13_death.md`](../operations/op_13_death.md) /
+> [`op_14_consumption.md`](../operations/op_14_consumption.md) /
+> [`op_15_capital_valuation.md`](../operations/op_15_capital_valuation.md) for the operations that drive stock (movement lines and value).
 
 ---
 
@@ -46,7 +46,6 @@ How this spec is kept true:
 | Supporting models | `Product`, `InvoiceItem`, `ProductTemplate`, `ProductCapitalValuation` | [`models.py`](../../../apps/app_inventory/models.py:538) |
 | URL slug | `stock_detail` → `entity/<entity_pk>/stock/` | [`urls.py`](../../../apps/app_inventory/urls.py:8) |
 | Registered in | `urlpatterns` (`app_inventory.urls`) | [`urls.py`](../../../apps/app_inventory/urls.py:8) |
-| Cross-op reference | rows PU / SA / BI / DE / CO / CG / CL | [`operations-comparison.md`](../operations/operations-comparison.md:100) |
 
 **Configuration flags (product template & query layer):**
 
@@ -177,7 +176,7 @@ quantity = Σ movement_delta(active lines as of as_of)          # net direction-
 value    = quantity * valuation_unit_cost(product) + capital_delta(product)
 ```
 
-> **Value-only writers.** `CAPITAL_GAIN` / `CAPITAL_LOSS` do **not** create movement lines — each records a `ProductCapitalValuation` row whose signed amount feeds `capital_delta` (quantity untouched, product stays `ACTIVE`). See [`capital_valuation_operation.md`](../operations/op_20_capital_valuation_operation.md).
+> **Value-only writers.** `CAPITAL_GAIN` / `CAPITAL_LOSS` do **not** create movement lines — each records a `ProductCapitalValuation` row whose signed amount feeds `capital_delta` (quantity untouched, product stays `ACTIVE`). See [`op_15_capital_valuation.md`](../operations/op_15_capital_valuation.md).
 
 | Function | Returns | Excludes |
 |----------|---------|----------|
@@ -268,7 +267,7 @@ Movement lines are created automatically by the operation (`save_inventory` → 
 
 ### 5.4 `consume` (quick, one-step view)
 
-Entry point: [`quick_consume`](../../../apps/app_inventory/views.py:318) — POST `/entity/<entity_pk>/stock/consume/` from the stock detail page. Delegates to `ConsumptionOperation.create(...)` (the proven full pipeline: invoice item + auto `CONSUMPTION_MOVEMENT` + product `CONSUMED`; **no `Transaction` rows** — Consumption is a stock event, see [`op_19_consumption.md`](../operations/op_19_consumption.md)).
+Entry point: [`quick_consume`](../../../apps/app_inventory/views.py:318) — POST `/entity/<entity_pk>/stock/consume/` from the stock detail page. Delegates to `ConsumptionOperation.create(...)` (the proven full pipeline: invoice item + auto `CONSUMPTION_MOVEMENT` + product `CONSUMED`; **no `Transaction` rows** — Consumption is a stock event, see [`op_14_consumption.md`](../operations/op_14_consumption.md)).
 
 #### 5.4.1 Validation branches
 

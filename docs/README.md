@@ -4,9 +4,9 @@ Organized by topic for easy navigation.
 
 ## Categories
 
-- **[Guides](guides/)** - Project guides, authentication, and feature overviews
-- **[Testing](testing/)** - Test coverage and test suite documentation
-- **[Logging](logging/)** - Logging standards and implementation guides
+- **[Guides](guides/)** - Project guides, feature overviews, logging, and test suites
+  - [Logging](guides/logging/) - Logging standards and implementation guides
+  - [Testing](guides/testing/) - Test coverage and test suite documentation
 
 ## API reference
 

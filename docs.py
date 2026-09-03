@@ -62,11 +62,7 @@ NAV_SECTIONS = [
     ("Home", "/"),
     ("Guides", "/guides/"),
     ("Features", "/features/"),
-    
     ("Operations", "/operations/"),
-    
-    ("Logging", "/logging/"),
-    ("Testing", "/testing/"),
     ("API reference", "/api-docs/"),
 ]
 

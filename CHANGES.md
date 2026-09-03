@@ -16,6 +16,40 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 
 ---
 
+## 2026-09-03 — Docs reorganization (guides, operations, logging/testing)
+
+Reorganized the Markdown docs site: pruned stale pages, moved the logging and
+testing sections under the Guides area, and renumbered the per-operation specs.
+
+### Removed
+- `docs/operations/operations-comparison.md` — the consolidated cross-operation
+  comparison. Dropped its per-operation "Cross-op reference" table rows, the
+  operations `README.md` callout, the `_OPERATION_SPEC_TEMPLATE.md` template row,
+  and the `docs/features/stock.md` cross-reference.
+- `docs/guides/AUTHENTICATION.md` and `docs/guides/PROJECT_WALKTHROUGH.md`
+  (their links were removed from `docs/guides/README.md`).
+
+### Changed
+- `docs/logging/` → `docs/guides/logging/` and `docs/testing/` →
+  `docs/guides/testing/` (physical move). Repo-relative links inside the logging
+  pages were bumped from `../../` to `../../../`.
+- Renamed `docs/operations/op_*.md` to a sequential **1–15** series: internal
+  transfer `op_5`, loan `op_6`, worker advance `op_7`, expense `op_8`, purchase
+  `op_9`, sale `op_10`, correction `op_11`, birth `op_12`, death `op_13`,
+  consumption `op_14`, capital valuation `op_15`. Updated every reference
+  (`docs/operations/README.md`, `docs/features/stock.md`, cross-links inside the
+  consumption spec).
+
+### Updated
+- [`docs/README.md`](docs/README.md) — Logging and Testing are now nested under
+  the Guides category.
+- [`docs/guides/README.md`](docs/guides/README.md) — links the Logging and
+  Testing sub-sections.
+- [`docs.py`](docs.py) — dropped Logging/Testing from the top navigation bar
+  (now reachable under Guides).
+
+---
+
 ## 2026-09-03 — Merge docs tooling into one docs.py pipeline
 
 Consolidated the two standalone docs tools

@@ -39,7 +39,6 @@ or `profit_loss()`.
 | Destination role | `url` (must be a Project) | `system` | |
 | Registered in | `PROXY_MAP` (both types → `CapitalValuationOperation`) | `PROXY_MAP` (both types → `CapitalValuationOperation`) | |
 | Config dispatch | per-type keys in `CapitalValuationOperation._VARIANT_CONFIG`, read on `operation_type` | same | |
-| Cross-op reference | row CG | row CL | [`operations-comparison.md`](operations-comparison.md) |
 
 Both `"capital-gain"` and `"capital-loss"` URL slugs resolve to this one proxy; the
 evaluation view selects the variant from the signed valuation delta.

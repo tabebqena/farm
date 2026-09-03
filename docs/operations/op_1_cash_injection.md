@@ -24,7 +24,6 @@
 | Source role | `world` | |
 | Destination role | `url` (must be a Person) | |
 | Registered in | `PROXY_MAP` | |
-| Cross-op reference | row CI | [`operations-comparison.md`](operations-comparison.md) |
 
 **Configuration flags:**
 

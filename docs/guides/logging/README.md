@@ -11,7 +11,7 @@ The project uses **standard Python logging** with two channels:
    reversals, and period close.
 
 Both loggers are exposed from
-[`apps/app_base/logging_utils.py`](../../apps/app_base/logging_utils.py):
+[`apps/app_base/logging_utils.py`](../../../apps/app_base/logging_utils.py):
 `from apps.app_base.logging_utils import logger, audit_logger`.
 
 ## Guides
