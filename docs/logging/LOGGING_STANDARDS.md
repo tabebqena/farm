@@ -2,20 +2,23 @@
 
 ## Overview
 
-The project uses **standard Python logging**. The previous custom
-`apps.app_base.debug` machinery (`DebugContext`, `debug_view`/`debug_transaction`
-decorators, JSON audit envelopes, per-request `AuditTrailMiddleware`, and the
-`queryset_logging` module) was removed on 2026-09-01 because it was overengineered
-and noisy. In its place there are two loggers configured via `LOGGING` in
-`farm/settings.py`:
+The project uses **standard Python logging** with two channels configured via
+`LOGGING` in [`farm/settings.py`](../../farm/settings.py):
 
 | Logger | Purpose | Handlers | Default level |
 | --- | --- | --- | --- |
 | `farm` | One project-wide logger for all application logging | `console`, `debug_file` (`logs/debug.log`) | `INFO` |
 | `farm_audit` | Compliance-only audit channel | `audit_file` (`logs/audit.log`) | `INFO` |
 
-A dedicated `error_file` (`logs/errors.log`, `ERROR`) is attached to the root
-logger. All handlers are rotating (10MB, with backups).
+Both loggers are exposed from
+[`apps/app_base/logging_utils.py`](../../apps/app_base/logging_utils.py):
+`from apps.app_base.logging_utils import logger, audit_logger`.
+
+- The `farm` logger defaults to `INFO`, so `logger.debug(...)` calls are silent
+  unless tracing is enabled.
+- The root logger also captures `ERROR`+ to `error_file` (`logs/errors.log`).
+- `django.db.backends` SQL is routed to `debug_file` at `INFO`.
+- All handlers are rotating (10MB, with backups).
 
 ## How to Use
 
@@ -32,7 +35,7 @@ logger.error("Something failed")
 
 - The shared `farm` logger is used everywhere — there is **no** per-module
   `logging.getLogger(__name__)`.
-- Verbose per-step "success" / "section" noise was dropped or demoted to
+- Verbose per-step "success" / "section" noise is dropped or demoted to
   `logger.debug(...)`.
 - To trace at runtime, raise the `farm` logger level to `DEBUG` in
   `farm/settings.py` — no code changes needed.
@@ -81,10 +84,44 @@ transaction_reversed | Transaction:42 | user=officer | reversal_pk=57 | reason=.
 - View setup and processing steps
 - Internal computation details
 
-## Deleted / superseded components
+## Where Logging Lives
 
-- `apps/app_base/debug.py` (DebugContext + decorators) — deleted
-- `apps/app_base/queryset_logging.py` (LoggingQuerySet / LoggingManager) — deleted
-- `farm/middlewares_audit.py` (AuditTrailMiddleware) — deleted
-- `LoggingFormMixin` — kept, but rewritten on standard logging
-- `farm_debug` logger — removed; use the shared `farm` logger
+There are no custom decorators or context managers — log the meaningful steps
+explicitly at `debug`, and emit `audit_logger` lines for compliance events.
+
+### Models
+
+| File | Logging |
+| --- | --- |
+| [`apps/app_transaction/models.py`](../../apps/app_transaction/models.py) | `clean()`/`create()` at debug; `reverse()` audits (`transaction_start`/`transaction_reversed`/`transaction_reversal_failed`) |
+| [`apps/app_adjustment/models.py`](../../apps/app_adjustment/models.py) | `clean()`/`save()`/`delete()`/`finalize()`/`reverse()` at debug + `adjustment_*` audits |
+| [`apps/app_inventory/models.py`](../../apps/app_inventory/models.py) | `Product.clean()`/`save()`/`delete()` at debug + `product_*` audits |
+| [`apps/app_operation/models/operation.py`](../../apps/app_operation/models/operation.py) | `clean()`/`save()`/`delete()`/`reverse()` at debug + `operation_*` audits |
+| [`apps/app_entity/models/__init__.py`](../../apps/app_entity/models/__init__.py) | entity/stakeholder/contact save/delete at debug + `entity_*`/`stakeholder_*`/`contact_info_*` audits |
+
+### Views
+
+| Area | Logging |
+| --- | --- |
+| `apps/app_entity/views/*` | entity/contact/stakeholder/category views: fetch + processing at debug, `*_created`/`*_updated`/`*_failed` audits |
+| `apps/app_operation/views/*` | operation detail/list/edit/period/reverse/record views: fetch + processing at debug, reversal/creation audits |
+| `apps/app_operation/views/create_operation/*` | create views (base/birth/death/evaluation/wizards): setup + creation at debug, `operation_created`/`operation_creation_failed` audits |
+| [`apps/app_transaction/views.py`](../../apps/app_transaction/views.py) | transaction list/detail/reverse: fetch + processing at debug, reversal audits |
+| [`apps/app_report/views.py`](../../apps/app_report/views.py) | report scope resolution at debug |
+
+### Forms
+
+All forms inherit [`apps/app_base/form_logging.py`](../../apps/app_base/form_logging.py)
+(`LoggingFormMixin`):
+
+- `clean()` logs at debug; validation errors log a warning.
+- `save(commit=True)` emits a `form_create`/`form_update` audit line.
+
+## History
+
+The project previously used a custom debug/audit layer
+(`apps/app_base/debug.py` `DebugContext` + decorators, `queryset_logging`,
+`AuditTrailMiddleware`, and a `farm_debug` logger). That layer was replaced with
+the two standard loggers above on 2026-09-01 (see
+`ai-plans/replace-debug-with-standard-logging-plan.md`). Logging is now plain
+`logging` — no custom decorators or context managers are used.

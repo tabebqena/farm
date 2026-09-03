@@ -254,3 +254,15 @@ All phases were completed and verified:
   DEBUG_IMPLEMENTATION_SUMMARY) plus the `docs/guides/PROJECT_WALKTHROUGH.md`
   logging sections now describe the standard-logging approach and the minimal
   `farm_audit` channel; deleted components are documented.
+
+**Follow-up — 2026-09-03: docs consolidated into a single `docs/logging/`**
+- The redundant `docs/debugging/` section was merged into `docs/logging/` and
+  removed: its unique per-area coverage ("Where logging lives" —
+  models/views/forms) was folded into `docs/logging/LOGGING_STANDARDS.md`.
+- Removed `docs/logging/COMPREHENSIVE_LOGGING_IMPLEMENTATION.md` (stale
+  migration narrative) and the whole `docs/debugging/` folder (README,
+  DEBUG_README, DEBUG_IMPLEMENTATION_SUMMARY, DEBUG_POINTS_INDEX,
+  DEBUG_QUICK_REFERENCE).
+- Kept the live docs only: `docs/logging/README.md`, `LOGGING_STANDARDS.md`,
+  `LOGGING_IMPLEMENTATION_GUIDE.md`; updated `docs/README.md` categories and
+  `debug_tools/serve_docs.py` nav (removed the `/debugging/` entry).

@@ -1,3 +1,4 @@
+
 """Serve the ``docs/`` folder as a styled, cross-linked documentation site.
 
 Turns every ``*.md`` under ``docs/`` into a rendered HTML page on the fly
@@ -43,7 +44,6 @@ NAV_SECTIONS = [
     ("Features", "/specs/features/"),
     ("Testing", "/testing/"),
     ("Logging", "/logging/"),
-    ("Debugging", "/debugging/"),
     ("API reference", "/api-docs/"),
 ]
 
@@ -226,6 +226,11 @@ class DocsHandler(SimpleHTTPRequestHandler):
         parsed = urlparse(self.path)
         rel = unquote(parsed.path).lstrip("/")
         if rel.endswith(".md") and _md is not None:
+            # A .md page that no longer exists (e.g. removed during a docs
+            # reorganization): reply 404 instead of crashing this thread.
+            if not os.path.isfile(os.path.join(DOCS_DIR, rel)):
+                self.send_error(404, "Not Found")
+                return
             return self._md_page(rel)
         folder = os.path.join(DOCS_DIR, rel)
         if os.path.isdir(folder):

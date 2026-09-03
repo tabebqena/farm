@@ -16,6 +16,35 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 
 ---
 
+## 2026-09-03 — Consolidate logging & debugging docs into docs/logging
+
+Merged the overlapping `docs/debugging/` and `docs/logging/` sections into one
+canonical [`docs/logging/`](docs/logging/) section and removed stale docs that
+pointed to the deleted custom debug machinery (`apps/app_base/debug.py`,
+`queryset_logging.py`, `farm/middlewares_audit.py`, the `farm_debug` logger),
+which had already been replaced with standard Python logging.
+
+### Changed
+- [`docs/logging/LOGGING_STANDARDS.md`](docs/logging/LOGGING_STANDARDS.md) —
+  logging conventions; absorbed the per-area "Where logging lives" coverage
+  (models/views/forms) previously in `docs/debugging/DEBUG_POINTS_INDEX.md`.
+- [`docs/logging/LOGGING_IMPLEMENTATION_GUIDE.md`](docs/logging/LOGGING_IMPLEMENTATION_GUIDE.md) —
+  how-to guide, no longer framed around the removed debug system.
+- [`docs/logging/README.md`](docs/logging/README.md) — index for the merged section.
+
+### Removed
+- `docs/debugging/` (README, DEBUG_README, DEBUG_IMPLEMENTATION_SUMMARY,
+  DEBUG_POINTS_INDEX, DEBUG_QUICK_REFERENCE).
+- `docs/logging/COMPREHENSIVE_LOGGING_IMPLEMENTATION.md` — stale migration narrative.
+
+### Updated
+- [`docs/README.md`](docs/README.md) — dropped the Debugging category.
+- [`debug_tools/serve_docs.py`](debug_tools/serve_docs.py) — removed the
+  `Debugging` nav entry and now replies `404` for `.md` pages that no longer
+  exist (previously the handler crashed that request thread).
+
+---
+
 ## 2026-09-03 — docs/ as the documentation root (styled Markdown site)
 
 Made `docs/` the single documentation root and added a server that renders the

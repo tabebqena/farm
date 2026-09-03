@@ -7,7 +7,6 @@ Organized by topic for easy navigation.
 - **[Guides](guides/)** - Project guides, authentication, and feature overviews
 - **[Testing](testing/)** - Test coverage and test suite documentation
 - **[Logging](logging/)** - Logging standards and implementation guides
-- **[Debugging](debugging/)** - Debug tools, points, and quick references
 
 ## API reference
 
