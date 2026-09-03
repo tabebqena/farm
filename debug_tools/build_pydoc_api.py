@@ -3,15 +3,18 @@
 Bootstraps Django first (importing ``apps.app_*`` modules requires the app
 registry), then walks ``apps/`` (plus the ``farm`` package) and writes one
 standalone pydoc HTML page per source module under ``api-docs/``, finishing
-with an ``index.html`` that groups the pages by app.
+with an ``index.html`` that groups the pages by app and links to the raw
+Markdown content in ``docs/``.
 
 Usage (from the repo root):
     .venv/bin/python debug_tools/build_pydoc_api.py
     .venv/bin/python debug_tools/build_pydoc_api.py apps.app_entity.models
 
-Serve the result:
-    python -m http.server 8766 --directory api-docs
-    # open http://localhost:8766/
+Serve the result (serve the REPO ROOT so ``api-docs/`` and ``docs/`` live on
+one origin and the index's ``../docs/...`` links resolve):
+    python -m http.server 8766
+    # pydoc API  -> http://localhost:8766/api-docs/      (index.html)
+    # raw docs   -> http://localhost:8766/docs/README.md
 """
 
 import importlib
@@ -33,6 +36,19 @@ OUT_DIR = os.path.join(REPO_ROOT, "api-docs")
 # Directories / files never rendered (generated, env-specific or non-API).
 EXCLUDED_DIRS = {"migrations", "tests", "ui_tests", "__pycache__", "debug_tools"}
 EXCLUDED_FILES = {"wsgi.py", "asgi.py", "settings.py", "manage.py"}
+
+# Markdown entry points under docs/ surfaced from the pydoc index.
+DOCS_LINKS = [
+    ("Documentation home", "../docs/README.md"),
+    ("Guides", "../docs/guides/README.md"),
+    ("Specifications index", "../docs/specs/README.md"),
+    ("Operations specs", "../docs/specs/operations/README.md"),
+    ("Feature specs", "../docs/specs/features/"),
+    ("Testing", "../docs/testing/README.md"),
+    ("Logging", "../docs/logging/README.md"),
+    ("Debugging", "../docs/debugging/README.md"),
+    ("Notes", "../docs/notes/README.md"),
+]
 
 
 def discover_modules():
@@ -91,6 +107,20 @@ def build_index(pages):
         group = module_name.split(".")[1] if module_name.startswith("apps.") else "farm"
         groups.setdefault(group, []).append((module_name, doc))
 
+    docs_links = "\n".join(
+        f'      <li><a href="{href}">{escape(label)}</a></li>'
+        for label, href in DOCS_LINKS
+    )
+    docs_block = (
+        "    <h2>Project docs <span class=\"hint\">(docs/, raw Markdown)</span></h2>\n"
+        f"    <ul>\n{docs_links}\n    </ul>\n"
+        "    <p class=\"hint\">Pages below are rendered from the modules' live "
+        "docstrings. Regenerate with "
+        "<code>.venv/bin/python debug_tools/build_pydoc_api.py</code>. Serve the "
+        "repo root (<code>python -m http.server 8766</code>) so these "
+        "<code>../docs/</code> links resolve.</p>\n"
+    )
+
     links = []
     for group in sorted(groups):
         rows = "\n".join(
@@ -102,29 +132,29 @@ def build_index(pages):
         links.append(f"    <h2>{escape(group)}</h2>\n    <ul>\n{rows}\n    </ul>")
 
     index = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>farm — API reference (pydoc)</title>
-<style>
-  body {{ font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-         max-width: 60rem; margin: 2rem auto; padding: 0 1rem; color: #222; }}
-  h1 {{ border-bottom: 2px solid #0a7; padding-bottom: .25rem; }}
-  h2 {{ color: #0a7; margin-top: 2rem; }}
-  ul {{ list-style: none; padding-left: 0; }}
-  li {{ margin: .4rem 0; }}
-  code {{ background: #f2f2f2; padding: .1rem .3rem; border-radius: 3px; }}
-  .doc {{ color: #666; font-size: .9rem; margin-left: 1rem; }}
-</style>
-</head>
-<body>
-<h1>farm — API reference (generated with pydoc)</h1>
-<p>Pages below are rendered from the modules' live docstrings. Regenerate with
-<code>.venv/bin/python debug_tools/build_pydoc_api.py</code>.</p>
-{chr(10).join(links)}
-</body>
-</html>
-"""
+    <html lang="en">
+    <head>
+    <meta charset="utf-8">
+    <title>farm — API reference (pydoc)</title>
+    <style>
+      body {{ font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+             max-width: 60rem; margin: 2rem auto; padding: 0 1rem; color: #222; }}
+      h1 {{ border-bottom: 2px solid #0a7; padding-bottom: .25rem; }}
+      h2 {{ color: #0a7; margin-top: 2rem; }}
+      h2 .hint, p.hint {{ color: #888; font-size: .85rem; font-weight: normal; }}
+      ul {{ list-style: none; padding-left: 0; }}
+      li {{ margin: .4rem 0; }}
+      code {{ background: #f2f2f2; padding: .1rem .3rem; border-radius: 3px; }}
+      .doc {{ color: #666; font-size: .9rem; margin-left: 1rem; }}
+    </style>
+    </head>
+    <body>
+    <h1>farm — API reference (generated with pydoc)</h1>
+    {docs_block}
+    {chr(10).join(links)}
+    </body>
+    </html>
+    """
     with open(os.path.join(OUT_DIR, "index.html"), "w", encoding="utf-8") as fh:
         fh.write(index)
 

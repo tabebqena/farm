@@ -26,7 +26,12 @@ API reference pages.
   Django (`DJANGO_SETTINGS_MODULE=farm.settings`, `django.setup()`), discovers
   every source module under `apps/` and `farm/` (excluding migrations, tests,
   `ui_tests`, `wsgi`/`asgi`/`settings`), writes one standalone pydoc HTML page
-  per module into `api-docs/`, and builds a grouped `index.html`.
+  per module into `api-docs/` (flat dotted filenames so pydoc's cross-module
+  links resolve), and builds a grouped `index.html`.
+- The generated index also links to the raw Markdown under `docs/`, so both are
+  browsable on one origin. Serve the repo root to use it:
+  `python -m http.server 8766` → http://localhost:8766/api-docs/ (API) and
+  http://localhost:8766/docs/README.md (Markdown docs).
 - Output is intentionally git-ignored (`api-docs/**`); regenerate with
   `.venv/bin/python debug_tools/build_pydoc_api.py`.
 
