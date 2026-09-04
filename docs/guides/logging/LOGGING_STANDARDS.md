@@ -93,11 +93,12 @@ explicitly at `debug`, and emit `audit_logger` lines for compliance events.
 
 | File | Logging |
 | --- | --- |
+| [`apps/app_base/models.py`](../../../apps/app_base/models.py) | `BaseModel.delete()` — central soft-delete logging: emits a `logger.warning` plus the `<model>_deleted` audit line for every model (per-model `delete()` overrides removed) |
 | [`apps/app_transaction/models.py`](../../../apps/app_transaction/models.py) | `clean()`/`create()` at debug; `reverse()` audits (`transaction_start`/`transaction_reversed`/`transaction_reversal_failed`) |
-| [`apps/app_adjustment/models.py`](../../../apps/app_adjustment/models.py) | `clean()`/`save()`/`delete()`/`finalize()`/`reverse()` at debug + `adjustment_*` audits |
-| [`apps/app_inventory/models.py`](../../../apps/app_inventory/models.py) | `Product.clean()`/`save()`/`delete()` at debug + `product_*` audits |
-| [`apps/app_operation/models/operation.py`](../../../apps/app_operation/models/operation.py) | `clean()`/`save()`/`delete()`/`reverse()` at debug + `operation_*` audits |
-| [`apps/app_entity/models/__init__.py`](../../../apps/app_entity/models/__init__.py) | entity/stakeholder/contact save/delete at debug + `entity_*`/`stakeholder_*`/`contact_info_*` audits |
+| [`apps/app_adjustment/models.py`](../../../apps/app_adjustment/models.py) | `clean()`/`save()`/`finalize()`/`reverse()` at debug + `adjustment_*` audits (delete audit via `BaseModel.delete()`) |
+| [`apps/app_inventory/models.py`](../../../apps/app_inventory/models.py) | `Product.clean()`/`save()` at debug + `product_*` audits (delete audit via `BaseModel.delete()`) |
+| [`apps/app_operation/models/operation.py`](../../../apps/app_operation/models/operation.py) | `clean()`/`save()`/`reverse()` at debug + `operation_*` audits (delete audit via `BaseModel.delete()`) |
+| [`apps/app_entity/models/__init__.py`](../../../apps/app_entity/models/__init__.py) | entity/stakeholder/contact save at debug + `entity_*`/`stakeholder_*`/`contact_info_*` audits (delete audit via `BaseModel.delete()`) |
 
 ### Views
 

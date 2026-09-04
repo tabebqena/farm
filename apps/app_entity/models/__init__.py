@@ -162,18 +162,6 @@ class ContactInfo(ImmutableMixin, BaseModel):
         )
         return result
 
-    def delete(self, *args, **kwargs):
-        """Delete contact info with logging."""
-        logger.warning(
-            f"ContactInfo.delete() | entity={self.entity} | type={self.contact_type} | "
-            f"value={self.value[:50] if self.value else ''}"
-        )
-        audit_logger.info(
-            f"contact_info_deleted | ContactInfo:{self.pk} | user=system | "
-            f"entity={self.entity}"
-        )
-        return super().delete(*args, **kwargs)
-
     def __str__(self):
         return _("%(label)s: %(value)s") % {
             "label": self.get_label_display(),
@@ -234,18 +222,6 @@ class Stakeholder(ImmutableMixin, BaseModel):
             f"parent={self.parent} | target={self.target} | role={self.role}"
         )
         return result
-
-    def delete(self, *args, **kwargs):
-        """Delete stakeholder with logging."""
-        logger.warning(
-            f"Stakeholder.delete() | parent={self.parent} | target={self.target} | "
-            f"role={self.role}"
-        )
-        audit_logger.info(
-            f"stakeholder_deleted | Stakeholder:{self.pk} | user=system | "
-            f"parent={self.parent} | target={self.target} | role={self.role}"
-        )
-        return super().delete(*args, **kwargs)
 
     def clean(self) -> None:
         """Validate the parent/target entity types and role compatibility."""

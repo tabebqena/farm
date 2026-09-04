@@ -1239,20 +1239,6 @@ class Operation(
             "over_repayment_amount": over_repayment_amount,
         }
 
-    def delete(self, *args, **kwargs):
-        """Delete operation with audit logging."""
-        logger.warning(
-            f"Deleting operation | pk={self.pk} | type={self.operation_type} | "
-            f"source={self.source} | destination={self.destination}"
-        )
-
-        audit_logger.info(
-            f"operation_deleted | Operation:{self.pk} | user={self.officer} | "
-            f"type={self.operation_type} | amount={float(self.amount)}"
-        )
-
-        return super().delete(*args, **kwargs)
-
     def reverse(self, officer, date=None, reason=None):
         """Reverse an operation with full audit trail."""
         import uuid

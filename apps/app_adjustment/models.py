@@ -316,20 +316,6 @@ class Adjustment(
         )
         return result
 
-    def delete(self, *args, **kwargs):
-        """Delete adjustment with audit logging."""
-        logger.warning(
-            f"Deleting adjustment | pk={self.pk} | operation={self.operation} | "
-            f"type={self.type}"
-        )
-
-        audit_logger.info(
-            f"adjustment_deleted | Adjustment:{self.pk} | user={self.officer} | "
-            f"operation={self.operation} | type={self.type}"
-        )
-
-        return super().delete(*args, **kwargs)
-
     @property
     def _reversable_transaction_types(self) -> List[TransactionType]:
         """The adjustment issuance transaction is reversed with the document."""

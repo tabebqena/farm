@@ -6,6 +6,7 @@ extends it for records that an officer can reverse, guarding the original record
 against mutation and coordinating the reversal of its related transactions.
 """
 
+import re
 import typing
 from typing import Collection, List
 
@@ -20,11 +21,50 @@ from django.utils.translation import gettext_lazy as _
 if typing.TYPE_CHECKING:
     from apps.app_transaction.transaction_type import TransactionType
 
+from .logging_utils import audit_logger, logger
 from .managers import ActiveManager, DefaultManager
 from .mixins import HasRelatedTransactions
 
 # TODO use database level constrains for dataintegrity.
 # TODO add finiancial period closing
+
+
+# Field names that make a record identifiable in the central delete log.
+# ``BaseModel.delete()`` includes whichever of these the concrete model exposes
+# so the audit line keeps the context the old per-model ``delete()`` overrides
+# used to add (operation type/amount/source/destination, contact
+# type/value/entity, stakeholder parent/target/role, product
+# template/quantity/status, ...). FK targets render through their ``str()``
+# (names / usernames) so the line stays flat and greppable.
+_DELETE_LOG_CONTEXT_FIELDS = (
+    "name",
+    "label",
+    "value",
+    "contact_type",
+    "entity",
+    "parent",
+    "target",
+    "role",
+    "operation",
+    "operation_type",
+    "type",
+    "source",
+    "destination",
+    "amount",
+    "officer",
+    "product_template",
+    "quantity",
+    "status",
+    "active",
+)
+
+
+def _camel_to_snake(name: str) -> str:
+    """Convert a CamelCase class name into a snake_case audit event token.
+
+    ``ContactInfo`` -> ``contact_info``, ``Operation`` -> ``operation``.
+    """
+    return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
 
 
 # -----------------------------
@@ -117,10 +157,54 @@ class BaseModel(models.Model):
         the audit trail stays intact and the row can be restored later by
         clearing ``deleted_at`` and saving again. Re-saving runs the normal
         ``full_clean()`` validation and post-save hooks.
+
+        Deletion is logged centrally here on both channels: a warning on the
+        project logger and a flat, greppable line on the audit channel. The
+        line carries the model name, ``pk``, the ``deleted_at`` timestamp and
+        whichever identifying fields the concrete model exposes (see
+        ``_delete_log_context()``), so the context the per-model ``delete()``
+        overrides used to add is preserved without per-model code.
         """
         if not self.deleted_at:
             self.deleted_at = timezone.now()
+
+        concrete = self._meta.concrete_model or type(self)
+        concrete_name = concrete.__name__
+        context = self._delete_log_context()
+        deleted_at = self.deleted_at.isoformat() if self.deleted_at else ""
+
+        logger.warning(
+            f"Deleting {concrete_name} | pk={self.pk} | "
+            f"deleted_at={deleted_at} | {context}"
+        )
+        audit_logger.info(
+            f"{_camel_to_snake(concrete_name)}_deleted | "
+            f"{concrete_name}:{self.pk} | user=system | "
+            f"deleted_at={deleted_at} | {context}"
+        )
+
         return self.save(*args, **kwargs)
+
+    def _delete_log_context(self) -> str:
+        """Build the flat ``key=value`` context for the central delete log.
+
+        Includes only the attributes from ``_DELETE_LOG_CONTEXT_FIELDS`` that
+        the concrete model actually exposes and that hold a value; FK targets
+        are rendered through ``str()``. Never raises — a logging helper must
+        not prevent the soft-delete itself.
+        """
+        parts = []
+        for attr in _DELETE_LOG_CONTEXT_FIELDS:
+            if not hasattr(self, attr):
+                continue
+            try:
+                value = getattr(self, attr)
+            except Exception:
+                continue
+            if value is None or value == "" or callable(value):
+                continue
+            parts.append(f"{attr}={value}")
+        return " | ".join(parts)
 
 
 class ReversableModel(HasRelatedTransactions, BaseModel):

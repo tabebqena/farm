@@ -969,22 +969,6 @@ class Product(AmountCleanMixin, BaseModel):
         )
         return result
 
-    def delete(self, *args, **kwargs):
-        """Delete product with audit logging."""
-        logger.warning(
-            f"Deleting product | pk={self.pk} | "
-            f"product={self.product_template.name if self.product_template else ''} | "
-            f"status={self.status}"
-        )
-
-        audit_logger.info(
-            f"product_deleted | Product:{self.pk} | user=system | "
-            f"product_template={self.product_template.name if self.product_template else ''} | "
-            f"status={self.status}"
-        )
-
-        return super().delete(*args, **kwargs)
-
     # ------------------------------------------------------------------
     # Concurrency helpers
     # ------------------------------------------------------------------
