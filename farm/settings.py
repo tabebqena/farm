@@ -63,7 +63,6 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     # Should be after the auth middleware
-    "crum.CurrentRequestUserMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "farm.middlewares.LoginRequiredMiddleware",
 ]
