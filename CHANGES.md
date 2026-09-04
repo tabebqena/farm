@@ -16,6 +16,20 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 
 ---
 
+## 2026-09-04 — Complete ActiveManager soft-delete test coverage
+
+### Added
+- Expanded [`ActiveManagerTests`](apps/app_base/tests.py) in `apps/app_base/tests.py`
+  to fully cover the soft-delete semantics of [`ActiveManager`](apps/app_base/managers.py):
+  the default `objects` manager is an `ActiveManager` that excludes soft-deleted rows
+  (`.all()`, `.count()`, `.filter()`, `.exists()`, and `.get()` raising
+  `DoesNotExist`), while `all_objects` keeps soft-deleted rows reachable. Added
+  manager-type assertions, restore (`deleted_at = None`) and multi-delete exclusion
+  cases. Soft-deleted state is simulated by stamping `deleted_at` because test
+  settings force `DEBUG = True`, under which `BaseModel.delete()` hard-deletes.
+
+---
+
 ## 2026-09-03 — Docs reorganization (guides, operations, logging/testing)
 
 Reorganized the Markdown docs site: pruned stale pages, moved the logging and

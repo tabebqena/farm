@@ -8,10 +8,12 @@ from decimal import Decimal
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.core.management import call_command
+from django.db import models
 from django.test import TestCase
 from django.utils import timezone
 
 from apps.app_base.management.commands.seed import ANIMAL_TEMPLATES
+from apps.app_base.managers import ActiveManager
 from apps.app_entity.models import Entity, EntityType
 from apps.app_inventory.models import ProductTemplate
 from apps.app_operation.models.operation_type import OperationType
@@ -116,24 +118,108 @@ class BaseModelDeletableFieldTests(TestCase):
 
 
 class ActiveManagerTests(TestCase):
-    """Test ActiveManager excludes soft-deleted items"""
+    """Test ActiveManager excludes soft-deleted items.
+
+    ``Entity.objects`` uses :class:`ActiveManager`, which filters
+    ``deleted_at__isnull=True``; ``Entity.all_objects`` is the unfiltered
+    manager and must keep soft-deleted rows reachable.
+
+    Note: DEBUG is forced on in test settings, so ``BaseModel.delete()``
+    hard-deletes instead of soft-deleting. Soft-deleted state is therefore
+    simulated directly by stamping ``deleted_at`` — the exact marker that
+    ``ActiveManager.get_queryset()`` filters on.
+    """
+
+    def setUp(self):
+        self.live = _make_entity("ActiveEntity")
+        self.removed = _make_entity("SoftDeletedEntity")
+        self._soft_delete(self.removed)
+
+    @staticmethod
+    def _soft_delete(entity):
+        """Stamp ``deleted_at`` to mimic a soft-deleted row."""
+        entity.deleted_at = timezone.now()
+        entity.save()
+
+    # --- manager wiring -------------------------------------------------- #
 
     def test_objects_manager_is_active_manager(self):
-        """default objects manager should be ActiveManager"""
-        entity = _make_entity("Active")
+        """The ``objects`` manager should be an ActiveManager instance."""
+        self.assertIsInstance(Entity.objects, ActiveManager)
 
-        # Using active manager
-        self.assertGreaterEqual(Entity.objects.count(), 1)
-        self.assertIn(entity, Entity.objects.all())
+    def test_all_objects_is_a_plain_manager(self):
+        """``all_objects`` should be a plain (unfiltered) Manager, not ActiveManager."""
+        self.assertIsInstance(Entity.all_objects, models.Manager)
+        self.assertNotIsInstance(Entity.all_objects, ActiveManager)
 
-    def test_all_objects_returns_all(self):
-        """all_objects manager should return all items"""
-        entity1 = _make_entity("Entity1")
-        entity2 = _make_entity("Entity2")
+    # --- default ``objects`` manager (active rows only) ------------------- #
 
-        # Using all_objects
-        all_entities = Entity.all_objects.filter(name__in=["Entity1", "Entity2"])
-        self.assertEqual(all_entities.count(), 2)
+    def test_objects_returns_live_rows(self):
+        """``objects`` should expose non-soft-deleted rows."""
+        self.assertEqual(Entity.objects.count(), 1)
+        self.assertEqual(list(Entity.objects.all()), [self.live])
+
+    def test_objects_excludes_soft_deleted(self):
+        """Soft-deleted rows should never appear via the default manager."""
+        self.assertNotIn(self.removed, Entity.objects.all())
+        self.assertFalse(Entity.objects.filter(pk=self.removed.pk).exists())
+        with self.assertRaises(Entity.DoesNotExist):
+            Entity.objects.get(pk=self.removed.pk)
+
+    def test_objects_filter_ignores_soft_deleted(self):
+        """filter() through the default manager should still exclude deleted rows."""
+        qs = Entity.objects.filter(name=self.removed.name)
+        self.assertEqual(qs.count(), 0)
+        self.assertFalse(qs.exists())
+        self.assertEqual(list(qs), [])
+
+    def test_objects_get_works_for_live_row(self):
+        """get() through the default manager should resolve live rows."""
+        self.assertEqual(Entity.objects.get(pk=self.live.pk), self.live)
+
+    # --- ``all_objects`` manager (everything, incl. soft-deleted) --------- #
+
+    def test_all_objects_returns_everything(self):
+        """``all_objects`` should return live and soft-deleted rows together."""
+        self.assertEqual(Entity.all_objects.count(), 2)
+        self.assertEqual(
+            set(
+                Entity.all_objects.filter(
+                    name__in=[self.live.name, self.removed.name]
+                )
+            ),
+            {self.live, self.removed},
+        )
+
+    def test_all_objects_includes_soft_deleted(self):
+        """Soft-deleted rows must stay reachable through ``all_objects``."""
+        fetched = Entity.all_objects.get(pk=self.removed.pk)
+        self.assertIsNotNone(fetched.deleted_at)
+        self.assertIn(self.removed, Entity.all_objects.all())
+
+    def test_all_objects_filter_includes_soft_deleted(self):
+        """filter() through ``all_objects`` should still match deleted rows."""
+        qs = Entity.all_objects.filter(name=self.removed.name)
+        self.assertEqual(qs.count(), 1)
+        self.assertEqual(list(qs), [self.removed])
+
+    # --- toggling the soft-delete marker ---------------------------------- #
+
+    def test_restoring_deleted_at_returns_row_to_objects(self):
+        """Clearing ``deleted_at`` should make the row visible via ``objects`` again."""
+        self.removed.deleted_at = None
+        self.removed.save()
+        self.assertEqual(Entity.objects.count(), 2)
+        self.assertIn(self.removed, Entity.objects.all())
+
+    def test_multiple_soft_deleted_rows_all_excluded(self):
+        """Soft-deleting every row should empty the default manager."""
+        self._soft_delete(self.live)
+        self.assertEqual(Entity.objects.count(), 0)
+        self.assertEqual(Entity.all_objects.count(), 2)
+        self.assertEqual(
+            Entity.all_objects.filter(deleted_at__isnull=True).count(), 0
+        )
 
 
 # =============================================================================
