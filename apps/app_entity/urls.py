@@ -16,9 +16,14 @@ urlpatterns = [
     path("project/edit/<int:pk>", views.ProjectEditView.as_view(), name="project_edit"),
     path("project/setup/", views.project_setup_wizard_view, name="project_create"),
     path(
-        "project/<int:entity_pk>/setup/<int:step>/",
+        "project/setup/cancel/",
+        views.project_setup_cancel_view,
+        name="project_setup_cancel",
+    ),
+    path(
+        "project/setup/<int:step>/",
         views.project_setup_wizard_view,
-        name="project_setup_step",
+        name="project_setup",
     ),
     path("<int:pk>/", views.EntityDetailView.as_view(), name="entity_detail"),
     path(

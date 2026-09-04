@@ -24,7 +24,7 @@ from .entity_list import EntityListView
 from .person_create import PersonCreateView
 from .person_edit import PersonEditView
 from .project_edit import ProjectEditView
-from .project_setup_wizard import project_setup_wizard_view
+from .project_setup_wizard import project_setup_cancel_view, project_setup_wizard_view
 
 __all__ = [
     "EntityListView",
@@ -33,6 +33,7 @@ __all__ = [
     "PersonEditView",
     "ProjectEditView",
     "project_setup_wizard_view",
+    "project_setup_cancel_view",
     "AddContactInfoView",
     "EditContactInfoView",
     "AddClientView",

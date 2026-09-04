@@ -7,7 +7,7 @@
         {% trans "Shareholder Stakeholders" %}
     </h6>
     <p class="text-muted mb-4">
-        {% trans "Select people who hold equity or ownership stake in this project. This is the final setup step." %}
+        {% trans "Select people who hold equity or ownership stake in this project. After this step you will review your choices and create the project." %}
     </p>
 
     {% if eligible_entities %}
@@ -15,12 +15,12 @@
         {% for entity in eligible_entities %}
         <label class="list-group-item list-group-item-action p-3 d-flex align-items-center" style="cursor: pointer;">
             <input class="form-check-input me-3" type="checkbox" name="selected_entities" value="{{ entity.id }}"
-                   {% if entity.id in existing_stakeholder_ids %}checked disabled{% endif %}>
+                   {% if entity.id in existing_stakeholder_ids %}checked{% endif %}>
             <div class="flex-grow-1">
                 <div class="d-flex justify-content-between align-items-center">
                     <span class="fw-bold">{{ entity.name }}</span>
                     {% if entity.id in existing_stakeholder_ids %}
-                    <span class="badge bg-success">{% trans "Added" %}</span>
+                    <span class="badge bg-success">{% trans "Selected" %}</span>
                     {% endif %}
                 </div>
                 <small class="text-muted d-block">Person #{{ entity.id }}</small>
@@ -31,7 +31,7 @@
 
     <div class="alert alert-success mt-4" role="alert">
         <i class="bi bi-check-circle"></i>
-        {% trans "After completing this step, you can start recording operations for your project." %}
+        {% trans "Continue to the review step to confirm and create your project." %}
     </div>
     {% else %}
     <div class="text-center py-5">

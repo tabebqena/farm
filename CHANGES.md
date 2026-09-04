@@ -16,6 +16,37 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 
 ---
 
+## 2026-09-04 — Defer project creation in the setup wizard + Summary step
+
+The project setup wizard no longer creates the project at step 1. It now collects
+steps 1–6 into a session draft (no DB writes) and adds a 7th **Summary** step that
+reviews everything and provides a **Create Project** button. The create action
+applies the steps sequentially inside a single atomic transaction; on any failure
+nothing is created and the user is redirected to the step whose data failed, with
+the draft preserved so they can correct it. The wizard is now **create-only** — the
+entity-pk edit/continue route (`project_setup_step`) was removed; editing an
+existing project stays out of the wizard (`ProjectEditView` and the per-project
+management views are unaffected).
+
+### Changed
+- [`apps/app_entity/views/project_setup_wizard.py`](apps/app_entity/views/project_setup_wizard.py) —
+  rewritten as a create-only, 7-step wizard backed by a session draft
+  (`project_setup_wizard` key); step handlers persist nothing; the summary create
+  (`_apply_create_project`) applies the stages (project entity, categories,
+  product templates, worker/vendor/shareholder stakeholders) sequentially inside
+  `transaction.atomic()` and raises a per-stage error that redirects to the failing
+  step; new `project_setup_cancel_view()` clears the draft.
+- [`apps/app_entity/urls.py`](apps/app_entity/urls.py) — added
+  `project/setup/<int:step>/` (`project_setup`) and `project/setup/cancel/`
+  (`project_setup_cancel`); removed the entity-pk `project_setup_step` route.
+- [`apps/app_entity/templates/app_entity/project_setup_wizard.html`](apps/app_entity/templates/app_entity/project_setup_wizard.html)
+  and the `setup/step_*.html` partials — 7-step progress, create-only navigation,
+  draft prefill/checked state; new `setup/step_7_summary.html` review page.
+- Wizard tests rewritten for the create-only session flow (24 targeted tests pass;
+  full `apps.app_entity` suite otherwise green).
+
+---
+
 ## 2026-09-04 — Remove the executable coverage manifest
 
 Removed `COVERAGE_MANIFEST` / `CoverageManifestTest`, the executable drift guard

@@ -1,0 +1,140 @@
+{% load i18n %}
+
+<form method="post" id="wizard-form">
+    {% csrf_token %}
+</form>
+
+<div class="mb-4">
+    <h4 class="h5 fw-bold text-primary">{% trans 'Review Your Project' %}</h4>
+    <p class="text-muted small">
+        {% trans 'Review the details below. When everything looks correct, press "Create Project" to create it. You can edit any section by clicking Edit.' %}
+    </p>
+</div>
+
+<div class="alert alert-light border small py-2 d-flex justify-content-between align-items-center">
+    <span class="text-muted">
+        <i class="bi bi-info-circle me-1"></i>
+        {% blocktrans %}The project will be created only after you press <strong>Create Project</strong>.{% endblocktrans %}
+    </span>
+</div>
+
+<div class="row g-3">
+
+    {# Project identity #}
+    <div class="col-12">
+        <div class="card border shadow-sm">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
+                <h6 class="mb-0 fw-bold text-primary small"><i class="bi bi-kanban me-2"></i>{% trans 'Project Identity' %}</h6>
+                <a href="{% url 'project_setup' step=1 %}" class="btn btn-sm btn-outline-secondary">{% trans 'Edit' %}</a>
+            </div>
+            <div class="card-body py-3">
+                {% if summary_info.name %}
+                    <div class="mb-2">
+                        <span class="text-muted small d-block">{% trans 'Name' %}</span>
+                        <span class="fw-semibold">{{ summary_info.name }}</span>
+                    </div>
+                    <div class="mb-2">
+                        <span class="text-muted small d-block">{% trans 'Description / Scope' %}</span>
+                        <span>{{ summary_info.description|default:'—' }}</span>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2">
+                        {% if summary_info.is_internal %}<span class="badge bg-primary">{% trans 'Internal' %}</span>{% endif %}
+                        {% if summary_info.is_vendor %}<span class="badge bg-secondary">{% trans 'Vendor' %}</span>{% endif %}
+                        {% if summary_info.is_client %}<span class="badge bg-info text-dark">{% trans 'Client' %}</span>{% endif %}
+                        {% if summary_info.active %}<span class="badge bg-success">{% trans 'Active' %}</span>{% else %}<span class="badge bg-danger">{% trans 'Inactive' %}</span>{% endif %}
+                    </div>
+                {% else %}
+                    <div class="text-muted small">{% trans 'No project details provided yet.' %}</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {# Categories #}
+    <div class="col-12">
+        <div class="card border shadow-sm">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
+                <h6 class="mb-0 fw-bold text-success small"><i class="bi bi-collection me-2"></i>{% trans 'Financial Categories' %} <span class="badge bg-secondary">{{ summary_counts.categories }}</span></h6>
+                <a href="{% url 'project_setup' step=2 %}" class="btn btn-sm btn-outline-secondary">{% trans 'Edit' %}</a>
+            </div>
+            <div class="card-body py-3">
+                {% if summary_categories %}
+                    <div class="d-flex flex-wrap gap-2">
+                        {% for category in summary_categories %}
+                            <span class="badge bg-light text-dark border">{{ category.name }}</span>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-muted small">{% trans 'No categories selected.' %}</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {# Templates #}
+    <div class="col-12">
+        <div class="card border shadow-sm">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
+                <h6 class="mb-0 fw-bold text-info small"><i class="bi bi-box-seam me-2"></i>{% trans 'Product Templates' %} <span class="badge bg-secondary">{{ summary_counts.templates }}</span></h6>
+                <a href="{% url 'project_setup' step=3 %}" class="btn btn-sm btn-outline-secondary">{% trans 'Edit' %}</a>
+            </div>
+            <div class="card-body py-3">
+                {% if summary_templates %}
+                    <div class="d-flex flex-wrap gap-2">
+                        {% for template in summary_templates %}
+                            <span class="badge bg-light text-dark border">{{ template.name }}</span>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-muted small">{% trans 'No product templates selected.' %}</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {# Stakeholders #}
+    <div class="col-12">
+        <div class="card border shadow-sm">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
+                <h6 class="mb-0 fw-bold text-secondary small"><i class="bi bi-people me-2"></i>{% trans 'Stakeholders' %}</h6>
+                <a href="{% url 'project_setup' step=4 %}" class="btn btn-sm btn-outline-secondary">{% trans 'Edit' %}</a>
+            </div>
+            <div class="card-body py-3">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <span class="text-muted small d-block">{% trans 'Workers' %} <span class="badge bg-secondary">{{ summary_counts.workers }}</span></span>
+                        <ul class="mb-0 ps-3 small">
+                            {% for entity in summary_workers %}
+                                <li>{{ entity.name }}</li>
+                            {% empty %}
+                                <li class="text-muted">{% trans 'None' %}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    <div class="col-md-4">
+                        <span class="text-muted small d-block">{% trans 'Vendors' %} <span class="badge bg-secondary">{{ summary_counts.vendors }}</span></span>
+                        <ul class="mb-0 ps-3 small">
+                            {% for entity in summary_vendors %}
+                                <li>{{ entity.name }}</li>
+                            {% empty %}
+                                <li class="text-muted">{% trans 'None' %}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    <div class="col-md-4">
+                        <span class="text-muted small d-block">{% trans 'Shareholders' %} <span class="badge bg-secondary">{{ summary_counts.shareholders }}</span></span>
+                        <ul class="mb-0 ps-3 small">
+                            {% for entity in summary_shareholders %}
+                                <li>{{ entity.name }}</li>
+                            {% empty %}
+                                <li class="text-muted">{% trans 'None' %}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<form method="post" id="wizard-form-skip" style="display: none;"></form>

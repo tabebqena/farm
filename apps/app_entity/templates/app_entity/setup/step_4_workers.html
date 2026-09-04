@@ -15,12 +15,12 @@
         {% for entity in eligible_entities %}
         <label class="list-group-item list-group-item-action p-3 d-flex align-items-center" style="cursor: pointer;">
             <input class="form-check-input me-3" type="checkbox" name="selected_entities" value="{{ entity.id }}"
-                   {% if entity.id in existing_stakeholder_ids %}checked disabled{% endif %}>
+                   {% if entity.id in existing_stakeholder_ids %}checked{% endif %}>
             <div class="flex-grow-1">
                 <div class="d-flex justify-content-between align-items-center">
                     <span class="fw-bold">{{ entity.name }}</span>
                     {% if entity.id in existing_stakeholder_ids %}
-                    <span class="badge bg-success">{% trans "Added" %}</span>
+                    <span class="badge bg-success">{% trans "Selected" %}</span>
                     {% endif %}
                 </div>
                 <small class="text-muted d-block">Entity #{{ entity.id }}</small>

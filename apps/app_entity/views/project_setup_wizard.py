@@ -1,9 +1,15 @@
-"""Multi-step project setup wizard.
+"""Project setup wizard (create-only).
 
-A function-based view (:func:`project_setup_wizard_view`) that walks through six
-setup steps — project info, financial categories, product templates, and worker
-/ vendor / shareholder stakeholders — creating or updating the project entity
-atomically at each step.
+A function-based view (:func:`project_setup_wizard_view`) that walks through
+seven steps — project info, financial categories, product templates, worker /
+vendor / shareholder stakeholders, and a final summary — collecting each step's
+data into a session draft. Nothing is persisted to the database until the user
+confirms on the summary step.
+
+The summary **Create** action applies the steps sequentially inside a single
+``transaction.atomic()`` block. If any stage fails, the whole creation is rolled
+back (no project is created) and the user is redirected back to the step whose
+data failed, keeping the draft so they can correct it.
 """
 
 from decimal import Decimal
@@ -14,7 +20,6 @@ from django.shortcuts import redirect, render
 from django.utils.translation import gettext
 
 from apps.app_base.logging_utils import audit_logger, build_error_details, logger
-from farm.shortcuts import get_object_or_404
 from apps.app_entity.models import (
     Entity,
     EntityType,
@@ -27,6 +32,8 @@ from apps.app_entity.models.category import (
 
 from apps.app_inventory.models import ProductTemplate
 
+SESSION_KEY = "project_setup_wizard"
+
 STEPS = {
     1: {"name": "Project Info", "title": gettext("Initialize Project")},
     2: {"name": "Categories", "title": gettext("Financial Categories")},
@@ -34,32 +41,76 @@ STEPS = {
     4: {"name": "Workers", "title": gettext("Worker Stakeholders")},
     5: {"name": "Vendors", "title": gettext("Vendor Stakeholders")},
     6: {"name": "Shareholders", "title": gettext("Shareholder Stakeholders")},
+    7: {"name": "Summary", "title": gettext("Review & Create")},
 }
 
-
-def _project_not_found(request, step):
-    """Guard for a missing project: log, audit, message and redirect to start."""
-    logger.warning("Project not found")
-    audit_logger.info(
-        f"wizard_step{step}_project_not_found | ProjectSetupWizard:None | "
-        f"user={request.user.username}"
-    )
-    messages.error(request, gettext("Project not found."))
-    return redirect("project_setup")
+# Step numbers where each selection slice lives in the session draft.
+_STAKEHOLDER_STEPS = (
+    ("workers", "worker", 4),
+    ("vendors", "vendor", 5),
+    ("shareholders", "shareholder", 6),
+)
 
 
-def project_setup_wizard_view(request, entity_pk=None, step=1):
+# ─────────────────────────────────────────────────────────────────────────────
+# Session draft helpers
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _draft_get(request):
+    """Return the current wizard draft (empty dict when none is started)."""
+    return request.session.get(SESSION_KEY, {})
+
+
+def _draft_save(request, data):
+    """Persist the wizard draft to the session."""
+    request.session[SESSION_KEY] = data
+    request.session.modified = True
+
+
+def _draft_clear(request):
+    """Remove the wizard draft from the session."""
+    request.session.pop(SESSION_KEY, None)
+    request.session.modified = True
+
+
+def _default_info():
+    """Sensible project-info defaults for a fresh (unstarted) draft."""
+    return {
+        "name": "",
+        "description": "",
+        "is_internal": False,
+        "is_vendor": False,
+        "is_client": False,
+        "active": True,
+    }
+
+
+class _WizardStageError(Exception):
+    """Creation failed while applying the data for a given wizard step."""
+
+    def __init__(self, step, message):
+        super().__init__(message)
+        self.step = step
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Main view + cancel
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def project_setup_wizard_view(request, step=1):
     """
-    Multi-step project setup wizard.
-    - Step 1: Create/edit project (Entity)
-    - Steps 2-6: Configure categories, templates, and stakeholders
-    Session stores wizard_entity_pk after step 1.
+    Create-only project setup wizard.
+
+    - Steps 1-6 collect data into a session draft (no DB writes).
+    - Step 7 (Summary) reviews the draft and its Create action commits the
+      project atomically; on failure the user is redirected to the failing step.
     """
     logger.debug(
-        f"Initializing project setup wizard | entity_pk={entity_pk} | "
-        f"step={step} | user={request.user.username}"
+        f"Initializing project setup wizard | step={step} | "
+        f"user={request.user.username}"
     )
-    # Validate step number
     if step not in STEPS:
         logger.warning(f"Invalid wizard step | step={step}")
         audit_logger.info(
@@ -69,127 +120,68 @@ def project_setup_wizard_view(request, entity_pk=None, step=1):
         messages.error(request, gettext("Invalid wizard step."))
         return redirect("entity_list")
 
-    # Get or load entity
-    entity = None
-    if entity_pk:
-        entity = get_object_or_404(
-            Entity,
-            pk=entity_pk,
-            entity_type=EntityType.PROJECT,
-            error_message="Project not found or has been deleted.",
-        )
-        logger.debug(f"Project loaded | project_id={entity.pk}")
-    elif step == 1:
-        # Step 1 with no entity_pk means creating new
-        logger.debug("Creating new project")
-    else:
-        # Steps 2+ require entity_pk
-        error_msg = gettext("Project not found. Start from step 1.")
-        logger.warning(f"Project not found for step | step={step}")
+    draft = _draft_get(request)
+
+    # Steps 2-7 require that the user started at step 1 (draft project info).
+    if step > 1 and not (draft.get("info") or {}).get("name"):
+        logger.warning(f"Wizard draft missing | step={step}")
         audit_logger.info(
-            f"wizard_project_not_found | ProjectSetupWizard:None | "
+            f"wizard_draft_missing | ProjectSetupWizard:None | "
             f"user={request.user.username} | step={step}"
         )
-        messages.error(request, error_msg)
-        return redirect("project_setup")
-
-    # Dispatch to step handler
-    if request.method == "POST":
-        logger.debug(
-            f"Processing wizard step {step} POST | step={step} | "
-            f"entity_id={entity.pk if entity else None} | user={request.user.username}"
+        messages.error(
+            request,
+            gettext("Session expired. Please start from the beginning."),
         )
+        return redirect("project_create")
+
+    if request.method == "POST":
         if step == 1:
-            return _handle_step_1_post(request, entity)
+            return _handle_step_1_post(request)
         elif step == 2:
-            return _handle_step_2_post(request, entity)
+            return _handle_step_2_post(request)
         elif step == 3:
-            return _handle_step_3_post(request, entity)
+            return _handle_step_3_post(request)
         elif step == 4:
-            return _handle_step_4_post(request, entity)
+            return _handle_stakeholder_post(request, "worker", "workers", 5)
         elif step == 5:
-            return _handle_step_5_post(request, entity)
+            return _handle_stakeholder_post(request, "vendor", "vendors", 6)
         elif step == 6:
-            return _handle_step_6_post(request, entity)
+            return _handle_stakeholder_post(
+                request, "shareholder", "shareholders", 7
+            )
+        elif step == 7:
+            return _handle_step_7_post(request)
 
-    # GET: render the step
-    logger.debug(
-        f"Rendering wizard step {step} | step={step} | "
-        f"entity_id={entity.pk if entity else None}"
-    )
-    context = _get_step_context(request, entity, step)
-    context["is_edit"] = entity is not None
+    context = _get_step_context(request, step)
     context["step"] = step
-    context["total_steps"] = 6
+    context["total_steps"] = len(STEPS)
     context["step_labels"] = STEPS
-    logger.debug(f"Step {step} context built | entity_id={entity.pk if entity else None}")
-
+    context["step_nums"] = tuple(STEPS)
+    logger.debug(f"Step {step} context built | user={request.user.username}")
     return render(request, "app_entity/project_setup_wizard.html", context)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 1: Project Info
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-def _apply_step1_post(
-    request,
-    entity,
-    *,
-    name,
-    description,
-    is_internal,
-    is_vendor,
-    is_client,
-    active,
-):
-    """Create or update the project entity (step 1) inside an atomic block.
-
-    Returns the (possibly newly created) entity after mutation + audit.
-    """
-    with transaction.atomic():
-        logger.debug(
-            f"Saving project | action={'edit' if entity else 'create'} | name={name}"
-        )
-        if entity:
-            # Edit mode
-            entity.name = name
-            entity.description = description
-            entity.is_internal = is_internal
-            entity.is_vendor = is_vendor
-            entity.is_client = is_client
-            entity.active = active
-            entity.save()
-            logger.debug(f"Project updated | project_id={entity.pk}")
-            audit_logger.info(
-                f"wizard_project_updated | ProjectSetupWizard:{entity.pk} | "
-                f"user={request.user.username} | name={name}"
-            )
-        else:
-            # Create mode
-            entity = Entity.create(
-                entity_type=EntityType.PROJECT,
-                name=name,
-                description=description,
-                is_internal=is_internal,
-                is_vendor=is_vendor,
-                is_client=is_client,
-                active=active,
-            )
-            request.session["wizard_entity_pk"] = entity.pk
-            logger.debug(f"Project created | project_id={entity.pk}")
-            audit_logger.info(
-                f"wizard_project_created | ProjectSetupWizard:{entity.pk} | "
-                f"user={request.user.username} | name={name}"
-            )
-    return entity
-
-
-def _handle_step_1_post(request, entity):
-    """Create or edit project entity."""
-    logger.debug(
-        f"Processing project info (step 1) | is_edit={entity is not None} | "
+def project_setup_cancel_view(request):
+    """Abandon the wizard: clear the draft and return to the project list."""
+    _draft_clear(request)
+    audit_logger.info(
+        f"wizard_cancelled | ProjectSetupWizard:None | "
         f"user={request.user.username}"
+    )
+    messages.info(request, gettext("Project setup cancelled."))
+    return redirect("entity_list")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 1: Project Info (draft only)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _handle_step_1_post(request):
+    """Validate and store the project-info draft (does NOT create the entity)."""
+    logger.debug(
+        f"Processing project info (step 1) | user={request.user.username}"
     )
     name = request.POST.get("name", "").strip()
     description = request.POST.get("description", "")
@@ -205,324 +197,350 @@ def _handle_step_1_post(request, entity):
             f"user={request.user.username} | reason=missing_name"
         )
         messages.error(request, gettext("Project name is required."))
-        return redirect("project_setup")
+        return redirect("project_create")
 
-    is_edit = entity is not None
-    try:
-        entity = _apply_step1_post(
-            request,
-            entity,
-            name=name,
-            description=description,
-            is_internal=is_internal,
-            is_vendor=is_vendor,
-            is_client=is_client,
-            active=active,
-        )
-    except Exception as e:
-        error_details = build_error_details(e)
-        logger.error(
-            f"Project save failed | exception_type={error_details['exception_type']} | "
-            f"error_message={error_details['error_message']}"
-        )
-        audit_logger.error(
-            f"wizard_step1_failed | ProjectSetupWizard:{entity.pk if entity else None} | "
-            f"user={request.user.username} | error={error_details}"
-        )
-        messages.error(
-            request,
-            gettext("Failed to save project: %(error)s") % {"error": str(e)},
-        )
-        return redirect("project_setup")
-
-    if is_edit:
-        messages.success(request, gettext("Project updated successfully."))
-    else:
-        messages.success(
-            request,
-            gettext(
-                "Project '%(name)s' created. Proceeding with setup..."
-            )
-            % {"name": entity.name},
-        )
-    return redirect("project_setup_step", entity_pk=entity.pk, step=2)
+    draft = _draft_get(request)
+    draft["info"] = {
+        "name": name,
+        "description": description,
+        "is_internal": is_internal,
+        "is_vendor": is_vendor,
+        "is_client": is_client,
+        "active": active,
+    }
+    _draft_save(request, draft)
+    logger.debug(f"Project info stored in draft | name={name}")
+    audit_logger.info(
+        f"wizard_draft_step1_saved | ProjectSetupWizard:None | "
+        f"user={request.user.username} | name={name}"
+    )
+    messages.success(
+        request,
+        gettext("Project details saved. Continue and review before creating."),
+    )
+    return redirect("project_setup", step=2)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Step 2: Financial Categories
+# Step 2: Financial Categories (draft only)
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def _apply_step2_post(request, entity, selected_pks):
-    """Update/create/activate category relations for *entity* (step 2) inside
-    an atomic block. Returns the number of newly created relations."""
-    with transaction.atomic():
-        logger.debug(
-            f"Updating category relations | entity_id={entity.pk} | "
-            f"selected_count={len(selected_pks)}"
-        )
-        # Get all existing relations for this entity
-        existing_relations = {
-            r.category.id: r
-            for r in FinancialCategoriesEntitiesRelations.objects.filter(
-                entity=entity
-            ).select_related("category")
-        }
-
-        # Handle existing relations: activate if selected, deactivate if not
-        for category_id, relation in existing_relations.items():
-            if category_id in selected_pks:
-                if not relation.is_active:
-                    relation.is_active = True
-                    relation.save()
-            else:
-                if relation.is_active:
-                    relation.is_active = False
-                    relation.save()
-
-        # Create new relations for newly selected categories
-        new_count = 0
-        for category_id in selected_pks - existing_relations.keys():
-            try:
-                category = FinancialCategory.objects.get(pk=category_id)
-                FinancialCategoriesEntitiesRelations.objects.get_or_create(
-                    entity=entity,
-                    category=category,
-                    defaults={
-                        "is_active": True,
-                        "max_limit": Decimal("0.00"),
-                    },
-                )
-                new_count += 1
-            except FinancialCategory.DoesNotExist:
-                pass
-
-        logger.debug(
-            f"Categories updated | entity_id={entity.pk} | new_count={new_count} | "
-            f"total_selected={len(selected_pks)}"
-        )
-        audit_logger.info(
-            f"wizard_categories_updated | ProjectSetupWizard:{entity.pk} | "
-            f"user={request.user.username} | selected_count={len(selected_pks)} | "
-            f"new_count={new_count}"
-        )
-    return new_count
-
-
-def _handle_step_2_post(request, entity):
-    """Manage financial category links: create/activate/deactivate relations."""
+def _handle_step_2_post(request):
+    """Store the selected category ids in the draft."""
     logger.debug(
         f"Processing financial categories (step 2) | "
-        f"entity_id={entity.pk if entity else None} | user={request.user.username}"
+        f"user={request.user.username}"
     )
-    if not entity:
-        return _project_not_found(request, step=2)
-
-    selected_pks = set(request.POST.getlist("selected_categories"))
-    # Convert to integers for comparison
+    selected_pks = request.POST.getlist("selected_categories")
     try:
-        selected_pks = {int(pk) for pk in selected_pks if pk}
+        selected_pks = sorted({int(pk) for pk in selected_pks if pk})
     except ValueError:
-        logger.warning(f"Invalid category selection | selected_count={len(selected_pks)}")
+        logger.warning("Invalid category selection")
         audit_logger.info(
-            f"wizard_step2_validation_failed | ProjectSetupWizard:{entity.pk} | "
+            f"wizard_step2_validation_failed | ProjectSetupWizard:None | "
             f"user={request.user.username} | reason=invalid_category_selection"
         )
         messages.error(request, gettext("Invalid category selection."))
-        return redirect("project_setup_step", entity_pk=entity.pk, step=2)
+        return redirect("project_setup", step=2)
 
-    try:
-        _apply_step2_post(request, entity, selected_pks)
-        messages.success(request, gettext("Categories updated successfully."))
-    except Exception as e:
-        error_details = build_error_details(e)
-        logger.error(
-            f"Category update failed | exception_type={error_details['exception_type']} | "
-            f"error_message={error_details['error_message']}"
-        )
-        audit_logger.error(
-            f"wizard_step2_failed | ProjectSetupWizard:{entity.pk} | "
-            f"user={request.user.username} | error={error_details}"
-        )
-        messages.error(
+    draft = _draft_get(request)
+    draft["categories"] = selected_pks
+    _draft_save(request, draft)
+    logger.debug(
+        f"Categories stored in draft | count={len(selected_pks)}"
+    )
+    audit_logger.info(
+        f"wizard_draft_step2_saved | ProjectSetupWizard:None | "
+        f"user={request.user.username} | count={len(selected_pks)}"
+    )
+    if selected_pks:
+        messages.success(
             request,
-            gettext("Failed to update categories: %(error)s") % {"error": str(e)},
+            gettext("Category selection saved. Continue to product templates."),
         )
-
-    return redirect("project_setup_step", entity_pk=entity.pk, step=3)
+    else:
+        messages.info(request, gettext("No categories selected — step skipped."))
+    return redirect("project_setup", step=3)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Step 3: Product Templates
+# Step 3: Product Templates (draft only, staff)
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def _apply_step3_post(request, entity, template_ids):
-    """Assign product templates to *entity* (step 3) inside an atomic block."""
-    with transaction.atomic():
-        logger.debug(
-            f"Assigning product templates | entity_id={entity.pk} | "
-            f"template_count={len(template_ids)}"
-        )
-        entity.product_templates.set(template_ids)
-        logger.debug(
-            f"Templates assigned | entity_id={entity.pk} | "
-            f"template_count={len(template_ids)}"
-        )
-        audit_logger.info(
-            f"wizard_templates_assigned | ProjectSetupWizard:{entity.pk} | "
-            f"user={request.user.username} | template_count={len(template_ids)}"
-        )
-
-
-def _handle_step_3_post(request, entity):
-    """Assign product templates to entity."""
+def _handle_step_3_post(request):
+    """Store the selected product templates in the draft (staff only)."""
     logger.debug(
         f"Processing product templates (step 3) | "
-        f"entity_id={entity.pk if entity else None} | user={request.user.username}"
+        f"user={request.user.username}"
     )
-    if not entity:
-        return _project_not_found(request, step=3)
-
     if not request.user.is_staff:
-        logger.warning(f"User lacks staff permission | user={request.user.username}")
+        logger.warning(
+            f"User lacks staff permission | user={request.user.username}"
+        )
         audit_logger.info(
-            f"wizard_step3_permission_denied | ProjectSetupWizard:{entity.pk} | "
+            f"wizard_step3_permission_denied | ProjectSetupWizard:None | "
             f"user={request.user.username} | reason=not_staff"
         )
         messages.error(
             request,
             gettext("You do not have permission to manage product templates."),
         )
-        return redirect("project_setup_step", entity_pk=entity.pk, step=3)
+        return redirect("project_setup", step=3)
 
     template_ids = request.POST.getlist("product_templates")
-
     try:
-        _apply_step3_post(request, entity, template_ids)
-        if template_ids:
-            messages.success(
-                request,
-                gettext("Product templates assigned successfully."),
-            )
-        else:
-            messages.info(request, gettext("No product templates selected."))
-    except Exception as e:
-        error_details = build_error_details(e)
-        logger.error(
-            f"Template assignment failed | "
-            f"exception_type={error_details['exception_type']} | "
-            f"error_message={error_details['error_message']}"
-        )
-        audit_logger.error(
-            f"wizard_step3_failed | ProjectSetupWizard:{entity.pk} | "
-            f"user={request.user.username} | error={error_details}"
-        )
-        messages.error(
-            request,
-            gettext("Failed to assign templates: %(error)s") % {"error": str(e)},
-        )
+        template_ids = sorted({int(pk) for pk in template_ids if pk})
+    except ValueError:
+        logger.warning("Invalid template selection")
+        messages.error(request, gettext("Invalid template selection."))
+        return redirect("project_setup", step=3)
 
-    return redirect("project_setup_step", entity_pk=entity.pk, step=4)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 4: Worker Stakeholders
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-def _handle_step_4_post(request, entity):
-    """Add worker stakeholders."""
-    return _handle_stakeholder_post(request, entity, "worker", 5)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 5: Vendor Stakeholders
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-def _handle_step_5_post(request, entity):
-    """Add vendor stakeholders."""
-    return _handle_stakeholder_post(request, entity, "vendor", 6)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 6: Shareholder Stakeholders
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-def _handle_step_6_post(request, entity):
-    """Add shareholder stakeholders. Final step, redirect to entity_detail."""
+    draft = _draft_get(request)
+    draft["templates"] = template_ids
+    _draft_save(request, draft)
     logger.debug(
-        f"Processing shareholders (step 6 - Final) | "
-        f"entity_id={entity.pk if entity else None} | user={request.user.username}"
+        f"Templates stored in draft | count={len(template_ids)}"
     )
-    if not entity:
-        logger.warning("Project not found")
-        audit_logger.info(
-            f"wizard_step6_project_not_found | ProjectSetupWizard:None | "
-            f"user={request.user.username}"
+    audit_logger.info(
+        f"wizard_draft_step3_saved | ProjectSetupWizard:None | "
+        f"user={request.user.username} | count={len(template_ids)}"
+    )
+    if template_ids:
+        messages.success(
+            request,
+            gettext("Product template selection saved. Continue to workers."),
         )
-        messages.error(request, gettext("Project not found."))
-        return redirect("project_setup")
+    else:
+        messages.info(request, gettext("No product templates selected — step skipped."))
+    return redirect("project_setup", step=4)
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Steps 4-6: Worker / Vendor / Shareholder stakeholders (draft only)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _handle_stakeholder_post(request, role_type, draft_key, next_step):
+    """Store the selected stakeholder entity ids for *role_type* in the draft."""
+    logger.debug(
+        f"Processing {role_type} stakeholders (step {next_step - 1}) | "
+        f"user={request.user.username}"
+    )
     selected_ids = request.POST.getlist("selected_entities")
-
     try:
-        with transaction.atomic():
-            logger.debug(
-                f"Adding shareholder stakeholders | entity_id={entity.pk} | "
-                f"shareholder_count={len(selected_ids)}"
-            )
-            created_count = _create_stakeholders(entity, "shareholder", selected_ids)
+        selected_ids = sorted({int(pk) for pk in selected_ids if pk})
+    except ValueError:
+        messages.error(request, gettext("Invalid selection."))
+        return redirect("project_setup", step=next_step - 1)
 
-            logger.debug(
-                f"Shareholders added | entity_id={entity.pk} | "
-                f"created_count={created_count} | total_count={len(selected_ids)}"
-            )
-            audit_logger.info(
-                f"wizard_shareholders_added | ProjectSetupWizard:{entity.pk} | "
-                f"user={request.user.username} | count={created_count}"
-            )
+    draft = _draft_get(request)
+    draft[draft_key] = selected_ids
+    _draft_save(request, draft)
+    logger.debug(
+        f"{role_type} stakeholders stored in draft | count={len(selected_ids)}"
+    )
+    audit_logger.info(
+        f"wizard_draft_step{next_step - 1}_saved | ProjectSetupWizard:None | "
+        f"user={request.user.username} | role_type={role_type} | "
+        f"count={len(selected_ids)}"
+    )
+    if selected_ids:
+        messages.success(
+            request,
+            gettext("%(role)s selection saved.")
+            % {"role": role_type.capitalize()},
+        )
+    else:
+        messages.info(
+            request,
+            gettext("No %(role)s selected — step skipped.") % {"role": role_type},
+        )
+    return redirect("project_setup", step=next_step)
 
-            if selected_ids:
-                messages.success(
-                    request, gettext("Shareholders added successfully.")
-                )
-            else:
-                messages.info(request, gettext("No shareholders selected."))
-    except Exception as e:
-        error_details = build_error_details(e)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 7: Summary — atomic sequential create
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _handle_step_7_post(request):
+    """Create the project from the draft; redirect to the failing step on error."""
+    logger.debug(
+        f"Processing project creation (step 7 - Summary) | "
+        f"user={request.user.username}"
+    )
+    try:
+        entity = _apply_create_project(request)
+    except _WizardStageError as exc:
+        error_details = build_error_details(exc)
         logger.error(
-            f"Shareholder addition failed | "
+            f"Project creation failed at step {exc.step} | "
             f"exception_type={error_details['exception_type']} | "
             f"error_message={error_details['error_message']}"
         )
         audit_logger.error(
-            f"wizard_step6_failed | ProjectSetupWizard:{entity.pk} | "
+            f"wizard_summary_create_failed | ProjectSetupWizard:None | "
+            f"user={request.user.username} | step={exc.step} | "
+            f"error={error_details}"
+        )
+        messages.error(request, str(exc))
+        return redirect("project_setup", step=exc.step)
+    except Exception as e:
+        error_details = build_error_details(e)
+        logger.error(
+            f"Project creation failed | "
+            f"exception_type={error_details['exception_type']} | "
+            f"error_message={error_details['error_message']}"
+        )
+        audit_logger.error(
+            f"wizard_summary_create_failed | ProjectSetupWizard:None | "
             f"user={request.user.username} | error={error_details}"
         )
         messages.error(
             request,
-            gettext("Failed to add shareholders: %(error)s") % {"error": str(e)},
+            gettext("Failed to create the project: %(error)s")
+            % {"error": str(e)},
         )
+        return redirect("project_setup", step=7)
 
+    _draft_clear(request)
     logger.debug(
-        f"Project setup completed | entity_id={entity.pk} | project_name={entity.name}"
+        f"Project setup completed | entity_id={entity.pk} | "
+        f"project_name={entity.name}"
     )
     audit_logger.info(
         f"wizard_completed | ProjectSetupWizard:{entity.pk} | "
         f"user={request.user.username} | project_name={entity.name}"
     )
     messages.success(
-        request, gettext("Project setup completed! Configure operations as needed.")
+        request,
+        gettext("Project '%(name)s' created successfully.")
+        % {"name": entity.name},
     )
     return redirect("entity_detail", pk=entity.pk)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Helper: Generic Stakeholder POST Handler
-# ─────────────────────────────────────────────────────────────────────────────
+def _apply_create_project(request):
+    """Apply every step's draft data sequentially inside one atomic block.
+
+    Runs in wizard order — project info, categories, templates, then worker /
+    vendor / shareholder stakeholders. Any failure raises a
+    :class:`_WizardStageError` carrying the failing step so the caller can
+    redirect the user there; the enclosing transaction rolls back so nothing is
+    created. Raises ``_WizardStageError`` on per-stage failures.
+    """
+    draft = _draft_get(request)
+    info = draft.get("info") or _default_info()
+    name = (info.get("name") or "").strip()
+    if not name:
+        raise _WizardStageError(1, gettext("Project name is required."))
+
+    with transaction.atomic():
+        # Stage A -> step 1: create the project entity.
+        entity = Entity.create(
+            entity_type=EntityType.PROJECT,
+            name=name,
+            description=info.get("description", ""),
+            is_internal=bool(info.get("is_internal")),
+            is_vendor=bool(info.get("is_vendor")),
+            is_client=bool(info.get("is_client")),
+            active=bool(info.get("active", True)),
+        )
+        audit_logger.info(
+            f"wizard_project_created | ProjectSetupWizard:{entity.pk} | "
+            f"user={request.user.username} | name={entity.name}"
+        )
+
+        # Stage B -> step 2: link the financial categories.
+        try:
+            _link_categories(entity, draft.get("categories", []))
+        except _WizardStageError:
+            raise
+        except Exception as exc:
+            raise _WizardStageError(
+                2,
+                gettext("Failed to link the selected categories: %(error)s")
+                % {"error": str(exc)},
+            ) from exc
+
+        # Stage C -> step 3: assign the product templates (staff only).
+        try:
+            _assign_templates(request.user, entity, draft.get("templates", []))
+        except _WizardStageError:
+            raise
+        except Exception as exc:
+            raise _WizardStageError(
+                3,
+                gettext("Failed to assign the selected product templates: %(error)s")
+                % {"error": str(exc)},
+            ) from exc
+
+        # Stage D -> steps 4-6: create the stakeholder links per role.
+        for role_key, role, step in _STAKEHOLDER_STEPS:
+            try:
+                _create_stakeholders(entity, role, draft.get(role_key, []))
+            except _WizardStageError:
+                raise
+            except Exception as exc:
+                raise _WizardStageError(
+                    step,
+                    gettext("Failed to add the selected %(role)s: %(error)s")
+                    % {"role": role, "error": str(exc)},
+                ) from exc
+
+    logger.debug(
+        f"Project created from wizard draft | project_id={entity.pk}"
+    )
+    return entity
+
+
+def _link_categories(entity, category_ids):
+    """Create active category relations for the selected categories (step 2).
+
+    Raises ``_WizardStageError`` (step 2) when a selected category no longer
+    exists.
+    """
+    for category_id in category_ids:
+        try:
+            category = FinancialCategory.objects.get(pk=category_id)
+        except FinancialCategory.DoesNotExist:
+            raise _WizardStageError(
+                2,
+                gettext(
+                    "A selected category no longer exists. Review the "
+                    "financial categories step."
+                ),
+            )
+        FinancialCategoriesEntitiesRelations.objects.get_or_create(
+            entity=entity,
+            category=category,
+            defaults={
+                "is_active": True,
+                "max_limit": Decimal("0.00"),
+            },
+        )
+
+
+def _assign_templates(user, entity, template_ids):
+    """Assign the selected product templates to *entity* (step 3, staff only).
+
+    Raises ``_WizardStageError`` (step 3) when a selected template no longer
+    exists.
+    """
+    if not user.is_staff or not template_ids:
+        return
+    templates = list(ProductTemplate.objects.filter(pk__in=template_ids))
+    if len(templates) != len(set(template_ids)):
+        raise _WizardStageError(
+            3,
+            gettext(
+                "A selected product template no longer exists. Review the "
+                "product templates step."
+            ),
+        )
+    entity.product_templates.set(templates)
 
 
 def _role_filter(role_type):
@@ -538,9 +556,11 @@ def _role_filter(role_type):
 
 
 def _create_stakeholders(entity, role_type, selected_ids):
-    """Create ``Stakeholder`` links on *entity* for the selected entity ids of
-    *role_type* (skipping entities that don't match the role's eligibility
-    filter). Returns the number of newly created links."""
+    """Create ``Stakeholder`` links on *entity* for the selected entity ids.
+
+    Raises ``ValueError`` when a selected id no longer exists or is no longer
+    eligible for the role. Returns the number of newly created links.
+    """
     filter_kwargs = _role_filter(role_type)
     if filter_kwargs is None:
         raise ValueError(f"Invalid role type: {role_type}")
@@ -548,95 +568,22 @@ def _create_stakeholders(entity, role_type, selected_ids):
     for target_id in selected_ids:
         try:
             target = Entity.objects.get(pk=target_id, **filter_kwargs)
-            _, created = Stakeholder.objects.get_or_create(
-                parent=entity,
-                target=target,
-                role=role_type,
-            )
-            if created:
-                created_count += 1
         except Entity.DoesNotExist:
-            pass
+            raise ValueError(
+                gettext(
+                    "A selected %(role)s no longer exists or is no longer "
+                    "eligible for that role."
+                )
+                % {"role": role_type}
+            )
+        _, created = Stakeholder.objects.get_or_create(
+            parent=entity,
+            target=target,
+            role=role_type,
+        )
+        if created:
+            created_count += 1
     return created_count
-
-
-def _handle_stakeholder_post(request, entity, role_type, next_step):
-    """Generic handler for workers, vendors, and other stakeholders."""
-    logger.debug(
-        f"Processing {role_type} stakeholders | "
-        f"entity_id={entity.pk if entity else None} | role_type={role_type} | "
-        f"user={request.user.username}"
-    )
-    if not entity:
-        logger.warning("Project not found")
-        audit_logger.info(
-            f"wizard_step{next_step-1}_project_not_found | ProjectSetupWizard:None | "
-            f"user={request.user.username}"
-        )
-        messages.error(request, gettext("Project not found."))
-        return redirect("project_setup")
-
-    selected_ids = request.POST.getlist("selected_entities")
-
-    # Determine eligibility filter based on role
-    if _role_filter(role_type) is None:
-        logger.warning(f"Invalid role type | role_type={role_type}")
-        audit_logger.info(
-            f"wizard_invalid_role_type | ProjectSetupWizard:{entity.pk if entity else None} | "
-            f"user={request.user.username} | role_type={role_type}"
-        )
-        messages.error(request, gettext("Invalid role type."))
-        return redirect(
-            "project_setup_step", entity_pk=entity.pk, step=next_step - 1
-        )
-
-    try:
-        with transaction.atomic():
-            logger.debug(
-                f"Adding {role_type} stakeholders | entity_id={entity.pk} | "
-                f"stakeholder_count={len(selected_ids)}"
-            )
-            created_count = _create_stakeholders(entity, role_type, selected_ids)
-
-            logger.debug(
-                f"{role_type} stakeholders added | entity_id={entity.pk} | "
-                f"created_count={created_count} | total_count={len(selected_ids)}"
-            )
-            audit_logger.info(
-                f"wizard_{role_type}_stakeholders_added | ProjectSetupWizard:{entity.pk} | "
-                f"user={request.user.username} | role_type={role_type} | "
-                f"count={created_count}"
-            )
-
-            if selected_ids:
-                messages.success(
-                    request,
-                    gettext("%(role)s added successfully.")
-                    % {"role": role_type.capitalize()},
-                )
-            else:
-                messages.info(
-                    request, gettext("No %(role)s selected.") % {"role": role_type}
-                )
-    except Exception as e:
-        error_details = build_error_details(e, extra={"role_type": role_type})
-        logger.error(
-            f"Stakeholder addition failed ({role_type}) | "
-            f"exception_type={error_details['exception_type']} | "
-            f"error_message={error_details['error_message']} | "
-            f"role_type={role_type}"
-        )
-        audit_logger.error(
-            f"wizard_step{next_step-1}_failed | ProjectSetupWizard:{entity.pk} | "
-            f"user={request.user.username} | error={error_details}"
-        )
-        messages.error(
-            request,
-            gettext("Failed to add %(role)s: %(error)s")
-            % {"role": role_type, "error": str(e)},
-        )
-
-    return redirect("project_setup_step", entity_pk=entity.pk, step=next_step)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -644,108 +591,105 @@ def _handle_stakeholder_post(request, entity, role_type, next_step):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def _get_step_context(request, entity, step):
-    """Build context dict for the current step."""
-    context = {"entity": entity}
+def _get_step_context(request, step):
+    """Build the step context from the session draft (create-only wizard)."""
+    draft = _draft_get(request)
+    context = {"draft": draft}
 
-    if step == 2:
-        context.update(_step2_context(entity))
+    if step == 1:
+        info = draft.get("info") or _default_info()
+        context["draft_info"] = info
+    elif step == 2:
+        context.update(_step2_context(draft))
     elif step == 3:
-        context.update(_step3_context(entity))
+        context.update(_step3_context(request.user, draft))
     elif step == 4:
-        context.update(_stakeholder_context(entity, "worker"))
+        context.update(_stakeholder_context(draft, "worker"))
     elif step == 5:
-        context.update(_stakeholder_context(entity, "vendor"))
+        context.update(_stakeholder_context(draft, "vendor"))
     elif step == 6:
-        context.update(_stakeholder_context(entity, "shareholder"))
-    context["step_nums"] = (
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-    )
+        context.update(_stakeholder_context(draft, "shareholder"))
+    elif step == 7:
+        context.update(_summary_context(draft))
     return context
 
 
-def _step2_context(entity):
-    """Step 2 context: linked + available financial categories grouped by aspect."""
-    if entity:
-        # All relations for this entity (active or inactive)
-        linked_relations = FinancialCategoriesEntitiesRelations.objects.filter(
-            entity=entity
-        ).select_related("category")
-
-        # Group linked categories by aspect
-        linked_by_aspect = {}
-        linked_ids = set()
-        for relation in linked_relations:
-            aspect = relation.category.aspect
-            if aspect not in linked_by_aspect:
-                linked_by_aspect[aspect] = []
-            linked_by_aspect[aspect].append(relation)
-            linked_ids.add(relation.category.id)
-
-        # All categories not yet linked, grouped by aspect
-        available_categories = FinancialCategory.objects.exclude(
-            id__in=linked_ids
-        ).order_by("aspect", "name")
-
-        available_by_aspect = {}
-        for category in available_categories:
-            aspect = category.aspect
-            if aspect not in available_by_aspect:
-                available_by_aspect[aspect] = []
-            available_by_aspect[aspect].append(category)
-    else:
-        linked_by_aspect = {}
-        linked_ids = set()
-        available_by_aspect = {}
-        available_categories = FinancialCategory.objects.order_by("aspect", "name")
-        for category in available_categories:
-            aspect = category.aspect
-            if aspect not in available_by_aspect:
-                available_by_aspect[aspect] = []
-            available_by_aspect[aspect].append(category)
+def _step2_context(draft):
+    """Step 2 context: all categories grouped by aspect, with draft selections."""
+    available_by_aspect = {}
+    categories = FinancialCategory.objects.order_by("aspect", "name")
+    for category in categories:
+        available_by_aspect.setdefault(category.aspect, []).append(category)
 
     return {
-        "linked_by_aspect": linked_by_aspect,
         "available_by_aspect": available_by_aspect,
+        "linked_by_aspect": {},
+        "selected_category_ids": set(draft.get("categories", [])),
     }
 
 
-def _step3_context(entity):
-    """Step 3 context: product templates with the assigned ones highlighted."""
-    if entity:
-        all_templates = ProductTemplate.objects.all().order_by(
+def _step3_context(user, draft):
+    """Step 3 context: product templates with the draft selections highlighted."""
+    enabled_ids = set(draft.get("templates", []))
+    if user.is_staff:
+        templates = ProductTemplate.objects.all().order_by(
             "nature", "sub_category", "name"
         )
-        enabled_ids = set(entity.product_templates.values_list("id", flat=True))
     else:
-        all_templates = ProductTemplate.objects.none()
-        enabled_ids = set()
-    return {"templates": all_templates, "enabled_ids": enabled_ids}
+        templates = ProductTemplate.objects.none()
+    return {"templates": templates, "enabled_ids": enabled_ids}
 
 
-def _stakeholder_context(entity, role):
-    """Eligible entities + existing stakeholder ids for a stakeholder role."""
+def _stakeholder_context(draft, role):
+    """Eligible entities + draft-selected stakeholder ids for a role."""
+    role_key = {"worker": "workers", "vendor": "vendors", "shareholder": "shareholders"}[
+        role
+    ]
     filter_kwargs = _role_filter(role)
-    if entity and filter_kwargs:
-        eligible = (
-            Entity.objects.filter(**filter_kwargs)
-            .exclude(id=entity.id)
-            .order_by("name")
-        )
-        existing = set(
-            Stakeholder.objects.filter(parent=entity, role=role).values_list(
-                "target_id", flat=True
-            )
-        )
+    if filter_kwargs:
+        eligible = Entity.objects.filter(**filter_kwargs).order_by("name")
     else:
         eligible = Entity.objects.none()
-        existing = set()
+    selected = set(draft.get(role_key, []))
     return {
         "eligible_entities": eligible,
-        "existing_stakeholder_ids": existing,
+        "existing_stakeholder_ids": selected,
+    }
+
+
+def _summary_context(draft):
+    """Step 7 context: read-only summary of everything collected in the draft."""
+    info = draft.get("info") or _default_info()
+
+    category_ids = draft.get("categories", [])
+    categories = list(
+        FinancialCategory.objects.filter(id__in=category_ids).order_by("aspect", "name")
+    )
+
+    template_ids = draft.get("templates", [])
+    templates = list(
+        ProductTemplate.objects.filter(id__in=template_ids).order_by("nature", "name")
+    )
+
+    role_entities = {}
+    for role_key, role, _step in _STAKEHOLDER_STEPS:
+        ids = draft.get(role_key, [])
+        role_entities[role] = list(
+            Entity.objects.filter(id__in=ids).order_by("name")
+        )
+
+    return {
+        "summary_info": info,
+        "summary_categories": categories,
+        "summary_templates": templates,
+        "summary_workers": role_entities["worker"],
+        "summary_vendors": role_entities["vendor"],
+        "summary_shareholders": role_entities["shareholder"],
+        "summary_counts": {
+            "categories": len(category_ids),
+            "templates": len(template_ids),
+            "workers": len(role_entities["worker"]),
+            "vendors": len(role_entities["vendor"]),
+            "shareholders": len(role_entities["shareholder"]),
+        },
     }

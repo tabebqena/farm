@@ -63,7 +63,8 @@
             {% for cat in categories %}
               <div class="col">
                 <div class="form-check p-2 border rounded-3 h-100 category-option">
-                  <input class="form-check-input ms-1 me-2" type="checkbox" name="selected_categories" value="{{ cat.id }}" id="cat_{{ cat.id }}" />
+                  <input class="form-check-input ms-1 me-2" type="checkbox" name="selected_categories" value="{{ cat.id }}" id="cat_{{ cat.id }}"
+                         {% if cat.id in selected_category_ids %}checked{% endif %} />
                   <label class="form-check-label d-block cursor-pointer" for="cat_{{ cat.id }}">
                     <span class="d-block fw-bold small">{{ cat.name }}</span>
                     <span class="text-muted d-block" style="font-size: 0.75rem;">{{ cat.description }}</span>

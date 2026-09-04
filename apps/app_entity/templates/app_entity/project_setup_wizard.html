@@ -3,7 +3,7 @@
 {% load custom_filters %}
 
 {% block title %}
-  {% trans 'Project Setup' %}- {{ SITE_NAME }}
+  {% trans 'Project Setup' %} - {{ SITE_NAME }}
 {% endblock %}
 
 {% block content %}
@@ -14,170 +14,23 @@
         <li class="breadcrumb-item">
           <a href="{% url 'entity_list' %}">{% trans 'Projects' %}</a>
         </li>
-        {% if entity %}
-          <li class="breadcrumb-item">
-            <a href="{% url 'entity_detail' entity.pk %}">{{ entity.name }}</a>
-          </li>
-        {% endif %}
         <li class="breadcrumb-item active">{{ step_labels|get_item:step|get_item:'title' }}</li>
       </ol>
     </nav>
 
     {# Step progress indicator #}
     <div class="row justify-content-center mb-4">
-      <div class="col-lg-10-">
+      <div class="col-lg-10">
         <div class="d-flex justify-content-between align-items-center mb-3">
           {% for step_num in step_nums %}
             {% with step_name=step_labels|get_item:step_num|get_item:'name' %}
               <div class="text-center flex-grow-1">
-                <div class="step-circle {% if step_num|add:'0' == step %}
-                    
-                    
-                    
-                    
-                    
-                    
-                    active
-
-
-
-
-
-
-                  {% elif step_num|add:'0' < step %}
-                    
-                    
-                    
-                    
-                    
-                    
-                    completed
-
-
-
-
-
-
-
-
-
-
-                  {% endif %}"
-                  style="margin: 0 auto 0.5rem; width: 40px; height: 40px; border-radius: 50%; background: {% if step_num|add:'0' == step %}
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    #0d6efd
-
-
-
-
-
-
-
-
-
-
-                  {% elif step_num|add:'0' < step %}
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    #198754
-
-
-
-
-
-
-
-
-
-
-                  {% else %}
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    #e9ecef
-
-
-
-
-
-
-
-
-
-
-                  {% endif %}; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">{{ step_num }}</div>
+                <div class="step-circle {% if step_num == step %}active{% elif step_num < step %}completed{% endif %}"
+                     style="margin: 0 auto 0.5rem; width: 40px; height: 40px; border-radius: 50%; background: {% if step_num == step %}#0d6efd{% elif step_num < step %}#198754{% else %}#e9ecef{% endif %}; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">{{ step_num }}</div>
                 <small class="text-muted d-block">{{ step_name }}</small>
               </div>
               {% if not forloop.last %}
-                <div style="flex: 0.5; border-top: 2px solid {% if step_num|add:'0' < step %}
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    #198754
-
-
-
-
-
-
-
-
-
-
-                  {% else %}
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    #e9ecef
-
-
-
-
-
-
-
-
-
-
-                  {% endif %}; margin-top: 20px;"></div>
+                <div style="flex: 0.5; border-top: 2px solid {% if step_num < step %}#198754{% else %}#e9ecef{% endif %}; margin-top: 20px;"></div>
               {% endif %}
             {% endwith %}
           {% endfor %}
@@ -187,13 +40,10 @@
 
     {# Step content #}
     <div class="row justify-content-center">
-      <div class="col-lg-10-">
+      <div class="col-lg-10">
         <div class="card form-card shadow-sm border-0">
           <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-            <h5 class="mb-0 fw-bold text-primary">Step {{ step }}: {{ step_labels|get_item:step|get_item:'title' }}</h5>
-            {% if entity %}
-              <span class="badge bg-light text-muted border">{{ entity.name }} #{{ entity.id }}</span>
-            {% endif %}
+            <h5 class="mb-0 fw-bold text-primary">{% blocktrans with step=step %}Step {{ step }}{% endblocktrans %}: {{ step_labels|get_item:step|get_item:'title' }}</h5>
           </div>
 
           <div class="card-body p-4">
@@ -209,14 +59,16 @@
               {% include 'app_entity/setup/step_5_vendors.html' %}
             {% elif step == 6 %}
               {% include 'app_entity/setup/step_6_shareholders.html' %}
+            {% elif step == 7 %}
+              {% include 'app_entity/setup/step_7_summary.html' %}
             {% endif %}
 
             {# Navigation buttons #}
             <div class="card-footer bg-light py-3 d-flex justify-content-between align-items-center border-top" style="margin: 2rem -1rem -1rem -1rem; padding: 1.5rem 1rem;">
               {% if step > 1 %}
-                <a href="{% url 'project_setup_step' entity_pk=entity.pk step=step|add:'-1' %}" class="btn btn-outline-secondary"><i class="bi bi-chevron-left"></i> {% trans 'Back' %}</a>
+                <a href="{% url 'project_setup' step=step|add:'-1' %}" class="btn btn-outline-secondary"><i class="bi bi-chevron-left"></i> {% trans 'Back' %}</a>
               {% else %}
-                <a href="{% url 'entity_list' %}" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i> {% trans 'Cancel' %}</a>
+                <a href="{% url 'project_setup_cancel' %}" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i> {% trans 'Cancel' %}</a>
               {% endif %}
 
               <div class="d-flex gap-2">
@@ -226,7 +78,7 @@
 
                 <button type="submit" form="wizard-form" class="btn btn-primary px-4 fw-bold shadow-sm">
                   {% if step == total_steps %}
-                    {% trans 'Finish' %}
+                    {% trans 'Create Project' %} <i class="bi bi-check2-circle"></i>
                   {% else %}
                     {% trans 'Continue' %} <i class="bi bi-chevron-right"></i>
                   {% endif %}
@@ -255,10 +107,3 @@
     }
   </script>
 {% endblock %}
-
-{# Custom template tag helper since Django doesn't have get_item by default #}
-{% comment %}Note: The template uses |get_item which is a custom filter. Add to app_entity/templatetags/custom_filters.py if not exists:
-
-from django import template register = template.Library()
-
-@register.filter def get_item(dictionary, key): if isinstance(dictionary, dict): return dictionary.get(key) try: return dictionary[key] except (KeyError, TypeError, IndexError): return None{% endcomment %}
