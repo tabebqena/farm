@@ -16,6 +16,22 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 
 ---
 
+## 2026-09-04 — Operation config cleanup: adjustability flags single-sourced
+
+### Changed
+- [`apps/app_operation/models/operation.py`](apps/app_operation/models/operation.py) —
+  removed the `can_adjust` property, which duplicated the `is_adjustable` class
+  flag; accounting-adjustment eligibility now has a single source of truth
+  (`is_adjustable`). The former `is_items_adjustable` class flag is now a
+  property returning `has_invoice` — item adjustments apply exactly where
+  invoice items exist (PURCHASE / SALE) — and the redundant per-proxy
+  `is_items_adjustable` overrides were dropped (Purchase, Sale, Expense).
+- [`apps/app_operation/views/adjustment.py`](apps/app_operation/views/adjustment.py) —
+  the accounting-adjustment guard now checks `operation.is_adjustable` instead
+  of the removed `operation.can_adjust`.
+- [`apps/app_operation/tests/test_operation_mixins.py`](apps/app_operation/tests/test_operation_mixins.py) —
+  added `AdjustabilityConfigTest` covering the flag/property contract.
+
 ## 2026-09-04 — Harden the one-shot `create()` payment test
 
 ### Fixed

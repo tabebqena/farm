@@ -46,7 +46,6 @@ class SaleOperation(AdjustableTransactionMixin, Operation):
     category_type = "SALE"
 
     is_adjustable = True
-    is_items_adjustable = True
 
     class Meta:
         proxy = True

@@ -169,3 +169,59 @@ class InventoryOperationApiTest(SimpleTestCase):
         for cls in StockEventMixinTest.STOCK_EVENTS:
             for member in ("get_items_data", "save_inventory", "can_create_movement"):
                 self.assertTrue(hasattr(cls, member), f"{cls.__name__}.{member}")
+
+
+class AdjustabilityConfigTest(SimpleTestCase):
+    """``is_adjustable`` is the class flag; ``is_items_adjustable`` is derived.
+
+    ``is_adjustable`` (accounting/amount adjustments) is set per proxy. The former
+    ``can_adjust`` property duplicated it and was removed. ``is_items_adjustable``
+    is now a property derived from ``has_invoice`` — item adjustments only apply
+    to operations that carry invoice items (PURCHASE / SALE).
+    """
+
+    NON_ADJUSTABLE = (
+        BirthOperation,
+        DeathOperation,
+        ConsumptionOperation,
+        CapitalValuationOperation,
+        LoanOperation,
+        CashInjectionOperation,
+        CashWithdrawalOperation,
+        ProjectFundingOperation,
+        ProjectRefundOperation,
+        InternalTransferOperation,
+        CorrectionOperation,
+        WorkerAdvanceOperation,
+    )
+
+    def test_is_adjustable_flag_is_the_source_of_truth(self):
+        for cls in ADJUSTABLE:
+            self.assertTrue(cls.is_adjustable, cls.__name__)
+        for cls in self.NON_ADJUSTABLE:
+            self.assertFalse(cls.is_adjustable, cls.__name__)
+        self.assertFalse(Operation.is_adjustable)
+
+    def test_can_adjust_property_was_removed(self):
+        # The accounting-adjustment view now guards on ``is_adjustable``.
+        self.assertFalse(hasattr(Operation, "can_adjust"))
+        for cls in ADJUSTABLE:
+            self.assertFalse(hasattr(cls, "can_adjust"), cls.__name__)
+
+    def test_is_items_adjustable_is_a_property(self):
+        self.assertIsInstance(Operation.__dict__["is_items_adjustable"], property)
+        for cls in ADJUSTABLE + self.NON_ADJUSTABLE:
+            self.assertNotIn("is_items_adjustable", cls.__dict__, cls.__name__)
+
+    def test_is_items_adjustable_derives_from_has_invoice(self):
+        # Every proxy resolves is_items_adjustable == has_invoice on instances.
+        from apps.app_operation.models.proxies import PROXY_MAP
+
+        for cls in {*PROXY_MAP.values()}:
+            op = cls()
+            self.assertEqual(
+                bool(op.is_items_adjustable),
+                bool(cls.has_invoice),
+                cls.__name__,
+            )
+

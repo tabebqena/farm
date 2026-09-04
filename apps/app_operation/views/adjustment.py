@@ -94,7 +94,7 @@ class RecordAccountingAdjustmentView(View):
         operation = Operation.objects.cast(operation)
 
         # Guards: operation type and reversal status
-        if not operation.can_adjust:
+        if not operation.is_adjustable:
             messages.warning(
                 self.request, _("This operation type does not support adjustments.")
             )

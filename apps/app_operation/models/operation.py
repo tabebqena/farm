@@ -549,22 +549,19 @@ class Operation(
     creates_assets = False
     category_type = None
     is_adjustable = False
-    is_items_adjustable = False
 
     # ------------------------------------------------------------------
     # Eligibility helpers
     # ------------------------------------------------------------------
 
     @property
-    def can_adjust(self) -> bool:
-        """Whether accounting adjustments are allowed on this operation."""
-        from .operation_type import OperationType
+    def is_items_adjustable(self) -> bool:
+        """Whether invoice-item adjustments are allowed on this operation.
 
-        return self.operation_type in (
-            OperationType.PURCHASE,
-            OperationType.SALE,
-            OperationType.EXPENSE,
-        )
+        Derived from ``has_invoice`` — only operations that carry invoice
+        items (PURCHASE / SALE) can have their line items adjusted.
+        """
+        return type(self).has_invoice
 
     @property
     def can_repay(self) -> bool:

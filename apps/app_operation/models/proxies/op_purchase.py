@@ -46,7 +46,6 @@ class PurchaseOperation(AdjustableTransactionMixin, Operation):
     category_type = "PURCHASE"
 
     is_adjustable = True
-    is_items_adjustable = True
 
     class Meta:
         proxy = True
@@ -101,7 +100,7 @@ class PurchaseOperation(AdjustableTransactionMixin, Operation):
         # intra-farm stock transfers happen through a SALE.
         if self.destination.is_internal:
             raise ValidationError(
-                "Internal entities cannot be vendors. To transfer goods between "
+                "Internal entities cannot be vendors to each other. To transfer goods between "
                 "internal entities, record a sale from the other side."
             )
         from apps.app_entity.models import Stakeholder, StakeholderRole
