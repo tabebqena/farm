@@ -20,6 +20,22 @@ reverse FK/O2O whose `on_delete` is not SET_NULL/SET_DEFAULT" (only PROTECT
 remains in the schema today). Confirmed via introspection that reverse rel
 `on_delete` lives at `rel.field.remote_field.on_delete`.
 
+## Guard implemented
+
+Implemented the parent-with-children guard in `BaseModel.delete()`:
+
+- Refuses to soft-delete a live parent with live dependents; raises a
+  `ValidationError` (`code="delete_blocked"`) naming what to delete/reverse
+  first. `get_delete_blockers()` exposes the same labels.
+- Per-model config: `_delete_auto_relations` (reverse accessor names whose live
+  dependents are AUTO soft-deleted instead of blocking — the circularity
+  breaker) and `_delete_guard_ignore_relations` (ignore entirely).
+- Whole delete is transactional and re-entrancy safe (`_DELETE_IN_PROGRESS`).
+- `Entity` declares auto relations for owned light rows (contacts,
+  stakeholders, memberships, category relations, financial periods); products /
+  operations / transactions still block.
+- Tests in `apps/app_entity/tests/test_soft_delete_guard.py`.
+
 ## Problem
 
 Since [`BaseModel.delete()`](apps/app_base/models.py:153) only stamps

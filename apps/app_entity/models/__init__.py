@@ -274,6 +274,20 @@ class Entity(ImmutableMixin, BaseModel):
         "user": {},
     }
 
+    # Reverse relations whose live rows are AUTO soft-deleted when this entity
+    # is deleted (instead of blocking the deletion guard). These are owned
+    # light rows — contact details, stakeholder/membership links, category
+    # relations, and the auto-created financial periods. Financial history
+    # (products, operations, transactions) is NOT listed and therefore still
+    # blocks deletion until handled first.
+    _delete_auto_relations = (
+        "contacts",
+        "stakeholders",
+        "memberships",
+        "financial_categories_entities_relations",
+        "financial_periods",
+    )
+
     entity_type = models.CharField(
         _("entity type"),
         max_length=10,

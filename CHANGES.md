@@ -16,6 +16,40 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 
 ---
 
+## 2026-09-04 — Soft-delete parent guard with configurable auto-delete
+
+Deleting a parent that still has **live** dependents is now refused, mirroring
+the DB `PROTECT` semantics under soft delete. [`BaseModel.delete()`](apps/app_base/models.py)
+raises a `ValidationError` (`code="delete_blocked"`) listing, per dependent
+type, what must be deleted (or reversed) first. Each model can declare reverse
+relations in `_delete_auto_relations` that are **auto soft-deleted** with the
+parent (excluded from the guard) — the mechanism for breaking circular
+references so the guard cannot deadlock models that point at each other.
+`_delete_guard_ignore_relations` lets a model fully ignore a relation.
+
+### Changed
+- [`BaseModel.delete()`](apps/app_base/models.py) — now guarded and
+  transactional: refuse deletion while live non-auto dependents exist; auto
+  soft-delete `_delete_auto_relations` dependents; re-entrancy safe so an
+  auto-delete loop back to a record being deleted is a no-op.
+- [`Entity`](apps/app_entity/models/__init__.py) — declares
+  `_delete_auto_relations` for its owned light rows (`contacts`,
+  `stakeholders`, `memberships`,
+  `financial_categories_entities_relations`, `financial_periods`); financial
+  history (products, operations, transactions) still blocks deletion.
+
+### Added
+- [`BaseModel.get_delete_blockers()`](apps/app_base/models.py) — reusable list
+  of live dependent labels; [`BaseModel._auto_soft_delete_dependents()`](apps/app_base/models.py).
+- [`test_soft_delete_guard.py`](apps/app_entity/tests/test_soft_delete_guard.py)
+  — guard blocks + message, no partial deletes on failure, leaf-up delete,
+  auto-delete of owned rows, and circular (mutually linked) entities deletable
+  via auto relations.
+- Documented the guard/configuration in
+  [`docs/guides/MODEL_CONVENTIONS.md`](docs/guides/MODEL_CONVENTIONS.md).
+
+---
+
 ## 2026-09-04 — Document mandatory `on_delete=PROTECT` model convention
 
 Added a project instruction and guide so every new relationship declares

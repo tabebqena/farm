@@ -58,6 +58,10 @@ _DELETE_LOG_CONTEXT_FIELDS = (
     "active",
 )
 
+# Keys ``(model label, pk)`` currently being soft-deleted, so a re-entrant
+# delete triggered through the ``_delete_auto_relations`` cascade cannot loop.
+_DELETE_IN_PROGRESS: typing.Set[typing.Tuple[str, int]] = set()
+
 
 def _camel_to_snake(name: str) -> str:
     """Convert a CamelCase class name into a snake_case audit event token.
@@ -94,6 +98,17 @@ class BaseModel(models.Model):
 
     all_objects = DefaultManager  # Default manager
     objects = ActiveManager()  # Custom manager for non-deleted items
+
+    # --- Soft-delete guard configuration (override per concrete model) ---- #
+    # Reverse relation accessor names whose live dependents are AUTO
+    # soft-deleted when this record is deleted, and which are therefore
+    # excluded from the deletion guard. Used to break circular dependencies
+    # (A references B and B references A): declare the side that may cascade.
+    _delete_auto_relations: typing.Tuple[str, ...] = ()
+    # Reverse relation accessor names to ignore entirely in the guard (neither
+    # block nor auto-delete). Reserved for references the caller intentionally
+    # leaves behind.
+    _delete_guard_ignore_relations: typing.Tuple[str, ...] = ()
 
     class Meta:
         abstract = True
@@ -150,6 +165,100 @@ class BaseModel(models.Model):
         self.post_save(kwargs.get("post_save_tasks", []))
         return rv
 
+    # ------------------------------------------------------------------ #
+    # Soft-delete guard (mirror of DB PROTECT)
+    # ------------------------------------------------------------------ #
+
+    def get_delete_blockers(self) -> List[str]:
+        """Human labels of live dependent records that must be removed first.
+
+        Considers every reverse FK / one-to-one relation whose child FK
+        ``on_delete`` is CASCADE/PROTECT (not SET_NULL / SET_DEFAULT) and that
+        is not declared in ``_delete_auto_relations`` or
+        ``_delete_guard_ignore_relations``. Dependents that are already
+        soft-deleted are ignored, so a parent becomes deletable once its live
+        children are removed (leaf-up). Returns ``[]`` when nothing blocks.
+        """
+        live_by_model: typing.Dict[typing.Any, typing.Set[int]] = {}
+        for field in self._dependent_relations():
+            child = field.related_model
+            pks = set(self._live_dependents_qs(field).values_list("pk", flat=True))
+            if pks:
+                live_by_model.setdefault(child, set()).update(pks)
+
+        blockers = []
+        for child in sorted(live_by_model, key=lambda m: m._meta.label_lower):
+            count = len(live_by_model[child])
+            label = (
+                child._meta.verbose_name
+                if count == 1
+                else child._meta.verbose_name_plural
+            )
+            blockers.append(f"{count} {label}")
+        return blockers
+
+    def _dependent_relations(self):
+        """Yield the reverse FK / one-to-one relations that represent dependents.
+
+        Skipped: auto-created many-to-many join tables (they cannot be
+        soft-deleted individually) and relations the model opted out of via
+        ``_delete_auto_relations`` / ``_delete_guard_ignore_relations``.
+        """
+        for field in self._meta.get_fields():
+            if not (field.is_relation and field.auto_created):
+                continue
+            if not (field.one_to_many or field.one_to_one):
+                continue
+            if self._rel_on_delete(field) in (
+                models.SET_NULL,
+                models.SET_DEFAULT,
+                models.DO_NOTHING,
+            ):
+                continue
+            accessor = field.get_accessor_name()
+            if (
+                accessor in self._delete_auto_relations
+                or accessor in self._delete_guard_ignore_relations
+            ):
+                continue
+            yield field
+
+    @staticmethod
+    def _rel_on_delete(field):
+        """Resolve the child FK's ``on_delete`` from a reverse relation field."""
+        fwd = getattr(field, "field", None)
+        if fwd is None or getattr(fwd, "remote_field", None) is None:
+            return None
+        return getattr(fwd.remote_field, "on_delete", None)
+
+    def _live_dependents_qs(self, field):
+        """Queryset of this parent's *live* children behind *field*."""
+        child = field.related_model
+        fwd = getattr(field, "field", None)
+        if fwd is None:
+            return child._default_manager.none()
+        qs = child._default_manager.filter(**{fwd.name: self})
+        if hasattr(child, "deleted_at"):
+            qs = qs.filter(deleted_at__isnull=True)
+        return qs
+
+    def _auto_soft_delete_dependents(self) -> None:
+        """Soft-delete dependents declared in ``_delete_auto_relations``."""
+        for accessor in self._delete_auto_relations:
+            try:
+                field = self._meta.get_field(accessor)
+            except Exception:
+                # Unknown / renamed relation: skip it.
+                continue
+            if not (
+                field.is_relation
+                and field.auto_created
+                and (field.one_to_many or field.one_to_one)
+            ):
+                continue
+            for obj in list(self._live_dependents_qs(field)):
+                obj.delete()
+
     def delete(self, *args, **kwargs):
         """Soft-delete this record by stamping ``deleted_at`` and re-saving.
 
@@ -158,13 +267,50 @@ class BaseModel(models.Model):
         clearing ``deleted_at`` and saving again. Re-saving runs the normal
         ``full_clean()`` validation and post-save hooks.
 
-        Deletion is logged centrally here on both channels: a warning on the
-        project logger and a flat, greppable line on the audit channel. The
-        line carries the model name, ``pk``, the ``deleted_at`` timestamp and
-        whichever identifying fields the concrete model exposes (see
-        ``_delete_log_context()``), so the context the per-model ``delete()``
-        overrides used to add is preserved without per-model code.
+        Before deleting, a parent is guarded against still having live
+        dependents (mirroring the DB-level ``PROTECT``): deleting raises a
+        ``ValidationError`` that names what to delete (or reverse) first.
+        Dependents listed in ``_delete_auto_relations`` are soft-deleted
+        automatically instead of blocking, so a model can declare which side of
+        a circular reference may cascade. Deletion is logged centrally here on
+        both channels: a warning on the project logger and a flat, greppable
+        line on the audit channel.
         """
+        if self.pk is None or self.deleted_at:
+            # Not persisted yet, or already soft-deleted: keep the idempotent
+            # path (no guard — nothing new can be orphaned).
+            return self._perform_soft_delete(*args, **kwargs)
+
+        key = (self._meta.label_lower, self.pk)
+        with db_transaction.atomic():
+            if key in _DELETE_IN_PROGRESS:
+                # Re-entrant delete caused by the auto-delete cascade: this
+                # record is already being removed higher up the stack.
+                return None
+            _DELETE_IN_PROGRESS.add(key)
+            try:
+                blockers = self.get_delete_blockers()
+                if blockers:
+                    raise ValidationError(
+                        _(
+                            "%(model)s cannot be deleted because the following "
+                            "records still reference it; delete (or reverse) "
+                            "them first: %(dependents)s."
+                        )
+                        % {
+                            "model": self._meta.verbose_name
+                            or type(self).__name__,
+                            "dependents": ", ".join(blockers),
+                        },
+                        code="delete_blocked",
+                    )
+                self._auto_soft_delete_dependents()
+                return self._perform_soft_delete(*args, **kwargs)
+            finally:
+                _DELETE_IN_PROGRESS.discard(key)
+
+    def _perform_soft_delete(self, *args, **kwargs):
+        """Stamp ``deleted_at``, log centrally, and re-save (the soft delete)."""
         if not self.deleted_at:
             self.deleted_at = timezone.now()
 

@@ -113,7 +113,49 @@ an application decision, not an `on_delete` decision.
 
 ---
 
-## 5. Exceptions
+## 5. The soft-delete guard (parent with children)
+
+[`BaseModel.delete()`](../../apps/app_base/models.py) refuses to soft-delete a
+**live** parent while it still has **live** dependents — reverse FK / one-to-one
+relations whose `on_delete` is not `SET_NULL`/`SET_DEFAULT`. It raises a
+`ValidationError` (`code="delete_blocked"`) that lists, per dependent type,
+what to delete (or reverse) first. Dependents that are already soft-deleted are
+ignored, so deletion proceeds leaf-up. [`get_delete_blockers()`](../../apps/app_base/models.py)
+exposes the same list for reuse.
+
+Each model may opt relations out of the guard and **auto soft-delete** them
+instead. This is how circular references are broken, so two models that point
+at each other do not deadlock the guard (the owning side declares the cascade):
+
+- `_delete_auto_relations` — tuple of reverse-relation (accessor) names whose
+  live rows are soft-deleted automatically when the record is deleted. Those
+  relations never block.
+- `_delete_guard_ignore_relations` — tuple of reverse-relation names to ignore
+  entirely (neither block nor auto-delete). Reserved for references the caller
+  intentionally leaves behind.
+
+Example — `Entity` auto-deletes its owned light rows (contacts, stakeholder /
+membership links, category relations, and the auto-created financial periods)
+while its financial history (products, operations, transactions) still blocks:
+
+```python
+class Entity(BaseModel):
+    _delete_auto_relations = (
+        "contacts",
+        "stakeholders",
+        "memberships",
+        "financial_categories_entities_relations",
+        "financial_periods",
+    )
+```
+
+The guard is re-entrancy safe (an auto-soft-delete that loops back to a record
+already being deleted is a no-op) and the whole delete runs in a transaction,
+so a failed delete leaves no partial soft deletes behind.
+
+---
+
+## 6. Exceptions
 
 None by default. Legacy or unchanged schema fields that already use
 `CASCADE`/`SET_NULL` are left as-is (they are migrated toward `PROTECT`
@@ -123,7 +165,7 @@ explicit rationale before it is merged.
 
 ---
 
-## 6. Quick verification
+## 7. Quick verification
 
 A reviewer (or agent) can scan for violations with a project-wide grep on the
 current model sources:
