@@ -317,7 +317,10 @@ class InvoiceItem(AmountCleanMixin, BaseModel):
     operation = models.ForeignKey(
         "app_operation.Operation",
         related_name="items",
-        on_delete=models.CASCADE,
+        # PROTECT, not CASCADE: BaseModel.delete() soft-deletes only and never
+        # cascades, so an operation's lines are protected dependents that must
+        # be removed (reversed/deleted) before the operation itself.
+        on_delete=models.PROTECT,
         verbose_name=_("operation"),
     )
     product_template = models.ForeignKey(

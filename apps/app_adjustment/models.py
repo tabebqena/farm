@@ -625,7 +625,9 @@ class InvoiceItemAdjustmentLine(
 
     adjustment = models.ForeignKey(
         InvoiceItemAdjustment,
-        on_delete=models.CASCADE,
+        # PROTECT, not CASCADE: delete() only soft-deletes, so the parent item
+        # adjustment can't be removed while its lines still exist.
+        on_delete=models.PROTECT,
         related_name="lines",
         verbose_name=_("item adjustment"),
     )

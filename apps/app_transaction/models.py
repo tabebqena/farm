@@ -86,7 +86,9 @@ class Transaction(AmountCleanMixin, ImmutableMixin, BaseModel):
 
     content_type = models.ForeignKey(
         ContentType,
-        on_delete=models.CASCADE,
+        # PROTECT (delete never cascades): a transaction's generic link to its
+        # source document is a real dependency, not something cascade removes.
+        on_delete=models.PROTECT,
         null=False,
         blank=False,
         related_name="transactions",

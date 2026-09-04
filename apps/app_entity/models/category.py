@@ -63,13 +63,18 @@ class FinancialCategoriesEntitiesRelations(BaseModel):
     ``is_active`` flag; relations are deactivated rather than hard-deleted.
     """
 
+    # PROTECT, not CASCADE: delete() only soft-deletes, so a relation row is a
+    # protected dependent of both its entity and its category — remove the
+    # relation first (or deactivate it) before deleting either side.
     entity = models.ForeignKey(
         "Entity",
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name="financial_categories_entities_relations",
     )
     category = models.ForeignKey(
-        FinancialCategory, on_delete=models.CASCADE, related_name="entities_relations"
+        FinancialCategory,
+        on_delete=models.PROTECT,
+        related_name="entities_relations",
     )
     max_limit = models.DecimalField(
         max_digits=12,

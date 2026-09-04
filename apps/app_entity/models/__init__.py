@@ -192,15 +192,18 @@ class Stakeholder(ImmutableMixin, BaseModel):
 
     _immutable_fields = {"parent": {}, "target": {}, "role": {}}
 
+    # PROTECT, not CASCADE: BaseModel.delete() soft-deletes only and never
+    # cascades, so a stakeholder link is a protected dependent of both parties —
+    # an entity can't be deleted while it still has stakeholders/memberships.
     parent = models.ForeignKey(
         "Entity",
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name="stakeholders",
         verbose_name=_("parent"),
     )
     target = models.ForeignKey(
         "Entity",
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name="memberships",
         verbose_name=_("target"),
     )
