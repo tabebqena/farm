@@ -318,9 +318,26 @@ class PersonCreateViewTest(TestCase):
                 "active": "on",
             },
         )
+        entity1 = Entity.objects.get(name="Active Person")
+        self.assertTrue(entity1.active)
 
-        entity = Entity.objects.get(name="Active Person")
-        self.assertTrue(entity.active)
+        # Try with inactive
+        response = self.client.post(
+                    reverse("person_create"),
+                    {
+                        "name": "Inactive Person",
+                        "description": "",
+                        "is_vendor": "",
+                        "is_worker": "",
+                        "is_client": "",
+                        "is_shareholder": "",
+                        "is_internal": "",
+                        "active": "",
+                    },
+                )
+        
+        entity2 = Entity.objects.get(name="Inactive Person")
+        self.assertFalse(entity2.active)
 
     def test_person_create_uses_atomic_transaction(self):
         """Test that creation uses atomic transaction."""
