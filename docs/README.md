@@ -16,5 +16,6 @@ Organized by topic for easy navigation.
 
 ## Specifications
 
-- **[Operations](specs/operations/)** - Operation type specifications
-- **[Features](specs/features/)** - Feature specifications
+- **[Entities](entities/)** - Entity area specifications (`app_entity`)
+- **[Operations](operations/)** - Operation type specifications
+- **[Features](features/)** - Feature specifications

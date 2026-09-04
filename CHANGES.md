@@ -16,6 +16,33 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 
 ---
 
+## 2026-09-04 — Entity app primary-source contracts (`docs/entities`)
+
+Documentation only — no code, model, migration or test changes.
+
+### Added
+- New [`docs/entities/`](docs/entities/README.md) spec tree mirroring
+  `docs/operations/`: shared
+  [`_ENTITY_SPEC_TEMPLATE.md`](docs/entities/_ENTITY_SPEC_TEMPLATE.md) +
+  [`README.md`](docs/entities/README.md) index + one primary-source contract per
+  `app_entity` area — Entity Lifecycle & Types
+  ([`entity_1_lifecycle.md`](docs/entities/entity_1_lifecycle.md)), Person
+  ([`entity_2_person.md`](docs/entities/entity_2_person.md)), Project & Setup
+  Wizard ([`entity_3_project.md`](docs/entities/entity_3_project.md)),
+  Stakeholder ([`entity_4_stakeholder.md`](docs/entities/entity_4_stakeholder.md)),
+  Contact Info ([`entity_5_contact_info.md`](docs/entities/entity_5_contact_info.md)),
+  Financial Categories
+  ([`entity_6_financial_categories.md`](docs/entities/entity_6_financial_categories.md)).
+  Each contract registers its implementing code (models → base machinery →
+  consumers → views) and maps every branch to a pinning test, recording known
+  coverage gaps (e.g. contact/category view tests, `max_limit` spending
+  enforcement, add-flow single-primary gap).
+- [`docs/README.md`](docs/README.md) — the Specifications section now links the
+  live spec trees (`docs/entities/`, `docs/operations/`, `docs/features/`)
+  instead of the stale `specs/...` paths.
+
+---
+
 ## 2026-09-04 — Default the setup wizard project to act as Client & Vendor
 
 Step 1 (Project Info) of the project setup wizard now defaults the new project
