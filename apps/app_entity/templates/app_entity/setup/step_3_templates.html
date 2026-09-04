@@ -34,7 +34,7 @@
                       <input class="form-check-input ms-1 me-2" type="checkbox" name="product_templates" value="{{ template.id }}" id="tmpl_{{ template.id }}" {% if template.id in enabled_ids %}checked{% endif %} />
                       <label class="form-check-label d-block cursor-pointer" for="tmpl_{{ template.id }}">
                         <span class="d-block fw-bold small">{{ template.name }}{% if template.name_ar %} / {{ template.name_ar }}{% endif %}</span>
-                        <span class="text-muted d-block" style="font-size: 0.75rem;">{% trans 'Tracking:' %} {{ template.get_tracking_mode_display }}</span>
+                        <!-- <span class="text-muted d-block" style="font-size: 0.75rem;">{% trans 'Tracking:' %} {{ template.get_tracking_mode_display }}</span> -->
                       </label>
                     </div>
                   </div>
