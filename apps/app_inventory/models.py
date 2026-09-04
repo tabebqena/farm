@@ -137,7 +137,9 @@ class ProductTemplate(BaseModel):
     gives_birth_to = models.ForeignKey(
         "self",
         related_name="born_from",
-        on_delete=models.SET_NULL,
+        # PROTECT, not SET_NULL: delete() never hard-deletes or nulls, so a
+        # referenced template is a protected dependency.
+        on_delete=models.PROTECT,
         null=True,
         blank=True,
         verbose_name=_("gives birth to"),
@@ -726,7 +728,9 @@ class Product(AmountCleanMixin, BaseModel):
     mother = models.ForeignKey(
         "self",
         related_name="offspring",
-        on_delete=models.SET_NULL,
+        # PROTECT, not SET_NULL: delete() never hard-deletes or nulls, so a
+        # mother with offspring is a protected dependency.
+        on_delete=models.PROTECT,
         null=True,
         blank=True,
         verbose_name=_("mother"),

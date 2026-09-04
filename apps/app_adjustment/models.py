@@ -383,7 +383,9 @@ class InvoiceItemAdjustment(
     # Populated by finalize() after all lines are saved.
     adjustment = models.OneToOneField(
         Adjustment,
-        on_delete=models.SET_NULL,
+        # PROTECT, not SET_NULL: delete() never hard-deletes or nulls, so the
+        # link stays a protected dependency of both records.
+        on_delete=models.PROTECT,
         null=True,
         blank=True,
         related_name="item_adjustment",

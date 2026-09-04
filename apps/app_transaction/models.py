@@ -78,7 +78,9 @@ class Transaction(AmountCleanMixin, ImmutableMixin, BaseModel):
     note = models.TextField(blank=True)
     reversal_of = models.OneToOneField(
         "self",
-        on_delete=models.SET_NULL,
+        # PROTECT, not SET_NULL: delete() never hard-deletes or nulls, so a
+        # transaction with a reversal is a protected dependency.
+        on_delete=models.PROTECT,
         null=True,
         blank=True,
         related_name="reversed_by",

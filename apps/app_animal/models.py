@@ -66,7 +66,9 @@ class MedicalRecord(BaseModel):
     notes = models.TextField(_("notes"), blank=True)
     officer = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
+        # PROTECT, not SET_NULL: delete() never hard-deletes or nulls, so a
+        # record's officer link is a protected dependency.
+        on_delete=models.PROTECT,
         null=True,
         blank=True,
         verbose_name=_("officer"),
