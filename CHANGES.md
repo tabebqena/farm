@@ -16,6 +16,27 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 
 ---
 
+## 2026-09-04 — Default the setup wizard project to act as Client & Vendor
+
+Step 1 (Project Info) of the project setup wizard now defaults the new project
+to act as **both** a Client (`is_client`) and a Vendor (`is_vendor`): the two
+checkboxes render pre-checked on a fresh draft, so the created farm project can
+receive invoices and charge expenses out of the box. Users can still uncheck
+either option — an unchecked box stores `False` exactly as before.
+
+### Changed
+- [`apps/app_entity/views/project_setup_wizard.py`](apps/app_entity/views/project_setup_wizard.py) —
+  `_default_info()` now defaults `is_vendor=True` and `is_client=True` for a
+  fresh (unstarted) draft; the summary create (`_apply_create_project`) already
+  applies those flags to the new project entity.
+
+### Added
+- [`apps/app_entity/tests/test_project_setup_wizard_project_setup_wizard_step1.py`](apps/app_entity/tests/test_project_setup_wizard_project_setup_wizard_step1.py) —
+  `test_wizard_step_1_defaults_client_and_vendor` asserts a fresh step-1 form
+  defaults both flags to `True` and renders both checkboxes checked.
+
+---
+
 ## 2026-09-04 — Defer project creation in the setup wizard + Summary step
 
 The project setup wizard no longer creates the project at step 1. It now collects

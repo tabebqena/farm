@@ -80,8 +80,8 @@ def _default_info():
         "name": "",
         "description": "",
         "is_internal": False,
-        "is_vendor": False,
-        "is_client": False,
+        "is_vendor": True,
+        "is_client": True,
         "active": True,
     }
 

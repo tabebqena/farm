@@ -28,6 +28,20 @@ class ProjectSetupWizardStep1Test(TestCase):
         self.assertEqual(response.context["step"], 1)
         self.assertEqual(response.context["total_steps"], 7)
 
+    def test_wizard_step_1_defaults_client_and_vendor(self):
+        """A fresh wizard defaults is_client and is_vendor to True (checked)."""
+        response = self.client.get(reverse("project_create"))
+
+        self.assertEqual(response.status_code, 200)
+        draft_info = response.context["draft_info"]
+        self.assertTrue(draft_info["is_vendor"])
+        self.assertTrue(draft_info["is_client"])
+        # Both checkboxes must be rendered pre-checked for a fresh draft.
+        content = response.content.decode()
+        self.assertIn('name="is_vendor"', content)
+        self.assertIn('name="is_client"', content)
+        self.assertIn("checked", content)
+
     def test_wizard_step_1_stores_draft_without_creating_project(self):
         """POST to step 1 stores the draft and does NOT create a project."""
         response = self.client.post(
