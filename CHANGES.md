@@ -16,6 +16,24 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 
 ---
 
+## 2026-09-04 — Split `app_base` tests into a `tests` package
+
+Converted the monolithic [`tests.py`](apps/app_base/tests.py) into an
+`apps/app_base/tests/` package to match the rest of the project: the shared
+fixtures moved to [`general.py`](apps/app_base/tests/general.py), and the test
+classes were split into [`test_base_model.py`](apps/app_base/tests/test_base_model.py)
+(BaseModel timestamps / soft-delete / post-save dispatch),
+[`test_managers.py`](apps/app_base/tests/test_managers.py) (ActiveManager /
+SafeQuerySet), [`test_mixins.py`](apps/app_base/tests/test_mixins.py)
+(OfficerMixin / AmountCleanMixin), [`test_transaction_auto_creation.py`](apps/app_base/tests/test_transaction_auto_creation.py)
+and [`test_seed_command.py`](apps/app_base/tests/test_seed_command.py).
+
+### Changed
+- `apps/app_base/tests.py` removed; `apps/app_base/tests/` package added with
+  the same 39 test methods — pure structural refactor, no behavior change.
+
+---
+
 ## 2026-09-04 — Remove the dormant `deletable` field
 
 `BaseModel.deletable` was kept only for schema compatibility — deletion never
