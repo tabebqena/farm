@@ -1,6 +1,7 @@
 # Guides & Documentation
 
 ## Guides
+- [Model Conventions](MODEL_CONVENTIONS.md) - Soft delete & mandatory `on_delete=PROTECT`
 - [Period Features Summary](PERIOD_FEATURE_SUMMARY.md) - Features and period functionality
 
 ## Logging

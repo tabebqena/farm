@@ -16,6 +16,27 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 
 ---
 
+## 2026-09-04 — Document mandatory `on_delete=PROTECT` model convention
+
+Added a project instruction and guide so every new relationship declares
+`on_delete=models.PROTECT` (no `CASCADE` / `SET_NULL` / `SET_DEFAULT`), matching
+the PROTECT-only schema adopted earlier. Optionality stays expressed by
+`null=True`, never by `SET_NULL`.
+
+### Added
+- [`AGENTS.md`](AGENTS.md) — mandatory "Model conventions" section stating that
+  every new `ForeignKey` / `OneToOneField` / many-to-many `through` FK must use
+  `on_delete=models.PROTECT`, with the soft-delete rationale and the
+  review-required exception rule.
+- [`docs/guides/MODEL_CONVENTIONS.md`](docs/guides/MODEL_CONVENTIONS.md) —
+  guide covering why the project only soft-deletes, the rule with good/bad
+  examples, `PROTECT` rationale, the leaf-up deletion workflow, exceptions, and
+  a quick verification grep.
+- Linked the new guide from
+  [`docs/guides/README.md`](docs/guides/README.md).
+
+---
+
 ## 2026-09-04 — Mark every foreign key PROTECT (no CASCADE / SET_NULL)
 
 Deletion is always a soft delete — [`BaseModel.delete()`](apps/app_base/models.py)

@@ -12,6 +12,24 @@
 - Avoid editing generated or environment-specific artifacts such as coverage reports, `db.sqlite3`, or virtualenv contents unless the task explicitly requires it.
 - Preserve existing behavior unless the task is clearly a bug fix or feature change.
 
+## Model conventions (mandatory)
+- Every new relationship — `models.ForeignKey`, `models.OneToOneField`, and the
+  `models.ForeignKey` fields of any many-to-many `through` model — MUST declare
+  `on_delete=models.PROTECT`.
+- Do NOT use `on_delete=models.CASCADE`, `SET_NULL`, or `SET_DEFAULT` in new
+  code. `null=True` stays allowed for optional relationships: optionality is
+  expressed by nullability, never by `SET_NULL`.
+- Why: the project deletes exclusively via soft delete —
+  [`BaseModel.delete()`](apps/app_base/models.py) stamps `deleted_at` and
+  re-saves, so DB-level `CASCADE`/`SET_NULL` never fire. `PROTECT` keeps every
+  dependent row visible as a protected object: a parent cannot be deleted while
+  dependents exist, and dependents must be deleted (or reversed) first, which
+  preserves the audit trail.
+- Any deviation requires discussion and an explicit justification before it is
+  merged (legacy/unchanged schema fields are fine as-is; this rule governs new
+  code).
+- Details and rationale: [`docs/guides/MODEL_CONVENTIONS.md`](docs/guides/MODEL_CONVENTIONS.md).
+
 ## Testing and verification
 - Use Django's built-in test runner: `manage.py test`. Settings auto-optimize
   for speed (in-memory sqlite for serial runs, RAM-backed `/dev/shm` DB for
