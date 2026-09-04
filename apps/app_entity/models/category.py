@@ -29,7 +29,7 @@ class FinancialCategory(BaseModel):
     per entity via ``max_limit``.
     """
 
-    name = models.CharField(max_length=100, unique=True)
+    name = models.CharField(max_length=100)
     description = models.TextField(blank=True, null=True)
     category_type = models.CharField(max_length=10, default="EXPENSE", editable=False)
     aspect = models.CharField(max_length=100)
@@ -41,6 +41,16 @@ class FinancialCategory(BaseModel):
 
     class Meta:
         verbose_name_plural = "Financial Categories"
+        # Uniqueness is scoped to live rows only, so a soft-deleted category no
+        # longer keeps its name "taken" forever (the old ``unique=True`` applied
+        # to every row, tombstones included).
+        constraints = [
+            models.UniqueConstraint(
+                fields=["name"],
+                condition=models.Q(deleted_at__isnull=True),
+                name="unique_financial_category_name_live",
+            )
+        ]
 
     def __str__(self):
         return f"{self.name}"
@@ -70,8 +80,17 @@ class FinancialCategoriesEntitiesRelations(BaseModel):
     is_active = models.BooleanField(default=True)
 
     class Meta:
-        unique_together = ("entity", "category")
         verbose_name_plural = "Financial Categories Entities Relations"
+        # Scoped to live rows: soft-deleting a relation frees the (entity,
+        # category) pair so it can be re-linked later. The old
+        # ``unique_together`` applied to tombstones as well.
+        constraints = [
+            models.UniqueConstraint(
+                fields=["entity", "category"],
+                condition=models.Q(deleted_at__isnull=True),
+                name="unique_entity_category_relation_live",
+            )
+        ]
 
     def __str__(self):
         return f"{self.entity} - {self.category}"

@@ -278,7 +278,7 @@ class Entity(ImmutableMixin, BaseModel):
     )
 
     # Flat metadata
-    name = models.CharField(_("name"), max_length=255, unique=True, blank=True)
+    name = models.CharField(_("name"), max_length=255, blank=True)
     description = models.TextField(_("description"), blank=True)
 
     # Project-only metadata (null for non-projects)
@@ -436,6 +436,17 @@ class Entity(ImmutableMixin, BaseModel):
     class Meta:
         verbose_name = _("entity")
         verbose_name_plural = _("entities")
+        # Uniqueness is scoped to live rows only, so a soft-deleted entity no
+        # longer keeps its name "taken" forever (the old ``unique=True``
+        # applied to tombstones as well). The form-level live-only duplicate
+        # check (see PersonForm/ProjectForm.clean_name) stays consistent.
+        constraints = [
+            models.UniqueConstraint(
+                fields=["name"],
+                condition=models.Q(deleted_at__isnull=True),
+                name="unique_entity_name_live",
+            )
+        ]
 
     # TODO consider revising the transaction type BIRTH, DEATH, CONSUMPTION
     def balance_at(self, dt) -> Decimal:

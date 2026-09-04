@@ -262,8 +262,9 @@ class ProductTemplate(BaseModel):
 
         Uses ``all_objects`` (includes soft-deleted rows) so the suggested tag
         never collides with the DB UniqueConstraint on ``(entity, unique_id)``,
-        which applies to every row regardless of soft-deletion.  The caller may
-        edit the suggested value; the constraint is the hard backstop.
+        which now applies to live rows only (soft-deleted rows no longer keep a
+        tag taken). The caller may edit the suggested value; the constraint is
+        the hard backstop.
         """
         from apps.app_inventory.models import Product
 
@@ -284,14 +285,23 @@ class ProductTemplate(BaseModel):
     class Meta:
         verbose_name = _("product template")
         verbose_name_plural = _("product templates")
-        unique_together = (
-            "name",
-            "nature",
-            "sub_category",
-            "default_unit",
-            "tracking_mode",
-            "has_tag",
-        )
+        # Uniqueness is scoped to live rows only, so a soft-deleted template no
+        # longer keeps its identifying fields "taken" forever (the old
+        # ``unique_together`` applied to tombstones as well).
+        constraints = [
+            models.UniqueConstraint(
+                fields=[
+                    "name",
+                    "nature",
+                    "sub_category",
+                    "default_unit",
+                    "tracking_mode",
+                    "has_tag",
+                ],
+                condition=Q(deleted_at__isnull=True),
+                name="unique_product_template_live",
+            )
+        ]
 
 
 class InvoiceItem(AmountCleanMixin, BaseModel):
@@ -1016,7 +1026,9 @@ class Product(AmountCleanMixin, BaseModel):
         constraints = [
             models.UniqueConstraint(
                 fields=["entity", "unique_id"],
-                condition=Q(unique_id__isnull=False),
+                # Live rows only: a soft-deleted product no longer keeps its
+                # tag "taken" for the entity, so the tag can be reused later.
+                condition=Q(unique_id__isnull=False, deleted_at__isnull=True),
                 name="unique_product_tag_per_entity",
             )
         ]

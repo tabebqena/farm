@@ -413,3 +413,57 @@ class ProductTagUniquenessTest(TestCase):
         form = self._form(uid="TAG-1")
         self.assertFalse(form.is_valid())
         self.assertIn("unique_id", form.errors)
+
+    def test_soft_deleted_product_frees_tag_for_reuse(self):
+        """A soft-deleted product no longer keeps its tag taken.
+
+        The UniqueConstraint is now conditional on ``deleted_at__isnull=True``,
+        so only live rows compete for ``(entity, unique_id)`` — the tag can be
+        reused after a soft delete instead of raising IntegrityError.
+        """
+        original = Product.objects.create(
+            product_template=self.individual,
+            entity=self.project,
+            unit_price=Decimal("100.00"),
+            quantity=1,
+            unique_id="TAG-1",
+        )
+        original.delete()  # soft-delete: stamps deleted_at, keeps the row
+
+        replacement = Product.objects.create(
+            product_template=self.individual,
+            entity=self.project,
+            unit_price=Decimal("110.00"),
+            quantity=1,
+            unique_id="TAG-1",
+        )
+        self.assertIsNotNone(replacement.pk)
+        self.assertNotEqual(original.pk, replacement.pk)
+        # Tombstone + one live row share the tag; only the live one is visible.
+        self.assertEqual(
+            Product.all_objects.filter(entity=self.project, unique_id="TAG-1").count(),
+            2,
+        )
+        self.assertEqual(
+            Product.objects.filter(entity=self.project, unique_id="TAG-1").count(),
+            1,
+        )
+
+    def test_live_duplicate_tag_still_rejected(self):
+        """Live rows still compete for a tag (friendly ValidationError)."""
+        Product.objects.create(
+            product_template=self.individual,
+            entity=self.project,
+            unit_price=Decimal("100.00"),
+            quantity=1,
+            unique_id="TAG-2",
+        )
+        # Creating a second LIVE product with the same tag must still fail.
+        with self.assertRaises(ValidationError):
+            Product.objects.create(
+                product_template=self.individual,
+                entity=self.project,
+                unit_price=Decimal("100.00"),
+                quantity=1,
+                unique_id="TAG-2",
+            )

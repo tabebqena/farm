@@ -16,6 +16,48 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 
 ---
 
+## 2026-09-04 — Scope unique indexes to live (non-deleted) rows
+
+Soft delete keeps rows forever, so a plain `unique=True` / `unique_together`
+still considered a tombstone's value "taken" and re-creating the row raised
+`IntegrityError`. Those constraints are now conditional (partial) unique indexes
+over `deleted_at IS NULL`, so only live rows compete — an entity name,
+product-template identity, product tag, financial-category name or
+(entity, category) relation can be reused after a soft delete. The unique
+idempotency key is intentionally **not** scoped: tombstones must keep those
+values reserved so the same logical event can never be recorded twice.
+
+### Changed
+- [`Entity`](apps/app_entity/models/__init__.py) — `name` uniqueness moved from
+  `unique=True` to the conditional `UniqueConstraint`
+  `unique_entity_name_live` (`deleted_at IS NULL`).
+- [`FinancialCategory`](apps/app_entity/models/category.py) and
+  [`FinancialCategoriesEntitiesRelations`](apps/app_entity/models/category.py) —
+  `unique=True` / `unique_together` replaced by the conditional
+  `UniqueConstraint`s `unique_financial_category_name_live` and
+  `unique_entity_category_relation_live`.
+- [`ProductTemplate`](apps/app_inventory/models.py) — the six-field
+  `unique_together` is now the conditional `UniqueConstraint`
+  `unique_product_template_live`.
+- [`Product`](apps/app_inventory/models.py) — the existing
+  `unique_product_tag_per_entity` constraint now also requires
+  `deleted_at IS NULL`, so a soft-deleted product no longer reserves its tag for
+  the entity.
+
+### Added
+- Migrations
+  [`apps/app_entity/migrations/0005_alter_financialcategoriesentitiesrelations_unique_together_and_more.py`](apps/app_entity/migrations/0005_alter_financialcategoriesentitiesrelations_unique_together_and_more.py)
+  and
+  [`apps/app_inventory/migrations/0016_remove_product_unique_product_tag_per_entity_and_more.py`](apps/app_inventory/migrations/0016_remove_product_unique_product_tag_per_entity_and_more.py).
+- [`test_soft_delete_unique_reuse.py`](apps/app_entity/tests/test_soft_delete_unique_reuse.py) —
+  entity name, financial-category name and (entity, category) relation reuse
+  after soft delete; live duplicates are still rejected with a friendly
+  `ValidationError`.
+- Tag-reuse regression tests in
+  [`test_product.py`](apps/app_inventory/tests/test_product.py).
+
+---
+
 ## 2026-09-04 — Centralize delete logging in BaseModel
 
 Removed the per-model `delete()` overrides that existed only to log an audit
