@@ -16,6 +16,33 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 
 ---
 
+## 2026-09-04 — Centralize delete logging in BaseModel
+
+Removed the per-model `delete()` overrides that existed only to log an audit
+line — they all forwarded to [`BaseModel.delete()`](apps/app_base/models.py),
+which already performed the actual soft delete. Delete logging now lives in one
+place.
+
+### Changed
+- [`BaseModel.delete()`](apps/app_base/models.py) — now emits the soft-delete
+  logging itself: a `logger.warning` plus a flat, greppable `<model>_deleted`
+  audit line carrying the model name, `pk`, `deleted_at` timestamp and the
+  identifying fields the record exposes, so the context previously logged per
+  model (operation type/amount/source/destination, contact type/value/entity,
+  stakeholder parent/target/role, product template/quantity/status, ...) is
+  preserved centrally.
+- Removed the audit-only `delete()` overrides (they all forwarded to
+  `BaseModel.delete()` and would otherwise double-log): `ContactInfo.delete()`,
+  `Stakeholder.delete()`, `Operation.delete()`, `Adjustment.delete()` and
+  `Product.delete()`. `Entity.delete()` is unchanged.
+
+### Added
+- `_DELETE_LOG_CONTEXT_FIELDS` and `_delete_log_context()` in
+  `apps/app_base/models.py` — generic, field-driven context builder used by the
+  central delete log.
+
+---
+
 ## 2026-09-04 — Simplify deletion: every delete is now a soft delete
 
 Removed the hard-delete machinery. Previously a record was physically removed
