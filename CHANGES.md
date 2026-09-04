@@ -16,6 +16,28 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 
 ---
 
+## 2026-09-04 — Remove the dormant `deletable` field
+
+`BaseModel.deletable` was kept only for schema compatibility — deletion never
+consulted it (every delete is a soft delete via `deleted_at`). The field, its
+`save()` defaulting, and all references are now removed and the column is
+dropped from every table.
+
+### Changed
+- [`BaseModel`](apps/app_base/models.py) — removed the `deletable` BooleanField
+  and the new-row defaulting in `save()`.
+- Removed `deletable=False` kwargs from test builders (operation view tests and
+  [`general.py`](apps/app_inventory/tests/general.py)) and the
+  `deletable`-field test in [`app_base/tests.py`](apps/app_base/tests.py).
+
+### Added
+- RemoveField migrations across the six apps (app_entity `0007`, app_inventory
+  `0019`, app_operation `0012`, app_transaction `0005`, app_adjustment `0006`,
+  app_animal `0003`). `app_animal/0003` depends on `app_inventory/0013`
+  (MedicalRecord move copy) so the column is dropped only after that raw copy.
+
+---
+
 ## 2026-09-04 — Add `manage.py clean` to purge soft-deleted rows
 
 Soft delete accumulates tombstones forever; this is the admin/ops counterpart

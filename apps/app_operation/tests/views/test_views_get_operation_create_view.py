@@ -154,7 +154,6 @@ class TransactionCreateViewSourceFundTests(TestCase):
             operation_type=OperationType.PURCHASE,
             date=date.today(),
             officer=self.officer,
-            deletable=False,
         )
         url = reverse("record_transaction_payment", kwargs={"pk": op.pk})
         response = self.client.get(url)
@@ -178,7 +177,6 @@ class TransactionCreateViewSourceFundTests(TestCase):
             operation_type=OperationType.LOAN,
             date=date.today(),
             officer=self.officer,
-            deletable=False,
         )
         url = reverse("record_transaction_repayment", kwargs={"pk": op.pk})
         response = self.client.get(url)

@@ -43,7 +43,6 @@ class OperationDetailViewTest(TestCase):
             operation_type=OperationType.CASH_INJECTION,
             amount=Decimal("100.00"),
             date=datetime.date.today(),
-            deletable=False,
         )
 
     def test_authorized_user_can_load_operation_detail(self):
@@ -89,7 +88,6 @@ class OperationDetailViewTest(TestCase):
             operation_type=OperationType.PURCHASE,
             amount=Decimal("100.00"),
             date=datetime.date.today(),
-            deletable=False,
         )
 
         url = reverse("operation_detail_view", kwargs={"pk": operation.pk})
@@ -158,7 +156,6 @@ class OperationDetailViewTest(TestCase):
             operation_type=OperationType.PURCHASE,
             amount=Decimal("100.00"),
             date=datetime.date.today(),
-            deletable=False,
         )
 
         url = reverse("operation_detail_view", kwargs={"pk": operation.pk})
@@ -212,7 +209,6 @@ class OperationDetailViewTest(TestCase):
                 operation_type=OperationType.CASH_INJECTION,
                 amount=Decimal("5000.00"),
                 date=datetime.date.today(),
-                deletable=False,
             )
         loan = LoanOperation.objects.create(
             source=creditor,
@@ -221,7 +217,6 @@ class OperationDetailViewTest(TestCase):
             operation_type=OperationType.LOAN,
             amount=Decimal("1000.00"),
             date=datetime.date.today(),
-            deletable=False,
         )
         # Disburse the full amount so repayments are backed by a LOAN_PAYMENT.
         loan.create_payment_transaction(
@@ -325,7 +320,6 @@ class OperationDetailViewTest(TestCase):
             operation_type=OperationType.CAPITAL_GAIN,
             amount=Decimal("5000.00"),
             date=datetime.date.today(),
-            deletable=False,
         )
         return PurchaseOperation.objects.create(
             source=project,
@@ -334,7 +328,6 @@ class OperationDetailViewTest(TestCase):
             operation_type=OperationType.PURCHASE,
             amount=Decimal("1000.00"),
             date=datetime.date.today(),
-            deletable=False,
         )
 
     def test_operation_detail_hides_record_payment_when_fully_settled(self):

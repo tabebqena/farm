@@ -61,7 +61,6 @@ def make_operation(
         operation_type=operation_type,
         amount=amount,
         date=date.today(),
-        deletable=False,
     )
     # op.save()
     return op

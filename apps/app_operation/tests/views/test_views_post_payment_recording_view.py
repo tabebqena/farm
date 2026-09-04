@@ -63,7 +63,6 @@ class PaymentRecordingViewTest(TestCase):
             operation_type=OperationType.PURCHASE,
             date=date.today(),
             officer=self.officer,
-            deletable=False,
         )
 
     def test_valid_form_no_validation_errors(self):

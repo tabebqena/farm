@@ -49,7 +49,6 @@ class OperationListViewTest(TestCase):
                 operation_type=OperationType.CASH_INJECTION,
                 amount=Decimal("100.00"),
                 date=__import__("datetime").date.today(),
-                deletable=False,
             )
 
         self.client.login(username="officer_ops", password="testpass")
@@ -74,7 +73,6 @@ class OperationListViewTest(TestCase):
             operation_type=OperationType.CASH_INJECTION,
             amount=Decimal("100.00"),
             date=__import__("datetime").date.today(),
-            deletable=False,
         )
 
         self.client.login(username="officer_ops", password="testpass")
@@ -126,7 +124,6 @@ class OperationListViewTest(TestCase):
                 operation_type=OperationType.CASH_INJECTION,
                 amount=Decimal("5000.00"),
                 date=datetime.date.today(),
-                deletable=False,
             )
         loan = LoanOperation.objects.create(
             source=creditor,
@@ -135,7 +132,6 @@ class OperationListViewTest(TestCase):
             operation_type=OperationType.LOAN,
             amount=Decimal("1000.00"),
             date=datetime.date.today(),
-            deletable=False,
         )
         # Disburse the full amount so the repayment is backed by a LOAN_PAYMENT.
         loan.create_payment_transaction(

@@ -90,12 +90,6 @@ class BaseModel(models.Model):
         _("deleted at"), null=True, blank=True, default=None
     )
 
-    # ``deletable`` is retained (dormant) for schema compatibility. Deletion no
-    # longer consults it — every record is soft-deleted via ``deleted_at``.
-    deletable = models.BooleanField(
-        _("deletable"), blank=False, null=False, default=False
-    )
-
     all_objects = DefaultManager  # Default manager
     objects = ActiveManager()  # Custom manager for non-deleted items
 
@@ -150,11 +144,8 @@ class BaseModel(models.Model):
             f(*f_args, **f_kwargs)
 
     def save(self, *args, **kwargs):
-        """Full-validate, default ``deletable`` on new rows, then run post-save tasks."""
+        """Full-validate, then run post-save tasks."""
         self.full_clean()
-        is_new = self.pk is None
-        if is_new and not isinstance(self.deletable, bool):
-            self.deletable = False
         rv = super().save(
             force_insert=kwargs.get("force_insert", False),
             force_update=kwargs.get("force_update", False),

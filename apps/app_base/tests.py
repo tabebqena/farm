@@ -98,13 +98,8 @@ class BaseModelTimestampTests(TestCase):
 # =============================================================================
 
 
-class BaseModelDeletableFieldTests(TestCase):
-    """Test BaseModel deletable field behavior"""
-
-    def test_deletable_defaults_to_false(self):
-        """New objects should have deletable=False by default"""
-        entity = _make_entity("Test Entity")
-        self.assertFalse(entity.deletable)
+class BaseModelSoftDeleteFieldTests(TestCase):
+    """Test BaseModel soft-delete field behavior"""
 
     def test_deleted_at_initially_null(self):
         """deleted_at should be NULL for new objects"""

@@ -59,7 +59,6 @@ class RepaymentRecordingViewTest(TestCase):
             operation_type=OperationType.CASH_INJECTION,
             amount=Decimal("5000.00"),
             date=date.today(),
-            deletable=False,
         )
 
         # Create a loan operation with outstanding repayment
@@ -70,7 +69,6 @@ class RepaymentRecordingViewTest(TestCase):
             operation_type=OperationType.LOAN,
             date=date.today(),
             officer=self.officer,
-            deletable=False,
         )
         # Disburse the full amount so repayments are backed by a LOAN_PAYMENT.
         self.loan_operation.create_payment_transaction(
