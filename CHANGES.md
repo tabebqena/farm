@@ -1,4 +1,4 @@
-te # Changelog
+# Changelog
 
 All notable changes to the **farm** project are documented in this file.
 
@@ -13,6 +13,30 @@ Dates follow the commit history (`git log`). The format is loosely based on
 is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 
 
+
+---
+
+## 2026-09-04 — Add `manage.py clean` to purge soft-deleted rows
+
+Soft delete accumulates tombstones forever; this is the admin/ops counterpart
+that hard-deletes them. New `clean` management command
+([`apps/app_base/management/commands/clean.py`](apps/app_base/management/commands/clean.py))
+physically removes soft-deleted rows through Django's deletion collector (raw
+SQL, so the soft-delete manager is bypassed) while respecting the `PROTECT`
+schema: a tombstone still referenced by any other row is skipped until its
+dependents are purged first (leaf-up, in rounds). Live rows are never touched.
+
+### Added
+- `manage.py clean` with options:
+  - `--model APP.Model` — limit to one model (default: every model with
+    `deleted_at`);
+  - `--older-than DAYS` — only purge tombstones older than *DAYS* days;
+  - `--dry-run` — report what would be purged without deleting.
+- Purged rows are written to the audit channel (`<model>_purged` lines).
+- Tests in [`test_clean_command.py`](apps/app_entity/tests/test_clean_command.py):
+  leaf-up purge keeps live rows, dry-run removes nothing, `--older-than` skips
+  recent tombstones, and a `--model`-scoped run leaves referenced tombstones in
+  place.
 
 ---
 
