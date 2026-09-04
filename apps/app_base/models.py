@@ -9,7 +9,7 @@ against mutation and coordinating the reversal of its related transactions.
 import typing
 from typing import Collection, List
 
-from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db import transaction as db_transaction
 from django.db.models.expressions import DatabaseDefault
@@ -19,8 +19,6 @@ from django.utils.translation import gettext_lazy as _
 
 if typing.TYPE_CHECKING:
     from apps.app_transaction.transaction_type import TransactionType
-
-from django import conf
 
 from .managers import ActiveManager, DefaultManager
 from .mixins import HasRelatedTransactions
@@ -36,8 +34,9 @@ class BaseModel(models.Model):
     """Abstract base model shared by every record in the project.
 
     Provides the common ``id`` plus the ``created_at`` / ``updated_at`` audit
-    timestamps, soft-delete support via ``deleted_at``, the superuser-only
-    ``deletable`` flag, and full validation on every ``save()``.
+    timestamps, soft-delete support via ``deleted_at``, and full validation on
+    every ``save()``. ``delete()`` always soft-deletes: it stamps ``deleted_at``
+    and re-saves, so rows are never physically removed.
     """
 
     id: models.BigAutoField
@@ -47,6 +46,8 @@ class BaseModel(models.Model):
         _("deleted at"), null=True, blank=True, default=None
     )
 
+    # ``deletable`` is retained (dormant) for schema compatibility. Deletion no
+    # longer consults it — every record is soft-deleted via ``deleted_at``.
     deletable = models.BooleanField(
         _("deletable"), blank=False, null=False, default=False
     )
@@ -56,30 +57,6 @@ class BaseModel(models.Model):
 
     class Meta:
         abstract = True
-
-    def __setattr__(self, name, value):
-        """Guard the ``deletable`` flag so only a superuser can change it."""
-        # 1. Check if the attribute being changed is 'deletable'
-        # 2. Check if the object is already in the DB (has a PK)
-        if name == "deletable" and self.pk is not None:
-            # Fetch the value currently stored in the object's memory
-            # (Using __dict__.get to avoid infinite recursion)
-            current_val = self.__dict__.get(name)
-            from crum import get_current_user
-
-            # If the value is actually changing
-            if current_val is not None and current_val != value:
-                user = get_current_user()
-                # Block if user is not a superuser
-                if not (user and user.is_superuser):
-                    raise PermissionDenied(
-                        _(
-                            "Permission Denied: Only superusers can modify the 'deletable' status of %(class_name)s."
-                        )
-                        % {"class_name": self.__class__.__name__}
-                    )
-
-        super().__setattr__(name, value)
 
     def clean_fields(self, exclude: Collection[str] | None = None) -> None:
         """
@@ -134,23 +111,16 @@ class BaseModel(models.Model):
         return rv
 
     def delete(self, *args, **kwargs):
-        """Hard-delete for superusers, otherwise soft-delete via ``deleted_at``.
+        """Soft-delete this record by stamping ``deleted_at`` and re-saving.
 
-        Bulk deletion is blocked unless ``deletable`` is set and the caller is
-        a superuser.
+        Every record is soft-deleted — nothing is ever physically removed — so
+        the audit trail stays intact and the row can be restored later by
+        clearing ``deleted_at`` and saving again. Re-saving runs the normal
+        ``full_clean()`` validation and post-save hooks.
         """
-        if conf.settings.DEBUG:
-            return super().delete(*args, **kwargs)
-        if not self.deletable:
-            raise RuntimeError(_("Deletion is strictly blocked for this object"))
-        from crum import get_current_user
-
-        user = get_current_user()
-        if user and user.is_superuser:
-            return super().delete(*args, **kwargs)  # Hard delete for superuser
         if not self.deleted_at:
-            self.deleted_at = timezone.now()  # Soft delete for others
-        return self.save()
+            self.deleted_at = timezone.now()
+        return self.save(*args, **kwargs)
 
 
 class ReversableModel(HasRelatedTransactions, BaseModel):

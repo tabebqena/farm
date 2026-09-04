@@ -1,6 +1,7 @@
 """Custom model managers and querysets used by the farm models.
 
-:class:`SafeQuerySet` blocks bulk ``update`` / ``bulk_create`` / ``delete`` so
+:class:`SafeQuerySet` blocks bulk ``update`` / ``bulk_create`` /
+``bulk_update`` and soft-deletes rows individually (no bulk hard delete) so
 rows only change through validated, individual ``save()`` calls.
 :class:`ActiveManager` exposes only non-soft-deleted rows (``deleted_at`` null)
 and :data:`DefaultManager` is the default manager factory for models.
@@ -18,11 +19,11 @@ from django.utils.translation import gettext_lazy as _
 # Custom Managers
 # -----------------------------
 class SafeQuerySet(models.QuerySet):
-    """QuerySet that blocks bulk writes and deletes.
+    """QuerySet that blocks bulk writes and only soft-deletes.
 
-    ``update()`` / ``bulk_create()`` / ``bulk_update()`` / ``delete()`` raise
-    (except when ``DEBUG`` is on) so rows only change through validated,
-    individual ``save()`` calls.
+    ``update()`` / ``bulk_create()`` / ``bulk_update()`` raise so rows only
+    change through validated, individual ``save()`` calls. ``delete()``
+    soft-deletes every row one at a time — there is no bulk hard delete.
     """
 
     def update(self, **kwargs):
@@ -46,17 +47,17 @@ class SafeQuerySet(models.QuerySet):
         )
 
     def delete(self):
-        """Block bulk deletes outside ``DEBUG`` unless the model is ``deletable``."""
-        if conf.settings.DEBUG:
-            return super().delete()
+        """Soft-delete every row in the queryset, one validated save at a time.
 
-        raise NotImplementedError(
-            _(
-                "Bulk delete is blocked for %(model)s. "
-                "If this is intended, set 'deletable = True' in the model Meta or class."
-            )
-            % {"model": self.model.__name__}
-        )
+        No bulk hard delete: each row is individually soft-deleted so the
+        model's ``delete()`` hooks, validation and post-save tasks run. Returns
+        the Django-style ``(count, {model_label: count})`` tuple.
+        """
+        count = 0
+        for obj in self:
+            obj.delete()
+            count += 1
+        return count, {self.model._meta.label: count}
 
 
 class ActiveManager(models.Manager):

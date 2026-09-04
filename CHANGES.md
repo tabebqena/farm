@@ -16,6 +16,36 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 
 ---
 
+## 2026-09-04 — Simplify deletion: every delete is now a soft delete
+
+Removed the hard-delete machinery. Previously a record was physically removed
+when `DEBUG` was on, or when the superuser-only `deletable` flag was set and the
+acting user was a superuser; any other attempt either soft-deleted or raised.
+Now `delete()` always soft-deletes — nothing is ever hard-deleted.
+
+### Changed
+- [`BaseModel.delete()`](apps/app_base/models.py) — always stamps `deleted_at`
+  and re-saves. Removed the `DEBUG` bypass, the `deletable` gate (`RuntimeError`),
+  the superuser hard-delete branch and the `crum` current-user dependency.
+- Removed the `__setattr__` superuser guard for `deletable`. The `deletable`
+  column is kept dormant for schema compatibility — deletion no longer consults
+  it (dropping it needs a migration and is tracked separately).
+- [`SafeQuerySet.delete()`](apps/app_base/managers.py) and
+  [`OperationQuerySet.delete()`](apps/app_operation/models/managers.py) — iterate
+  and soft-delete each row individually (no `DEBUG` bulk hard delete and no
+  `NotImplementedError`), returning the standard `(count, {label: count})` tuple.
+- [`EntityListView`](apps/app_entity/views/entity_list.py) — builds its queryset
+  from `Entity.all_objects` so the "Deleted Only" and "All" deletion tabs can see
+  soft-deleted entities.
+
+### Added
+- [`SoftDeleteTests`](apps/app_base/tests.py) in `apps/app_base/tests.py`:
+  single and bulk `delete()` always soft-delete and are idempotent, and deleted
+  rows stay hidden from `objects` yet remain reachable in `all_objects` and can
+  be restored.
+
+---
+
 ## 2026-09-04 — Complete ActiveManager soft-delete test coverage
 
 ### Added
@@ -25,8 +55,7 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
   (`.all()`, `.count()`, `.filter()`, `.exists()`, and `.get()` raising
   `DoesNotExist`), while `all_objects` keeps soft-deleted rows reachable. Added
   manager-type assertions, restore (`deleted_at = None`) and multi-delete exclusion
-  cases. Soft-deleted state is simulated by stamping `deleted_at` because test
-  settings force `DEBUG = True`, under which `BaseModel.delete()` hard-deletes.
+  cases. Soft-deleted rows are produced through the real `delete()` path.
 
 ---
 

@@ -19,7 +19,9 @@ class EntityListView(View):
     def get(self, request, *args, **kwargs):
         """Render the filtered, searchable list of entities."""
         logger.debug(f"Building entity list query | user={request.user.username}")
-        queryset = Entity.objects
+        # Start from all_objects so the "deleted" / "all" deletion filters below
+        # can actually see soft-deleted rows (objects hides them).
+        queryset = Entity.all_objects
 
         # Get Filter Params
         type_f = request.GET.get("type", "all")

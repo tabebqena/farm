@@ -112,6 +112,59 @@ class BaseModelDeletableFieldTests(TestCase):
         self.assertIsNone(entity.deleted_at)
 
 
+class SoftDeleteTests(TestCase):
+    """delete() must always soft-delete — never physically remove a row."""
+
+    def setUp(self):
+        self.entity = _make_entity("DeleteMe")
+
+    def test_delete_stamps_deleted_at_and_keeps_row(self):
+        """delete() should set deleted_at and keep the row in the table."""
+        self.entity.delete()
+
+        kept = Entity.all_objects.get(pk=self.entity.pk)
+        self.assertIsNotNone(kept.deleted_at)
+
+    def test_deleted_row_hidden_from_objects_kept_in_all_objects(self):
+        """After delete(), objects excludes the row but all_objects retains it."""
+        self.entity.delete()
+
+        self.assertNotIn(self.entity, Entity.objects.all())
+        self.assertFalse(Entity.objects.filter(pk=self.entity.pk).exists())
+        self.assertEqual(Entity.objects.count(), 0)
+        self.assertIsNotNone(Entity.all_objects.get(pk=self.entity.pk).deleted_at)
+
+    def test_delete_is_idempotent(self):
+        """Deleting an already soft-deleted row must not raise."""
+        self.entity.delete()
+        self.entity.delete()  # second delete is a no-op soft-delete
+
+    def test_deleted_row_can_be_restored(self):
+        """Clearing deleted_at after delete() should bring the row back."""
+        self.entity.delete()
+
+        self.entity.deleted_at = None
+        self.entity.save()
+
+        self.assertIn(self.entity, Entity.objects.all())
+
+    def test_queryset_delete_soft_deletes_every_row(self):
+        """Bulk queryset.delete() should soft-delete each row, not hard-delete."""
+        other = _make_entity("DeleteMeToo")
+        self.assertEqual(Entity.all_objects.count(), 2)
+
+        deleted_count, _ = Entity.all_objects.filter(
+            name__in=[self.entity.name, other.name]
+        ).delete()
+
+        self.assertEqual(deleted_count, 2)
+        self.assertEqual(Entity.objects.count(), 0)
+        self.assertEqual(Entity.all_objects.count(), 2)
+        self.assertEqual(
+            Entity.all_objects.filter(deleted_at__isnull=True).count(), 0
+        )
+
+
 # =============================================================================
 # ActiveManager Tests
 # =============================================================================
@@ -122,24 +175,14 @@ class ActiveManagerTests(TestCase):
 
     ``Entity.objects`` uses :class:`ActiveManager`, which filters
     ``deleted_at__isnull=True``; ``Entity.all_objects`` is the unfiltered
-    manager and must keep soft-deleted rows reachable.
-
-    Note: DEBUG is forced on in test settings, so ``BaseModel.delete()``
-    hard-deletes instead of soft-deleting. Soft-deleted state is therefore
-    simulated directly by stamping ``deleted_at`` — the exact marker that
-    ``ActiveManager.get_queryset()`` filters on.
+    manager and must keep soft-deleted rows reachable. Soft-deleted rows are
+    produced through the real ``delete()`` path, which always soft-deletes.
     """
 
     def setUp(self):
         self.live = _make_entity("ActiveEntity")
         self.removed = _make_entity("SoftDeletedEntity")
-        self._soft_delete(self.removed)
-
-    @staticmethod
-    def _soft_delete(entity):
-        """Stamp ``deleted_at`` to mimic a soft-deleted row."""
-        entity.deleted_at = timezone.now()
-        entity.save()
+        self.removed.delete()  # always soft-deletes: stamps deleted_at
 
     # --- manager wiring -------------------------------------------------- #
 
@@ -214,7 +257,7 @@ class ActiveManagerTests(TestCase):
 
     def test_multiple_soft_deleted_rows_all_excluded(self):
         """Soft-deleting every row should empty the default manager."""
-        self._soft_delete(self.live)
+        self.live.delete()
         self.assertEqual(Entity.objects.count(), 0)
         self.assertEqual(Entity.all_objects.count(), 2)
         self.assertEqual(
