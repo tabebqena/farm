@@ -326,15 +326,15 @@
 - **Phase C:** filled the matrix gaps — reverse→SE4 for every obligation-bearing type,
   differential invariants, SE5 exact negation sets, SE7 product-status restoration.
 - **Phase D:** strengthened `.exists()`/`.count()` → exact-value assertions across the suite.
-- **Phase E:** `COVERAGE_MANIFEST` + `CoverageManifestTest` (executable drift guard) + filled-in
-  audit matrix.
+- **Phase E:** filled-in audit matrix. (The `COVERAGE_MANIFEST` + `CoverageManifestTest`
+  executable drift guard added in this phase was removed later — see CHANGES.md.)
 - **Verification:** `app_operation + app_transaction + app_inventory + app_adjustment +
   app_entity` → 1377 tests OK.
 
 ### Operations Spec — Test-Coverage Closure — `operations-spec-test-coverage-closure-plan.md` ✅ implemented
 - Closed VR4 reversal-dependency-guard gaps (consumption partial-then-full, sale
   partial-then-full); added SR9/SR10 tests (settlement cleared, reason flows to reversal) to the
-  one-shot reversal suites; registered new tests in `COVERAGE_MANIFEST`.
+  one-shot reversal suites.
 - Coverage-doc pass: filled every "Pinned by test" / "Verified by" / §10 cell with real test
   names; automated checker confirmed all **699** `ClassName.method` refs resolve.
 - **Verification:** full suite `--parallel=10 --keepdb` → 1432 tests OK (only pre-existing

@@ -16,6 +16,32 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 
 ---
 
+## 2026-09-04 — Remove the executable coverage manifest
+
+Removed `COVERAGE_MANIFEST` / `CoverageManifestTest`, the executable drift guard
+that pinned one canonical test method per `(operation_type, action, side_effect)`
+cell of the operation test-suite plan matrix. The guard only verified that each
+declared `module:Class.method` path still resolved — the ~100 granular tests it
+pointed at all remain and still run under `manage.py test`.
+
+### Changed
+- [`apps/app_operation/tests/base.py`](apps/app_operation/tests/base.py) — removed
+  the `COVERAGE_MANIFEST` dict, `_path()`, `_test_method_exists()`,
+  `CoverageManifestTest` and the now-unused `importlib` import (the Phase E block).
+- Deleted the discovery shim
+  `apps/app_operation/tests/test_coverage_manifest.py` (the manifest test is no
+  longer discoverable by `test*.py`).
+- Docs/specs: dropped the "Coverage manifest (executable branch registry)" rows
+  from [`docs/operations/op_13_death.md`](docs/operations/op_13_death.md) and
+  [`docs/operations/op_14_consumption.md`](docs/operations/op_14_consumption.md),
+  and the "coverage manifest SE3/SE4" footnote in
+  [`docs/operations/op_6_loan.md`](docs/operations/op_6_loan.md); reworded the
+  now-dangling references in the `ai-plans/` summaries.
+- [`ui_tests/manifest.py`](ui_tests/manifest.py) (its own self-contained mirrored
+  manifest) is intentionally left unchanged.
+
+---
+
 ## 2026-09-04 — Split `app_base` tests into a `tests` package
 
 Converted the monolithic [`tests.py`](apps/app_base/tests.py) into an

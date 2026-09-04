@@ -77,8 +77,7 @@
 - Each test is named and documented by the clause it pins (e.g.
   `test_vc1_source_is_world`).
 - A machine-checkable manifest (`UI_CLAUSE_MANIFEST`) maps every spec clause to a
-  test method, mirroring the executable registry already used by
-  `apps/app_operation/tests/base.py` (`COVERAGE_MANIFEST`).
+  test method, via an executable registry implemented in `ui_tests/manifest.py`.
 - **Reuse existing fixture factories** (`make_officer`, `make_project`,
   `make_client`, `make_vendor`, `inject_person_fund`, `inject_project_fund`, …) so
   the world the browser sees equals the world the model tests assert on.

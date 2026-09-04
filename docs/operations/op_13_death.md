@@ -111,7 +111,6 @@ The tables below **register every file that implements this operation**. The spe
 | Reverse branches (reversal record, no counter-tx, auto lines reversed, ledger negation, status DEAD→ACTIVE) | `test_death_death_reversal` (`DeathReversalTest`) |
 | `can_die` gating + animal-template rules | `test_death_death_create` (`DeathCreateInventoryTest.test_non_animal_template_rejected_for_death`), shared `test_animal_attributes` (`AcceptsOperationGatingTest`) |
 | View contract — create route + reverse reason (VR6) | `test_views_death_create_and_reverse` (`DeathCreateViewTest`, `DeathReverseViewTest`) |
-| Coverage manifest (executable branch registry) | `test_coverage_manifest` (`CoverageManifestTest`) |
 
 ---
 

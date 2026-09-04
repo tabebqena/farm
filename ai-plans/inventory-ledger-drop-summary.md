@@ -84,7 +84,7 @@ Replaces every `ProductLedgerEntry` query. API:
 - `apps/app_inventory/tests/test_stock.py` (NEW) — movement_state / portfolio / inventory_value /
   pending_items scenarios (incl. direction-aware sale, reversal exclusion, written-off netting).
 - All ledger-asserting tests rewritten to assert movement lines / stock state while **keeping the
-  coverage-manifest method names** (so `CoverageManifestTest` passes):
+  existing test-method names** (no renames):
   - `test_inventory_movement.py`, `test_quick_consume_from_stock.py`, `test_product.py`
     (`_make_valued_product` now uses real capital operations).
   - birth/death/consumption create + reversal tests.

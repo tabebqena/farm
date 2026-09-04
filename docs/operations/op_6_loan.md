@@ -228,7 +228,7 @@ Entry point: model `op.create_payment_transaction(amount, officer, date)` or vie
 | SP5 | Debtor payables ▲ | `debtor.payables` increases by `amount` | payables derivation | `LoanDisbursementTest.test_payment_increases_debtor_payables` |
 | SP6 | Creditor receivables ▲ | `creditor.receivables` increases by `amount` | receivables derivation | `LoanDisbursementTest.test_payment_increases_creditor_receivables` |
 | SP7 | Other obligation buckets zero | creditor payables & debtor receivables stay `0` | obligation derivation | `LoanDisbursementTest.test_payment_leaves_other_obligation_buckets_zero` |
-| SP8 | `amount_settled` ↑ | settlement grows by the disbursed amount | `amount_settled` | implied by SP3/SP4 + coverage manifest SE3/SE4 |
+| SP8 | `amount_settled` ↑ | settlement grows by the disbursed amount | `amount_settled` | implied by SP3/SP4 |
 
 ### 5.3 `repay`
 

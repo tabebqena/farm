@@ -121,7 +121,6 @@ The tables below **register every file that implements this operation**. The spe
 | Reverse branches (reversal record, no counter-tx, auto lines reversed, ledger negation, status CONSUMED→ACTIVE, VR1/VR2/VR4, SR10) | `test_consumption_consumption_reversal` (`ConsumptionReversalTest`) |
 | Stock detail/history UI branches | `test_consumption_stock_detail` (`ConsumptionStockDetailTest`) |
 | One-step quick-consume branches | `test_quick_consume_from_stock` (`QuickConsumeFromStockTest`) |
-| Coverage manifest (executable branch registry) | `test_coverage_manifest` → `base.py` `COVERAGE_MANIFEST` |
 
 ---
 
