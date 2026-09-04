@@ -16,6 +16,37 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 
 ---
 
+## 2026-09-04 — Mark every foreign key PROTECT (no CASCADE / SET_NULL)
+
+Deletion is always a soft delete — [`BaseModel.delete()`](apps/app_base/models.py)
+stamps `deleted_at` and re-saves — so neither `on_delete=CASCADE` nor
+`on_delete=SET_NULL` ever fires. Keeping those declarations was misleading
+(Django admin treated cascade dependents as deletable and set-null relations as
+"will be nulled") and left dependents silently referencing a hidden parent.
+Every FK is now `PROTECT`: no relation is auto-removed or auto-nulled at the
+schema level, all dependents are uniformly protected, and Django admin refuses
+to delete a parent while any such row exists. This is the schema-side
+precursor to the parent-with-children deletion guard.
+
+### Changed
+- `on_delete=CASCADE` → `PROTECT`: [`InvoiceItem.operation`](apps/app_inventory/models.py),
+  [`Transaction.content_type`](apps/app_transaction/models.py),
+  [`InvoiceItemAdjustmentLine.adjustment`](apps/app_adjustment/models.py),
+  [`Stakeholder.parent` / `Stakeholder.target`](apps/app_entity/models/__init__.py),
+  [`FinancialCategoriesEntitiesRelations.entity` / `.category`](apps/app_entity/models/category.py).
+- `on_delete=SET_NULL` → `PROTECT` (nullability unchanged):
+  [`InvoiceItemAdjustment.adjustment`](apps/app_adjustment/models.py),
+  [`MedicalRecord.officer`](apps/app_animal/models.py),
+  [`ProductTemplate.gives_birth_to`](apps/app_inventory/models.py),
+  [`Product.mother`](apps/app_inventory/models.py),
+  [`Transaction.reversal_of`](apps/app_transaction/models.py).
+
+### Added
+- Migrations: app_inventory `0017`, `0018`; app_transaction `0003`, `0004`;
+  app_adjustment `0004`, `0005`; app_entity `0006`; app_animal `0002`.
+
+---
+
 ## 2026-09-04 — Scope unique indexes to live (non-deleted) rows
 
 Soft delete keeps rows forever, so a plain `unique=True` / `unique_together`
