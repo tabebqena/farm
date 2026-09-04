@@ -16,6 +16,16 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 
 ---
 
+## 2026-09-04 — Harden the one-shot `create()` payment test
+
+### Fixed
+- [`apps/app_operation/tests/operations/test_operation_create.py`](apps/app_operation/tests/operations/test_operation_create.py) —
+  `CashInjectionCreateTest.test_create_without_payment_does_not_call_process_payment`
+  now spies on `process_payment` (asserting it is never called for a `can_pay=False`
+  proxy) and asserts the real transaction map — 1 issuance + 1 automatic one-shot
+  payment — replacing the weak `pk is not None`-only check and correcting the
+  misleading claim that `create()` produces no payment transaction at all.
+
 ## 2026-09-04 — Entity app primary-source contracts (`docs/entities`)
 
 Documentation only — no code, model, migration or test changes.

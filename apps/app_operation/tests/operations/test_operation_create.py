@@ -7,6 +7,7 @@ side-effects (payment, invoice) in a single atomic transaction.
 
 from datetime import date
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
@@ -104,21 +105,42 @@ class CashInjectionCreateTest(TestCase):
         self.assertEqual(op.destination, self.receiver_entity)
         self.assertEqual(op.amount, Decimal("1000.00"))
 
-    def test_create_without_payment_does_not_call_process_payment(self):
-        """``can_pay`` is False — no payment transaction is created by create()."""
+    @patch.object(CashInjectionOperation, "process_payment")
+    def test_create_without_payment_does_not_call_process_payment(
+        self, mock_process_payment
+    ):
+        """``can_pay`` is False — ``create()`` never calls ``process_payment()``.
+
+        One-shot proxies settle in full at creation, so the ``amount_paid``
+        argument must NOT trigger the manual payment stage. The only payment
+        transaction that exists is the single automatic one-shot payment that
+        ``save()`` writes (issuance + payment pair) — the passed ``amount_paid``
+        does not add a second one.
+        """
         op = CashInjectionOperation.create(
             operation_type=OperationType.CASH_INJECTION,
             source=self.world_entity,
             destination=self.receiver_entity,
             amount=Decimal("500.00"),
             date=date.today(),
-            description="No payment",
+            description="No manual payment",
             officer=self.officer_user,
             amount_paid=Decimal("500.00"),  # ignored because can_pay is False
         )
-        # create() does NOT call process_payment() since can_pay is False
-        # The instance *is* saved, but no manual payment transaction is created.
+        # The instance is saved...
         self.assertIsNotNone(op.pk)
+        # ...but the manual payment stage was never reached (can_pay is False).
+        mock_process_payment.assert_not_called()
+        # Exactly one automatic payment exists alongside the issuance — the
+        # passed amount_paid did not create an extra (manual) payment.
+        assert_tx_types(
+            self,
+            op,
+            {
+                TransactionType.CASH_INJECTION_ISSUANCE: 1,
+                TransactionType.CASH_INJECTION_PAYMENT: 1,
+            },
+        )
 
     def test_create_without_invoice_skips_invoice_processing(self):
         """``has_invoice`` is False — invoice formset is never constructed."""
