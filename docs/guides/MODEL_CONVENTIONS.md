@@ -7,6 +7,14 @@ the canonical reference for the mandatory rule stated in
 
 ---
 
+> **Admin-only delete.** [`Model.delete()`](../../apps/app_base/models.py)
+> (soft delete via `deleted_at`) is an **admin-only** action — only Django admin
+> may invoke it. The project UI must not expose a view, form, or button that
+> actually calls `.delete()`. User-facing flows use domain actions instead —
+> deactivation (`active` / `is_active`), status transitions, or reversal. If a
+> row genuinely must be removed, do it through Django admin so the deletion
+> guard and the audit log apply.
+
 ## 1. Why the project only soft-deletes
 
 Every record in the system inherits from

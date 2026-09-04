@@ -1,4 +1,4 @@
-# Changelog
+te # Changelog
 
 All notable changes to the **farm** project are documented in this file.
 
@@ -13,6 +13,21 @@ Dates follow the commit history (`git log`). The format is loosely based on
 is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 
 
+
+---
+
+## 2026-09-04 — Document that delete() is an admin-only action
+
+`Model.delete()` (soft delete) is documented as an **admin-only** action. The
+project UI must not render a view, form, or button that actually calls
+`.delete()`; user-facing flows use deactivation, status transitions, or
+reversal instead, and any real removal happens through Django admin so the
+deletion guard and audit log apply.
+
+### Added
+- [`AGENTS.md`](AGENTS.md) — mandatory "Deletion policy" section.
+- [`docs/guides/MODEL_CONVENTIONS.md`](docs/guides/MODEL_CONVENTIONS.md) —
+  admin-only delete callout.
 
 ---
 

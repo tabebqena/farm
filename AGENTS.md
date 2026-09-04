@@ -30,6 +30,18 @@
   code).
 - Details and rationale: [`docs/guides/MODEL_CONVENTIONS.md`](docs/guides/MODEL_CONVENTIONS.md).
 
+## Deletion policy (mandatory)
+- [`delete()`](apps/app_base/models.py) (soft delete via `deleted_at`) is an
+  **admin-only** action. Only Django admin (a staff superuser) may invoke it.
+- The project UI must NOT display a view, form, or button that actually calls
+  `.delete()` / soft-deletes a record. User-facing flows use domain actions
+  instead: deactivation (`active` / `is_active`), status transitions, or
+  reversal — never `delete()`.
+- New views/forms/templates must not add a delete endpoint or "delete" control
+  that maps to `Model.delete()`. If a row genuinely must be removed, it is done
+  through the Django admin so the soft-delete guard (PROTECT semantics) and the
+  audit log apply.
+
 ## Testing and verification
 - Use Django's built-in test runner: `manage.py test`. Settings auto-optimize
   for speed (in-memory sqlite for serial runs, RAM-backed `/dev/shm` DB for
