@@ -91,10 +91,12 @@ class ProductTemplateForm(LoggingFormMixin, forms.ModelForm):
 
 
 class HasTagSelect(forms.Select):
-    """Select widget that stamps each ProductTemplate option with data-has-tag."""
+    """Select widget that stamps each ProductTemplate option with data-has-tag
+    and its minimum quantity increment (for client-side unit validation)."""
 
     def __init__(self, *args, **kwargs):
         self.has_tag_pks = set()
+        self.minimum_quantity_pks = {}
         super().__init__(*args, **kwargs)
 
     def create_option(
@@ -108,6 +110,8 @@ class HasTagSelect(forms.Select):
             option["attrs"]["data-has-tag"] = (
                 "true" if pk in self.has_tag_pks else "false"
             )
+            if pk in self.minimum_quantity_pks:
+                option["attrs"]["data-minimum-quantity"] = self.minimum_quantity_pks[pk]
         return option
 
 
@@ -206,6 +210,10 @@ class InvoiceItemCreateForm(LoggingFormMixin, forms.ModelForm):
             self.fields["product_template"].widget.has_tag_pks = set(
                 str(pk) for pk in qs.filter(has_tag=True).values_list("pk", flat=True)
             )
+            self.fields["product_template"].widget.minimum_quantity_pks = {
+                str(pk): str(mq)
+                for pk, mq in qs.values_list("pk", "minimum_quantity")
+            }
         self.fields["unit_price"].required = False
 
         if is_birth:

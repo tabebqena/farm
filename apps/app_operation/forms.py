@@ -170,6 +170,11 @@ class PurchaseItemForm(LoggingFormMixin, forms.Form):
         if template:
             step = str(template.minimum_quantity)
             self.fields["quantity"].widget.attrs["step"] = step
+            self.fields["quantity"].widget.attrs["data-minimum-quantity"] = step
+            self.fields["quantity"].widget.attrs["data-error-message"] = str(
+                _("Quantity must be a multiple of the minimum increment %(min)s.")
+                % {"min": step}
+            )
             self.fields["received_qty"].widget.attrs["step"] = step
 
     def clean(self):
@@ -315,6 +320,11 @@ class SaleItemForm(LoggingFormMixin, forms.Form):
         if product is not None:
             step = str(product.product_template.minimum_quantity)
             self.fields["quantity"].widget.attrs["step"] = step
+            self.fields["quantity"].widget.attrs["data-minimum-quantity"] = step
+            self.fields["quantity"].widget.attrs["data-error-message"] = str(
+                _("Quantity must be a multiple of the minimum increment %(min)s.")
+                % {"min": step}
+            )
 
     def clean(self):
         from datetime import date

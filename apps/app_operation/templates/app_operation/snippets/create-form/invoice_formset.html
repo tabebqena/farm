@@ -91,7 +91,7 @@
             <div class="row g-2 align-items-end">
               <div class="col-4 col-md-3">
                 <label class="form-label small text-muted mb-1">{% trans 'Qty' %}</label>
-                <input type="number" name="{{ item_form.quantity.html_name }}" class="form-control form-control-sm amount-input qty-input{% if item_form.quantity.errors %} is-invalid{% endif %}" step="1" value="{{ item_form.quantity.value|default:'1' }}" inputmode="decimal" required />
+                <input type="number" name="{{ item_form.quantity.html_name }}" class="form-control form-control-sm amount-input qty-input{% if item_form.quantity.errors %} is-invalid{% endif %}" step="1" value="{{ item_form.quantity.value|default:'1' }}" inputmode="decimal" required data-error-message="{% trans 'Quantity must be a multiple of the minimum increment {min}.' %}" />
                 {% if item_form.quantity.errors %}
                   <div class="invalid-feedback d-block small text-danger">
                     <i class="bi bi-exclamation-circle me-1"></i>{% for e in item_form.quantity.errors %}
@@ -99,6 +99,7 @@
                     {% endfor %}
                   </div>
                 {% endif %}
+                <div class="js-quantity-error invalid-feedback d-block small text-danger" hidden></div>
               </div>
               <div class="col-5 col-md-4">
                 <label class="form-label small text-muted mb-1">{% trans 'Unit Price' %}</label>
