@@ -10,35 +10,35 @@ from apps.app_base.templatetags.money import money, money_plain, money_signed
 
 class MoneyFilterTests(SimpleTestCase):
     def test_decimal_is_grouped_and_padded(self):
-        self.assertEqual(money(Decimal("1234567.5")), "$1,234,567.50")
+        self.assertEqual(money(Decimal("1234567.5")), "E£1,234,567.50")
 
     def test_integer_is_padded(self):
-        self.assertEqual(money(1234), "$1,234.00")
+        self.assertEqual(money(1234), "E£1,234.00")
 
     def test_float_is_padded(self):
-        self.assertEqual(money(1234.5), "$1,234.50")
+        self.assertEqual(money(1234.5), "E£1,234.50")
 
     def test_numeric_string_is_supported(self):
-        self.assertEqual(money("1234.5"), "$1,234.50")
+        self.assertEqual(money("1234.5"), "E£1,234.50")
 
     def test_negative_uses_leading_minus(self):
-        self.assertEqual(money(Decimal("-1234.56")), "-$1,234.56")
+        self.assertEqual(money(Decimal("-1234.56")), "-E£1,234.56")
 
     def test_none_renders_zero(self):
-        self.assertEqual(money(None), "$0.00")
+        self.assertEqual(money(None), "E£0.00")
 
     def test_blank_string_renders_zero(self):
-        self.assertEqual(money(""), "$0.00")
+        self.assertEqual(money(""), "E£0.00")
 
     def test_invalid_value_renders_zero(self):
-        self.assertEqual(money("not-a-number"), "$0.00")
+        self.assertEqual(money("not-a-number"), "E£0.00")
 
     def test_non_finite_value_renders_zero(self):
-        self.assertEqual(money(Decimal("NaN")), "$0.00")
-        self.assertEqual(money(Decimal("Infinity")), "$0.00")
+        self.assertEqual(money(Decimal("NaN")), "E£0.00")
+        self.assertEqual(money(Decimal("Infinity")), "E£0.00")
 
     def test_more_than_two_decimals_are_rounded(self):
-        self.assertEqual(money(Decimal("1.005")), "$1.01")
+        self.assertEqual(money(Decimal("1.005")), "E£1.01")
 
     def test_symbol_override(self):
         self.assertEqual(money(Decimal("10"), "€"), "€10.00")
@@ -49,10 +49,10 @@ class MoneyFilterTests(SimpleTestCase):
 
     @override_settings(CURRENCY_SYMBOL="")
     def test_empty_setting_symbol_falls_back_to_default(self):
-        self.assertEqual(money(Decimal("10")), "$10.00")
+        self.assertEqual(money(Decimal("10")), "E£10.00")
 
     def test_empty_symbol_argument_falls_back_to_default(self):
-        self.assertEqual(money(Decimal("10"), ""), "$10.00")
+        self.assertEqual(money(Decimal("10"), ""), "E£10.00")
 
     def test_money_plain_has_no_symbol(self):
         self.assertEqual(money_plain(Decimal("1234.5")), "1,234.50")
@@ -61,13 +61,13 @@ class MoneyFilterTests(SimpleTestCase):
         self.assertEqual(money_plain(Decimal("-1234.5")), "-1,234.50")
 
     def test_money_signed_positive(self):
-        self.assertEqual(money_signed(Decimal("5")), "+$5.00")
+        self.assertEqual(money_signed(Decimal("5")), "+E£5.00")
 
     def test_money_signed_negative(self):
-        self.assertEqual(money_signed(Decimal("-5")), "-$5.00")
+        self.assertEqual(money_signed(Decimal("-5")), "-E£5.00")
 
     def test_money_signed_zero(self):
-        self.assertEqual(money_signed(0), "+$0.00")
+        self.assertEqual(money_signed(0), "+E£0.00")
 
     def test_money_signed_symbol_override(self):
         self.assertEqual(money_signed(Decimal("5"), "€"), "+€5.00")
@@ -78,13 +78,13 @@ class MoneyFilterTemplateTests(SimpleTestCase):
         return Template("{% load money %}" + source).render(Context({}))
 
     def test_money_tag(self):
-        self.assertEqual(self.render("{{ 1234.5|money }}"), "$1,234.50")
+        self.assertEqual(self.render("{{ 1234.5|money }}"), "E£1,234.50")
 
     def test_money_plain_tag(self):
         self.assertEqual(self.render("{{ 1234.5|money_plain }}"), "1,234.50")
 
     def test_money_signed_tag(self):
-        self.assertEqual(self.render("{{ -1234.5|money_signed }}"), "-$1,234.50")
+        self.assertEqual(self.render("{{ -1234.5|money_signed }}"), "-E£1,234.50")
 
     def test_money_tag_with_symbol_argument(self):
         self.assertEqual(self.render('{{ 1234.5|money:"€" }}'), "€1,234.50")

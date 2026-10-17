@@ -18,7 +18,7 @@
   });
 
   function currencySymbol() {
-    return (document.body && document.body.dataset.currency) || '$';
+    return (document.body && document.body.dataset.currency) || 'E£';
   }
 
   function toNumber(value) {

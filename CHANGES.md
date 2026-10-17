@@ -25,7 +25,7 @@ of the previous mix of `floatformat:2`, raw `Decimal.__str__` and hand-built
 
 ### Added
 - `apps/app_base/templatetags/money.py` with `money`, `money_plain` and
-  `money_signed` filters (`{{ v|money }}` → `$1,234.56`; `money_plain` without
+  `money_signed` filters (`{{ v|money }}` → `E£1,234.56`; `money_plain` without
   the symbol; `money_signed` forces `+`/`-`). Half-up rounding, 0 for
   `None`/blank/invalid, optional symbol override.
 - `static/js/money.js` exposing `window.FarmMoney` (`format`, `signed`, `plain`)
@@ -36,6 +36,8 @@ of the previous mix of `floatformat:2`, raw `Decimal.__str__` and hand-built
 - `apps/app_base/tests/test_money_filter.py`.
 
 ### Changed
+- Default `CURRENCY_SYMBOL` is now the Egyptian pound (`E£`); hardcoded `$`
+  input-group prefixes and `$0.00` seed values now render `{{ currency }}`.
 - Migrated all money displays to `|money` / `FarmMoney`: reports
   (`balance_sheet`, `cash_flow`, `equity_statement`, `income_statement`), entity
   pages, operation list/detail/period/invoice/wizard snippets, adjustments, and

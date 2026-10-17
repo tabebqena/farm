@@ -105,7 +105,7 @@ class OperationCreateViewSourceFundTests(TestCase):
         content = response.content.decode()
         self.assertIn("Source Fund", content)
         self.assertIn(self.project.name, content)
-        self.assertIn("$1,000.00", content)
+        self.assertIn("E£1,000.00", content)
 
     def test_expense_create_source_fund_is_project(self):
         """Expense source is the project → fund is the project balance."""
@@ -164,7 +164,7 @@ class TransactionCreateViewSourceFundTests(TestCase):
 
         content = response.content.decode()
         self.assertIn("Paying Fund", content)
-        self.assertIn("$2,000.00", content)
+        self.assertIn("E£2,000.00", content)
 
     def test_repayment_create_exposes_source_fund(self):
         """Repayment debits the operation's payment target fund (the debtor)."""
@@ -187,4 +187,4 @@ class TransactionCreateViewSourceFundTests(TestCase):
 
         content = response.content.decode()
         self.assertIn("Repaying Fund", content)
-        self.assertIn("$500.00", content)
+        self.assertIn("E£500.00", content)

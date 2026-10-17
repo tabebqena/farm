@@ -383,7 +383,7 @@ MESSAGE_TAGS = {
     messages.ERROR: "danger",  # This fixes the coloring issue
 }
 
-CURRENCY_SYMBOL = "$"
+CURRENCY_SYMBOL = "E£"
 
 LOGIN_URL = "login"  # Name of your login URL pattern
 LOGIN_REDIRECT_URL = "/"  # Where to go after success (home unless a next param is given)

@@ -49,3 +49,14 @@ hand-built `"$ " + x.toFixed(2)` strings in JS. Reports had no currency symbol.
   processor but harmless. Can be removed later.
 - Quantity displays (`stock_history`, `stock_detail`) intentionally unchanged.
 
+## Follow-up: Egyptian pound default
+
+- `settings.CURRENCY_SYMBOL` → `"E£"`; `DEFAULT_SYMBOL` in `money.py` and the
+  `FarmMoney` JS fallback follow suit.
+- Replaced remaining hardcoded `$` input-group prefixes and `$0.00` seed values
+  in templates with `{{ currency }}` (adjustment forms, operation amount groups,
+  wizard steps, category relation form, invoice formset grand total, partial
+  payment subform).
+- Updated filter tests to expect `E£`; the two operation view tests that
+  asserted `currency == "$"` now compare against `settings.CURRENCY_SYMBOL`, and
+  fund-display assertions expect the grouped/symbol form (`E£1,000.00`).

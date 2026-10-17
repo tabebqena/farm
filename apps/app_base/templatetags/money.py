@@ -8,12 +8,12 @@ Arabic (RTL) layouts.
 Usage::
 
     {% load money %}
-    {{ operation.amount|money }}            {# $1,234,567.89 #}
+    {{ operation.amount|money }}            {# E£1,234,567.89 #}
     {{ operation.amount|money_plain }}      {# 1,234,567.89 #}
-    {{ delta|money_signed }}                {# +$5.00 / -$5.00 #}
+    {{ delta|money_signed }}                {# +E£5.00 / -E£5.00 #}
     {{ value|money:'€' }}                   {# explicit symbol override #}
 
-``None``/blank/invalid values render as ``$0.00`` and negatives as ``-$1.00``.
+``None``/blank/invalid values render as ``E£0.00`` and negatives as ``-E£1.00``.
 """
 
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
@@ -23,7 +23,7 @@ from django.conf import settings
 
 register = template.Library()
 
-DEFAULT_SYMBOL = "$"
+DEFAULT_SYMBOL = "E£"
 _CENTS = Decimal("0.01")
 
 
