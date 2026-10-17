@@ -16,6 +16,16 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 ---
 
 
+## 2026-10-17 — Fix 500 on pages whose fund-balance include omits the currency
+
+### Fixed
+- `snippets/create-form/fund-balance.html` passed `fund_currency` as a filter
+  argument; when the including template (purchase/sale wizard and invoice pages)
+  did not supply it, template resolution raised `VariableDoesNotExist` → HTTP
+  500. Now resolved with `{% firstof fund_currency currency as fund_symbol %}`,
+  falling back to the global currency.
+
+
 ## 2026-10-17 — Space between currency symbol and amount
 
 ### Changed

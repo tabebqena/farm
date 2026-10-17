@@ -8,7 +8,8 @@
         {% if fund_label %}{{ fund_label }}{% else %}{% trans "Current Fund" %}{% endif %}
         {% if fund_entity.name %}<span class="text-dark">· {{ fund_entity.name }}</span>{% endif %}
       </small>
-      <span class="fw-bold fs-5">{{ fund_entity.balance|money:fund_currency }}</span>
+      {% firstof fund_currency currency as fund_symbol %}
+      <span class="fw-bold fs-5">{{ fund_entity.balance|money:fund_symbol }}</span>
     </div>
   </div>
 {% endif %}
