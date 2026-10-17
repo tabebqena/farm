@@ -16,6 +16,57 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 
 ---
 
+## 2026-09-04 — Category filtering is expense-only; drop `category_required` and `category_type`
+
+The financial-category feature is now scoped to the **Expense** operation only, and
+its configuration is reduced to a single source of truth: `has_category`. A proxy
+that declares `has_category = True` (only `ExpenseOperation`) shows a **required**
+category dropdown listing the active `FinancialCategory` rows **linked to the URL
+project entity** — no other operation exposes or stores a category.
+
+### Changed
+- [`apps/app_operation/models/operation.py`](apps/app_operation/models/operation.py) —
+  removed the `category_required` class flag (it duplicated `has_category`) and the
+  `category_type` class attribute. [`Operation.clean()`](apps/app_operation/models/operation.py)
+  now rejects an operation without a category whenever `has_category` is set; the
+  category-type mismatch guard was removed. The `resolve_request()` config dict and
+  the `StockEventMixin` defaults only carry `has_category`.
+- [`apps/app_operation/models/proxies/op_expense.py`](apps/app_operation/models/proxies/op_expense.py) —
+  keeps `has_category = True`; dropped its `category_required` / `category_type`
+  overrides. [`op_loan.py`](apps/app_operation/models/proxies/op_loan.py),
+  [`op_sale.py`](apps/app_operation/models/proxies/op_sale.py) and
+  [`op_purchase.py`](apps/app_operation/models/proxies/op_purchase.py) dropped their
+  redundant `category_required = False` / `category_type` namespaces.
+- [`apps/app_entity/models/category.py`](apps/app_entity/models/category.py) — removed
+  the unused `FinancialCategory.category_type` field (the catalog is expense-only).
+  New migration
+  [`0008_remove_financialcategory_category_type.py`](apps/app_entity/migrations/0008_remove_financialcategory_category_type.py).
+- [`apps/app_operation/views/create_operation/base.py`](apps/app_operation/views/create_operation/base.py) —
+  the expense category dropdown lists every active category linked to the URL entity
+  (no `category_type` filter).
+- [`apps/app_operation/validators.py`](apps/app_operation/validators.py) — the
+  required-category branch keys off `has_category`.
+- [`apps/app_base/management/commands/seed.py`](apps/app_base/management/commands/seed.py) —
+  removed the dead `"type": "EXPENSE"` keys from `default_categories`.
+- Templates — the create-form category snippet and [`generic_form.html`](apps/app_operation/templates/app_operation/generic_form.html)
+  expose the single `has_category` flag; the detail header
+  ([`address_bar.html`](apps/app_operation/templates/app_operation/snippets/address_bar.html))
+  now badges the chosen category name instead of the removed type; the entity
+  category cards show `aspect` and no longer display the removed type.
+
+### Removed
+- Operation `category_required` and `category_type` configuration, the `category_type`
+  mismatch validation branch, and the `FinancialCategory.category_type` DB field —
+  together with the tests, entity/seed/category-UI code, and specs that referenced them.
+
+### Specs
+- Updated [`docs/operations/op_8_expense.md`](docs/operations/op_8_expense.md) (config
+  flag, VC13, §8 UI, branch catalog, coverage matrix), the `has_category` flag rows in
+  the other operation contracts, [`docs/operations/_OPERATION_SPEC_TEMPLATE.md`](docs/operations/_OPERATION_SPEC_TEMPLATE.md)
+  and [`docs/entities/entity_6_financial_categories.md`](docs/entities/entity_6_financial_categories.md).
+
+---
+
 ## 2026-09-04 — Operation config cleanup: adjustability flags single-sourced
 
 ### Changed
