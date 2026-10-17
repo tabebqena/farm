@@ -111,6 +111,8 @@ footer { max-width:1100px; margin:2rem auto 1rem; padding:0 1rem; color:var(--mu
 def _setup_django():
     """Point at the project settings and initialise the app registry."""
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "farm.settings")
+    # Documentation tooling is a local, non-production consumer of the app.
+    os.environ.setdefault("DJANGO_DEBUG", "1")
     import django  # noqa: E402
 
     django.setup()

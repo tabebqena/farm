@@ -1,6 +1,12 @@
 """Custom error views for the farm project."""
+from django.http import HttpResponse
 from django.shortcuts import render
 from django.utils.translation import get_language
+
+
+def healthz(request):
+    """Liveness probe used by load balancers and container orchestrators."""
+    return HttpResponse("ok", content_type="text/plain")
 
 
 def handler404(request, exception=None):

@@ -11,3 +11,6 @@ test_results.txt
 *.sqlite3
 tmp/**
 docs/api-docs/**
+.env
+staticfiles/
+media/

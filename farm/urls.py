@@ -27,6 +27,8 @@ from . import views as error_views
 urlpatterns = [
     # Language-switching endpoint (not wrapped in i18n_patterns)
     path("i18n/", include("django.conf.urls.i18n")),
+    # Unauthenticated liveness probe for the load balancer / orchestrator.
+    path("healthz/", error_views.healthz, name="healthz"),
 ]
 
 urlpatterns += i18n_patterns(

@@ -12,7 +12,10 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 import os
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 import sys
+
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -22,16 +25,120 @@ LOGS_DIR = BASE_DIR / "logs"
 LOGS_DIR.mkdir(exist_ok=True)
 
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
+# ---------------------------------------------------------------------------
+# Environment configuration
+#
+# Every deployment-specific value is read from the environment so the same
+# code runs in development, tests and production. Values may also be provided
+# through a ``.env`` file in the project root (see ``.env.example``); real
+# environment variables always win, which lets Docker/system settings override
+# the file.
+# ---------------------------------------------------------------------------
+def _load_dotenv(dotenv_path):
+    """Populate ``os.environ`` from a simple ``KEY=VALUE`` file.
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-4fnjdlr*n2=&)@yi*s9t54peelto$$d_zg7b)l2mc_n37#ukn7"
+    Blank lines and ``#`` comments are ignored, surrounding quotes are
+    stripped, and existing environment variables are never overwritten.
+    """
+    if not dotenv_path.is_file():
+        return
+    for raw_line in dotenv_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
 
-ALLOWED_HOSTS = []
+_load_dotenv(BASE_DIR / ".env")
+
+
+def env(name, default=None):
+    """Return the environment variable *name*, or *default* when unset."""
+    return os.environ.get(name, default)
+
+
+def env_bool(name, default=False):
+    """Return an environment variable parsed as a boolean."""
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def env_list(name, default=None):
+    """Return a comma-separated environment variable as a list."""
+    raw = os.environ.get(name, "")
+    items = [item.strip() for item in raw.split(",") if item.strip()]
+    return items if items else list(default or [])
+
+
+def parse_database_url(url):
+    """Build a Django ``DATABASES`` entry from a connection URL.
+
+    Supports ``sqlite:///path`` and ``postgres://user:pass@host:port/name``.
+    Relative SQLite paths resolve against :data:`BASE_DIR`; absolute paths
+    (``sqlite:////data/db.sqlite3``) are used verbatim. Returns ``None`` when
+    *url* is empty.
+    """
+    if not url:
+        return None
+    parsed = urlparse(url)
+    scheme = parsed.scheme.split("+", 1)[0].lower()
+
+    if scheme in {"sqlite", "sqlite3"}:
+        path = unquote(parsed.path)
+        if path in {"", "/"} or ":memory:" in url:
+            name = ":memory:"
+        elif parsed.netloc and not path:
+            name = parsed.netloc
+        elif path.startswith("//"):
+            name = path[1:]
+        else:
+            name = BASE_DIR / path.lstrip("/")
+        return {"ENGINE": "django.db.backends.sqlite3", "NAME": name}
+
+    if scheme in {"postgres", "postgresql"}:
+        return {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": unquote(parsed.path.lstrip("/")),
+            "USER": unquote(parsed.username or ""),
+            "PASSWORD": unquote(parsed.password or ""),
+            "HOST": parsed.hostname or "",
+            "PORT": str(parsed.port or ""),
+        }
+
+    raise ImproperlyConfigured(f"Unsupported DATABASE_URL scheme: {parsed.scheme!r}")
+
+
+# ``manage.py test`` and pytest use fast, throwaway settings.
+TESTING = "test" in sys.argv or "pytest" in sys.argv
+
+# Secure by default: only tests default to ``DEBUG`` so the deployment must opt
+# in explicitly (``DJANGO_DEBUG=1``) for local development.
+if TESTING:
+    DEBUG = True
+else:
+    DEBUG = env_bool("DJANGO_DEBUG", default=False)
+
+SECRET_KEY = env("DJANGO_SECRET_KEY")
+if not SECRET_KEY:
+    if DEBUG:
+        SECRET_KEY = "django-insecure-development-only-not-for-production"
+    else:
+        raise ImproperlyConfigured(
+            "DJANGO_SECRET_KEY is not set. Provide a long, random value "
+            "before running in production (see .env.example)."
+        )
+
+ALLOWED_HOSTS = env_list(
+    "DJANGO_ALLOWED_HOSTS", default=["localhost", "127.0.0.1", "[::1]"]
+)
+
+CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS")
 
 
 # Application definition
@@ -57,6 +164,12 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+]
+if not DEBUG:
+    # Serves compressed, cache-busted static files directly from the app.
+    # (In development Django's staticfiles app serves them instead.)
+    MIDDLEWARE.append("whitenoise.middleware.WhiteNoiseMiddleware")
+MIDDLEWARE += [
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.locale.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -99,7 +212,7 @@ WSGI_APPLICATION = "farm.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-if 'test' in sys.argv:
+if TESTING:
     if "--parallel" in sys.argv and os.path.exists('/dev/shm'):
         DATABASES = {
             'default': {
@@ -119,9 +232,10 @@ if 'test' in sys.argv:
         }
 else:
     DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / "db.sqlite3",
+        "default": parse_database_url(env("DJANGO_DATABASE_URL"))
+        or {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
         }
     }
 
@@ -175,6 +289,82 @@ STATIC_URL = "static/"
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, "static"),
 ]
+# Target of ``collectstatic``; served by WhiteNoise in production.
+STATIC_ROOT = env("DJANGO_STATIC_ROOT", str(BASE_DIR / "staticfiles"))
+
+# Uploaded files (e.g. project feasibility studies).
+MEDIA_URL = "media/"
+MEDIA_ROOT = env("DJANGO_MEDIA_ROOT", str(BASE_DIR / "media"))
+
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
+if not DEBUG:
+    # Hash + compress every static asset and require the manifest produced by
+    # ``collectstatic`` (run automatically by the container entrypoint).
+    STORAGES["staticfiles"] = {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    }
+
+
+# ---------------------------------------------------------------------------
+# Security
+# ---------------------------------------------------------------------------
+X_FRAME_OPTIONS = "DENY"
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = "same-origin"
+# Trust the reverse proxy's ``X-Forwarded-Proto`` header for HTTPS detection.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+# Never redirect the liveness probe, so orchestrators can reach it over HTTP.
+SECURE_REDIRECT_EXEMPT = [r"^healthz/$"]
+
+if not DEBUG:
+    # Set DJANGO_SECURE_SSL_REDIRECT=0 only when TLS terminates upstream and
+    # the proxy forwards plain HTTP (e.g. a local docker-compose smoke test).
+    SECURE_SSL_REDIRECT = env_bool("DJANGO_SECURE_SSL_REDIRECT", True)
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = int(env("DJANGO_SECURE_HSTS_SECONDS", "31536000"))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+else:
+    SECURE_SSL_REDIRECT = False
+    SESSION_COOKIE_SECURE = env_bool("DJANGO_SESSION_COOKIE_SECURE", False)
+    CSRF_COOKIE_SECURE = env_bool("DJANGO_CSRF_COOKIE_SECURE", False)
+    SECURE_HSTS_SECONDS = 0
+
+
+# ---------------------------------------------------------------------------
+# Email (used for error reports to ADMINS when DEBUG is off)
+# ---------------------------------------------------------------------------
+def _parse_admins(raw):
+    admins = []
+    for entry in (raw or "").split(","):
+        entry = entry.strip()
+        if not entry:
+            continue
+        name, _, email = entry.partition(":")
+        admins.append((name.strip(), email.strip()))
+    return admins
+
+
+ADMINS = _parse_admins(env("DJANGO_ADMINS"))
+MANAGERS = ADMINS
+SERVER_EMAIL = env("DJANGO_SERVER_EMAIL", "noreply@localhost")
+DEFAULT_FROM_EMAIL = env("DJANGO_DEFAULT_FROM_EMAIL", SERVER_EMAIL)
+EMAIL_BACKEND = env(
+    "DJANGO_EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend"
+)
+EMAIL_HOST = env("DJANGO_EMAIL_HOST", "localhost")
+EMAIL_PORT = int(env("DJANGO_EMAIL_PORT", "25"))
+EMAIL_HOST_USER = env("DJANGO_EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = env("DJANGO_EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = env_bool("DJANGO_EMAIL_USE_TLS", False)
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
@@ -199,6 +389,9 @@ LOGIN_REDIRECT_URL = "/"  # Where to go after success (home unless a next param 
 # Where to send users after they log out
 LOGOUT_REDIRECT_URL = "login"
 
+
+LOG_LEVEL = env("DJANGO_LOG_LEVEL", "DEBUG" if DEBUG else "INFO")
+SQL_LOG_LEVEL = "DEBUG" if DEBUG else "WARNING"
 
 LOGGING = {
     "version": 1,
@@ -244,7 +437,7 @@ LOGGING = {
     },
     "root": {
         "handlers": ["console", "debug_file", "error_file"],
-        "level": "DEBUG",
+        "level": LOG_LEVEL,
     },
     "loggers": {
         "farm": {
@@ -259,18 +452,32 @@ LOGGING = {
         },
         "django.db.backends": {
             "handlers": ["debug_file"],
-            "level": "INFO",
+            "level": SQL_LOG_LEVEL,
             "propagate": False,
         },
     },
 }
+
+if ADMINS and not DEBUG:
+    # Email unhandled request errors (500s) to ADMINS. Added only when admins
+    # are configured so an unconfigured deployment never tries to send mail.
+    LOGGING["handlers"]["mail_admins"] = {
+        "class": "django.utils.log.AdminEmailHandler",
+        "level": "ERROR",
+        "formatter": "detailed",
+    }
+    LOGGING["loggers"]["django.request"] = {
+        "handlers": ["mail_admins", "error_file"],
+        "level": "ERROR",
+        "propagate": False,
+    }
 
 
 # ---------------------------------------------------------------------------
 # Test mode: maximize test execution speed
 # These overrides only apply when running `manage.py test`.
 # ---------------------------------------------------------------------------
-if "test" in sys.argv:
+if TESTING:
     # PBKDF2 is deliberately slow for production security. Tests create many
     # users, so swap in the fast MD5 hasher to avoid hashing overhead.
     PASSWORD_HASHERS = [

@@ -16,6 +16,71 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 ---
 
 
+## 2026-10-17 — Production readiness: env-driven settings, container image, secure defaults
+
+The project is no longer development-only. All deployment-specific values now
+come from the environment (with a `.env` file for local use), production
+defaults are secure, static files are served by WhiteNoise, and a Docker
+image/compose stack plus a health probe make it runnable behind a reverse
+proxy.
+
+### Added
+- [`.env.example`](.env.example) — documented template for every environment
+  variable (secret, hosts, database URL, security, email, logging). Copy to
+  `.env` (git-ignored).
+- [`Dockerfile`](Dockerfile), [`docker-compose.yml`](docker-compose.yml),
+  [`docker/entrypoint.sh`](docker/entrypoint.sh),
+  [`docker/gunicorn.conf.py`](docker/gunicorn.conf.py) and
+  [`.dockerignore`](.dockerignore) — non-root Gunicorn image; the entrypoint
+  runs `migrate` + `collectstatic` before boot. Compose persists the SQLite DB,
+  media, static and logs in named volumes.
+- [`requirements-dev.txt`](requirements-dev.txt) — dev/test/tooling
+  dependencies; [`requirements.txt`](requirements.txt) now carries only the
+  production runtime (`Django`, `gunicorn`, `whitenoise`, `psycopg[binary]`,
+  `asgiref`, `sqlparse`, `typing_extensions`).
+- `/healthz/` liveness endpoint ([`farm/views.py`](farm/views.py),
+  [`farm/urls.py`](farm/urls.py)) — unauthenticated, never SSL-redirected
+  (`SECURE_REDIRECT_EXEMPT`), used by the image `HEALTHCHECK` and orchestrators.
+- [`test_health.py`](apps/app_base/tests/test_health.py).
+
+### Changed
+- [`farm/settings.py`](farm/settings.py) — env-driven configuration:
+  - `DJANGO_SECRET_KEY` (required unless `DEBUG`), `DJANGO_DEBUG` (default
+    **False**, `True` only under tests), `DJANGO_ALLOWED_HOSTS`,
+    `DJANGO_CSRF_TRUSTED_ORIGINS`.
+  - `DJANGO_DATABASE_URL` parsed for `sqlite://` / `postgres://` (SQLite file
+    remains the fallback); `DJANGO_STATIC_ROOT`, `DJANGO_MEDIA_ROOT`.
+  - Secure-by-default production settings: SSL redirect, secure/HSTS cookies,
+    HSTS (1 year), `X_FRAME_OPTIONS=DENY`, content-type nosniff, referrer
+    policy, and `SECURE_PROXY_SSL_HEADER`.
+  - `STATIC_ROOT` + WhiteNoise `CompressedManifestStaticFilesStorage` when not
+    `DEBUG`; WhiteNoise middleware is only installed outside `DEBUG`.
+  - Configurable log levels, plus `mail_admins` error email when `ADMINS` is set.
+- [`requirements.txt`](requirements.txt) — trimmed to production runtime.
+- [`.gitignore`](.gitignore) — ignores `.env`, `staticfiles/` and `media/`.
+- [`docs.py`](docs.py) — the docs build defaults `DJANGO_DEBUG=1` so tooling
+  works without a configured environment.
+
+### Verification
+- `manage.py check` and `manage.py check --deploy` are clean with production
+  environment variables.
+- `collectstatic` produces the WhiteNoise manifest (141 files, 413
+  post-processed).
+- Gunicorn smoke test: `/healthz/` returns `200` while other routes redirect.
+- Full suite **1,542 tests OK** (`manage.py test apps --parallel=10 --keepdb`).
+
+### Deploying
+```
+cp .env.example .env          # set DJANGO_SECRET_KEY (+ hosts, admins)
+docker compose up --build -d  # http://localhost:8000
+python -c "import secrets; print(secrets.token_urlsafe(64))"  # secret generator
+```
+Terminate TLS at a reverse proxy and keep `DJANGO_SECURE_SSL_REDIRECT=1`; set it
+to `0` only for a plain-HTTP local smoke test.
+
+
+---
+
 ## 2026-10-17 — Action provenance: "What happened & why" tracing
 
 A new `app_audit` app records, for every mutating request, the user's submitted

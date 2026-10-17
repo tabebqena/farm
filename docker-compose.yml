@@ -1,0 +1,31 @@
+services:
+  web:
+    build: .
+    image: farm:latest
+    restart: unless-stopped
+    environment:
+      # Required: define it in .env (docker compose reads .env automatically).
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY must be set in .env}
+      DJANGO_DEBUG: "0"
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      DJANGO_CSRF_TRUSTED_ORIGINS: ${DJANGO_CSRF_TRUSTED_ORIGINS:-}
+      DJANGO_DATABASE_URL: ${DJANGO_DATABASE_URL:-sqlite:////data/db.sqlite3}
+      DJANGO_STATIC_ROOT: /app/staticfiles
+      DJANGO_MEDIA_ROOT: /data/media
+      # TLS is expected to terminate at a reverse proxy. Set to "1" once the
+      # proxy forwards HTTPS (or when running behind a TLS-terminating LB).
+      DJANGO_SECURE_SSL_REDIRECT: ${DJANGO_SECURE_SSL_REDIRECT:-0}
+      DJANGO_ADMINS: ${DJANGO_ADMINS:-}
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-3}
+      GUNICORN_THREADS: ${GUNICORN_THREADS:-2}
+    volumes:
+      - farm_data:/data
+      - farm_static:/app/staticfiles
+      - farm_logs:/app/logs
+    ports:
+      - "${FARM_HTTP_PORT:-8000}:8000"
+
+volumes:
+  farm_data:
+  farm_static:
+  farm_logs:

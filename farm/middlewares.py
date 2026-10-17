@@ -20,6 +20,7 @@ class LoginRequiredMiddleware:
             self._exempt_patterns = [
                 reverse("login"),
                 reverse("admin:index"),
+                reverse("healthz"),
                 "/i18n/",  # Language switching endpoint
             ]
         return self._exempt_patterns
