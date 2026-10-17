@@ -81,6 +81,17 @@ to `0` only for a plain-HTTP local smoke test.
 
 ---
 
+## 2026-10-17 — Deployment helper script
+
+### Added
+- [`scripts/deploy.sh`](scripts/deploy.sh) — prompts for the SSH username and
+  password, then logs into the host, pulls the latest `main` (cloning the repo
+  if missing) and rebuilds/recreates the docker compose stack. Host, app dir,
+  branch, repo URL and compose command are overridable via `FARM_*` environment
+  variables; it refuses to deploy if `.env` is missing.
+
+---
+
 ## 2026-10-17 — Action provenance: "What happened & why" tracing
 
 A new `app_audit` app records, for every mutating request, the user's submitted
