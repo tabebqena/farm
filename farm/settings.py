@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     "apps.app_inventory",
     "apps.app_animal",
     "apps.app_report",
+    "apps.app_audit",
 ]
 
 MIDDLEWARE = [
@@ -65,9 +66,15 @@ MIDDLEWARE = [
     # Should be after the auth middleware
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "farm.middlewares.LoginRequiredMiddleware",
+    # Records one provenance trace per mutating request (What happened & why).
+    "apps.app_audit.middleware.ActionTraceMiddleware",
 ]
 
 ROOT_URLCONF = "farm.urls"
+
+# Action provenance: record every model save plus the request that caused it.
+# Disable to remove the audit-write overhead (e.g. bulk imports, speed tests).
+FARM_TRACKING_ENABLED = True
 
 TEMPLATES = [
     {
@@ -272,6 +279,10 @@ if "test" in sys.argv:
 
     # Skip expensive password-strength checks during tests.
     AUTH_PASSWORD_VALIDATORS = []
+
+    # Audit writes are off by default in tests (they are exercised explicitly
+    # with override_settings(FARM_TRACKING_ENABLED=True)).
+    FARM_TRACKING_ENABLED = False
 
     # Replace the verbose, file-backed logging config with a minimal console-only
     # one (no RotatingFileHandler I/O, no per-query SQL debug logs).
