@@ -34,7 +34,7 @@
 | `can_pay` | `False` | no payment action |
 | `is_partially_payable` | `False` | n/a (no settlement) |
 | `check_balance_on_payment` | `False` | n/a (no payment) |
-| `has_category` / `category_required` | `False` | no financial category |
+| `has_category` | `False` | no financial category |
 | `has_repayment` | `False` | no repayment action |
 | `has_invoice` | `True` | invoice items (selected existing products) + auto inventory movements |
 | `creates_assets` | `False` | links to **existing** assets; no lazy product creation |

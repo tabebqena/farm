@@ -71,7 +71,6 @@
         initialStatus: "{{ config.default_status }}", // e.g., 'ISSUED', 'PAID', 'PARTIAL'
         formsetPrefix: "items",
         hasCategory: {{ config.has_category|yesno:"true,false" }},
-        categoryRequired: {{ config.category_required|yesno:"true,false" }},
     };
 </script>
 {% if formset %}

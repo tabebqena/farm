@@ -38,7 +38,7 @@
 | `is_partially_payable` | `False` | settlement driven by remaining; not a one-shot equality |
 | `max_payment_transaction_count` | `-1` | unlimited partial disbursements |
 | `check_balance_on_payment` | `True` | each disbursement is balance-checked at pay time |
-| `has_category` / `category_required` | `False` | no financial category |
+| `has_category` | `False` | no financial category |
 | `has_repayment` / `repayment_label` | `True` / `"Loan Recovery"` | repay action present |
 | `has_invoice` | `False` | no invoice items / no inventory movements |
 | `is_adjustable` | `False` | no accounting adjustment action |

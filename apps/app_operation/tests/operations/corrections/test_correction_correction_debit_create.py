@@ -126,7 +126,6 @@ class CorrectionDebitCreateTest(TestCase):
 
     def test_no_category_config(self):
         self.assertFalse(CorrectionOperation.has_category)
-        self.assertFalse(CorrectionOperation.category_required)
 
     # ------------------------------------------------------------------
     # Source validation

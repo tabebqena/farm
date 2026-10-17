@@ -34,7 +34,7 @@
 | `can_pay` | `False` | no payment action |
 | `is_partially_payable` | `False` | n/a (no settlement) |
 | `check_balance_on_payment` | `False` | n/a (no payment) |
-| `has_category` / `category_required` | `False` | no financial category |
+| `has_category` | `False` | no financial category |
 | `has_repayment` | `False` | no repayment action |
 | `has_invoice` | `True` | invoice items + auto inventory movements |
 | `creates_assets` | `True` | new assets are created (lazy products) |
@@ -272,7 +272,7 @@ does not exist on the class). Payment-related code is never reachable.
 
 | Area | Test method | Branch(es) |
 |------|-------------|------------|
-| Config flags | `test_can_pay_config_is_false` · `test_is_partially_payable_config_is_false` · `test_check_balance_on_payment_is_disabled` · `test_has_category_config_is_false` · `test_category_required_config_is_false` · `test_has_repayment_config_is_false` · `test_has_invoice_config_is_true` · `test_creates_assets_config_is_true` · `test_can_create_movement_is_false` | flags |
+| Config flags | `test_can_pay_config_is_false` · `test_is_partially_payable_config_is_false` · `test_check_balance_on_payment_is_disabled` · `test_has_category_config_is_false` · `test_has_repayment_config_is_false` · `test_has_invoice_config_is_true` · `test_creates_assets_config_is_true` · `test_can_create_movement_is_false` | flags |
 | No transactions | `test_save_creates_no_transactions` | SC1 |
 | No settlement machinery | `test_no_settlement_or_payment_machinery` | SC2 |
 | Source validation | `test_source_must_be_system_entity` | VC1 |

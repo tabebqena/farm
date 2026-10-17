@@ -35,7 +35,7 @@
 | `can_pay` | `False` | `process_payment()` is a no-op |
 | `is_partially_payable` | `False` | payment must equal amount (one-shot) |
 | `max_payment_transaction_count` | `1` | exactly one payment tx ever |
-| `has_category` / `category_required` | `False` | no financial category |
+| `has_category` | `False` | no financial category |
 | `has_repayment` | `False` | no repayment action |
 | `has_invoice` | `False` | no invoice items / no inventory movements |
 

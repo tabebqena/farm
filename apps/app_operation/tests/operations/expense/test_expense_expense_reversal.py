@@ -63,7 +63,6 @@ def _make_expense_category(parent_entity, name="Veterinary Consultation"):
     cat, _ = FinancialCategory.objects.get_or_create(
         name=name,
         aspect="Medications",
-        defaults={"category_type": "EXPENSE"},
     )
     FinancialCategoriesEntitiesRelations.objects.get_or_create(
         entity=parent_entity, category=cat, defaults={"max_limit": Decimal("0.00")}

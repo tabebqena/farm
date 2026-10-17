@@ -7,8 +7,8 @@
 </div>
 <p class="text-muted mb-2">
   {% trans 'Voucher #' %}{{ operation.pk }} |{% trans 'Date:' %} {{ operation.date }}
-  {% if operation.has_category and operation.category_type %}
-    | <span class="badge bg-info bg-opacity-10 text-info fw-normal">{{ operation.category_type }}</span>
+  {% if operation.category %}
+    | <span class="badge bg-info bg-opacity-10 text-info fw-normal">{{ operation.category.name }}</span>
   {% endif %}
   {% if operation.is_partially_payable %}
     | <span class="text-success fw-semibold">{% trans 'Paid:' %} {{ currency }}{{ paid_amount }}</span>

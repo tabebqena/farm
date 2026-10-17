@@ -38,7 +38,7 @@
 | `is_partially_payable` | `False` | payment must equal amount (one-shot) |
 | `max_payment_transaction_count` | `1` | exactly one payment tx ever |
 | `check_balance_on_payment` | `False` | balance enforced in proxy `clean()` at create, not per payment |
-| `has_category` / `category_required` | `False` | no financial category |
+| `has_category` | `False` | no financial category |
 | `has_repayment` / `repayment_label` | `True` / `"Advance Repayment"` | repay action present |
 | `has_invoice` | `False` | no invoice items / no inventory movements |
 | `creates_assets` | `False` | no asset creation |

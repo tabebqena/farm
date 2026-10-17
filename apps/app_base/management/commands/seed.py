@@ -123,179 +123,146 @@ default_categories = {
     "Labor & Personnel": [
         {
             "name": "Permanent Staff Salaries",
-            "type": "EXPENSE",
             "desc": "Labor & Personnel: Monthly wages",
         },
         {
             "name": "Casual/Daily Labor",
-            "type": "EXPENSE",
             "desc": "Labor & Personnel: One-off help",
         },
         {
             "name": "Security Services",
-            "type": "EXPENSE",
             "desc": "Labor & Personnel: Security fees",
         },
         {
             "name": "Staff Training & PPE",
-            "type": "EXPENSE",
             "desc": "Labor & Personnel: Safety gear and training",
         },
         {
             "name": "Workers' Compensation",
-            "type": "EXPENSE",
             "desc": "Labor & Personnel: Insurance for employees",
         },
     ],
     "Professional Services": [
         {
             "name": "Veterinary Consultation",
-            "type": "EXPENSE",
             "desc": "Professional Services: Clinical fees",
         },
         {
             "name": "Breeding/AI Technical Fees",
-            "type": "EXPENSE",
             "desc": "Professional Services: AI fees",
         },
         {
             "name": "Shearing/Hoof Trimming",
-            "type": "EXPENSE",
             "desc": "Professional Services: Maintenance",
         },
         {
             "name": "Laboratory & Diagnostics",
-            "type": "EXPENSE",
             "desc": "Professional Services: Testing and lab fees",
         },
         {
             "name": "Pedigree & Registration",
-            "type": "EXPENSE",
             "desc": "Professional Services: Breed association fees",
         },
     ],
     "Infrastructure & Utilities": [
         {
             "name": "Electricity/Energy",
-            "type": "EXPENSE",
             "desc": "Utilities: Power & Heating",
         },
         {
             "name": "Water Access Fees",
-            "type": "EXPENSE",
             "desc": "Utilities: Pumping & Access",
         },
         {
             "name": "Machinery Servicing",
-            "type": "EXPENSE",
             "desc": "Utilities: Repairs labor",
         },
         {
             "name": "Irrigation Maintenance",
-            "type": "EXPENSE",
             "desc": "Utilities: Repairs to water systems",
         },
         {
             "name": "Waste & Manure Management",
-            "type": "EXPENSE",
             "desc": "Environmental: Disposal and treatment",
         },
         {
             "name": "Internet & Communications",
-            "type": "EXPENSE",
             "desc": "Utilities: Farm connectivity",
         },
     ],
     "Land & Logistics": [
         {
             "name": "Land Lease/Rent",
-            "type": "EXPENSE",
             "desc": "Fixed: Grazing land lease",
         },
         {
             "name": "Pasture Maintenance",
-            "type": "EXPENSE",
             "desc": "Land: Fertilizers, seeds, and weed control",
         },
         {
             "name": "Animal Transport",
-            "type": "EXPENSE",
             "desc": "Logistics: Trucking services",
         },
         {
             "name": "Slaughter Fees",
-            "type": "EXPENSE",
             "desc": "Logistics: Abattoir service fees",
         },
     ],
     "Maintenance & Fuel": [
         {
             "name": "Fuel (Diesel/Petrol)",
-            "type": "EXPENSE",
             "desc": "Maintenance: Vehicle and generator fuel",
         },
         {
             "name": "Lubricants & Grease",
-            "type": "EXPENSE",
             "desc": "Maintenance: Oil and machinery fluids",
         },
         {
             "name": "Fencing & Gate Repairs",
-            "type": "EXPENSE",
             "desc": "Maintenance: Boundary and paddock upkeep",
         },
         {
             "name": "Building & Shed Repairs",
-            "type": "EXPENSE",
             "desc": "Maintenance: Structures and roofing",
         },
         {
             "name": "Small Tools & Supplies",
-            "type": "EXPENSE",
             "desc": "Maintenance: Workshop consumables",
         },
     ],
     "Marketing & Sales": [
         {
             "name": "Marketing & Advertising",
-            "type": "EXPENSE",
             "desc": "Sales: Promoting products/livestock",
         },
         {
             "name": "Sales Commissions",
-            "type": "EXPENSE",
             "desc": "Sales: Broker or auctioneer fees",
         },
         {
             "name": "Packaging & Branding",
-            "type": "EXPENSE",
             "desc": "Sales: Labels and design",
         },
     ],
     "Administrative & Finance": [
         {
             "name": "Insurance Premiums",
-            "type": "EXPENSE",
             "desc": "Admin: Livestock and property coverage",
         },
         {
             "name": "Accounting & Legal",
-            "type": "EXPENSE",
             "desc": "Admin: Professional consultancy",
         },
         {
             "name": "Licenses & Permits",
-            "type": "EXPENSE",
             "desc": "Admin: Regulatory compliance fees",
         },
         {
             "name": "Bank Fees & Interest",
-            "type": "EXPENSE",
             "desc": "Admin: Transaction and loan costs",
         },
         {
             "name": "Stationery & Office",
-            "type": "EXPENSE",
             "desc": "Admin: Printing and office supplies",
         },
     ],

@@ -396,7 +396,6 @@ class OperationCreateView(View):
             categories = FinancialCategory.objects.filter(
                 entities_relations__entity=self.data["url_entity"],
                 entities_relations__is_active=True,
-                category_type=self.proxy_cls.category_type,
             )
         # The entity whose fund backs this operation. When the source role is
         # "url" this is the project itself; for "post"/"system"/"world" source

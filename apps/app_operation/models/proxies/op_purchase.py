@@ -37,13 +37,11 @@ class PurchaseOperation(AdjustableTransactionMixin, Operation):
     check_balance_on_payment = True
     is_partially_payable = True
     has_category = False
-    category_required = False
     has_invoice = True
     _is_one_shot_operation = False
     has_repayment = False
     max_payment_transaction_count = -1
     creates_assets = True
-    category_type = "PURCHASE"
 
     is_adjustable = True
 

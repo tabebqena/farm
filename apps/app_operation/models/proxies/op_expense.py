@@ -30,13 +30,10 @@ class ExpenseOperation(AdjustableTransactionMixin, Operation):
     check_balance_on_payment = True
     is_partially_payable = True
     has_category = True
-    category_required = True
     has_invoice = False
     _is_one_shot_operation = False
     has_repayment = False
     max_payment_transaction_count = -1
-
-    category_type = "EXPENSE"
 
     is_adjustable = True
 

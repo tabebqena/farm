@@ -35,7 +35,6 @@ class LoanOperation(RepayableTransactionMixin, Operation):
     check_balance_on_payment = True
     is_partially_payable = False
     has_category = False
-    category_required = False
     _is_one_shot_operation = False
     has_repayment = True
     repayment_label = "Loan Recovery"

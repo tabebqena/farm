@@ -128,7 +128,6 @@ class EntityDetailViewTest(TestCase):
         category, _ = FinancialCategory.objects.get_or_create(
             name="Test Expense",
             aspect="General",
-            defaults={"category_type": "EXPENSE"},
         )
         FinancialCategoriesEntitiesRelations.objects.get_or_create(
             entity=self.entity, category=category, defaults={"max_limit": Decimal("0.00")}

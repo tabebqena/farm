@@ -62,7 +62,6 @@ def _make_expense_category(
     cat, _ = FinancialCategory.objects.get_or_create(
         name=name,
         aspect=aspect,
-        defaults={"category_type": "EXPENSE"},
     )
     FinancialCategoriesEntitiesRelations.objects.get_or_create(
         entity=parent_entity, category=cat, defaults={"max_limit": Decimal("0.00")}
@@ -190,14 +189,10 @@ class ExpenseCreateTest(TestCase):
     def test_has_category_config_is_true(self):
         self.assertTrue(ExpenseOperation.has_category)
 
-    def test_category_required_config_is_true(self):
-        self.assertTrue(ExpenseOperation.category_required)
-
-    def test_expense_category_can_be_created_with_expense_type(self):
+    def test_expense_category_can_be_created_and_linked(self):
         cat = _make_expense_category(self.project_entity)
 
-        self.assertEqual(cat.category_type, "EXPENSE")
-        # Verify the relation exists
+        # Verify the category is linked to the project entity.
         from apps.app_entity.models.category import FinancialCategoriesEntitiesRelations
 
         self.assertEqual(
@@ -207,19 +202,6 @@ class ExpenseCreateTest(TestCase):
             1,
         )
 
-    def test_non_expense_category_type_is_distinct_from_expense(self):
-        from apps.app_entity.models.category import FinancialCategoriesEntitiesRelations
-
-        income_cat = FinancialCategory.objects.create(
-            name="Animal Sale Income",
-            aspect="Sale",
-            category_type="INCOME",
-        )
-        FinancialCategoriesEntitiesRelations.objects.create(
-            entity=self.project_entity, category=income_cat
-        )
-        self.assertNotEqual(income_cat.category_type, "EXPENSE")
-
     # ------------------------------------------------------------------
     # Model-level category enforcement (model-level FK)
     # ------------------------------------------------------------------
@@ -227,23 +209,6 @@ class ExpenseCreateTest(TestCase):
     def test_category_required_missing_category_raises(self):
         """Expense requires a category at the model level — missing FK is rejected."""
         op = self._make_op(category=None)
-        with self.assertRaises(ValidationError):
-            op.save()
-
-    def test_category_must_be_expense_type(self):
-        """Expense rejects a category whose category_type is not EXPENSE."""
-        from apps.app_entity.models.category import FinancialCategoriesEntitiesRelations
-
-        income_cat = FinancialCategory.objects.create(
-            name="Animal Sale Income 2",
-            aspect="Sale",
-            category_type="INCOME",
-        )
-        FinancialCategoriesEntitiesRelations.objects.create(
-            entity=self.project_entity, category=income_cat
-        )
-
-        op = self._make_op(category=income_cat)
         with self.assertRaises(ValidationError):
             op.save()
 

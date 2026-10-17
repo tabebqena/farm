@@ -5,7 +5,6 @@ and :class:`FinancialCategoriesEntitiesRelations`, the through model linking
 categories to entities with an optional spending ``max_limit``.
 """
 
-import logging
 from decimal import Decimal
 
 from django.core.validators import MinValueValidator
@@ -13,7 +12,6 @@ from django.db import models
 
 from apps.app_base.models import BaseModel
 
-logger = logging.getLogger(__name__)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -31,7 +29,6 @@ class FinancialCategory(BaseModel):
 
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True, null=True)
-    category_type = models.CharField(max_length=10, default="EXPENSE", editable=False)
     aspect = models.CharField(max_length=100)
     entity = models.ManyToManyField(
         "Entity",

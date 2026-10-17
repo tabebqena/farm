@@ -60,7 +60,7 @@ Steps to widen a new operation:
 | `is_partially_payable` | `<bool>` | … |
 | `max_payment_transaction_count` | `<int>` | … |
 | `check_balance_on_payment` | `<bool>` | … |
-| `has_category` / `category_required` | `<bool>` | … |
+| `has_category` | `<bool>` | has + requires a linked financial category (only Expense) |
 | `has_repayment` | `<bool>` | … |
 | `has_invoice` | `<bool>` | … |
 | `creates_assets` / `can_create_movement` | `<bool>` | … |

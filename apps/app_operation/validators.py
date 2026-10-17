@@ -106,7 +106,7 @@ class OperationDataValidator:
     def _parse_category(self, errors: list[str]) -> int | None:
         cat_raw = self._post.get("category", "")
         if not cat_raw:
-            if self._cfg.get("category_required"):
+            if self._cfg.get("has_category"):
                 errors.append("Category is required for this operation.")
             return None
         try:

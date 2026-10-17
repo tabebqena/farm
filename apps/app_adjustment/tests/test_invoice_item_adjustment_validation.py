@@ -169,7 +169,6 @@ class ValidationTest(TestCase):
         cat, _ = FinancialCategory.objects.get_or_create(
             name="Veterinary Consultation",
             aspect="Medications",
-            defaults={"category_type": "EXPENSE"},
         )
         op = ExpenseOperation.objects.create(
             source=self.project,

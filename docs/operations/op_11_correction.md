@@ -38,7 +38,7 @@
 | `is_partially_payable` | `False` | `False` | payment must equal amount (one-shot) |
 | `max_payment_transaction_count` | `1` | `1` | exactly one payment tx ever |
 | `check_balance_on_payment` | `False` (explicit) | `False` (explicit) | no balance gate — admin tool, may go into deficit |
-| `has_category` / `category_required` | `False` | `False` | no financial category |
+| `has_category` | `False` | `False` | no financial category |
 | `has_repayment` | `False` | `False` | no repayment action |
 | `has_invoice` | `False` | `False` | no invoice items / no inventory movements |
 
@@ -184,7 +184,7 @@ Entry points: model `CorrectionOperation.save()` with `operation_type=CORRECTION
 | CC12 | Balance exempt (system payer) | no balance check | never fails | — | `check_balance_on_payment=False` (explicit) + system is virtual | `CorrectionCreditCreateTest.test_check_balance_on_payment_is_disabled` |
 | CC13 | Tx entity-type contract | `source.is_system` and `target.is_project` | `ValidationError` | `"Transaction type '…' has invalid entity types: …"` | `Transaction.create()` | implied by CC1/CC2 (model clean blocks first) |
 | CC14 | Tx operation-type allowed | document is `CORRECTION_CREDIT` | `ValidationError` | `"Transaction type '…' is not allowed for operation '…'."` | `Transaction.create()` | implied by CC1/CC2 |
-| CC15 | No category required | `category_required=False` | never fails | — | `has_category=False` | `CorrectionCreditCreateTest.test_no_category_config` |
+| CC15 | No category required | `has_category=False` | never fails | — | `has_category=False` | `CorrectionCreditCreateTest.test_no_category_config` |
 
 #### 5.1.2 Success effects (CC)
 
@@ -251,7 +251,7 @@ Entry points: model `CorrectionOperation.save()` with `operation_type=CORRECTION
 | CD12 | Balance exempt (admin tool) | no balance check — debit may drive the fund into deficit | never fails | — | `check_balance_on_payment=False` (explicit) | `CorrectionDebitCreateTest.test_check_balance_on_payment_is_disabled` · `test_debit_succeeds_even_with_insufficient_balance` |
 | CD13 | Tx entity-type contract | `source.is_project` and `target.is_system` | `ValidationError` | `"Transaction type '…' has invalid entity types: …"` | `Transaction.create()` | implied by CD1/CD2 (model clean blocks first) |
 | CD14 | Tx operation-type allowed | document is `CORRECTION_DEBIT` | `ValidationError` | `"Transaction type '…' is not allowed for operation '…'."` | `Transaction.create()` | implied by CD1/CD2 |
-| CD15 | No category required | `category_required=False` | never fails | — | `has_category=False` | `CorrectionDebitCreateTest.test_no_category_config` |
+| CD15 | No category required | `has_category=False` | never fails | — | `has_category=False` | `CorrectionDebitCreateTest.test_no_category_config` |
 
 #### 5.3.2 Success effects (CD)
 

@@ -17,14 +17,14 @@ from apps.app_operation.models.operation_type import OperationType
 from apps.app_operation.models.proxies import PurchaseOperation
 
 
-def make_category(project, name="Salaries", category_type="EXPENSE"):
+def make_category(project, name="Salaries"):
     """An active financial category linked to ``project``."""
     from apps.app_entity.models.category import (
         FinancialCategoriesEntitiesRelations,
         FinancialCategory,
     )
 
-    cat = FinancialCategory.objects.create(name=name, aspect=name, category_type=category_type)
+    cat = FinancialCategory.objects.create(name=name, aspect=name)
     FinancialCategoriesEntitiesRelations.objects.create(
         entity=project, category=cat, is_active=True
     )

@@ -16,7 +16,7 @@
 
 | Field | Value | Defined in |
 |-------|-------|-----------|
-| Catalog model | `FinancialCategory` — `name`, `description`, `category_type` (default `"EXPENSE"`, `editable=False`), `aspect` | |
+| Catalog model | `FinancialCategory` — `name`, `description`, `aspect` | |
 | Through model | `FinancialCategoriesEntitiesRelations` — `entity` FK (PROTECT, related `financial_categories_entities_relations`), `category` FK (PROTECT, related `entities_relations`), `max_limit` (Decimal(12,2), ≥ 0), `is_active` | |
 | M2M surface | `FinancialCategory.entity` / `Entity.categories` (through the relation model) | |
 | Uniqueness (live-only) | `unique_financial_category_name_live` (category name) · `unique_entity_category_relation_live` ((entity, category) pair) | |
@@ -53,7 +53,7 @@
 |---------|----------|
 | `Operation.category` FK → `FinancialCategory` | `Operation` model (`app_operation`) |
 | Expense picks a category only when it is linked to the URL entity | operation create base (`has_category` → `FinancialCategory.objects.filter(entities_relations__entity=url_entity, …)`) |
-| Category required at model + validator layers | `Operation.clean()` (when `category_required`) + `OperationDataValidator` (`category_required` branch) |
+| Category required at model + validator layers | `Operation.clean()` (when `has_category`) + `OperationDataValidator` (`has_category` branch) |
 | Category recorded on an operation | Expense / adjustment create flows (see `docs/operations` op specs) |
 
 ### 2.4 Tests
@@ -69,7 +69,7 @@
 
 ## 3. Domain model & invariants
 
-- **Categories are a global catalog** (`name`, `aspect`, fixed `category_type="EXPENSE"`); the app creates defaults through the `seed` command and links categories to entities through relations. There is no `app_entity` create/edit view for the catalog itself (no admin registration either) — the UI manages *relations*, not catalog rows.
+- **Categories are a global catalog** (`name`, `aspect`); the app creates defaults through the `seed` command and links categories to entities through relations. There is no `app_entity` create/edit view for the catalog itself (no admin registration either) — the UI manages *relations*, not catalog rows.
 - A category is **linked to an entity** through a `FinancialCategoriesEntitiesRelations` row carrying:
   - `max_limit` — an optional per-entity spending cap (Decimal, ≥ 0, default `0.00`), and
   - `is_active` — activation state (relations are activated/deactivated, never hard-deleted).
@@ -141,7 +141,7 @@ No relation delete UI exists. The sanctioned removal is **deactivation** (`is_ac
 
 ## 6. Consumers contract (cross-app)
 
-- `Operation.category` is a FK to `app_entity.FinancialCategory` (PROTECT). The generic operation create flow only offers categories **linked to the URL entity** (through the relation) when the proxy sets `has_category` (e.g. `ExpenseOperation`), and rejects an operation with no category when `category_required=True` (model `clean()` + `OperationDataValidator`).
+- `Operation.category` is a FK to `app_entity.FinancialCategory` (PROTECT). The generic operation create flow only offers categories **linked to the URL entity** (through the relation) when the proxy sets `has_category` (e.g. `ExpenseOperation`), and rejects an operation with no category when `has_category=True` (model `clean()` + `OperationDataValidator`).
 - Tests across `app_operation` and `app_adjustment` seed categories with `FinancialCategory.objects.get_or_create` and link them with `FinancialCategoriesEntitiesRelations.objects.get_or_create(entity=…, category=…, defaults={max_limit: …})` — exactly the shape the bulk-assign and wizard views must produce.
 - `seed` command creates the default category catalog.
 

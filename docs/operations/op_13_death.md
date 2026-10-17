@@ -34,7 +34,7 @@
 | `can_pay` | `False` | no payment action |
 | `is_partially_payable` | `False` | n/a (no settlement) |
 | `check_balance_on_payment` | `False` | n/a (no payment) |
-| `has_category` / `category_required` | `False` | no financial category |
+| `has_category` | `False` | no financial category |
 | `has_repayment` | `False` | no repayment action |
 | `has_invoice` | `True` | invoice items (selected existing products) + auto inventory movements |
 | `creates_assets` | `False` (default) | links to **existing** assets; no lazy product creation |
@@ -265,7 +265,7 @@ does not exist on the class). Payment-related code is never reachable.
 
 | Area | Test method (plain name) | Branch(es) |
 |------|--------------------------|------------|
-| Config flags | `DeathCreateTest.test_has_category_config_is_false`, `test_category_required_config_is_false`, `test_can_pay_config_is_false`, `test_is_one_shot_operation_config_is_false`, `test_is_partially_payable_config_is_false` | flags |
+| Config flags | `DeathCreateTest.test_has_category_config_is_false`, `test_can_pay_config_is_false`, `test_is_one_shot_operation_config_is_false`, `test_is_partially_payable_config_is_false` | flags |
 | No transactions | `DeathCreateTest.test_save_creates_no_transactions`, `test_period_is_assigned_and_no_settlement_machinery` | SC1, SC2 |
 | Auto outbound lines | `DeathCreateInventoryTest.test_create_auto_creates_outbound_movement_line`, `test_create_movement_line_uses_selected_product`, `test_create_multiple_items_each_get_a_movement_line` | SC3 |
 | Status DEAD | `DeathCreateInventoryTest.test_create_marks_product_dead`; `DeathReversalTest.test_death_moves_product_to_dead_status` | SC4, SC8 |

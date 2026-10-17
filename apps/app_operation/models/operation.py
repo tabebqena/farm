@@ -539,7 +539,6 @@ class Operation(
     is_partially_payable: bool = False
     _is_one_shot_operation: bool = False
     has_category: bool = False
-    category_required: bool = False
     has_repayment: bool = False
     repayment_label: str | None = None
     has_invoice: bool = False
@@ -547,7 +546,6 @@ class Operation(
     theme_color: str = "danger"
     theme_icon: str = "bi-box-arrow-up-right"
     creates_assets = False
-    category_type = None
     is_adjustable = False
 
     # ------------------------------------------------------------------
@@ -652,7 +650,6 @@ class Operation(
             "can_pay": cls.can_pay,
             "is_partially_payable": cls.is_partially_payable,
             "has_category": cls.has_category,
-            "category_required": cls.category_required,
             "has_repayment": cls.has_repayment,
             "has_invoice": cls.has_invoice,
             "has_capital_valuation": cls.has_capital_valuation,
@@ -997,10 +994,10 @@ class Operation(
                     raise ValidationError(
                         "Cannot create an operation whose date falls within a closed financial period."
                     )
-        # Category enforcement (model-level FK) — only applies when the proxy
-        # opts in via class-level config (e.g. ExpenseOperation: has_category=True,
-        # category_required=True, category_type="EXPENSE").
-        if self.category_required and not self.category_id:
+        # Category enforcement — only applies when the proxy opts in via the
+        # class-level config (e.g. ExpenseOperation: has_category=True). When a
+        # proxy declares a category, selecting one is mandatory.
+        if self.has_category and not self.category_id:
             logger.error(
                 f"Missing required category on operation | "
                 f"operation_type={self.operation_type}"
@@ -1008,23 +1005,6 @@ class Operation(
             raise ValidationError(
                 _("Category is required for this operation.")
             )
-        if self.category_id and getattr(self, "category_type", None):
-            if self.category.category_type != self.category_type:
-                logger.error(
-                    f"Category type mismatch on operation | "
-                    f"expected={self.category_type} | actual={self.category.category_type}"
-                )
-                raise ValidationError(
-                    _(
-                        "Category '%(category)s' is not a valid %(op_type)s category "
-                        "(must be of type '%(category_type)s')."
-                    )
-                    % {
-                        "category": self.category,
-                        "op_type": self.operation_type,
-                        "category_type": self.category_type,
-                    }
-                )
         logger.debug("Operation validation passed")
         return super().clean()
 
@@ -1345,6 +1325,5 @@ class StockEventMixin:
     check_balance_on_payment = False
     is_partially_payable = False
     has_category = False
-    category_required = False
     has_repayment = False
     has_invoice = True

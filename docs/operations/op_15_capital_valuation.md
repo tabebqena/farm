@@ -50,7 +50,7 @@ evaluation view selects the variant from the signed valuation delta.
 | `can_pay` | `False` | `False` | no payment action |
 | `is_partially_payable` | `False` | `False` | n/a (no settlement) |
 | `check_balance_on_payment` | `False` | `False` | n/a (no payment) |
-| `has_category` / `category_required` | `False` | `False` | no financial category |
+| `has_category` | `False` | `False` | no financial category |
 | `has_repayment` | `False` | `False` | no repayment action |
 | `has_invoice` | `False` | `False` | no invoice items — the valuation is recorded on a dedicated valuation row, not on an `InvoiceItem` |
 | `has_capital_valuation` | `True` | `True` | a `ProductCapitalValuation` row linking the owned product to a signed amount (positive = gain, negative = loss; value-only — no movement line) |

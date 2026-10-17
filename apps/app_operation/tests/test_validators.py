@@ -110,7 +110,7 @@ class ParseCategoryTest(SimpleTestCase):
         self.assertEqual(errors, [])
 
     def test_missing_required_category_appends_error(self):
-        v = OperationDataValidator({}, {"category_required": True})
+        v = OperationDataValidator({}, {"has_category": True})
         errors: list[str] = []
         result = v._parse_category(errors)
         self.assertIsNone(result)
@@ -193,7 +193,7 @@ class ValidateIntegrationTest(SimpleTestCase):
             "category": "5",
             "amount_paid": "200.00",
         }
-        v = OperationDataValidator(post, {"category_required": True})
+        v = OperationDataValidator(post, {"has_category": True})
         result = v.validate()
 
         self.assertIsInstance(result, ParsedOperationData)
@@ -232,7 +232,7 @@ class ValidateIntegrationTest(SimpleTestCase):
     def test_validation_error_on_required_category(self):
         v = OperationDataValidator(
             {"date": "2024-07-01", "description": "x"},
-            {"category_required": True},
+            {"has_category": True},
         )
         with self.assertRaises(ValidationError) as ctx:
             v.validate()
@@ -242,7 +242,7 @@ class ValidateIntegrationTest(SimpleTestCase):
         """All errors are collected and joined before raising."""
         v = OperationDataValidator(
             {"date": "bad", "description": "x", "amount_paid": "neg"},
-            {"category_required": True},
+            {"has_category": True},
         )
         with self.assertRaises(ValidationError) as ctx:
             v.validate()

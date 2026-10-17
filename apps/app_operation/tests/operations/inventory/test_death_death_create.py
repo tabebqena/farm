@@ -89,9 +89,6 @@ class DeathCreateTest(TestCase):
     def test_has_category_config_is_false(self):
         self.assertFalse(DeathOperation.has_category)
 
-    def test_category_required_config_is_false(self):
-        self.assertFalse(DeathOperation.category_required)
-
     def test_can_pay_config_is_false(self):
         self.assertFalse(DeathOperation.can_pay)
 

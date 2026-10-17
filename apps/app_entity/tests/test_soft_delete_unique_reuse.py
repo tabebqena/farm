@@ -44,7 +44,7 @@ class FinancialCategoryUniqueReuseTests(TestCase):
 
     def _create_category(self, name):
         return FinancialCategory.objects.create(
-            name=name, aspect="General", category_type="EXPENSE"
+            name=name, aspect="General"
         )
 
     def test_soft_deleted_category_name_can_be_reused(self):
@@ -76,7 +76,7 @@ class EntityCategoryRelationUniqueReuseTests(TestCase):
     def setUp(self):
         self.entity = Entity.create(EntityType.PROJECT, name="Relation Project")
         self.category = FinancialCategory.objects.create(
-            name="Relation Expense", aspect="General", category_type="EXPENSE"
+            name="Relation Expense", aspect="General"
         )
 
     def test_soft_deleted_relation_can_be_recreated(self):

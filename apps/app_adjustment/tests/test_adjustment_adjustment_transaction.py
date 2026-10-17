@@ -122,7 +122,6 @@ def _make_expense_op(
     cat, _ = FinancialCategory.objects.get_or_create(
         name="Veterinary Consultation",
         aspect="Medications",
-        defaults={"category_type": "EXPENSE"},
     )
     op = ExpenseOperation(
         source=project_entity,

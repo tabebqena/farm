@@ -11,7 +11,7 @@
 > Other operations follow the same structure — see [`_OPERATION_SPEC_TEMPLATE.md`](_OPERATION_SPEC_TEMPLATE.md) and
 > [`op_1_cash_injection.md`](op_1_cash_injection.md) for a fully worked example.
 
-**Concept:** Records an obligation to pay for a service or product purchased from an unregistered (world) vendor. The expense carries a `FinancialCategory` (type `EXPENSE`) so it can be filtered/grouped later. The destination is always the **World** entity and the issuance is **unguarded** — the project payables increase by the issuance amount, and only the individual payments are balance-guarded.
+**Concept:** Records an obligation to pay for a service or product purchased from an unregistered (world) vendor. The expense carries a linked `FinancialCategory` so it can be filtered/grouped later. The destination is always the **World** entity and the issuance is **unguarded** — the project payables increase by the issuance amount, and only the individual payments are balance-guarded.
 
 ---
 
@@ -39,8 +39,7 @@
 | `is_partially_payable` | `True` | multiple partial payments allowed |
 | `max_payment_transaction_count` | `-1` | unlimited number of payment txs |
 | `check_balance_on_payment` | `True` | each payment is guarded against the project fund balance |
-| `has_category` / `category_required` | `True` / `True` | financial category required (type `EXPENSE`) |
-| `category_type` | `"EXPENSE"` | only `category_type="EXPENSE"` categories are valid |
+| `has_category` | `True` | linked financial category required |
 | `has_repayment` | `False` | no repayment action |
 | `has_invoice` | `False` | no invoice items / no inventory movements |
 | `is_adjustable` / `is_items_adjustable` | `True` / `False` | amount-adjustable; no item-level adjustment |
@@ -178,11 +177,10 @@ Entry points: model `ExpenseOperation.save()` (tests) or `Operation.create()` (v
 | VC10 | Date not in a closed period (both entities) | no closed period contains `date` | `ValidationError` | `"Cannot create an operation whose date falls within a closed financial period."` | `Operation.clean()` | shared period suite (`OperationPeriodAssignmentTest.test_operation_in_closed_period_raises`) |
 | VC11 | A covering financial period exists | `period_entity` has a period containing `date` | `ValidationError` | `"Cannot create an operation: no financial period covers this operation's date."` | `Operation.save()` | shared period suite (`OperationPeriodAssignmentTest.test_operation_raises_when_no_open_period`) |
 | VC12 | Issuance balance exempt | no balance check on create (not one-shot; no payment at save) | never fails | — | `_is_one_shot_operation=False`; issuance is non-cash | structural (see `test_project_fund_balance_unchanged_after_save`) |
-| VC13 | Category required | `category_id` set | `ValidationError` | `"Category is required for this operation."` | `Operation.clean()` | `ExpenseCreateTest.test_category_required_missing_category_raises` |
-| VC14 | Category type is `EXPENSE` | `category.category_type == "EXPENSE"` | `ValidationError` | `"Category '%(category)s' is not a valid EXPENSE category…"` | `Operation.clean()` | `ExpenseCreateTest.test_category_must_be_expense_type` · `test_non_expense_category_type_is_distinct_from_expense` |
-| VC15 | Tx entity-type contract | `source.is_project` and `target.is_world` | `ValidationError` | `"Transaction type '…' has invalid entity types: …"` | `Transaction.create()` | implied by VC1/VC2 (model clean blocks first) |
-| VC16 | Tx operation-type allowed | document is `EXPENSE` | `ValidationError` | `"Transaction type '…' is not allowed for operation '…'."` | `Transaction.create()` | implied by VC1/VC2 |
-| VC17 | Source ≠ target | project ≠ world | always true | `"Source and target funds must be different."` | `Transaction.clean()` | structural (project ≠ world) |
+| VC13 | Category required | `category_id` set | `ValidationError` | `"Category is required for this operation."` | `Operation.clean()` (`has_category`) | `ExpenseCreateTest.test_category_required_missing_category_raises` |
+| VC14 | Tx entity-type contract | `source.is_project` and `target.is_world` | `ValidationError` | `"Transaction type '…' has invalid entity types: …"` | `Transaction.create()` | implied by VC1/VC2 (model clean blocks first) |
+| VC15 | Tx operation-type allowed | document is `EXPENSE` | `ValidationError` | `"Transaction type '…' is not allowed for operation '…'."` | `Transaction.create()` | implied by VC1/VC2 |
+| VC16 | Source ≠ target | project ≠ world | always true | `"Source and target funds must be different."` | `Transaction.clean()` | structural (project ≠ world) |
 
 #### 5.1.2 Success effects
 
@@ -318,7 +316,7 @@ Entry points: model `op.reverse(officer, date, reason)` or view `operation_rever
 | Create route | `POST/GET /<project_pk>/expense/create` → `OperationCreateView` |
 | Source selection | the **Project** from the URL (`_source_role="url"`); no picker |
 | Destination selection | the single **World** entity (`_dest_role="world"`, auto) — no secondary-entity field |
-| Category | **required** dropdown filtered to `category_type="EXPENSE"`; passed as `category_id` into `Operation.create()`; enforced again at model (VC13/VC14) |
+| Category | **required** dropdown of the project's linked (active) categories; passed as `category_id` into `Operation.create()`; enforced again at model (VC13) |
 | Amount | raw `amount` POST field (`_compute_amount`); validated > 0 at model |
 | POST parsing | `OperationDataValidator` — date format, description, category, `amount_paid` |
 | Pay | `POST payment/<pk>/create` → `record_transaction_payment` — partial or full payment; per-payment balance guard |
@@ -331,7 +329,7 @@ Entry points: model `op.reverse(officer, date, reason)` or view `operation_rever
 
 ## 9. Branch catalog (all possible branches)
 
-**create — validation:** VC1 source=project · VC2 dest=world · VC3 source active · VC4 dest active · VC5 source fund active · VC6 target fund active · VC7 amount>0 · VC8 officer staff · VC9 officer active · VC10 not closed-period · VC11 covering period exists · VC12 issuance balance exempt · VC13 category required · VC14 category type=EXPENSE · VC15 tx entity-type · VC16 tx op-type · VC17 source≠target
+**create — validation:** VC1 source=project · VC2 dest=world · VC3 source active · VC4 dest active · VC5 source fund active · VC6 target fund active · VC7 amount>0 · VC8 officer staff · VC9 officer active · VC10 not closed-period · VC11 covering period exists · VC12 issuance balance exempt · VC13 category required · VC14 tx entity-type · VC15 tx op-type · VC16 source≠target
 
 **create — effects:** SC1 issuance tx · SC2 no payment on save · SC3 amounts equal · SC4 direction project→world · SC5 non-cash (fund unchanged) · SC6 remaining == amount · SC7 not fully settled · SC8 payables ▲ · SC9 receivables unchanged · SC10 category stored · SC11 no invoice/movements · SC12 period assigned
 
@@ -362,10 +360,8 @@ Entry points: model `op.reverse(officer, date, reason)` or view `operation_rever
 | Non-cash issuance | `ExpenseCreateTest.test_project_fund_balance_unchanged_after_save` | SC5, VC12 |
 | Settlement after create | `ExpenseCreateTest.test_amount_remaining_to_settle_equals_full_amount_after_creation` · `test_is_not_fully_settled_after_creation` | SC6, SC7 |
 | Payables/receivables | `ExpenseCreateTest.test_create_project_payables_increase` · `test_create_project_receivables_unchanged` | SC8, SC9 |
-| Category config | `ExpenseCreateTest.test_has_category_config_is_true` · `test_category_required_config_is_true` | config |
-| Category creation/type | `ExpenseCreateTest.test_expense_category_can_be_created_with_expense_type` · `test_non_expense_category_type_is_distinct_from_expense` | config |
+| Category config | `ExpenseCreateTest.test_has_category_config_is_true` · `test_expense_category_can_be_created_and_linked` | config |
 | Category required | `ExpenseCreateTest.test_category_required_missing_category_raises` | VC13 |
-| Category type enforced | `ExpenseCreateTest.test_category_must_be_expense_type` | VC14 |
 | Category stored | `ExpenseCreateTest.test_expense_category_is_stored_on_operation` | SC10 |
 | Non-category op unaffected | `ExpenseCreateTest.test_non_category_operation_does_not_require_category` | VC13 (negative) |
 | Source/dest validation | `ExpenseCreateTest.test_source_must_be_a_project_entity` · `test_destination_must_be_world_entity` · `test_destination_person_entity_raises_validation_error` | VC1, VC2 |

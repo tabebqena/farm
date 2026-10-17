@@ -37,11 +37,10 @@
 | `is_partially_payable` | `True` | collections can be any fraction of the amount |
 | `max_payment_transaction_count` | `-1` | unlimited partial collections |
 | `check_balance_on_payment` | `True` | each collection is balance-checked against the client fund (internal clients) |
-| `has_category` / `category_required` | `False` | no financial category |
+| `has_category` | `False` | no financial category |
 | `has_repayment` | `False` | no repayment action |
 | `has_invoice` | `True` | invoice items + inventory movements |
 | `is_adjustable` / `is_items_adjustable` | `True` / `True` | amount + invoice-item adjustments allowed |
-| `category_type` | `"SALE"` | category namespace (unused while `has_category=False`) |
 
 ---
 

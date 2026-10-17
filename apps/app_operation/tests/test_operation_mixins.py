@@ -135,7 +135,6 @@ class StockEventMixinTest(SimpleTestCase):
             self.assertFalse(cls.is_partially_payable, cls.__name__)
             self.assertFalse(cls.check_balance_on_payment, cls.__name__)
             self.assertFalse(cls.has_category, cls.__name__)
-            self.assertFalse(cls.category_required, cls.__name__)
             self.assertFalse(cls.has_repayment, cls.__name__)
 
     def test_invoice_stock_events_are_invoice_driven(self):
