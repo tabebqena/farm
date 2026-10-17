@@ -115,12 +115,13 @@ Projects use the shared read-model plus project-only derivations: `profit_loss` 
 | WC1 | Step is valid | `step in STEPS` (1..7) | message + redirect `entity_list` | `"Invalid wizard step."` | `project_setup_wizard_view` | no direct pinning test in `app_entity` suite (gap) |
 | WC2 | Draft started before later steps | steps 2–7 require `draft.info.name` | message + redirect `project_create` | `"Session expired. Please start from the beginning."` | `project_setup_wizard_view` | `ProjectSetupWizardStep1Test.test_wizard_later_step_requires_started_draft` (+ each step's `…_requires_started_draft`) |
 | WC3 | Step 1 name present | non-empty name | message + redirect `project_create` (no draft) | `"Project name is required."` | `_handle_step_1_post` | `ProjectSetupWizardStep1Test.test_wizard_step_1_requires_name` |
+| WC3b | Step 1 start date not in the future | valid date `≤ today` | message + redirect `project_create` (no draft) | `"Start date cannot be in the future."` | `_handle_step_1_post` · `_apply_create_project` | `ProjectSetupWizardStep1Test.test_wizard_step_1_rejects_future_start_date` |
 
 #### 5.1.2 Per-step success effects (draft only — nothing persists before Summary)
 
 | # | Effect | Detail / invariant | Implemented by | Verified by |
 |---|--------|--------------------|----------------|-------------|
-| WS1 | Step 1 stores project info | `draft["info"]` = name/description/is_internal/is_vendor/is_client/active; **no** `Entity` row | `_handle_step_1_post` | `ProjectSetupWizardStep1Test.test_wizard_step_1_stores_draft_without_creating_project` · `test_wizard_step_1_defaults_client_and_vendor` |
+| WS1 | Step 1 stores project info | `draft["info"]` = name/description/is_internal/is_vendor/is_client/active/start_date (default today); **no** `Entity` row | `_handle_step_1_post` | `ProjectSetupWizardStep1Test.test_wizard_step_1_stores_draft_without_creating_project` · `test_wizard_step_1_defaults_client_and_vendor` |
 | WS2 | Step 2 stores categories | `draft["categories"]` = sorted selected category pks; no relations yet | `_handle_step_2_post` | `…_step2.test_wizard_step_2_stores_selection_without_linking` · `test_wizard_step_2_get_shows_categories` |
 | WS3 | Step 3 stores product templates | `draft["templates"]` = selected template pks; **staff only** (non-staff POST denied, nothing stored) | `_handle_step_3_post` | `…_step3.test_wizard_step_3_staff_stores_templates` · `test_wizard_step_3_non_staff_denied` · `test_wizard_step_3_get_shows_templates` |
 | WS4 | Steps 4–6 store stakeholder ids | `draft["workers"]/["vendors"]/["shareholders"]` per role; no `Stakeholder` rows yet | `_handle_stakeholder_post` | `…_step4/5/6 .test_wizard_step_*_stores_*_without_linking` · `…_get_reflects_selection` |
@@ -139,7 +140,7 @@ Projects use the shared read-model plus project-only derivations: `profit_loss` 
 
 | # | Effect | Detail / invariant | Implemented by | Verified by |
 |---|--------|--------------------|----------------|-------------|
-| WS6 | Project entity created | `Entity.create(PROJECT, name, description, is_internal, is_vendor, is_client, active)`; `wizard_project_created` audit | `_apply_create_project` | `ProjectSetupWizardIntegrationTest.test_complete_wizard_flow_creates_project_on_summary` |
+| WS6 | Project entity created | `Entity.create(PROJECT, name, description, is_internal, is_vendor, is_client, active, start_date)`; `wizard_project_created` audit | `_apply_create_project` | `ProjectSetupWizardIntegrationTest.test_complete_wizard_flow_creates_project_on_summary` · `test_wizard_start_date_drives_entity_and_first_period` |
 | WS7 | Categories linked | active `FinancialCategoriesEntitiesRelations` per selected category with `max_limit=0.00` | `_link_categories` | integration (category assertions) |
 | WS8 | Product templates assigned | `entity.product_templates.set(templates)` (staff) | `_assign_templates` | integration (template assertions) |
 | WS9 | Worker/vendor/shareholder links created | `Stakeholder.get_or_create(parent=entity, target, role)` per selected id | `_create_stakeholders` | integration (stakeholder assertions) |

@@ -37,6 +37,10 @@
                         <span class="text-muted small d-block">{% trans 'Description / Scope' %}</span>
                         <span>{{ summary_info.description|default:'—' }}</span>
                     </div>
+                    <div class="mb-2">
+                        <span class="text-muted small d-block">{% trans 'Start Date' %}</span>
+                        <span>{{ summary_info.start_date|default:'—' }}</span>
+                    </div>
                     <div class="d-flex flex-wrap gap-2">
                         {% if summary_info.is_internal %}<span class="badge bg-primary">{% trans 'Internal' %}</span>{% endif %}
                         {% if summary_info.is_vendor %}<span class="badge bg-secondary">{% trans 'Vendor' %}</span>{% endif %}

@@ -1,5 +1,7 @@
 """Tests for entity form views (create and edit for persons and projects)."""
 
+from datetime import date, timedelta
+
 from django.test import Client, TestCase
 from django.urls import reverse
 from django.contrib.messages import get_messages
@@ -93,6 +95,62 @@ class PersonCreateViewTest(TestCase):
         periods = FinancialPeriod.objects.filter(entity=entity)
         self.assertEqual(periods.count(), 1)
         self.assertIsNotNone(periods.first().start_date)
+
+    def test_person_create_uses_submitted_start_date_for_period(self):
+        """A submitted start date drives both entity.start_date and period start."""
+        start_date = date.today() - timedelta(days=30)
+        self.client.login(username="officer_person", password="testpass")
+        self.client.post(
+            reverse("person_create"),
+            {
+                "name": "Backdated Person",
+                "description": "",
+                "start_date": start_date.isoformat(),
+                "active": "on",
+            },
+        )
+
+        entity = Entity.objects.get(name="Backdated Person")
+        self.assertEqual(entity.start_date.date(), start_date)
+        period = FinancialPeriod.objects.get(entity=entity)
+        self.assertEqual(period.start_date, start_date)
+
+    def test_person_create_rejects_future_start_date(self):
+        """A future start date is rejected and no person is created."""
+        future = date.today() + timedelta(days=1)
+        self.client.login(username="officer_person", password="testpass")
+        response = self.client.post(
+            reverse("person_create"),
+            {
+                "name": "Future Person",
+                "start_date": future.isoformat(),
+                "active": "on",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("start_date", response.context["form"].errors)
+        self.assertFalse(Entity.objects.filter(name="Future Person").exists())
+
+    def test_person_create_defaults_start_date_to_today(self):
+        """When no start date is submitted the period opens today."""
+        self.client.login(username="officer_person", password="testpass")
+        self.client.post(
+            reverse("person_create"),
+            {"name": "Dated Person", "description": "", "active": "on"},
+        )
+
+        entity = Entity.objects.get(name="Dated Person")
+        period = FinancialPeriod.objects.get(entity=entity)
+        self.assertEqual(period.start_date, date.today())
+
+    def test_person_create_form_defaults_start_date_to_today(self):
+        """The create form shows today's date by default."""
+        self.client.login(username="officer_person", password="testpass")
+        response = self.client.get(reverse("person_create"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["form"]["start_date"].value(), date.today())
 
     def test_person_create_displays_success_message(self):
         """Test that successful creation displays success message."""

@@ -22,8 +22,8 @@
 | Create view | `PersonCreateView` (URL `person/add/` → `person_create`) | |
 | Edit view | `PersonEditView` (URL `person/edit/<int:pk>` → `person_edit`) | |
 | Template | `app_entity/person_form.html` (shared by create + edit) | |
-| Editable fields | `name`, `description`, `is_worker`, `is_vendor`, `is_client`, `is_shareholder`, `is_internal`, `active` | |
-| Never exposed for edit | `entity_type` (fixed to PERSON), `user`, project-only fields | |
+| Editable fields | `name`, `description`, `is_worker`, `is_vendor`, `is_client`, `is_shareholder`, `is_internal`, `active`; `start_date` on **create only** (defaults to today, drives the first financial period) | |
+| Never exposed for edit | `entity_type` (fixed to PERSON), `user`, project-only fields, `start_date` | |
 | Immutable fields | `entity_type`, `user` (from `Entity._immutable_fields`) | |
 | Uniqueness (live-only) | `unique_entity_name_live` (+ friendly `PersonForm.clean_name` check) | |
 
@@ -104,6 +104,7 @@ Person funds use the shared entity read-model: `balance_at` (payment types), `pa
 | PC2 | Live name unique | no other **live** entity shares `name` | form error (re-render) | `"An entity with this name already exists."` | `PersonForm.clean_name` | `PersonCreateViewTest.test_person_create_invalid_duplicate_name` |
 | PC3 | Auth | logged-in user | unauthenticated redirected to login | — | global auth | `PersonCreateViewTest.test_person_create_unauthenticated_user_redirected` |
 | PC4 | Form errors preserve input | invalid form | re-render with the submitted form | — | `PersonCreateView.post` | `PersonCreateViewTest.test_person_create_form_preserved_on_error` |
+| PC5 | Start date not in the future | submitted `start_date ≤ today` | form error (re-render) | `"Start date cannot be in the future."` | `PersonForm.clean_start_date` · `Entity.clean` | `PersonCreateViewTest.test_person_create_rejects_future_start_date` |
 
 #### 5.1.2 Success effects
 

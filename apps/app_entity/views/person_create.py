@@ -41,8 +41,10 @@ class PersonCreateView(View):
             logger.debug("Form validation passed")
             try:
                 with transaction.atomic():
+                    start_date = form.cleaned_data.pop("start_date")
                     entity = Entity.create(
                         entity_type=EntityType.PERSON,
+                        start_date=start_date,
                         **form.cleaned_data,
                     )
                     logger.debug(

@@ -16,6 +16,35 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 ---
 
 
+## 2026-10-17 — Entity start date drives the first financial period
+
+Person and project creation now accept a **Start Date** (defaulting to today).
+The date is stored on `Entity.start_date`, and the open `FinancialPeriod`
+auto-created on activation starts from it (falling back to the creation date
+when unset). Future start dates are rejected.
+
+### Added
+- Start Date field on the person create form (`PersonForm`) and the project
+  setup wizard step 1; the chosen date is persisted as `Entity.start_date` and
+  seeds the entity's first financial period.
+
+### Changed
+- `Entity.save()` now seeds the first `FinancialPeriod.start_date` from
+  `Entity.start_date` when present (creation date fallback otherwise).
+- `Entity.clean()`, `PersonForm.clean_start_date()` and the wizard step 1
+  reject start dates later than today.
+
+### Tests
+- Person create: submitted/default start date and future-date rejection
+  (`app_entity.tests.test_entity_forms_person_create_view`).
+- Wizard step 1: default/submitted start date and future-date rejection
+  (`app_entity.tests.test_project_setup_wizard_project_setup_wizard_step1`).
+- Wizard integration: start date drives entity + first period
+  (`app_entity.tests.test_project_setup_wizard_project_setup_wizard_integration`).
+- Model guard: future `start_date` rejected
+  (`app_operation.tests.period.test_financial_period_entity_period_auto_create`).
+
+
 ## 2026-10-17 — Production readiness: env-driven settings, container image, secure defaults
 
 The project is no longer development-only. All deployment-specific values now

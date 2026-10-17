@@ -14,6 +14,12 @@
             <label class="form-label fw-semibold">{% trans "Description / Scope" %}</label>
             <textarea name="description" class="form-control" rows="3">{{ draft_info.description }}</textarea>
         </div>
+        <div class="col-12">
+            <label class="form-label fw-semibold">{% trans "Start Date" %}</label>
+            <input type="date" name="start_date" class="form-control"
+                   max="{% now 'Y-m-d' %}" value="{{ draft_info.start_date }}">
+            <small class="d-block text-muted">{% trans "The initial financial period starts on this date." %}</small>
+        </div>
     </div>
 
     <hr class="my-4">

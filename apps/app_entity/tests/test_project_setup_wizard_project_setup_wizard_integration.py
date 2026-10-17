@@ -5,6 +5,8 @@ atomically from the summary step (step 7). A per-stage failure rolls the whole
 creation back and redirects the user to the step whose data failed.
 """
 
+from datetime import date, timedelta
+
 from django.test import Client, TestCase
 from django.urls import reverse
 
@@ -15,6 +17,7 @@ from apps.app_entity.models.category import (
 )
 from apps.app_entity.views.project_setup_wizard import SESSION_KEY
 from apps.app_inventory.tests.general import make_product_template, make_user
+from apps.app_operation.models.period import FinancialPeriod
 
 
 class ProjectSetupWizardIntegrationTest(TestCase):
@@ -159,6 +162,28 @@ class ProjectSetupWizardIntegrationTest(TestCase):
         )
         # The draft is cleared after a successful create.
         self.assertNotIn(SESSION_KEY, self.client.session)
+
+    def test_wizard_start_date_drives_entity_and_first_period(self):
+        """The start date chosen in step 1 opens the project's first period."""
+        start_date = date.today() - timedelta(days=45)
+        self.client.post(
+            reverse("project_create"),
+            {
+                "name": "Backdated Project",
+                "start_date": start_date.isoformat(),
+                "active": "on",
+            },
+        )
+
+        response = self.client.post(
+            reverse("project_setup", kwargs={"step": 7}), {}, follow=True
+        )
+        self.assertEqual(response.status_code, 200)
+
+        project = Entity.objects.get(name="Backdated Project")
+        self.assertEqual(project.start_date.date(), start_date)
+        period = FinancialPeriod.objects.get(entity=project)
+        self.assertEqual(period.start_date, start_date)
 
     def test_category_failure_rolls_back_and_redirects_to_step_2(self):
         """A missing selected category prevents creation and returns to step 2."""

@@ -67,6 +67,14 @@ class EntityPeriodAutoCreateTest(TestCase):
         period = FinancialPeriod.objects.get(entity=entity)
         self.assertEqual(period.start_date, entity.created_at.date())
 
+    def test_future_start_date_is_rejected(self):
+        with self.assertRaises(ValidationError):
+            Entity.create(
+                EntityType.PERSON,
+                name="Future Date Person",
+                start_date=TODAY + timedelta(days=1),
+            )
+
 
 # ---------------------------------------------------------------------------
 # Operation period assignment and validation

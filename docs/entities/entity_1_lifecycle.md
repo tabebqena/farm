@@ -141,7 +141,7 @@ Entry points: `Entity.create(entity_type, name=…, is_* flags, active=…)` —
 | SC2 | Correct type stored | `entity_type` as requested (person/project/system/world) | `Entity.create` | `PersonCreateViewTest.test_person_create_sets_correct_entity_type` |
 | SC3 | Virtual canonical names | `SYSTEM` → `"System"`, `WORLD` → `"World"` | `Entity.create` | no direct pinning test (gap; implied by seed/helpers) |
 | SC4 | Role/active flags applied | `is_*` flags and final `active` reflect the requested values | `Entity.create` (two-phase save) | `PersonCreateViewTest.test_person_create_with_all_roles` · `test_person_create_with_no_roles` · `test_person_create_sets_active_status` |
-| SC5 | Open period auto-created | real active person/project gets one open `FinancialPeriod` | `Entity.save()` | `PersonCreateViewTest.test_person_create_creates_financial_period` · `FinancialPeriodEntityPeriodAutoCreateTest` |
+| SC5 | Open period auto-created | real active person/project gets one open `FinancialPeriod`; its `start_date` is the entity's `start_date` when set, otherwise the creation date | `Entity.save()` | `PersonCreateViewTest.test_person_create_creates_financial_period` · `FinancialPeriodEntityPeriodAutoCreateTest` |
 | SC6 | Virtual entities get no period | world/system skip the period sync entirely | `Entity.save()` | `FinancialPeriodEntityPeriodAutoCreateTest.test_world_entity_does_not_get_period` · `test_system_entity_does_not_get_period` |
 
 ### 5.2 `edit` / `update`

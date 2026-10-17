@@ -5,6 +5,8 @@ entities, enforcing that the entity name is unique (excluding the instance being
 edited) and styling the fields for the project UI.
 """
 
+from datetime import date
+
 from django import forms
 from django.utils.translation import gettext_lazy as _
 
@@ -15,6 +17,17 @@ from apps.app_entity.models import Entity, EntityType
 
 class PersonForm(LoggingFormMixin, forms.ModelForm):
     """Form for editing a Person entity."""
+
+    start_date = forms.DateField(
+        required=False,
+        initial=date.today,
+        label=_("Start Date"),
+        help_text=_("The initial financial period starts on this date."),
+        widget=forms.DateInput(
+            format="%Y-%m-%d",
+            attrs={"type": "date", "class": "form-control"},
+        ),
+    )
 
     class Meta:
         model = Entity
@@ -61,6 +74,16 @@ class PersonForm(LoggingFormMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["name"].required = True
         self.instance.entity_type = EntityType.PERSON
+        if "start_date" in self.fields:
+            self.fields["start_date"].widget.attrs["max"] = date.today().isoformat()
+        if self.instance.pk:
+            self.fields.pop("start_date", None)
+
+    def clean_start_date(self):
+        value = self.cleaned_data.get("start_date")
+        if value is not None and value > date.today():
+            raise forms.ValidationError(_("Start date cannot be in the future."))
+        return value or date.today()
 
     def clean_name(self):
         name = self.cleaned_data.get("name")

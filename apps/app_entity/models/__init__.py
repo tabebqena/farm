@@ -9,6 +9,7 @@ entity's financial transactions.
 
 import typing
 from datetime import date as date_type
+from datetime import datetime, time
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
@@ -16,6 +17,7 @@ from django.db import models
 from django.db import transaction as db_transaction
 from django.forms import ValidationError
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from apps.app_base.logging_utils import audit_logger, logger
@@ -391,6 +393,10 @@ class Entity(ImmutableMixin, BaseModel):
                 logger.error("World entity already exists")
                 raise ValidationError(_("World entity already exists."))
 
+        if self.start_date is not None and self.start_date.date() > date_type.today():
+            logger.error("Start date cannot be in the future")
+            raise ValidationError(_("Start date cannot be in the future."))
+
         logger.debug(
             f"Entity validation passed | entity_type={self.entity_type} | "
             f"name={self.name[:50] if self.name else ''}"
@@ -441,6 +447,12 @@ class Entity(ImmutableMixin, BaseModel):
             if feasibility_study is not None:
                 e.feasibility_study = feasibility_study
             if start_date is not None:
+                if isinstance(start_date, date_type) and not isinstance(
+                    start_date, datetime
+                ):
+                    start_date = timezone.make_aware(
+                        datetime.combine(start_date, time.min)
+                    )
                 e.start_date = start_date
             if end_date is not None:
                 e.end_date = end_date
@@ -715,7 +727,12 @@ class Entity(ImmutableMixin, BaseModel):
             if not (self.is_world or self.is_system):
                 open_period = self.financial_periods.filter(end_date__isnull=True).first()
                 if self.active and open_period is None:
-                    start_date = self.created_at.date() if is_new else date_type.today()
+                    if self.start_date is not None and not self.financial_periods.exists():
+                        start_date = self.start_date.date()
+                    else:
+                        start_date = (
+                            self.created_at.date() if is_new else date_type.today()
+                        )
                     with provenance.derived(
                         reasons.ROLE_PERIOD, reasons.REASON_PERIOD_CREATED
                     ):

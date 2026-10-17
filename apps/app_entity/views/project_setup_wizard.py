@@ -12,6 +12,7 @@ back (no project is created) and the user is redirected back to the step whose
 data failed, keeping the draft so they can correct it.
 """
 
+from datetime import date
 from decimal import Decimal
 
 from django.contrib import messages
@@ -83,6 +84,7 @@ def _default_info():
         "is_vendor": True,
         "is_client": True,
         "active": True,
+        "start_date": date.today().isoformat(),
     }
 
 
@@ -189,6 +191,13 @@ def _handle_step_1_post(request):
     is_vendor = request.POST.get("is_vendor") == "on"
     is_client = request.POST.get("is_client") == "on"
     active = request.POST.get("active") == "on"
+    start_date_raw = request.POST.get("start_date", "").strip()
+    try:
+        start_date = (
+            date.fromisoformat(start_date_raw) if start_date_raw else date.today()
+        )
+    except ValueError:
+        start_date = None
 
     if not name:
         logger.warning("Project name is required")
@@ -199,6 +208,24 @@ def _handle_step_1_post(request):
         messages.error(request, gettext("Project name is required."))
         return redirect("project_create")
 
+    if start_date is None:
+        logger.warning("Project start date is invalid")
+        audit_logger.info(
+            f"wizard_step1_validation_failed | ProjectSetupWizard:None | "
+            f"user={request.user.username} | reason=invalid_start_date"
+        )
+        messages.error(request, gettext("Enter a valid start date."))
+        return redirect("project_create")
+
+    if start_date > date.today():
+        logger.warning("Project start date is in the future")
+        audit_logger.info(
+            f"wizard_step1_validation_failed | ProjectSetupWizard:None | "
+            f"user={request.user.username} | reason=future_start_date"
+        )
+        messages.error(request, gettext("Start date cannot be in the future."))
+        return redirect("project_create")
+
     draft = _draft_get(request)
     draft["info"] = {
         "name": name,
@@ -207,6 +234,7 @@ def _handle_step_1_post(request):
         "is_vendor": is_vendor,
         "is_client": is_client,
         "active": active,
+        "start_date": start_date.isoformat(),
     }
     _draft_save(request, draft)
     logger.debug(f"Project info stored in draft | name={name}")
@@ -437,6 +465,15 @@ def _apply_create_project(request):
     if not name:
         raise _WizardStageError(1, gettext("Project name is required."))
 
+    try:
+        start_date = date.fromisoformat(
+            info.get("start_date") or date.today().isoformat()
+        )
+    except ValueError:
+        raise _WizardStageError(1, gettext("Enter a valid start date."))
+    if start_date > date.today():
+        raise _WizardStageError(1, gettext("Start date cannot be in the future."))
+
     with transaction.atomic():
         # Stage A -> step 1: create the project entity.
         entity = Entity.create(
@@ -447,6 +484,7 @@ def _apply_create_project(request):
             is_vendor=bool(info.get("is_vendor")),
             is_client=bool(info.get("is_client")),
             active=bool(info.get("active", True)),
+            start_date=start_date,
         )
         audit_logger.info(
             f"wizard_project_created | ProjectSetupWizard:{entity.pk} | "

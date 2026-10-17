@@ -4,6 +4,8 @@ Step 1 only collects the project identity into the session draft; the project
 Entity is created later, atomically, from the summary step.
 """
 
+from datetime import date, timedelta
+
 from django.test import Client, TestCase
 from django.urls import reverse
 
@@ -69,6 +71,45 @@ class ProjectSetupWizardStep1Test(TestCase):
         self.assertTrue(draft["info"]["is_internal"])
         self.assertFalse(draft["info"]["is_vendor"])
         self.assertTrue(draft["info"]["active"])
+
+    def test_wizard_step_1_defaults_start_date_to_today(self):
+        """A fresh wizard defaults the project start date to today."""
+        response = self.client.get(reverse("project_create"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.context["draft_info"]["start_date"], date.today().isoformat()
+        )
+
+    def test_wizard_step_1_stores_submitted_start_date(self):
+        """The submitted start date is kept in the draft for creation."""
+        start_date = date.today() - timedelta(days=14)
+        self.client.post(
+            reverse("project_create"),
+            {
+                "name": "Backdated Wizard Project",
+                "start_date": start_date.isoformat(),
+                "active": "on",
+            },
+        )
+
+        draft = self.client.session[SESSION_KEY]
+        self.assertEqual(draft["info"]["start_date"], start_date.isoformat())
+
+    def test_wizard_step_1_rejects_future_start_date(self):
+        """A future start date is rejected and no draft is stored."""
+        future = date.today() + timedelta(days=1)
+        response = self.client.post(
+            reverse("project_create"),
+            {
+                "name": "Future Project",
+                "start_date": future.isoformat(),
+                "active": "on",
+            },
+        )
+
+        self.assertRedirects(response, reverse("project_create"))
+        self.assertNotIn(SESSION_KEY, self.client.session)
 
     def test_wizard_step_1_requires_name(self):
         """POST to step 1 with an empty name stays on step 1 with no draft."""
