@@ -16,6 +16,17 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 ---
 
 
+## 2026-10-17 — Hide fund balance for World, System and external entities
+
+### Changed
+- Added `Entity.shows_balance` (`not is_virtual and is_internal`): real internal
+  funds only. Virtual (World/System) and external (non-internal) funds have no
+  enforceable balance, so it is now hidden in the entity list (table + mobile
+  card) and in operations (operation-list header and the create-form
+  `fund-balance.html` snippet). The balance is still shown on the entity detail
+  page and payment-transactions ledger.
+
+
 ## 2026-10-17 — Fix 500 on pages whose fund-balance include omits the currency
 
 ### Fixed

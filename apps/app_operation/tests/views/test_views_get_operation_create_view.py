@@ -78,7 +78,7 @@ class OperationCreateViewSourceFundTests(TestCase):
     def setUp(self):
         self.client = Client()
         self.officer = make_user(username="officer_create", is_staff=True)
-        self.project = Entity.create(EntityType.PROJECT, name="Project")
+        self.project = Entity.create(EntityType.PROJECT, name="Project", is_internal=True)
         _inject_funds(self.project, Decimal("1000.00"), self.officer)
         self.client.login(username="officer_create", password="testpass")
 
@@ -136,7 +136,7 @@ class TransactionCreateViewSourceFundTests(TestCase):
         self.client = Client()
         self.officer = make_user(username="officer_txn", is_staff=True)
         self.vendor = Entity.create(EntityType.PERSON, name="Vendor", is_vendor=True)
-        self.project = Entity.create(EntityType.PROJECT, name="Project")
+        self.project = Entity.create(EntityType.PROJECT, name="Project", is_internal=True)
         Stakeholder.objects.create(
             parent=self.project,
             target=self.vendor,
@@ -169,7 +169,7 @@ class TransactionCreateViewSourceFundTests(TestCase):
     def test_repayment_create_exposes_source_fund(self):
         """Repayment debits the operation's payment target fund (the debtor)."""
         lender = Entity.create(EntityType.PERSON, name="Lender")
-        borrower = Entity.create(EntityType.PERSON, name="Borrower")
+        borrower = Entity.create(EntityType.PERSON, name="Borrower", is_internal=True)
         _inject_person_funds(borrower, Decimal("500.00"), self.officer)
         op = LoanOperation.objects.create(
             source=lender,

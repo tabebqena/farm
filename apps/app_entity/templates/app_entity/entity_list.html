@@ -150,9 +150,11 @@
                 </td>
                 <td>
                   {% if entity %}
-                    <div class="text-dark small fw-semibold">
-                      <i class="bi bi-wallet2 me-1"></i> {{ entity.balance|money }}
-                    </div>
+                    {% if entity.shows_balance %}
+                      <div class="text-dark small fw-semibold">
+                        <i class="bi bi-wallet2 me-1"></i> {{ entity.balance|money }}
+                      </div>
+                    {% endif %}
                     {% if entity.active %}
                       <span class="text-success small" style="font-size: 0.7rem;"><i class="bi bi-check-circle-fill"></i> {% trans "Ready" %}</span>
                     {% else %}
@@ -247,9 +249,11 @@
                     <div>
                       <small class="text-muted d-block mb-1">{% trans "Fund Status" %}</small>
                       {% if entity %}
-                        <div class="text-dark small fw-semibold">
-                          <i class="bi bi-wallet2 me-1"></i>{{ entity.balance|money }}
-                        </div>
+                        {% if entity.shows_balance %}
+                          <div class="text-dark small fw-semibold">
+                            <i class="bi bi-wallet2 me-1"></i>{{ entity.balance|money }}
+                          </div>
+                        {% endif %}
                       {% else %}
                         <span class="text-danger small"><i class="bi bi-exclamation-triangle"></i> {% trans "Missing Fund" %}</span>
                       {% endif %}

@@ -9,7 +9,9 @@
         {% if fund_entity.name %}<span class="text-dark">· {{ fund_entity.name }}</span>{% endif %}
       </small>
       {% firstof fund_currency currency as fund_symbol %}
+      {% if fund_entity.shows_balance %}
       <span class="fw-bold fs-5">{{ fund_entity.balance|money:fund_symbol }}</span>
+      {% endif %}
     </div>
   </div>
 {% endif %}

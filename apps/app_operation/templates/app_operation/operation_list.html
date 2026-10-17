@@ -7,10 +7,12 @@
   <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
     <h2>{% trans 'Operation History:' %} <a
         href="{% url 'entity_detail' entity_person.pk %}">{{ entity_person.name }}</a></h2>
+    {% if entity_person.shows_balance %}
     <div class="fs-2 fw-bold mb-3 {% if balance >= 0 %}text-success{% else %}text-danger{% endif %}">
       {{ balance|money }}
       <i class="bi bi-wallet2 fs-4 {% if balance >= 0 %}text-success{% else %}text-danger{% endif %}"></i>
     </div>
+    {% endif %}
     <div class="dropdown">
       <button class="btn btn-primary dropdown-toggle" type="button"
         data-bs-toggle="dropdown">{% trans 'New Operation' %}</button>

@@ -42,3 +42,27 @@ class EntityListViewTest(TestCase):
         """Test that unauthenticated users are redirected from entity list."""
         response = self.client.get(reverse("entity_list"))
         self.assertEqual(response.status_code, 302)
+
+
+class EntityShowsBalanceTest(TestCase):
+    """Balance is only surfaced for real internal funds."""
+
+    def test_internal_person_and_project_show_balance(self):
+        person = Entity.create(EntityType.PERSON, name="Internal Person", is_internal=True)
+        project = Entity.create(
+            EntityType.PROJECT, name="Internal Project", is_internal=True
+        )
+        self.assertTrue(person.shows_balance)
+        self.assertTrue(project.shows_balance)
+
+    def test_virtual_entities_hide_balance(self):
+        world = Entity.create(EntityType.WORLD)
+        system = Entity.create(EntityType.SYSTEM)
+        self.assertFalse(world.shows_balance)
+        self.assertFalse(system.shows_balance)
+
+    def test_external_entity_hides_balance(self):
+        vendor = Entity.create(
+            EntityType.PERSON, name="External Vendor", is_internal=False
+        )
+        self.assertFalse(vendor.shows_balance)

@@ -711,6 +711,16 @@ class Entity(ImmutableMixin, BaseModel):
             return True
         return self.balance >= amount
 
+    @property
+    def shows_balance(self) -> bool:
+        """True for real internal funds whose balance is worth surfacing.
+
+        Virtual (System/World) and external (non-internal) funds have no
+        enforceable balance, so it is hidden from summaries/lists while still
+        available on the entity detail page.
+        """
+        return not self.is_virtual and self.is_internal
+
     def save(self, *args, **kwargs):
         """Persist the entity and keep its open financial period in sync.
 
