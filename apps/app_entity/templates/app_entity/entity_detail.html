@@ -213,35 +213,78 @@
                       {% endif %}
                     </div>
 
-                    <div class="list-group list-group-flush">
-                      {% for sh in entity.stakeholders.all %}
-                        <div class="list-group-item d-flex align-items-center justify-content-between py-3 px-3 border-bottom">
-                          <div class="d-flex align-items-center flex-grow-1">
-                            <div class="avatar-circle me-3 bg-primary-subtle text-primary fw-bold" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 50%;">{{ sh.target.get_display_name|slice:':1' }}</div>
-                            <div class="flex-grow-1">
-                              <div class="d-flex align-items-center gap-2 mb-1">
-                                <a href="{% url 'entity_detail' sh.target.id %}" class="fw-bold text-dark text-decoration-none">{{ sh.target.get_display_name }}</a>
-                                {% if sh.target.active %}
-                                  <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size: 0.65rem;">{% trans 'Active' %}</span>
-                                {% else %}
-                                  <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle" style="font-size: 0.65rem;">{% trans 'Inactive' %}</span>
-                                {% endif %}
+                    <div class="card-body pb-0">
+                      <ul class="nav nav-pills nav-fill gap-2" id="stakeholderTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                          <button class="nav-link active fw-bold" id="stakeholder-active-tab" data-bs-toggle="tab" data-bs-target="#stakeholder-active" type="button" role="tab">
+                            {% trans 'Active' %} <span class="badge bg-success-subtle text-success border border-success-subtle ms-1">{{ active_stakeholders|length }}</span>
+                          </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                          <button class="nav-link fw-bold" id="stakeholder-inactive-tab" data-bs-toggle="tab" data-bs-target="#stakeholder-inactive" type="button" role="tab">
+                            {% trans 'Inactive' %} <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle ms-1">{{ inactive_stakeholders|length }}</span>
+                          </button>
+                        </li>
+                      </ul>
+                    </div>
+
+                    <div class="tab-content">
+                      <div class="tab-pane fade show active" id="stakeholder-active" role="tabpanel">
+                        <div class="list-group list-group-flush">
+                          {% for sh in active_stakeholders %}
+                            <div class="list-group-item d-flex align-items-center justify-content-between py-3 px-3 border-bottom">
+                              <div class="d-flex align-items-center flex-grow-1">
+                                <div class="avatar-circle me-3 bg-primary-subtle text-primary fw-bold" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 50%;">{{ sh.target.get_display_name|slice:':1' }}</div>
+                                <div class="flex-grow-1">
+                                  <div class="d-flex align-items-center gap-2 mb-1">
+                                    <a href="{% url 'entity_detail' sh.target.id %}" class="fw-bold text-dark text-decoration-none">{{ sh.target.get_display_name }}</a>
+                                    {% if sh.target.active %}
+                                      <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size: 0.65rem;">{% trans 'Active' %}</span>
+                                    {% else %}
+                                      <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle" style="font-size: 0.65rem;">{% trans 'Inactive' %}</span>
+                                    {% endif %}
+                                  </div>
+                                  <span class="badge bg-light text-muted border small">{{ sh.get_role_display }}</span>
+                                </div>
                               </div>
-                              <span class="badge bg-light text-muted border small">{{ sh.get_role_display }}</span>
+                              <a href="{% url 'edit_stakeholder' sh.id %}" class="btn btn-sm btn-outline-secondary ms-3"><i class="bi bi-pencil-square me-1"></i>{% trans 'Edit' %}</a>
                             </div>
-                          </div>
-                          <a href="{% url 'edit_stakeholder' sh.id %}" class="btn btn-sm btn-outline-secondary ms-3"><i class="bi bi-pencil-square me-1"></i>{% trans 'Edit' %}</a>
-                        </div>
-                      {% empty %}
-                        <div class="p-3">
-                          <div class="alert alert-warning d-flex align-items-center mb-0" role="alert">
-                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                            <div>
-                              {% trans 'No stakeholders assigned to this project yet.' %} <a href="{% url 'add_shareholder' entity.id %}" class="alert-link">{% trans 'Add one now.' %}</a>
+                          {% empty %}
+                            <div class="p-3">
+                              <div class="alert alert-warning d-flex align-items-center mb-0" role="alert">
+                                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                <div>
+                                  {% trans 'No stakeholders assigned to this project yet.' %} <a href="{% url 'add_shareholder' entity.id %}" class="alert-link">{% trans 'Add one now.' %}</a>
+                                </div>
+                              </div>
                             </div>
-                          </div>
+                          {% endfor %}
                         </div>
-                      {% endfor %}
+                      </div>
+
+                      <div class="tab-pane fade" id="stakeholder-inactive" role="tabpanel">
+                        <div class="list-group list-group-flush">
+                          {% for sh in inactive_stakeholders %}
+                            <div class="list-group-item d-flex align-items-center justify-content-between py-3 px-3 border-bottom opacity-75">
+                              <div class="d-flex align-items-center flex-grow-1">
+                                <div class="avatar-circle me-3 bg-secondary-subtle text-secondary fw-bold" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 50%;">{{ sh.target.get_display_name|slice:':1' }}</div>
+                                <div class="flex-grow-1">
+                                  <div class="d-flex align-items-center gap-2 mb-1">
+                                    <a href="{% url 'entity_detail' sh.target.id %}" class="fw-bold text-dark text-decoration-none">{{ sh.target.get_display_name }}</a>
+                                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle" style="font-size: 0.65rem;">{% trans 'Inactive' %}</span>
+                                  </div>
+                                  <span class="badge bg-light text-muted border small">{{ sh.get_role_display }}</span>
+                                </div>
+                              </div>
+                              <a href="{% url 'edit_stakeholder' sh.id %}" class="btn btn-sm btn-outline-secondary ms-3"><i class="bi bi-pencil-square me-1"></i>{% trans 'Edit' %}</a>
+                            </div>
+                          {% empty %}
+                            <div class="p-4 text-center text-muted small">
+                              <i class="bi bi-inbox me-1"></i>{% trans 'No inactive stakeholders.' %}
+                            </div>
+                          {% endfor %}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>

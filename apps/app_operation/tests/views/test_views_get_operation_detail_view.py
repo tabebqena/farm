@@ -35,7 +35,9 @@ class OperationDetailViewTest(TestCase):
         import datetime
 
         self.world = Entity.create(EntityType.WORLD)
-        self.destination = Entity.create(EntityType.PERSON, name="Destination")
+        self.destination = Entity.create(
+            EntityType.PERSON, name="Destination", is_internal=True
+        )
         self.operation = CashInjectionOperation.objects.create(
             source=self.world,
             destination=self.destination,
@@ -65,7 +67,7 @@ class OperationDetailViewTest(TestCase):
         self.assertIn("operation", response.context)
 
     def test_operation_detail_navigation_shows_real_entity_names(self):
-        """Navigation links use the real source/destination names instead of generic labels."""
+        """Navigation links use the real (internal) entity name instead of generic labels."""
         from apps.app_operation.models.proxies import PurchaseOperation
         from decimal import Decimal
         import datetime
@@ -74,7 +76,9 @@ class OperationDetailViewTest(TestCase):
         vendor = Entity.create(
             EntityType.PERSON, name="Alpha Feed Supplier", is_vendor=True
         )
-        project = Entity.create(EntityType.PROJECT, name="Beta Farms Project")
+        project = Entity.create(
+            EntityType.PROJECT, name="Beta Farms Project", is_internal=True
+        )
         Stakeholder.objects.create(
             parent=project,
             target=vendor,
@@ -97,13 +101,38 @@ class OperationDetailViewTest(TestCase):
         self.assertContains(
             response, reverse("entity_detail", kwargs={"pk": project.pk})
         )
-        self.assertContains(
+        self.assertContains(response, "Beta Farms Project")
+        # The external vendor has no navigation link to its detail page.
+        self.assertNotContains(
             response, reverse("entity_detail", kwargs={"pk": vendor.pk})
         )
-        self.assertContains(response, "Alpha Feed Supplier")
-        self.assertContains(response, "Beta Farms Project")
         self.assertNotContains(response, "Source Entity")
         self.assertNotContains(response, "Destination Entity")
+
+    def test_operation_detail_hides_external_entity_links(self):
+        """External (non-internal) counterparts get no navigation link."""
+        from decimal import Decimal
+        import datetime
+
+        self.client.login(username="officer_op_detail", password="testpass")
+        external = Entity.create(EntityType.PERSON, name="External Party")
+        operation = CashInjectionOperation.objects.create(
+            source=self.world,
+            destination=external,
+            officer=self.officer,
+            operation_type=OperationType.CASH_INJECTION,
+            amount=Decimal("100.00"),
+            date=datetime.date.today(),
+        )
+
+        url = reverse("operation_detail_view", kwargs={"pk": operation.pk})
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        # No navigation link to the external counterpart's detail page.
+        self.assertNotContains(
+            response, reverse("entity_detail", kwargs={"pk": external.pk})
+        )
 
     def test_operation_detail_hides_virtual_entity_links(self):
         """Virtual (world/system) source entities get no navigation link."""
@@ -133,8 +162,8 @@ class OperationDetailViewTest(TestCase):
 
         self.assertEqual(response.status_code, 404)
 
-    def test_operation_detail_shows_both_sides_operations_list_links(self):
-        """The navigation bar links to the operations list of both real counterparts."""
+    def test_operation_detail_shows_internal_operations_list_link(self):
+        """The navigation bar links to the operations list of the internal counterpart."""
         from decimal import Decimal
         import datetime
 
@@ -142,7 +171,9 @@ class OperationDetailViewTest(TestCase):
         vendor = Entity.create(
             EntityType.PERSON, name="Nav Vendor", is_vendor=True
         )
-        project = Entity.create(EntityType.PROJECT, name="Nav Project")
+        project = Entity.create(
+            EntityType.PROJECT, name="Nav Project", is_internal=True
+        )
         Stakeholder.objects.create(
             parent=project,
             target=vendor,
@@ -165,7 +196,8 @@ class OperationDetailViewTest(TestCase):
         self.assertContains(
             response, reverse("operation_list_view", kwargs={"person_pk": project.pk})
         )
-        self.assertContains(
+        # The external vendor gets no operations-list link.
+        self.assertNotContains(
             response, reverse("operation_list_view", kwargs={"person_pk": vendor.pk})
         )
 

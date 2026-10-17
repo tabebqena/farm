@@ -15,21 +15,31 @@ from apps.app_operation.models import Operation
 from farm.shortcuts import get_object_or_404
 
 
+def _is_navigable_entity(entity):
+    """Whether *entity* gets a detail / operations link in the navigation bar.
+
+    Virtual entities (System / World) have no detail page, and external
+    (non-internal) entities are not part of this ledger's navigation, so
+    neither is linked.
+    """
+    return not entity.is_virtual and entity.is_internal
+
+
 def _build_navigation_overrides(operation):
     """Build navigation related-url overrides for the operation detail page.
 
     Replaces the generic "Source Entity"/"Destination Entity" labels with the
-    real entity names, and adds an operations-list link for each real
-    (non-virtual) counterpart entity. ``None`` drops a related link entirely
-    (system/world entities have no detail page). Returns an empty dict when
-    nothing should be overridden.
+    real entity names, and adds an operations-list link for each navigable
+    (internal, non-virtual) counterpart entity. ``None`` drops a related link
+    entirely (System / World / external entities have no navigation entry).
+    Returns an empty dict when nothing should be overridden.
     """
     related_url_overrides = {}
     for label, entity in (
         ("Source Entity", operation.source),
         ("Destination Entity", operation.destination),
     ):
-        if entity.entity_type not in ("system", "world"):
+        if _is_navigable_entity(entity):
             related_url_overrides[label] = {
                 "title": entity.get_display_name(),
                 "url": reverse("entity_detail", kwargs={"pk": entity.pk}),
@@ -39,7 +49,7 @@ def _build_navigation_overrides(operation):
 
     add_related = []
     for entity in (operation.source, operation.destination):
-        if entity.entity_type in ("system", "world"):
+        if not _is_navigable_entity(entity):
             continue
         add_related.append(
             {

@@ -52,11 +52,24 @@ class EntityDetailView(View):
             f"stock_value={stock_value}"
         )
 
+        # Split the project's stakeholder links so the UI can show active links
+        # by default and inactive ones on a separate tab.
+        active_stakeholders = []
+        inactive_stakeholders = []
+        if entity.is_project:
+            for stakeholder in entity.stakeholders.select_related("target"):
+                if stakeholder.active:
+                    active_stakeholders.append(stakeholder)
+                else:
+                    inactive_stakeholders.append(stakeholder)
+
         context = {
             "entity": entity,
             "payables": payables,
             "receivables": receivables,
             "stock_value": stock_value,
+            "active_stakeholders": active_stakeholders,
+            "inactive_stakeholders": inactive_stakeholders,
             "currency": getattr(settings, "CURRENCY_SYMBOL", "$"),
         }
 

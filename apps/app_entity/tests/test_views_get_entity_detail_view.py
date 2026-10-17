@@ -66,6 +66,50 @@ class EntityDetailViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("entity", response.context)
 
+    def test_entity_detail_splits_stakeholders_by_active(self):
+        """Stakeholder links are split into active (default) and inactive tabs."""
+        active_vendor = Entity.create(EntityType.PERSON, name="Active Vendor")
+        inactive_vendor = Entity.create(EntityType.PERSON, name="Inactive Vendor")
+        Stakeholder.objects.create(
+            parent=self.entity,
+            target=active_vendor,
+            active=True,
+            role=StakeholderRole.VENDOR,
+        )
+        Stakeholder.objects.create(
+            parent=self.entity,
+            target=inactive_vendor,
+            active=False,
+            role=StakeholderRole.VENDOR,
+        )
+
+        self.client.login(username="officer_detail", password="testpass")
+        url = reverse("entity_detail", kwargs={"pk": self.entity.pk})
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [s.target for s in response.context["active_stakeholders"]],
+            [active_vendor],
+        )
+        self.assertEqual(
+            [s.target for s in response.context["inactive_stakeholders"]],
+            [inactive_vendor],
+        )
+        self.assertContains(response, "stakeholder-active")
+        self.assertContains(response, "stakeholder-inactive")
+
+    def test_entity_detail_person_has_no_stakeholder_tabs(self):
+        """Person detail pages expose empty stakeholder lists (project-only feature)."""
+        person = Entity.create(EntityType.PERSON, name="Solo Person")
+        self.client.login(username="officer_detail", password="testpass")
+        url = reverse("entity_detail", kwargs={"pk": person.pk})
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["active_stakeholders"], [])
+        self.assertEqual(response.context["inactive_stakeholders"], [])
+
     def test_entity_detail_navigation_keeps_operations_and_periods_links(self):
         """Entity detail navigation keeps Operations/Periods links (regression)."""
         self.client.login(username="officer_detail", password="testpass")
