@@ -4,9 +4,9 @@
  * Mirrors the server-side `money` template filter: Western digits, `,` thousands
  * grouping, `.` decimal, `$` prefix read from `document.body.dataset.currency`.
  *
- *   FarmMoney.format(1234.5)        -> "$1,234.50"
- *   FarmMoney.format(-1234.5)       -> "-$1,234.50"
- *   FarmMoney.signed(5)             -> "+$5.00"
+ *   FarmMoney.format(1234.5)        -> "E£ 1,234.50"
+ *   FarmMoney.format(-1234.5)       -> "-E£ 1,234.50"
+ *   FarmMoney.signed(5)             -> "+E£ 5.00"
  *   FarmMoney.plain(1234.5)         -> "1,234.50"
  */
 (function () {
@@ -33,10 +33,11 @@
       const n = toNumber(value);
       const symbol = options.symbol !== undefined ? options.symbol : currencySymbol();
       const magnitude = numberFormatter.format(Math.abs(n));
+      const prefix = symbol ? symbol + ' ' : '';
       if (options.signed) {
-        return (n < 0 ? '-' : '+') + symbol + magnitude;
+        return (n < 0 ? '-' : '+') + prefix + magnitude;
       }
-      return (n < 0 ? '-' : '') + symbol + magnitude;
+      return (n < 0 ? '-' : '') + prefix + magnitude;
     },
 
     signed(value, opts) {

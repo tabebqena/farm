@@ -8,12 +8,12 @@ Arabic (RTL) layouts.
 Usage::
 
     {% load money %}
-    {{ operation.amount|money }}            {# E£1,234,567.89 #}
+    {{ operation.amount|money }}            {# E£ 1,234,567.89 #}
     {{ operation.amount|money_plain }}      {# 1,234,567.89 #}
-    {{ delta|money_signed }}                {# +E£5.00 / -E£5.00 #}
+    {{ delta|money_signed }}                {# +E£ 5.00 / -E£ 5.00 #}
     {{ value|money:'€' }}                   {# explicit symbol override #}
 
-``None``/blank/invalid values render as ``E£0.00`` and negatives as ``-E£1.00``.
+``None``/blank/invalid values render as ``E£ 0.00`` and negatives as ``-E£ 1.00``.
 """
 
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
@@ -63,10 +63,10 @@ def _sign_and_magnitude(value):
 
 @register.filter
 def money(value, symbol=None):
-    """Render ``value`` as ``$1,234.56`` (symbol + thousands grouping)."""
+    """Render ``value`` as ``$ 1,234.56`` (symbol + thousands grouping)."""
     negative, magnitude = _sign_and_magnitude(value)
     sign = "-" if negative else ""
-    return f"{sign}{_symbol(symbol)}{magnitude}"
+    return f"{sign}{_symbol(symbol)} {magnitude}"
 
 
 @register.filter
@@ -79,7 +79,7 @@ def money_plain(value, symbol=None):
 
 @register.filter
 def money_signed(value, symbol=None):
-    """Render with an explicit leading sign: ``+$5.00`` / ``-$5.00``."""
+    """Render with an explicit leading sign: ``+$ 5.00`` / ``-$ 5.00``."""
     number = _to_decimal(value)
     sign = "-" if number < 0 else "+"
-    return f"{sign}{_symbol(symbol)}{_magnitude(number)}"
+    return f"{sign}{_symbol(symbol)} {_magnitude(number)}"

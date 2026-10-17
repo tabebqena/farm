@@ -16,6 +16,14 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 ---
 
 
+## 2026-10-17 — Space between currency symbol and amount
+
+### Changed
+- The `money`/`money_signed` filters and `FarmMoney.format` now render a space
+  between the currency symbol and the figure (`E£ 1,234.56`) for readability;
+  `money_plain` is unchanged. Zero-value placeholders in adjustment forms follow.
+
+
 ## 2026-10-17 — Fix production Bad Gateway (static manifest)
 
 ### Fixed
