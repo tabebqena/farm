@@ -19,7 +19,7 @@
 set -euo pipefail
 
 HOST="${FARM_HOST:-ssh.mazr3a.garden}"
-APP_DIR="${FARM_APP_DIR:-farm}"          # relative to the remote $HOME
+APP_DIR="${FARM_APP_DIR:-farm-hisab}"          # relative to the remote $HOME
 BRANCH="${FARM_BRANCH:-main}"
 REPO_URL="${FARM_REPO_URL:-https://github.com/tabebqena/farm.git}"
 GIT_REMOTE="${FARM_GIT_REMOTE:-origin}"

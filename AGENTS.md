@@ -97,3 +97,5 @@
   `.venv/`, and `*.pyc`.
 - Regenerate/serve the docs site with `.venv/bin/python docs.py build`
   (or `serve`, default port 8766); index is `docs/README.md`.
+
+- Write commits for your changes.
