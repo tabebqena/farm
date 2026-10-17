@@ -8,6 +8,7 @@ from django.contrib import admin
 from django.urls import reverse
 from django.utils.html import format_html
 
+from apps.app_base.admin_guard import SoftDeleteAdminGuardMixin
 from apps.app_entity.models import EntityType
 
 from .models.operation import Operation
@@ -15,7 +16,7 @@ from .models.period import FinancialPeriod
 
 
 @admin.register(Operation)
-class OpeartionAdmin(admin.ModelAdmin):
+class OpeartionAdmin(SoftDeleteAdminGuardMixin, admin.ModelAdmin):
     """Read-only admin view of an :class:`Operation` with entity links."""
 
     readonly_fields = ("source_link", "destination_link")
@@ -61,7 +62,7 @@ class OpeartionAdmin(admin.ModelAdmin):
 
 
 @admin.register(FinancialPeriod)
-class FinancialPeriodAdmin(admin.ModelAdmin):
+class FinancialPeriodAdmin(SoftDeleteAdminGuardMixin, admin.ModelAdmin):
     """Admin for :class:`FinancialPeriod`, showing open/closed state."""
 
     list_display = ("entity", "start_date", "end_date", "is_closed")

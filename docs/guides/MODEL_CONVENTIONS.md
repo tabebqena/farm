@@ -161,6 +161,35 @@ The guard is re-entrancy safe (an auto-soft-delete that loops back to a record
 already being deleted is a no-op) and the whole delete runs in a transaction,
 so a failed delete leaves no partial soft deletes behind.
 
+`_before_soft_delete()` is a final hook that runs after the guard has passed and
+after `_delete_auto_relations` have been soft-deleted. Use it for owned children
+that have no reverse FK for the guard to discover — for example an `Operation`'s
+ledger `Transaction`s, which attach through a `GenericForeignKey`
+(`content_type` / `object_id`) and are therefore soft-deleted by the operation
+itself.
+
+### 5.1 Django admin
+
+Django admin's own delete confirmation runs the database deletion collector,
+which sees **every** row (soft-deleted tombstones included) and every
+`on_delete=PROTECT` relation. Left alone, it would refuse deletes the guard
+allows — for example the auto-created `FinancialPeriod` would block deleting its
+entity, and tombstones would be listed as protected.
+
+[`SoftDeleteAdminGuardMixin`](../../apps/app_base/admin_guard.py) re-points the
+admin delete decision at `get_delete_blockers()`: tombstones and owned rows stop
+blocking, live dependents are still refused, and a guard `ValidationError` is
+surfaced as an admin error message. Mix it in **before** `admin.ModelAdmin` on
+any admin class whose model uses this convention:
+
+```python
+from apps.app_base.admin_guard import SoftDeleteAdminGuardMixin
+
+@admin.register(Entity)
+class EntityClass(SoftDeleteAdminGuardMixin, admin.ModelAdmin):
+    ...
+```
+
 ---
 
 ## 6. Exceptions

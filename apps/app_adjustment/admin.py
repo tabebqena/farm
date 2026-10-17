@@ -9,6 +9,8 @@ hidden).
 from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
 
+from apps.app_base.admin_guard import SoftDeleteAdminGuardMixin
+
 from .models import Adjustment, AdjustmentType
 
 
@@ -33,7 +35,7 @@ class FinancialAdjustmentTypeFilter(admin.SimpleListFilter):
 
 
 @admin.register(Adjustment)
-class AdjustmentAdmin(admin.ModelAdmin):
+class AdjustmentAdmin(SoftDeleteAdminGuardMixin, admin.ModelAdmin):
     """Admin for :class:`Adjustment` with a user-facing financial-type filter."""
 
     list_display = ["id", "operation", "type", "amount", "date", "officer"]

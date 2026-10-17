@@ -232,6 +232,22 @@ class HasRelatedTransactions(BaseModelMixin):
         """Return the record's transactions excluding soft-deleted ones."""
         return self.get_all_transactions().filter(deleted_at__isnull=True)
 
+    def _before_soft_delete(self) -> None:
+        """Soft-delete this record's ledger transactions with it.
+
+        Transactions attach through a ``GenericForeignKey`` (content_type /
+        object_id), so they have no reverse FK for the delete guard to find and
+        would otherwise survive as live orphans still referencing the record's
+        entities. Reversal mirrors are soft-deleted first so an original is
+        never held back by its own still-live reversal.
+        """
+        txs = self.get_all_transactions()
+        ordered = list(txs.filter(reversal_of__isnull=False)) + list(
+            txs.filter(reversal_of__isnull=True)
+        )
+        for tx in ordered:
+            tx.delete()
+
 
 class AutoTransactionMixin(BaseModelMixin):
     """Shared ``save()`` plumbing for mixins that auto-create transactions.

@@ -6,11 +6,13 @@ veterinary records.
 
 from django.contrib import admin
 
+from apps.app_base.admin_guard import SoftDeleteAdminGuardMixin
+
 from .models import MedicalRecord
 
 
 @admin.register(MedicalRecord)
-class MedicalRecordAdmin(admin.ModelAdmin):
+class MedicalRecordAdmin(SoftDeleteAdminGuardMixin, admin.ModelAdmin):
     """Admin for :class:`MedicalRecord` with list/filter/search options."""
 
     list_display = (

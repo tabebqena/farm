@@ -7,6 +7,8 @@ Registers :class:`ProductTemplate`, :class:`Product` and
 
 from django.contrib import admin
 
+from apps.app_base.admin_guard import SoftDeleteAdminGuardMixin
+
 from .models import (
     InvoiceItem,
     Product,
@@ -24,7 +26,7 @@ class InvoiceItemInline(admin.TabularInline):
 
 
 @admin.register(ProductTemplate)
-class ProductTemplateAdmin(admin.ModelAdmin):
+class ProductTemplateAdmin(SoftDeleteAdminGuardMixin, admin.ModelAdmin):
     """Admin for :class:`ProductTemplate`."""
 
     list_display = (
@@ -76,7 +78,7 @@ class ProductTemplateAdmin(admin.ModelAdmin):
 
 
 @admin.register(Product)
-class ProductAdmin(admin.ModelAdmin):
+class ProductAdmin(SoftDeleteAdminGuardMixin, admin.ModelAdmin):
     """Admin for :class:`Product` (individual animals / commodities)."""
 
     list_display = (
@@ -95,7 +97,7 @@ class ProductAdmin(admin.ModelAdmin):
 
 
 @admin.register(ProductCapitalValuation)
-class ProductCapitalValuationAdmin(admin.ModelAdmin):
+class ProductCapitalValuationAdmin(SoftDeleteAdminGuardMixin, admin.ModelAdmin):
     """Admin for :class:`ProductCapitalValuation`."""
 
     list_display = ("product", "amount", "date", "operation", "officer")

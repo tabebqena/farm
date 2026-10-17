@@ -16,6 +16,51 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 ---
 
 
+## 2026-10-17 — Make soft deletes work from Django admin; operations own their transactions
+
+Two soft-delete defects made admin cleanup impossible. First, Django admin
+decided deletes with its raw `PROTECT` collector, which sees every row —
+soft-deleted tombstones included — so **no entity could be deleted from admin**
+at all (its auto-created `FinancialPeriod` blocked the confirmation page, and
+tombstoned operations / periods / stakeholders were listed as protected).
+Second, deleting an `Operation` left its ledger `Transaction`s live (they attach
+via a `GenericForeignKey`, invisible to the delete guard), so the transactions
+kept blocking the entity after the operation was gone.
+
+### Added
+- [`SoftDeleteAdminGuardMixin`](apps/app_base/admin_guard.py) — re-points the
+  admin delete decision at `BaseModel.get_delete_blockers()` instead of the DB
+  collector: tombstones and `_delete_auto_relations` rows stop blocking, live
+  financial dependents are still refused (with the guard's message), and a guard
+  `ValidationError` is shown as an admin error instead of a 500. Applied to the
+  `Entity`, `Stakeholder`, `Operation`, `FinancialPeriod`, `Transaction`,
+  `Adjustment`, `ProductTemplate`, `Product`, `ProductCapitalValuation` and
+  `MedicalRecord` admins.
+- [`BaseModel._before_soft_delete()`](apps/app_base/models.py) — a hook that
+  runs after the guard passes and after owned auto-relations are soft-deleted,
+  for children the reverse-relation scan cannot see.
+
+### Changed
+- [`HasRelatedTransactions._before_soft_delete()`](apps/app_base/mixins.py)
+  soft-deletes a record's ledger transactions with it (reversal mirrors first).
+  This covers `Operation` (and every proxy) and `Adjustment`: their transactions
+  no longer survive as live orphans blocking their entities, so leaf-up deletion
+  (delete operations/adjustments → delete entity) works.
+
+### Tests
+- Operation delete soft-deletes linked transactions, unblocks its entity, and
+  orders reversal mirrors first
+  (`app_operation.tests.test_operation_soft_delete`).
+- Adjustment delete soft-deletes its transaction
+  (`app_adjustment.tests.test_adjustment_adjustment_transaction`).
+- Admin deletes: bare entity deletable, tombstoned owned rows no longer block,
+  live operations still block, guard errors surfaced as messages, and entity
+  deletable after deleting the operation via admin
+  (`app_entity.tests.test_admin_delete`).
+
+---
+
+
 ## 2026-10-17 — Entity start date drives the first financial period
 
 Person and project creation now accept a **Start Date** (defaulting to today).

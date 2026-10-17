@@ -82,6 +82,7 @@
 | List view GET + list filters | `app_entity.tests.test_views_get_entity_list_view`, `test_entity_list_filters_*` (5 files) |
 | Detail view GET + financial summary context | `app_entity.tests.test_views_get_entity_detail_view` |
 | Soft-delete guard + auto-delete + circular links | `app_entity.tests.test_soft_delete_guard` |
+| Admin delete integration | `app_entity.tests.test_admin_delete` |
 | Live-only name reuse | `app_entity.tests.test_soft_delete_unique_reuse` |
 | Period auto-create / virtual exemption | `app_operation.tests.period.test_financial_period_entity_period_auto_create` (+ operation suites) |
 
@@ -94,7 +95,7 @@
 - **Unique live name.** DB constraint `unique_entity_name_live` scopes name uniqueness to rows with `deleted_at IS NULL`, so a soft-deleted entity's name can be reused (the old `unique=True` is gone). Person/Project forms mirror this with a friendlier live-only duplicate check (see Person/Project contracts).
 - **Virtual singleton clean rules.** On create, `SYSTEM` forces `is_internal=True`; `WORLD` forces `is_internal=False`; a virtual entity clears every role flag (`is_vendor`, `is_worker`, `is_client`, `is_shareholder`). Only one `SYSTEM` and one `WORLD` may ever exist.
 - **Role flags are optional identity, not type.** `is_vendor` / `is_client` / `is_worker` / `is_shareholder` on a person/project are the flat "capability" flags that stakeholder assignment (and operations like Purchase/Sale/Worker Advance) read; they never override `entity_type`.
-- **Soft-delete / PROTECT semantics.** `Entity.delete()` is a soft delete (stamps `deleted_at`). The `BaseModel` guard blocks deletion while **live financial-history dependents** exist (products, operations, transactions and other records whose FK is PROTECT/CASCADE and which are *not* auto-declared). The *owned light rows* — `contacts`, `stakeholders`, `memberships` (target side), `financial_categories_entities_relations`, `financial_periods` — are declared in `_delete_auto_relations` and are **auto soft-deleted** with the entity (which also breaks circular person↔project links). Deletion is an **admin-only** action; no project UI view/form/button calls `Entity.delete()`.
+- **Soft-delete / PROTECT semantics.** `Entity.delete()` is a soft delete (stamps `deleted_at`). The `BaseModel` guard blocks deletion while **live financial-history dependents** exist (products, operations, transactions and other records whose FK is PROTECT/CASCADE and which are *not* auto-declared). The *owned light rows* — `contacts`, `stakeholders`, `memberships` (target side), `financial_categories_entities_relations`, `financial_periods` — are declared in `_delete_auto_relations` and are **auto soft-deleted** with the entity (which also breaks circular person↔project links). Deleting an `Operation` also soft-deletes its ledger `Transaction`s (`HasRelatedTransactions._before_soft_delete`), so leaf-up cleanup works. Deletion is an **admin-only** action; no project UI view/form/button calls `Entity.delete()`. The admin delete page uses `SoftDeleteAdminGuardMixin` so tombstones and owned rows do not block (§5.7).
 - **`Entity.create()` factory is the sanctioned way to create entities** (used by every view, seeder and the wizard): it wraps creation in `transaction.atomic()`, applies canonical names for the singletons, saves once with `active=False`, then re-saves with the requested `active` value, so the open-period logic in `Entity.save()` runs with the final state.
 - **Open period sync lives in `Entity.save()`.** A real (non-virtual) entity gets an open `FinancialPeriod` on creation/activation when none exists; deactivating a real entity closes its open period (end today, min start+1 day).
 
@@ -194,7 +195,7 @@ Validation/scoping branches:
 
 ### 5.5 `delete` (admin-only, soft)
 
-`Entity.delete()` is reachable only through Django admin (staff superuser). The project UI must never expose it.
+`Entity.delete()` is reachable only through Django admin (staff superuser). The project UI must never expose it. The admin delete decision is governed by `SoftDeleteAdminGuardMixin` (see §5.7), so tombstones and owned auto-relation rows do not block.
 
 | # | Branch | Behavior | Enforced by | Pinned by test |
 |---|--------|----------|-------------|----------------|
@@ -204,6 +205,15 @@ Validation/scoping branches:
 | DL4 | Owned light rows auto-deleted | contacts / periods (and stakeholders etc.) soft-deleted with the entity | `_delete_auto_relations` | `EntityAutoDeleteTests.test_auto_created_period_is_soft_deleted_with_entity` · `test_owned_contact_soft_deleted_with_entity` |
 | DL5 | Circular links deletable | mutually-linked person↔project entities both delete (auto relations break the cycle) | `_delete_auto_relations` | `CircularStakeholderTests.test_mutually_linked_entities_are_deletable` |
 | DL6 | Name reusable after delete | soft-deleted name frees the live-only constraint | `unique_entity_name_live` | `EntityNameReuseAfterSoftDeleteTests.test_soft_deleted_name_can_be_reused` |
+
+### 5.7 Django-admin delete integration
+
+| # | Branch | Behavior | Enforced by | Pinned by test |
+|---|--------|----------|-------------|----------------|
+| AD1 | Bare entity deletable from admin | auto-created live `FinancialPeriod` does not block | `SoftDeleteAdminGuardMixin.get_deleted_objects` | `AdminDeleteGuardTests.test_bare_entity_is_deletable_from_admin` |
+| AD2 | Tombstoned owned rows do not block | soft-deleted period tombstone ignored | `BaseModel.get_delete_blockers` (via mixin) | `AdminDeleteGuardTests.test_tombstoned_owned_row_does_not_block_admin_delete` |
+| AD3 | Live operation still blocks | `Cannot delete` page shown, row stays live | `get_delete_blockers` (via mixin) | `AdminDeleteGuardTests.test_live_operation_still_blocks_admin_delete` |
+| AD4 | Entity deletable after operation deleted via admin | operation delete soft-deletes its transactions, clearing the blocker | `HasRelatedTransactions._before_soft_delete` | `AdminDeleteGuardTests.test_entity_deletable_after_operation_deleted_via_admin` |
 
 ### 5.6 Immutability
 
@@ -263,6 +273,7 @@ Validation/scoping branches:
 | Soft-delete guard | `EntityGuardTests.test_delete_blocked_while_live_child_exists` · `test_auto_children_untouched_when_guard_blocks` · `test_leaf_up_delete_succeeds` · `test_get_delete_blockers_lists_dependents` | DL1–DL3 |
 | Auto-delete | `EntityAutoDeleteTests.test_auto_created_period_is_soft_deleted_with_entity` · `test_owned_contact_soft_deleted_with_entity` | DL4 |
 | Circular links | `CircularStakeholderTests.test_mutually_linked_entities_are_deletable` | DL5 |
+| Admin delete | `AdminDeleteGuardTests.test_bare_entity_is_deletable_from_admin` · `…_tombstoned_owned_row_does_not_block_admin_delete` · `…_live_operation_still_blocks_admin_delete` · `…_entity_deletable_after_operation_deleted_via_admin` (`test_admin_delete.py`) | AD1–AD4 |
 | Name reuse | `EntityNameReuseAfterSoftDeleteTests.test_soft_deleted_name_can_be_reused` · `test_live_duplicate_name_still_rejected` | DL6 / VC5 |
 | Name uniqueness (form) | `PersonCreateViewTest.test_person_create_invalid_duplicate_name` · `PersonEditViewTest.test_invalid_form_duplicate_name` · `ProjectEditViewTest.test_invalid_form_duplicate_name` | VC5 / EU3 |
 | Derived financials (deep) | pinned across operation spec suites (`docs/operations`) and the entity-detail context tests above | §4 |

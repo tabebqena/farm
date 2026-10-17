@@ -266,6 +266,16 @@ class BaseModel(models.Model):
             for obj in list(self._live_dependents_qs(field)):
                 obj.delete()
 
+    def _before_soft_delete(self) -> None:
+        """Hook for owned dependents the guard/reverse-relation scan cannot see.
+
+        Runs after the guard has passed and after ``_auto_soft_delete_dependents``,
+        immediately before the soft delete. The default is a no-op; concrete
+        models override it for children linked through a generic relation (e.g.
+        an :class:`~apps.app_operation.models.operation.Operation`'s ledger
+        transactions), which have no reverse FK for the guard to discover.
+        """
+
     def delete(self, *args, **kwargs):
         """Soft-delete this record by stamping ``deleted_at`` and re-saving.
 
@@ -279,7 +289,9 @@ class BaseModel(models.Model):
         ``ValidationError`` that names what to delete (or reverse) first.
         Dependents listed in ``_delete_auto_relations`` are soft-deleted
         automatically instead of blocking, so a model can declare which side of
-        a circular reference may cascade. Deletion is logged centrally here on
+        a circular reference may cascade. ``_before_soft_delete()`` then runs as
+        a final hook for owned children linked without a reverse FK (e.g. an
+        operation's generic transactions). Deletion is logged centrally here on
         both channels: a warning on the project logger and a flat, greppable
         line on the audit channel.
         """
@@ -312,6 +324,7 @@ class BaseModel(models.Model):
                         code="delete_blocked",
                     )
                 self._auto_soft_delete_dependents()
+                self._before_soft_delete()
                 return self._perform_soft_delete(*args, **kwargs)
             finally:
                 _DELETE_IN_PROGRESS.discard(key)

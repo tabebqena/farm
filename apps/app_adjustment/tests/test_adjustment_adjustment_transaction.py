@@ -230,6 +230,18 @@ class AdjustmentTransactionTest(TestCase):
         tx = adj.get_all_transactions().get()
         self.assertEqual(tx.amount, Decimal("250.00"))
 
+    def test_deleting_adjustment_soft_deletes_its_transaction(self):
+        """The adjustment's generic transaction must not survive as an orphan."""
+        op = _make_purchase_op(self.project_entity, self.vendor_entity, self.officer)
+        adj = _make_adjustment(op, AdjustmentType.PURCHASE_RETURN, self.officer)
+        self.assertEqual(adj.get_all_transactions().count(), 1)
+
+        adj.delete()
+
+        adj.refresh_from_db()
+        self.assertIsNotNone(adj.deleted_at)
+        self.assertEqual(adj.get_all_transactions().count(), 0)
+
 
 # ---------------------------------------------------------------------------
 # AdjustmentDirectionTest
