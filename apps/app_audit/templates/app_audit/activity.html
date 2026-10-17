@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% block title %}{% trans 'Activity' %}{% endblock %}
+{% block content %}
+<div class="container mt-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3 pb-3 border-bottom">
+    <div>
+      <h2 class="fw-bold mb-0">{% trans 'Activity' %}</h2>
+      <p class="text-muted mb-0">{% trans 'What happened, why, and what the app created under the hood.' %}</p>
+    </div>
+  </div>
+
+  <form method="get" class="row g-2 align-items-end mb-4">
+    <div class="col-6 col-md-2">
+      <label class="form-label small fw-bold mb-0">{% trans 'User' %}</label>
+      <input type="text" name="actor" value="{{ filters.actor|default:'' }}" class="form-control form-control-sm">
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small fw-bold mb-0">{% trans 'Status' %}</label>
+      <select name="status" class="form-select form-select-sm">
+        <option value="">{% trans 'All' %}</option>
+        <option value="success" {% if filters.status == 'success' %}selected{% endif %}>{% trans 'Success' %}</option>
+        <option value="failed" {% if filters.status == 'failed' %}selected{% endif %}>{% trans 'Failed' %}</option>
+        <option value="in_progress" {% if filters.status == 'in_progress' %}selected{% endif %}>{% trans 'In progress' %}</option>
+      </select>
+    </div>
+    <div class="col-6 col-md-3">
+      <label class="form-label small fw-bold mb-0">{% trans 'Action / path' %}</label>
+      <input type="text" name="q" value="{{ filters.q|default:'' }}" class="form-control form-control-sm">
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small fw-bold mb-0">{% trans 'From' %}</label>
+      <input type="date" name="date_from" value="{{ filters.date_from|default:'' }}" class="form-control form-control-sm">
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small fw-bold mb-0">{% trans 'To' %}</label>
+      <input type="date" name="date_to" value="{{ filters.date_to|default:'' }}" class="form-control form-control-sm">
+    </div>
+    <div class="col-12 col-md-1">
+      <button type="submit" class="btn btn-primary btn-sm w-100">{% trans 'Filter' %}</button>
+    </div>
+  </form>
+
+  {% if traces %}
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>{% trans 'When' %}</th>
+            <th>{% trans 'User' %}</th>
+            <th>{% trans 'Method' %}</th>
+            <th>{% trans 'Action' %}</th>
+            <th>{% trans 'Status' %}</th>
+            <th class="text-end">{% trans 'Details' %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for trace in traces %}
+            <tr>
+              <td class="text-nowrap">{{ trace.created_at|date:"Y-m-d H:i:s" }}</td>
+              <td>{{ trace.actor.username|default:"—" }}</td>
+              <td><span class="badge text-bg-secondary">{{ trace.method }}</span></td>
+              <td>
+                <div class="fw-semibold">{{ trace.action|default:trace.path }}</div>
+                <div class="small text-muted text-truncate" style="max-width: 32rem;">{{ trace.path }}</div>
+              </td>
+              <td>
+                {% if trace.status == 'failed' %}
+                  <span class="badge text-bg-danger">{% trans 'Failed' %}</span>
+                {% elif trace.status == 'success' %}
+                  <span class="badge text-bg-success">{% trans 'Success' %}</span>
+                {% else %}
+                  <span class="badge text-bg-warning">{% trans 'In progress' %}</span>
+                {% endif %}
+              </td>
+              <td class="text-end">
+                <a class="btn btn-sm btn-outline-primary" href="{% url 'audit_trace_detail' trace.pk %}">
+                  {% trans 'View' %}
+                </a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if is_paginated %}
+      <nav>
+        <ul class="pagination pagination-sm">
+          {% if page_obj.has_previous %}
+            <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">&laquo;</a></li>
+          {% endif %}
+          <li class="page-item disabled"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+          {% if page_obj.has_next %}
+            <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">&raquo;</a></li>
+          {% endif %}
+        </ul>
+      </nav>
+    {% endif %}
+  {% else %}
+    <div class="alert alert-info">{% trans 'No actions recorded yet.' %}</div>
+  {% endif %}
+</div>
+{% endblock %}

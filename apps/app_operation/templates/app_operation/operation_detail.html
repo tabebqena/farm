@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load i18n %}
+{% load i18n audit_tags %}
 
 {% block content %}
   <div class="container-fluid px-2 px-sm-4 mt-4">
@@ -7,6 +7,15 @@
       {% include 'app_operation/snippets/address_bar.html' %}
     </div>
     {% include 'app_operation/snippets/reversal_alert.html' %}
+
+    {% record_history_url operation as history_url %}
+    {% if history_url %}
+      <div class="mb-3 text-end">
+        <a href="{{ history_url }}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-clock-history me-1"></i>{% trans 'History / Why?' %}
+        </a>
+      </div>
+    {% endif %}
 
     {% include 'app_operation/snippets/detail/financial_summary.html' %}
 

@@ -215,6 +215,29 @@ NAVIGATION_MAP = {
         "parent": ("Operations", "operation_list_view", {"person_pk": "pk"}),
         "related": [],
     },
+    # Audit / provenance views
+    "audit_activity": {
+        "title": "Activity",
+        "icon": "bi-clock-history",
+        "parent": ("Entities", "entity_list"),
+        "related": [],
+    },
+    "audit_trace_detail": {
+        "title": "Action Trace",
+        "icon": "bi-diagram-3",
+        "parent": ("Activity", "audit_activity"),
+        "related": [
+            ("Activity", "audit_activity", {}),
+        ],
+    },
+    "audit_record_history": {
+        "title": "Record History",
+        "icon": "bi-search",
+        "parent": ("Activity", "audit_activity"),
+        "related": [
+            ("Activity", "audit_activity", {}),
+        ],
+    },
 }
 
 

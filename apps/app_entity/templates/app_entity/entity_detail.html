@@ -1,11 +1,19 @@
 {% extends 'base.html' %}
-{% load i18n %}
+{% load i18n audit_tags %}
 
 {% block title %}
   {% trans 'Entity:' %} {{ entity.name }}
 {% endblock %}
 
 {% block content %}
+  {% record_history_url entity as history_url %}
+  {% if history_url %}
+    <div class="mb-3 text-end">
+      <a href="{{ history_url }}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-clock-history me-1"></i>{% trans 'History / Why?' %}
+      </a>
+    </div>
+  {% endif %}
   {% if entity.is_project %}
     {% if not entity.product_templates.exists or not entity.categories.exists %}
       <div class="mb-3">

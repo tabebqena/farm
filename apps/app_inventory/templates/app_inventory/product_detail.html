@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load i18n %}
+{% load i18n audit_tags %}
 
 {% block title %}
   {% trans 'Product' %}#{{ product.pk }}
@@ -9,7 +9,15 @@
   <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
       <h4 class="mb-0">{% trans 'Product' %}#{{ product.pk }}</h4>
-      <a href="{% url 'stock_detail' product.entity.pk %}" class="btn btn-sm btn-outline-secondary">&larr;{% trans 'Back to Stock' %}</a>
+      {% record_history_url product as history_url %}
+      <div class="d-flex gap-2">
+        {% if history_url %}
+          <a href="{{ history_url }}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-clock-history me-1"></i>{% trans 'History / Why?' %}
+          </a>
+        {% endif %}
+        <a href="{% url 'stock_detail' product.entity.pk %}" class="btn btn-sm btn-outline-secondary">&larr;{% trans 'Back to Stock' %}</a>
+      </div>
     </div>
 
     {# ------------------------------------------------------------------ #}
