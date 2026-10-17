@@ -13,8 +13,72 @@ Dates follow the commit history (`git log`). The format is loosely based on
 is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 
 
-
 ---
+
+
+## 2026-10-17 — Action provenance: "What happened & why" tracing
+
+A new `app_audit` app records, for every mutating request, the user's submitted
+input and every model save it caused — including the full *new shape* of each
+row — and tags the rows the app creates automatically with the rule that
+explains *why*. This lets an officer see what the app did under the hood
+(transactions, movements, periods, valuations, reversals, lazy products) and
+decide whether an unexpected entry came from their input or from the app,
+instead of blindly soft-deleting and re-entering.
+
+### Added
+- New app [`apps/app_audit`](apps/app_audit) with two append-only models:
+  [`ActionTrace`](apps/app_audit/models.py) (one per mutating request: actor,
+  method/path, sanitized `payload`, status, error, root record, duration) and
+  [`SaveLog`](apps/app_audit/models.py) (one per `BaseModel.save()`: record ref,
+  kind, `new_shape`, and — for auto-created rows — `is_derived`, `role`,
+  `reason_code`, `reason_text`). Both subclass plain `models.Model` on purpose
+  (infrastructure rows: never soft-deleted, never tracked by themselves).
+- [`apps/app_audit/context.py`](apps/app_audit/context.py) — request-scoped
+  provenance runtime (contextvars): `start_trace` / `finish_trace`,
+  `record_save`, `derived(role, reason)` and `record_validation_error`.
+  No-op when `FARM_TRACKING_ENABLED` is off or when no trace is active.
+- [`apps/app_audit/serialization.py`](apps/app_audit/serialization.py) —
+  `serialize_instance()` builds the JSON-safe *new shape* of a row (FKs as
+  `{model, pk}`, datetimes ISO, decimals/UUIDs as strings; never raises).
+- [`apps/app_audit/reasons.py`](apps/app_audit/reasons.py) — the role/reason
+  catalog mapping each auto-creation rule to a plain-language explanation,
+  cross-referenced by the operation specs under `docs/`.
+- [`apps/app_audit/middleware.py`](apps/app_audit/middleware.py) —
+  `ActionTraceMiddleware` opens one trace per mutating request (committed
+  independently so failures are still recorded) and closes it with the outcome.
+- [`apps/app_audit/views.py`](apps/app_audit/views.py) + templates —
+  `/audit/` Activity list (filter by user/status/action/date), the
+  `/audit/trace/<id>/` detail page (level 1 *your input*, level 2 *auto-created
+  rows + why*, level 3 *every save* with its new shape), and
+  `/audit/record/<app>/<model>/<id>/` ("why does this row exist?").
+- `manage.py purge_savelogs` — physically trims the append-only trail
+  (`--older-than`, `--before`, `--trace`, `--level {all,derived-only}`,
+  `--model`, `--keep-traces`, `--batch-size`, `--dry-run`); by default also
+  removes traces left with no saves.
+- [`audit_tags.py`](apps/app_audit/templatetags/audit_tags.py) —
+  `{% record_history_url obj %}`; the "History / Why?" link is added to the
+  operation, entity and product detail pages.
+- `FARM_TRACKING_ENABLED` setting (default `True`; forced off under
+  `manage.py test`, overridable per test).
+
+### Changed
+- [`apps/app_base/models.py`](apps/app_base/models.py) — `BaseModel.save()` now
+  records each write through `_record_provenance()`; `_perform_soft_delete()`
+  passes `provenance_kind="soft_delete"` so the tombstone is logged as such.
+- Auto-creation paths now tag their rows via `provenance.derived(...)`:
+  `create_issuance_transaction` / `create_payment_transaction` /
+  `create_repayment_transaction` ([`mixins.py`](apps/app_base/mixins.py)),
+  birth/death/consumption inventory movements
+  ([`operation.py`](apps/app_operation/models/operation.py)) and lazy products
+  ([`app_inventory/models.py`](apps/app_inventory/models.py)), entity period
+  create/close ([`app_entity/models/__init__.py`](apps/app_entity/models/__init__.py)),
+  capital valuations ([`op_capital_valuation.py`](apps/app_operation/models/proxies/op_capital_valuation.py))
+  and reversals ([`app_base/models.py`](apps/app_base/models.py),
+  [`app_transaction/models.py`](apps/app_transaction/models.py)).
+- [`navigation.py`](apps/app_base/navigation.py) — Activity / Action Trace /
+  Record History entries; [`farm/urls.py`](farm/urls.py) mounts `/audit/`.
+
 
 ## 2026-09-04 — Category filtering is expense-only; drop `category_required` and `category_type`
 
