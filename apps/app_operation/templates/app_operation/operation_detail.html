@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load i18n audit_tags %}
+{% load money %}
 
 {% block content %}
   <div class="container-fluid px-2 px-sm-4 mt-4">
@@ -64,9 +65,9 @@
 
                     {% endif %}">
                     {% if adj.is_reduction %}
-                      -{{ currency }}{{ adj.amount }}
+                      -{{ adj.amount|money }}
                     {% else %}
-                      +{{ currency }}{{ adj.amount }}
+                      +{{ adj.amount|money }}
                     {% endif %}
                   </span>
                   <small class="text-muted d-block">{{ adj.date }}</small>

@@ -1,4 +1,5 @@
 {% load i18n %}
+{% load money %}
 
 {# ── Section 2: Payment Transactions ── #}
 <div class="border-bottom">
@@ -33,7 +34,7 @@
           {% for tx in payment_transactions %}
             <tr class="{% if tx.is_reversed %}table-danger{% endif %}">
               <td class="py-2 ps-3 text-nowrap">{{ tx.date|date:'Y-m-d' }}</td>
-              <td class="py-2 text-end text-nowrap fw-semibold">{{ currency }}{{ tx.amount }}</td>
+              <td class="py-2 text-end text-nowrap fw-semibold">{{ tx.amount|money }}</td>
               <td class="py-2">
                 {% if tx.description|length > 50 %}
                   <span class="tx-description-short">{{ tx.description|truncatechars:50 }}</span>

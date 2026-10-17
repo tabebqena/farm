@@ -201,6 +201,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "apps.app_base.context_processors.navigation",
+                "apps.app_base.context_processors.currency",
             ],
         },
     },

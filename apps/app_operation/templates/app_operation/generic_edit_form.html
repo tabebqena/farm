@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load i18n %}
+{% load money %}
 
 {% block content %}
   <div class="row justify-content-center">
@@ -10,7 +11,7 @@
     <div class="row g-3 mb-4 p-3 bg-light rounded border">
       <div class="col-md-4">
         <label class="small text-muted d-block">{% trans "Amount" %}</label>
-        <span class="h5 mb-0">${{ operation.amount }}</span>
+        <span class="h5 mb-0">{{ operation.amount|money }}</span>
         {% if is_update %}
           <small class="d-block text-warning"><i class="bi bi-lock-fill"></i> {% trans "Immutable" %}</small>
         {% endif %}

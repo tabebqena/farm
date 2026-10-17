@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load i18n %}
+{% load money %}
 {% load l10n %}
 {% block content %}
   <div class="row justify-content-center">
@@ -19,16 +20,16 @@
             <div class="card-body py-3">
               {% comment %} <div class="d-flex justify-content-between align-items-center mb-1">
                 <span class="text-muted small">{% trans 'Original Amount' %}</span>
-                <span class="fw-bold font-monospace fs-5" id="originalAmount">${{ operation.amount|floatformat:2|localize }}</span>
+                <span class="fw-bold font-monospace fs-5" id="originalAmount">{{ operation.amount|money }}</span>
               </div> {% endcomment %}
               <div class="d-flex justify-content-between align-items-center mb-1">
                 <span class="text-muted small">{% trans 'Effective Amount (incl. prior adjustments)' %}</span>
-                <span class="fw-bold font-monospace fs-5" id="effectiveAmount">${{ operation.effective_amount|floatformat:2|localize }}</span>
+                <span class="fw-bold font-monospace fs-5" id="effectiveAmount">{{ operation.effective_amount|money }}</span>
               </div>
               {% comment %} {% if operation.effective_amount != operation.amount %}
                 <div class="d-flex justify-content-between align-items-center pt-1 border-top border-light">
                   <span class="text-muted small">{% trans 'Prior Adjustments Net' %}</span>
-                  <span class="font-monospace text-muted" id="priorAdjustments">${{ prior_adjustments_net|floatformat:2|localize }}</span>
+                  <span class="font-monospace text-muted" id="priorAdjustments">{{ prior_adjustments_net|money }}</span>
                 </div>
               {% endif %} {% endcomment %}
             </div>
@@ -89,7 +90,7 @@
                 <span class="text-danger">*</span>
               </label>
               <div class="input-group amount-input-group">
-                <span class="input-group-text">$</span>
+                <span class="input-group-text">{{ currency }}</span>
                 {{ form.amount }}
               </div>
               {% if form.amount.errors %}
@@ -127,16 +128,16 @@
                 <h6 class="card-title mb-3 text-muted small text-uppercase">{% trans 'Adjustment Summary' %}</h6>
                 <div class="d-flex justify-content-between align-items-center mb-2">
                   <span>{% trans 'Current Effective' %}</span>
-                  <span class="font-monospace" id="sumEffective">$0.00</span>
+                  <span class="font-monospace" id="sumEffective">{{ currency }}0.00</span>
                 </div>
                 <div class="d-flex justify-content-between align-items-center mb-2">
                   <span>{% trans 'This Adjustment' %}</span>
-                  <span class="font-monospace fw-bold" id="sumAdjustment">$0.00</span>
+                  <span class="font-monospace fw-bold" id="sumAdjustment">{{ currency }}0.00</span>
                 </div>
                 <hr class="my-2" />
                 <div class="d-flex justify-content-between align-items-center fw-bold fs-6">
                   <span>{% trans 'New Total After Submit' %}</span>
-                  <span class="font-monospace fs-5" id="sumTotal">$0.00</span>
+                  <span class="font-monospace fs-5" id="sumTotal">{{ currency }}0.00</span>
                 </div>
               </div>
             </div>
@@ -177,7 +178,7 @@
     
       // ── Helpers ────────────────────────────────────────────────────────
       function fmt$(val) {
-        return '$' + Number(val).toFixed(2)
+        return window.FarmMoney.format(val)
       }
     
       function getEffectiveAmount() {
@@ -192,7 +193,7 @@
     
       function formatDirection(val, isReduction) {
         var absVal = Math.abs(val)
-        return (isReduction ? '−$' : '+$') + absVal.toFixed(2)
+        return (isReduction ? '−' : '+') + window.FarmMoney.format(absVal)
       }
     
       // ── Update type info panel ─────────────────────────────────────────

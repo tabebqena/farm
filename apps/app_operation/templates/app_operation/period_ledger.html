@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load i18n %}
+{% load money %}
 
 {% block content %}
 <div class="container mt-4">
@@ -34,7 +35,7 @@
       <div class="card text-center">
         <div class="card-body py-2">
           <small class="text-muted d-block">{% trans 'Opening Balance' %}</small>
-          <span class="fw-bold fs-5">{{ opening_balance|floatformat:2 }}</span>
+          <span class="fw-bold fs-5">{{ opening_balance|money }}</span>
         </div>
       </div>
     </div>
@@ -51,7 +52,7 @@
         <div class="card-body py-2">
           <small class="text-muted d-block">{% trans 'Closing Balance' %}</small>
           <span class="fw-bold fs-5{% if closing_balance >= 0 %} text-success{% else %} text-danger{% endif %}">
-            {{ closing_balance|floatformat:2 }}
+            {{ closing_balance|money }}
           </span>
         </div>
       </div>
@@ -83,7 +84,7 @@
             </td>
             <td></td>
             <td></td>
-            <td class="text-end">{{ opening_balance|floatformat:2 }}</td>
+            <td class="text-end">{{ opening_balance|money }}</td>
           </tr>
 
           {% for row in ledger_rows %}
@@ -116,20 +117,20 @@
               </td>
               <td class="text-end">
                 {% if row.direction == 'debit' %}
-                  <span class="text-danger fw-semibold">{{ row.delta|floatformat:2 }}</span>
+                  <span class="text-danger fw-semibold">{{ row.delta|money }}</span>
                 {% else %}
                   <span class="text-muted">—</span>
                 {% endif %}
               </td>
               <td class="text-end">
                 {% if row.direction == 'credit' %}
-                  <span class="text-success fw-semibold">{{ row.delta|floatformat:2 }}</span>
+                  <span class="text-success fw-semibold">{{ row.delta|money }}</span>
                 {% else %}
                   <span class="text-muted">—</span>
                 {% endif %}
               </td>
               <td class="text-end fw-bold{% if row.balance >= 0 %} text-dark{% else %} text-danger{% endif %}">
-                {{ row.balance|floatformat:2 }}
+                {{ row.balance|money }}
               </td>
             </tr>
           {% empty %}
@@ -150,7 +151,7 @@
               <td></td>
               <td></td>
               <td class="text-end{% if closing_balance >= 0 %} text-success{% else %} text-danger{% endif %}">
-                {{ closing_balance|floatformat:2 }}
+                {{ closing_balance|money }}
               </td>
             </tr>
           {% endif %}
@@ -167,7 +168,7 @@
     <div class="card mb-2 bg-light">
       <div class="card-body py-2 d-flex justify-content-between">
         <span class="text-muted fst-italic">{% trans 'Opening Balance' %}</span>
-        <span class="fw-bold">{{ opening_balance|floatformat:2 }}</span>
+        <span class="fw-bold">{{ opening_balance|money }}</span>
       </div>
     </div>
 
@@ -205,12 +206,12 @@
             </small>
             <div class="text-end">
               {% if row.direction == 'debit' %}
-                <span class="text-danger fw-semibold">−{{ row.delta|floatformat:2 }}</span>
+                <span class="text-danger fw-semibold">−{{ row.delta|money }}</span>
               {% else %}
-                <span class="text-success fw-semibold">+{{ row.delta|floatformat:2 }}</span>
+                <span class="text-success fw-semibold">+{{ row.delta|money }}</span>
               {% endif %}
               <small class="d-block text-muted">
-                {% trans 'Bal:' %} {{ row.balance|floatformat:2 }}
+                {% trans 'Bal:' %} {{ row.balance|money }}
               </small>
             </div>
           </div>
@@ -233,7 +234,7 @@
         <div class="card-body py-2 d-flex justify-content-between">
           <span class="text-muted fst-italic">{% trans 'Closing Balance' %}</span>
           <span class="fw-bold{% if closing_balance >= 0 %} text-success{% else %} text-danger{% endif %}">
-            {{ closing_balance|floatformat:2 }}
+            {{ closing_balance|money }}
           </span>
         </div>
       </div>

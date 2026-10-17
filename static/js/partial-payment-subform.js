@@ -17,13 +17,13 @@
          */
         function syncPayment() {
             if (!totalInput) return;
-            const total = parseFloat(totalInput.value) || 0;
+            const total = window.AmountInput.getNumber(totalInput);
             const isPartialChecked = partialToggle?.checked;
 
             // 1. If operation cannot have payments (e.g. just an invoice issuance)
             if (!cfg.canPay) {
                 if (paidInput) {
-                    paidInput.value = 0;
+                    window.AmountInput.setValue(paidInput, 0);
                     paidInput.readOnly = true;
                 }
                 return;
@@ -31,11 +31,11 @@
 
             // 2. Logic for partial vs full payment
             if (cfg.isPartiallyPayable && isPartialChecked) {
-                const paid = parseFloat(paidInput.value) || 0;
+                const paid = window.AmountInput.getNumber(paidInput);
                 const balance = total - paid;
 
                 if (remainingText) {
-                    remainingText.textContent = `$ ${balance.toFixed(2)}`;
+                    remainingText.textContent = window.FarmMoney.format(balance);
                 }
                 paidInput.readOnly = false;
             } else {
@@ -54,13 +54,13 @@
          */
         function validateAmount() {
             if (!totalInput) return;
-            const total = parseFloat(totalInput.value) || 0;
-            const paid = parseFloat(paidInput.value) || 0;
+            const total = window.AmountInput.getNumber(totalInput);
+            const paid = window.AmountInput.getNumber(paidInput);
 
             if (paid > total) {
                 paymentErrorEle?.classList.remove("d-none");
                 if (paymentErrorTextEle) {
-                    paymentErrorTextEle.innerText = `You can't pay more than ${total.toFixed(2)}`;
+                    paymentErrorTextEle.innerText = `You can't pay more than ${window.FarmMoney.format(total)}`;
                 }
             } else {
                 paymentErrorEle?.classList.add("d-none");
@@ -78,7 +78,7 @@
 
                 } else {
                     // 
-                    paidInput.value = 0;//totalInput.value;
+                    window.AmountInput.setValue(paidInput, 0);//totalInput.value;
                     partialPaymentContainer.style.opacity = "0.3"
                     partialPaymentInputContainer.classList.add("d-none")
 

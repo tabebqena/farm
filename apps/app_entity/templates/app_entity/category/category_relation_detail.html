@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load i18n %}
+{% load money %}
 
 {% block content %}
   <div class="container py-4">
@@ -57,13 +58,13 @@
               <div class="col-6">
                 <div class="p-3 bg-light rounded text-center border-start border-primary border-3">
                   <small class="text-muted d-block mb-1">{% trans 'Spent' %}</small>
-                  <span class="h5 fw-bold text-primary d-block">${{ total_spent }}</span>
+                  <span class="h5 fw-bold text-primary d-block">{{ total_spent|money }}</span>
                 </div>
               </div>
               <div class="col-6">
                 <div class="p-3 bg-light rounded text-center border-start border-secondary border-3">
                   <small class="text-muted d-block mb-1">{% trans 'Limit' %}</small>
-                  <span class="h5 fw-bold text-secondary d-block">${{ relation.max_limit }}</span>
+                  <span class="h5 fw-bold text-secondary d-block">{{ relation.max_limit|money }}</span>
                 </div>
               </div>
             </div>

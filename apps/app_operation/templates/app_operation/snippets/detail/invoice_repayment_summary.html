@@ -1,4 +1,5 @@
 {% load i18n %}
+{% load money %}
 
 {# ── Section: Repayment Transactions ── #}
 <div class="border-bottom bg-warning-subtle bg-opacity-10">
@@ -39,7 +40,7 @@
           {% for tx in repayment_transactions %}
             <tr class="{% if tx.is_reversed %}table-danger{% endif %}">
               <td class="py-2 ps-3 text-nowrap">{{ tx.date|date:'Y-m-d' }}</td>
-              <td class="py-2 text-end text-nowrap fw-semibold">{{ currency }}{{ tx.amount }}</td>
+              <td class="py-2 text-end text-nowrap fw-semibold">{{ tx.amount|money }}</td>
               <td class="py-2">
                 {% if tx.description|length > 50 %}
                   <span class="tx-description-short">{{ tx.description|truncatechars:50 }}</span>
@@ -93,14 +94,14 @@
           <td class="ps-3 py-3 text-muted small fw-semibold" style="width: 40%;">
             {% trans 'Total Repaid' %}
           </td>
-          <td class="py-3 text-end fw-bold fs-5 pe-3">{{ currency }}{{ operation.amount_repayed }}</td>
+          <td class="py-3 text-end fw-bold fs-5 pe-3">{{ operation.amount_repayed|money }}</td>
         </tr>
         {% if operation.is_overpaid_repayed %}
           <tr>
             <td class="ps-3 py-2 text-muted small fw-semibold">
               <i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>{% trans 'Over-repayment' %}
             </td>
-            <td class="py-2 text-end fw-semibold text-warning pe-3">+{{ currency }}{{ over_repayment_amount }}</td>
+            <td class="py-2 text-end fw-semibold text-warning pe-3">+{{ over_repayment_amount|money }}</td>
           </tr>
         {% endif %}
         <tr class="{% if operation.is_fully_repayed %}border-top border-2{% endif %}">
@@ -147,9 +148,9 @@
 
             {% endif %}">
             {% if operation.is_fully_repayed %}
-              <span class="badge bg-success fs-6 px-3 py-2">{{ currency }}0.00</span>
+              <span class="badge bg-success fs-6 px-3 py-2">{{ 0|money }}</span>
             {% else %}
-              {{ currency }}{{ operation.amount_remaining_to_repay }}
+              {{ operation.amount_remaining_to_repay|money }}
             {% endif %}
           </td>
         </tr>

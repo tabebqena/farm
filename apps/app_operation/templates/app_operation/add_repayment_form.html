@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load i18n %}
+{% load money %}
 
 {% block content %}
   <div class="row justify-content-center">
@@ -17,7 +18,7 @@
         <span class="fw-bold d-block mb-3">{{ operation.source.name }}</span>
 
         <label class="text-muted small d-block">{% trans "Remaining Balance" %}</label>
-        <span class="amount-total font-monospace">${{ remaining_balance }}</span>
+        <span class="amount-total font-monospace">{{ remaining_balance|money }}</span>
       </div>
 
       {% if form.non_field_errors %}
@@ -45,7 +46,7 @@
             <span class="text-danger">*</span>
           </label>
           <div class="input-group amount-input-group">
-            <span class="input-group-text">$</span>
+            <span class="input-group-text">{{ currency }}</span>
             {{ form.amount }}
           </div>
           {% if form.amount.errors %}

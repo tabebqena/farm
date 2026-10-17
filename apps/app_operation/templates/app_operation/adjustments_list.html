@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load i18n %}
+{% load money %}
 
 {% block title %}
   {% trans 'Adjustments' %}— {{ operation.get_operation_type_display }} #{{ operation.pk }}
@@ -78,9 +79,9 @@
                       text-success
                     {% endif %}">
                     {% if adj.is_reduction %}
-                      -{{ currency }}{{ adj.amount }}
+                      -{{ adj.amount|money }}
                     {% else %}
-                      +{{ currency }}{{ adj.amount }}
+                      +{{ adj.amount|money }}
                     {% endif %}
                   </span>
                 </div>
@@ -189,7 +190,7 @@
                                     text-danger
 
                                   {% endif %}">
-                                  {% if line.value_delta > 0 %}+{% endif %}{{ currency }}{{ line.value_delta }}
+                                  {% if line.value_delta > 0 %}+{% endif %}{{ line.value_delta|money }}
                                 </span>
                               {% else %}
                                 <span class="text-muted">&mdash;</span>

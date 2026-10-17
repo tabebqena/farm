@@ -23,7 +23,7 @@
             {{ form.total_amount.label }} <span class="text-danger">*</span>
         </label>
         <div class="input-group amount-input-group">
-            <span class="input-group-text">$</span>
+            <span class="input-group-text">{{ currency }}</span>
             {{ form.total_amount }}
         </div>
         {% if form.total_amount.errors %}

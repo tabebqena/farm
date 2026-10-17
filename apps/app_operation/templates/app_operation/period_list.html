@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load i18n %}
+{% load money %}
 
 {% block content %}
   {% if messages %}
@@ -49,30 +50,30 @@
             </div>
             <div class="col-6 col-md-1 text-center">
               <small class="text-muted d-md-none">{% trans 'Balance' %}</small>
-              <div>{{ period.balance|floatformat:2 }}</div>
+              <div>{{ period.balance|money }}</div>
             </div>
             <div class="col-6 col-md-2 text-center">
               <small class="text-muted d-md-none">{% trans 'Receivables' %}</small>
-              <div>{{ period.receivables|floatformat:2 }}</div>
+              <div>{{ period.receivables|money }}</div>
             </div>
             <div class="col-6 col-md-2 text-center">
               <small class="text-muted d-md-none">{% trans 'Payables' %}</small>
-              <div>{{ period.payables|floatformat:2 }}</div>
+              <div>{{ period.payables|money }}</div>
             </div>
             <div class="col-6 col-md-2 text-center">
               <small class="text-muted d-md-none">{% trans 'Inventory' %}</small>
-              <div>{{ period.inventory_value|floatformat:2 }}</div>
+              <div>{{ period.inventory_value|money }}</div>
             </div>
             <div class="col-6 col-md-1 text-center d-none d-md-block">
               <small class="text-muted">{% trans 'P/L' %}</small>
               <div>
                 {% if period.amount %}
                   {% if period.is_profit %}
-                    <span class="text-success">+{{ period.amount|floatformat:2 }}</span>
+                    <span class="text-success">+{{ period.amount|money }}</span>
                   {% elif period.is_loss %}
-                    <span class="text-danger">{{ period.amount|floatformat:2 }}</span>
+                    <span class="text-danger">{{ period.amount|money }}</span>
                   {% else %}
-                    {{ period.amount|floatformat:2 }}
+                    {{ period.amount|money }}
                   {% endif %}
                 {% else %}
                   —

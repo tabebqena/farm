@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load i18n %}
+{% load money %}
 
 {% block content %}
   <div class="container mt-4">
@@ -38,25 +39,25 @@
           <div class="col-md-6 col-lg-3 mb-3">
             <div>
               <small class="text-muted">{% trans 'Previous Balance' %}</small>
-              <div class="h6">{{ period.previous_balance|floatformat:2 }}</div>
+              <div class="h6">{{ period.previous_balance|money }}</div>
             </div>
           </div>
           <div class="col-md-6 col-lg-3 mb-3">
             <div>
               <small class="text-muted">{% trans 'Cash In' %}</small>
-              <div class="h6 text-success">{{ period.cash_in|floatformat:2 }}</div>
+              <div class="h6 text-success">{{ period.cash_in|money }}</div>
             </div>
           </div>
           <div class="col-md-6 col-lg-3 mb-3">
             <div>
               <small class="text-muted">{% trans 'Cash Out' %}</small>
-              <div class="h6 text-danger">{{ period.cash_out|floatformat:2 }}</div>
+              <div class="h6 text-danger">{{ period.cash_out|money }}</div>
             </div>
           </div>
           <div class="col-md-6 col-lg-3 mb-3">
             <div>
               <small class="text-muted">{% if period.is_closed %}{% trans 'End Balance' %}{% else %}{% trans 'Current Balance' %}{% endif %}</small>
-              <div class="h6">{{ period.end_balance|default:period.balance|floatformat:2 }}</div>
+              <div class="h6">{{ period.end_balance|default:period.balance|money }}</div>
             </div>
           </div>
         </div>
@@ -73,25 +74,25 @@
           <div class="col-md-6 col-lg-3 mb-3">
             <div>
               <small class="text-muted">{% trans 'Previous' %}</small>
-              <div class="h6">{{ period.payables_previous|floatformat:2 }}</div>
+              <div class="h6">{{ period.payables_previous|money }}</div>
             </div>
           </div>
           <div class="col-md-6 col-lg-3 mb-3">
             <div>
               <small class="text-muted">{% trans 'In (New)' %}</small>
-              <div class="h6 text-danger">{{ period.payables_in|floatformat:2 }}</div>
+              <div class="h6 text-danger">{{ period.payables_in|money }}</div>
             </div>
           </div>
           <div class="col-md-6 col-lg-3 mb-3">
             <div>
               <small class="text-muted">{% trans 'Out (Paid)' %}</small>
-              <div class="h6 text-success">{{ period.payables_out|floatformat:2 }}</div>
+              <div class="h6 text-success">{{ period.payables_out|money }}</div>
             </div>
           </div>
           <div class="col-md-6 col-lg-3 mb-3">
             <div>
               <small class="text-muted">{% if period.is_closed %}{% trans 'End' %}{% else %}{% trans 'Current' %}{% endif %}</small>
-              <div class="h6">{{ period.payables_end|default:period.payables|floatformat:2 }}</div>
+              <div class="h6">{{ period.payables_end|default:period.payables|money }}</div>
             </div>
           </div>
         </div>
@@ -108,25 +109,25 @@
           <div class="col-md-6 col-lg-3 mb-3">
             <div>
               <small class="text-muted">{% trans 'Previous' %}</small>
-              <div class="h6">{{ period.receivables_previous|floatformat:2 }}</div>
+              <div class="h6">{{ period.receivables_previous|money }}</div>
             </div>
           </div>
           <div class="col-md-6 col-lg-3 mb-3">
             <div>
               <small class="text-muted">{% trans 'In (New)' %}</small>
-              <div class="h6 text-danger">{{ period.receivables_in|floatformat:2 }}</div>
+              <div class="h6 text-danger">{{ period.receivables_in|money }}</div>
             </div>
           </div>
           <div class="col-md-6 col-lg-3 mb-3">
             <div>
               <small class="text-muted">{% trans 'Out (Collected)' %}</small>
-              <div class="h6 text-success">{{ period.receivables_out|floatformat:2 }}</div>
+              <div class="h6 text-success">{{ period.receivables_out|money }}</div>
             </div>
           </div>
           <div class="col-md-6 col-lg-3 mb-3">
             <div>
               <small class="text-muted">{% if period.is_closed %}{% trans 'End' %}{% else %}{% trans 'Current' %}{% endif %}</small>
-              <div class="h6">{{ period.receivables_end|default:period.receivables|floatformat:2 }}</div>
+              <div class="h6">{{ period.receivables_end|default:period.receivables|money }}</div>
             </div>
           </div>
         </div>
@@ -143,25 +144,25 @@
           <div class="col-md-6 col-lg-3 mb-3">
             <div>
               <small class="text-muted">{% trans 'Previous' %}</small>
-              <div class="h6">{{ period.inventory_value_previous|floatformat:2 }}</div>
+              <div class="h6">{{ period.inventory_value_previous|money }}</div>
             </div>
           </div>
           <div class="col-md-6 col-lg-3 mb-3">
             <div>
               <small class="text-muted">{% trans 'In (Added)' %}</small>
-              <div class="h6 text-success">{{ period.inventory_value_in|floatformat:2 }}</div>
+              <div class="h6 text-success">{{ period.inventory_value_in|money }}</div>
             </div>
           </div>
           <div class="col-md-6 col-lg-3 mb-3">
             <div>
               <small class="text-muted">{% trans 'Out (Sold)' %}</small>
-              <div class="h6 text-danger">{{ period.inventory_value_out|floatformat:2 }}</div>
+              <div class="h6 text-danger">{{ period.inventory_value_out|money }}</div>
             </div>
           </div>
           <div class="col-md-6 col-lg-3 mb-3">
             <div>
               <small class="text-muted">{% if period.is_closed %}{% trans 'End' %}{% else %}{% trans 'Current' %}{% endif %}</small>
-              <div class="h6">{{ period.inventory_value_end|default:period.inventory_value|floatformat:2 }}</div>
+              <div class="h6">{{ period.inventory_value_end|default:period.inventory_value|money }}</div>
             </div>
           </div>
         </div>
@@ -180,26 +181,26 @@
             <dd class="col-sm-6">{{ period.end_date|date:"Y-m-d" }}</dd>
 
             <dt class="col-sm-6">{% trans 'End Balance' %}</dt>
-            <dd class="col-sm-6">{{ period.end_balance|floatformat:2 }}</dd>
+            <dd class="col-sm-6">{{ period.end_balance|money }}</dd>
 
             <dt class="col-sm-6">{% trans 'End Assets' %}</dt>
-            <dd class="col-sm-6">{{ period.end_assets|floatformat:2 }}</dd>
+            <dd class="col-sm-6">{{ period.end_assets|money }}</dd>
 
             <dt class="col-sm-6">{% trans 'End Liabilities' %}</dt>
-            <dd class="col-sm-6">{{ period.end_liabilities|floatformat:2 }}</dd>
+            <dd class="col-sm-6">{{ period.end_liabilities|money }}</dd>
 
             <dt class="col-sm-6">{% trans 'End Inventory' %}</dt>
-            <dd class="col-sm-6">{{ period.inventory_value_end|floatformat:2 }}</dd>
+            <dd class="col-sm-6">{{ period.inventory_value_end|money }}</dd>
 
             {% if period.amount %}
               <dt class="col-sm-6">{% trans 'Profit/Loss' %}</dt>
               <dd class="col-sm-6">
                 {% if period.is_profit %}
-                  <span class="text-success">+{{ period.amount|floatformat:2 }}</span>
+                  <span class="text-success">+{{ period.amount|money }}</span>
                 {% elif period.is_loss %}
-                  <span class="text-danger">{{ period.amount|floatformat:2 }}</span>
+                  <span class="text-danger">{{ period.amount|money }}</span>
                 {% else %}
-                  {{ period.amount|floatformat:2 }}
+                  {{ period.amount|money }}
                 {% endif %}
               </dd>
             {% endif %}

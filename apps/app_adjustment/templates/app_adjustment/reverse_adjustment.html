@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load i18n %}
+{% load money %}
 
 {% block content %}
   <div class="container mt-5">
@@ -31,7 +32,7 @@
                 <div class="col-6 small fw-bold text-end">{{ adjustment.get_type_display }}</div>
 
                 <div class="col-6 small text-muted">{% trans "Amount:" %}</div>
-                <div class="col-6 small fw-bold text-end">${{ adjustment.amount }}</div>
+                <div class="col-6 small fw-bold text-end">{{ adjustment.amount|money }}</div>
 
                 <div class="col-6 small text-muted">{% trans "Date:" %}</div>
                 <div class="col-6 small text-end">{{ adjustment.date }}</div>

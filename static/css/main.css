@@ -281,11 +281,18 @@ body {
 /* ================================================================
    Amount Input Fields
    ================================================================ */
+:root {
+    --amount-font-size: 1.4rem;
+}
+
 .amount-input {
     font-family: 'Courier New', monospace;
-    font-size: 1.1rem;
+    font-size: var(--amount-font-size);
     font-weight: 600;
     text-align: right;
+    direction: ltr;
+    unicode-bidi: plaintext;
+    font-variant-numeric: tabular-nums;
     letter-spacing: 0.05em;
     padding: 0.75rem 1rem;
     border-width: 2px;
@@ -317,17 +324,29 @@ body {
 
 .amount-input-group .input-group-text {
     font-weight: bold;
-    font-size: 1.1rem;
+    font-size: 1.25rem;
     min-width: 3rem;
     justify-content: center;
 }
 
 .amount-total {
-    font-size: 1.5rem;
+    font-size: 1.75rem;
     font-weight: bold;
     color: var(--primary-color);
     font-family: 'Courier New', monospace;
+    font-variant-numeric: tabular-nums;
     text-align: right;
+    direction: ltr;
+    unicode-bidi: plaintext;
+}
+
+/* Money display (read-only): tabular figures so decimal points align,
+   forced LTR so grouped digits read correctly under the Arabic RTL layout. */
+.money {
+    font-variant-numeric: tabular-nums;
+    direction: ltr;
+    unicode-bidi: plaintext;
+    white-space: nowrap;
 }
 
 /* Amount Input Control Buttons (+/-) */
@@ -341,6 +360,22 @@ body {
     font-size: 1rem;
     transition: all 0.15s ease;
     flex-shrink: 0;
+}
+
+.amount-btn-minus {
+    border-start-start-radius: 4px;
+    border-end-start-radius: 4px;
+    border-start-end-radius: 0;
+    border-end-end-radius: 0;
+    border-inline-end: none;
+}
+
+.amount-btn-plus {
+    border-start-end-radius: 4px;
+    border-end-end-radius: 4px;
+    border-start-start-radius: 0;
+    border-end-start-radius: 0;
+    border-inline-start: none;
 }
 
 .amount-btn-minus:hover,

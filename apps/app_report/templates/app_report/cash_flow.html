@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load i18n %}
+{% load money %}
 {% block title %}{% trans 'Cash Flow Statement' %} - {{ entity.get_display_name }}{% endblock %}
 {% block extra_css %}{% include 'app_report/_report_styles.html' %}{% endblock %}
 {% block content %}
@@ -14,37 +15,37 @@
         <tbody>
           <tr>
             <td><a href="{% url 'entity_payment_transactions_list' entity.pk %}">{% trans 'Beginning cash' %}</a></td>
-            <td class="text-end">{{ statement.opening|floatformat:2 }}</td>
+            <td class="text-end money">{{ statement.opening|money }}</td>
           </tr>
 
           <tr class="report-section"><th colspan="2">{% trans 'Operating activities' %}</th></tr>
-          <tr><td class="report-sub">{% trans 'Cash in' %}</td><td class="text-end text-success">{{ statement.operating.in|floatformat:2 }}</td></tr>
-          <tr><td class="report-sub">{% trans 'Cash out' %}</td><td class="text-end text-danger">{{ statement.operating.out|floatformat:2 }}</td></tr>
-          <tr class="report-total"><th class="report-sub">{% trans 'Net operating cash flow' %}</th><td class="text-end">{{ statement.operating.net|floatformat:2 }}</td></tr>
+          <tr><td class="report-sub">{% trans 'Cash in' %}</td><td class="text-end money text-success">{{ statement.operating.in|money }}</td></tr>
+          <tr><td class="report-sub">{% trans 'Cash out' %}</td><td class="text-end money text-danger">{{ statement.operating.out|money }}</td></tr>
+          <tr class="report-total"><th class="report-sub">{% trans 'Net operating cash flow' %}</th><td class="text-end money">{{ statement.operating.net|money }}</td></tr>
 
           <tr class="report-section"><th colspan="2">{% trans 'Financing activities' %}</th></tr>
-          <tr><td class="report-sub">{% trans 'Cash in' %}</td><td class="text-end text-success">{{ statement.financing.in|floatformat:2 }}</td></tr>
-          <tr><td class="report-sub">{% trans 'Cash out' %}</td><td class="text-end text-danger">{{ statement.financing.out|floatformat:2 }}</td></tr>
-          <tr class="report-total"><th class="report-sub">{% trans 'Net financing cash flow' %}</th><td class="text-end">{{ statement.financing.net|floatformat:2 }}</td></tr>
+          <tr><td class="report-sub">{% trans 'Cash in' %}</td><td class="text-end money text-success">{{ statement.financing.in|money }}</td></tr>
+          <tr><td class="report-sub">{% trans 'Cash out' %}</td><td class="text-end money text-danger">{{ statement.financing.out|money }}</td></tr>
+          <tr class="report-total"><th class="report-sub">{% trans 'Net financing cash flow' %}</th><td class="text-end money">{{ statement.financing.net|money }}</td></tr>
 
           <tr class="report-section"><th colspan="2">{% trans 'Investing activities' %}</th></tr>
-          <tr><td class="report-sub">{% trans 'Cash in' %}</td><td class="text-end text-success">{{ statement.investing.in|floatformat:2 }}</td></tr>
-          <tr><td class="report-sub">{% trans 'Cash out' %}</td><td class="text-end text-danger">{{ statement.investing.out|floatformat:2 }}</td></tr>
-          <tr class="report-total"><th class="report-sub">{% trans 'Net investing cash flow' %}</th><td class="text-end">{{ statement.investing.net|floatformat:2 }}</td></tr>
+          <tr><td class="report-sub">{% trans 'Cash in' %}</td><td class="text-end money text-success">{{ statement.investing.in|money }}</td></tr>
+          <tr><td class="report-sub">{% trans 'Cash out' %}</td><td class="text-end money text-danger">{{ statement.investing.out|money }}</td></tr>
+          <tr class="report-total"><th class="report-sub">{% trans 'Net investing cash flow' %}</th><td class="text-end money">{{ statement.investing.net|money }}</td></tr>
 
           <tr class="report-total">
             <th>{% trans 'Net increase / (decrease) in cash' %}</th>
-            <td class="text-end">
+            <td class="text-end money">
               {% if statement.net_change >= 0 %}
-                <span class="text-success">+{{ statement.net_change|floatformat:2 }}</span>
+                <span class="text-success">{{ statement.net_change|money_signed }}</span>
               {% else %}
-                <span class="text-danger">{{ statement.net_change|floatformat:2 }}</span>
+                <span class="text-danger">{{ statement.net_change|money_signed }}</span>
               {% endif %}
             </td>
           </tr>
           <tr class="report-grand-total">
             <th>{% trans 'Ending cash' %}</th>
-            <td class="text-end">{{ statement.closing|floatformat:2 }}</td>
+            <td class="text-end money">{{ statement.closing|money }}</td>
           </tr>
         </tbody>
       </table>

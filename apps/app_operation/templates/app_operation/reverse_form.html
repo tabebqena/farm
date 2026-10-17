@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load i18n %}
+{% load money %}
 
 {% block content %}
   <div class="container mt-5">
@@ -27,7 +28,7 @@
             <div class="bg-light p-3 rounded mb-4 border">
               <div class="row g-2">
                 <div class="col-6 small text-muted">{% trans "Original Amount:" %}</div>
-                <div class="col-6 small fw-bold text-end">${{ operation.amount }}</div>
+                <div class="col-6 small fw-bold text-end">{{ operation.amount|money }}</div>
 
                 <div class="col-6 small text-muted">{% trans "Original Date:" %}</div>
                 <div class="col-6 small text-end">{{ operation.date }}</div>

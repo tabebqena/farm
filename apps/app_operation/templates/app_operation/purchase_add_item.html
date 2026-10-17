@@ -96,7 +96,7 @@
                             {{ form.unit_price.label }} <span class="text-danger">*</span>
                         </label>
                         <div class="input-group amount-input-group">
-                            <span class="input-group-text">$</span>
+                            <span class="input-group-text">{{ currency }}</span>
                             {{ form.unit_price }}
                         </div>
                         {% if form.unit_price.errors %}

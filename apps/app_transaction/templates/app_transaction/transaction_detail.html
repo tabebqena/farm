@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load i18n %}
+{% load money %}
 
 {% block title %}
   {% trans 'Transaction' %} #{{ transaction.pk }}
@@ -86,7 +87,7 @@
             <dd class="col-8">{{ transaction.get_type_display }}</dd>
 
             <dt class="col-4 text-muted">{% trans 'Amount' %}</dt>
-            <dd class="col-8 fw-bold">{{ currency }}{{ transaction.amount|floatformat:2 }}</dd>
+            <dd class="col-8 fw-bold">{{ transaction.amount|money }}</dd>
 
             <dt class="col-4 text-muted">{% trans 'Source' %}</dt>
             <dd class="col-8">

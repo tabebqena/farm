@@ -15,6 +15,7 @@ should display the current fund of the entity the money comes from:
 from datetime import date
 from decimal import Decimal
 
+from django.conf import settings
 from django.test import Client, TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -95,7 +96,7 @@ class OperationCreateViewSourceFundTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["source_entity"], self.project)
         self.assertEqual(response.context["source_balance"], self.project.balance)
-        self.assertEqual(response.context["currency"], "$")
+        self.assertEqual(response.context["currency"], settings.CURRENCY_SYMBOL)
 
     def test_purchase_create_renders_current_fund(self):
         """The create form renders the source fund balance to the user."""
@@ -104,7 +105,7 @@ class OperationCreateViewSourceFundTests(TestCase):
         content = response.content.decode()
         self.assertIn("Source Fund", content)
         self.assertIn(self.project.name, content)
-        self.assertIn("1000.00", content)
+        self.assertIn("$1,000.00", content)
 
     def test_expense_create_source_fund_is_project(self):
         """Expense source is the project → fund is the project balance."""
@@ -163,7 +164,7 @@ class TransactionCreateViewSourceFundTests(TestCase):
 
         content = response.content.decode()
         self.assertIn("Paying Fund", content)
-        self.assertIn("2000.00", content)
+        self.assertIn("$2,000.00", content)
 
     def test_repayment_create_exposes_source_fund(self):
         """Repayment debits the operation's payment target fund (the debtor)."""
@@ -186,4 +187,4 @@ class TransactionCreateViewSourceFundTests(TestCase):
 
         content = response.content.decode()
         self.assertIn("Repaying Fund", content)
-        self.assertIn("500.00", content)
+        self.assertIn("$500.00", content)

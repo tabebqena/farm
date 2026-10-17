@@ -1,7 +1,13 @@
 """Context processors for injecting common data into templates."""
 
+from django.conf import settings
 from django.urls import resolve, Resolver404
 from apps.app_base.navigation import get_navigation_context
+
+
+def currency(request):
+    """Expose the configured currency symbol to every template."""
+    return {"currency": getattr(settings, "CURRENCY_SYMBOL", "$") or "$"}
 
 
 def navigation(request):

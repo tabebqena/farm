@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load i18n %}
+{% load money %}
 
 {% block title %}
   {% trans 'Invoice Items' %}— {{ operation.get_operation_type_display }} #{{ operation.pk }}
@@ -56,9 +57,9 @@
                     <div class="col-6 col-md-2 text-end">
                       <small class="text-muted d-md-none d-block">{% trans 'Amount' %}</small>
                       {% if valuation.amount >= 0 %}
-                        <span class="fw-bold text-success">+{{ valuation.amount }}</span>
+                        <span class="fw-bold text-success">+{{ valuation.amount|money }}</span>
                       {% else %}
-                        <span class="fw-bold text-danger">{{ valuation.amount }}</span>
+                        <span class="fw-bold text-danger">{{ valuation.amount|money }}</span>
                       {% endif %}
                     </div>
                     <div class="col-6 col-md-1 text-end d-none d-sm-block">
@@ -75,7 +76,7 @@
             </div>
             <div class="d-flex justify-content-end fw-bold py-2 px-3 border-top bg-light">
               <span class="me-3">{% trans 'Net Valuation' %}</span>
-              <span>{{ operation.effective_amount }}</span>
+              <span>{{ operation.effective_amount|money }}</span>
             </div>
           </div>
         </div>
@@ -94,7 +95,7 @@
       {# ─── Summary bar ──────────────────────────────────────────── #}
       <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 small text-muted">
         <span>{% blocktrans count counter=merged_items|length %}{{ counter }} item{% plural %}{{ counter }} items{% endblocktrans %}</span>
-        <span class="fw-semibold">{% trans 'Total' %}: {{ currency }}{{ total_adjusted }}</span>
+        <span class="fw-semibold">{% trans 'Total' %}: {{ total_adjusted|money }}</span>
       </div>
 
       {# ─── Per-Invoice-Item Cards ───────────────────────────────── #}
@@ -111,8 +112,8 @@
               </div>
               <div class="d-flex gap-3 small fw-normal">
                 <span title="{% trans 'quantity' %}"><i class="bi bi-box me-1"></i>{{ item.adjusted_quantity }}</span>
-                <span title="{% trans 'unit price' %}"><i class="bi bi-tag me-1"></i>{{ currency }}{{ item.adjusted_unit_price }}</span>
-                <span title="{% trans 'total' %}"><i class="bi bi-calculator me-1"></i>{{ currency }}{{ item.adjusted_total_price }}</span>
+                <span title="{% trans 'unit price' %}"><i class="bi bi-tag me-1"></i>{{ item.adjusted_unit_price|money }}</span>
+                <span title="{% trans 'total' %}"><i class="bi bi-calculator me-1"></i>{{ item.adjusted_total_price|money }}</span>
               </div>
             </div>
 
@@ -182,7 +183,7 @@
 
 
                           {% endif %}">
-                          {{ currency }}{{ item.adjusted_unit_price }}
+                          {{ item.adjusted_unit_price|money }}
                         </span>
                       </div>
                       <div>
@@ -211,7 +212,7 @@
 
 
                           {% endif %}">
-                          {{ currency }}{{ item.adjusted_total_price }}
+                          {{ item.adjusted_total_price|money }}
                         </span>
                       </div>
                     </div>
@@ -219,8 +220,8 @@
                       <div class="mt-2">
                         <span class="badge bg-warning bg-opacity-10 text-warning"><i class="bi bi-sliders me-1"></i>{% trans 'Adjusted' %}</span>
                         <small class="text-muted ms-2">
-                          {% blocktrans with val_delta=item.adjustment_value_delta %}Value change: {{ currency }}{{ val_delta }}
-                          {% endblocktrans %}
+                          {% with formatted_delta=item.adjustment_value_delta|money %}{% blocktrans with val_delta=formatted_delta %}Value change: {{ val_delta }}
+                          {% endblocktrans %}{% endwith %}
                         </small>
                       </div>
                     {% endif %}
@@ -236,11 +237,11 @@
                       </div>
                       <div>
                         <small class="text-muted d-block">{% trans 'Unit Price' %}</small>
-                        <span>{{ currency }}{{ item.unit_price }}</span>
+                        <span>{{ item.unit_price|money }}</span>
                       </div>
                       <div>
                         <small class="text-muted d-block">{% trans 'Total' %}</small>
-                        <span>{{ currency }}{{ item.total_price }}</span>
+                        <span>{{ item.total_price|money }}</span>
                       </div>
                     </div>
                   </div>
@@ -299,7 +300,7 @@
                               </td>
                               <td class="text-end">
                                 {% if line.new_unit_price is not None %}
-                                  {{ currency }}{{ line.new_unit_price }}
+                                  {{ line.new_unit_price|money }}
                                 {% else %}
                                   <span class="text-muted">—</span>
                                 {% endif %}
@@ -328,7 +329,7 @@
 
 
                                 {% endif %}">
-                                {% if line.value_delta > 0 %}+{% endif %}{{ currency }}{{ line.value_delta }}
+                                {% if line.value_delta > 0 %}+{% endif %}{{ line.value_delta|money }}
                               </td>
                               <td>
                                 {% if line.adjustment.reversed_by %}

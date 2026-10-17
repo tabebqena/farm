@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load i18n %}
+{% load money %}
 
 {% block content %}
   <div class="container mt-5">
@@ -35,7 +36,7 @@
 
                 {% if item_adjustment.adjustment %}
                   <div class="col-6 small text-muted">{% trans "Financial Impact:" %}</div>
-                  <div class="col-6 small fw-bold text-end">${{ item_adjustment.adjustment.amount }}</div>
+                  <div class="col-6 small fw-bold text-end">{{ item_adjustment.adjustment.amount|money }}</div>
                 {% endif %}
 
                 {% if item_adjustment.reason %}

@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load i18n %}
+{% load money %}
 
 {% block content %}
 <div class="container-fluid mt-4">
@@ -48,7 +49,7 @@
             <div>
                 <small class="text-muted d-block">{% trans "Declared Total" %}</small>
                 <div class="d-flex align-items-center gap-2">
-                    <strong>${{ session_data.total_amount }}</strong>
+                    <strong>{{ session_data.total_amount|money }}</strong>
                     <a href="{% url 'sale_wizard_step_new' pk=project.pk step=2 %}?next=invoice"
                        class="btn btn-sm btn-outline-secondary">{% trans "Edit" %}</a>
                 </div>
@@ -57,7 +58,7 @@
                 <small class="text-muted d-block">{% trans "Payment" %}</small>
                 <div class="d-flex align-items-center gap-2">
                     {% if session_data.amount_paid and session_data.amount_paid != "0" %}
-                        <strong>${{ session_data.amount_paid }}</strong>
+                        <strong>{{ session_data.amount_paid|money }}</strong>
                     {% else %}
                         <span class="text-muted">{% trans "None" %}</span>
                     {% endif %}
@@ -72,10 +73,10 @@
     {% if not submit_enabled %}
     <div class="alert alert-warning">
         {% if difference > 0 %}
-            {% blocktrans with diff=difference %}Items total is <strong>${{ diff }}</strong> short of the declared total. Add more items or adjust quantities.{% endblocktrans %}
+            {% with formatted_diff=difference|money %}{% blocktrans with diff=formatted_diff %}Items total is <strong>{{ diff }}</strong> short of the declared total. Add more items or adjust quantities.{% endblocktrans %}{% endwith %}
         {% else %}
             {% with overdiff=difference|stringformat:"s" %}
-            {% blocktrans with diff=difference %}Items total exceeds the declared total by <strong>${{ diff }}</strong>. Remove or adjust items.{% endblocktrans %}
+            {% with formatted_diff=difference|money %}{% blocktrans with diff=formatted_diff %}Items total exceeds the declared total by <strong>{{ diff }}</strong>. Remove or adjust items.{% endblocktrans %}{% endwith %}
             {% endwith %}
         {% endif %}
     </div>
@@ -111,8 +112,8 @@
                             {% if item.description %}<br><small class="text-muted">{{ item.description }}</small>{% endif %}
                         </td>
                         <td>{{ item.quantity }}</td>
-                        <td>${{ item.unit_price }}</td>
-                        <td class="fw-bold">${{ item.total_price }}</td>
+                        <td>{{ item.unit_price|money }}</td>
+                        <td class="fw-bold">{{ item.total_price|money }}</td>
                         <td class="text-nowrap">
                             <a href="{% url 'sale_edit_item' pk=project.pk idx=item.idx %}"
                                class="btn btn-sm btn-outline-secondary">{% trans "Edit" %}</a>
@@ -136,12 +137,12 @@
                 <tfoot class="table-light">
                     <tr>
                         <td colspan="4" class="text-end fw-bold">{% trans "Items Total" %}</td>
-                        <td class="fw-bold">${{ items_total }}</td>
+                        <td class="fw-bold">{{ items_total|money }}</td>
                         <td colspan="2"></td>
                     </tr>
                     <tr>
                         <td colspan="4" class="text-end">{% trans "Declared Total" %}</td>
-                        <td>${{ session_data.total_amount }}</td>
+                        <td>{{ session_data.total_amount|money }}</td>
                         <td colspan="2"></td>
                     </tr>
                     <tr>
@@ -152,7 +153,7 @@
                         </td>
                         <td class="fw-bold
                             {% if difference == 0 %}text-success{% else %}text-danger{% endif %}">
-                            ${{ difference }}
+                            {{ difference|money }}
                         </td>
                         <td colspan="2"></td>
                     </tr>

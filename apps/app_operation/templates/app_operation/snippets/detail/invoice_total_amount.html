@@ -1,4 +1,5 @@
 {% load i18n %}
+{% load money %}
 
 {# ── Section 1: Invoice Totals Row ── #}
 <div class="invoice-totals border-bottom">
@@ -8,7 +9,7 @@
         <td class="ps-3 py-1 text-muted small fw-semibold" style="width: 40%;">
           {% trans 'Invoice Total' %}
         </td>
-        <td class="py-1 text-end pe-3">{{ currency }}{{ operation.amount }}</td>
+        <td class="py-1 text-end pe-3">{{ operation.amount|money }}</td>
       </tr>
       {% if adjustments %}
         <tr>
@@ -29,11 +30,11 @@
 
             {% endif %}">
             {% if net_adjustment < 0 %}
-              {{ currency }}{{ net_adjustment }}
+              {{ net_adjustment|money }}
             {% elif net_adjustment > 0 %}
-              +{{ currency }}{{ net_adjustment }}
+              +{{ net_adjustment|money }}
             {% else %}
-              {{ currency }}{{ net_adjustment }}
+              {{ net_adjustment|money }}
             {% endif %}
           </td>
         </tr>
@@ -42,7 +43,7 @@
         <td class="ps-3 py-2 fw-bold">
           {% trans 'Total' %}
         </td>
-        <td class="py-2 text-end fw-bold fs-4 text-primary pe-3">{{ currency }}{{ operation.effective_amount }}</td>
+        <td class="py-2 text-end fw-bold fs-4 text-primary pe-3">{{ operation.effective_amount|money }}</td>
       </tr>
     </tbody>
   </table>

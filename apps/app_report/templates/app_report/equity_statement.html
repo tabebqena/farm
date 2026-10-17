@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load i18n %}
+{% load money %}
 {% block title %}{% trans 'Statement of Changes in Equity' %} - {{ entity.get_display_name }}{% endblock %}
 {% block extra_css %}{% include 'app_report/_report_styles.html' %}{% endblock %}
 {% block content %}
@@ -14,53 +15,53 @@
         <tbody>
           <tr>
             <td>{% trans 'Equity at beginning of period' %}</td>
-            <td class="text-end">{{ statement.opening|floatformat:2 }}</td>
+            <td class="text-end money">{{ statement.opening|money }}</td>
           </tr>
 
           {% if statement.is_project %}
             <tr>
               <td>{% trans 'Capital contributed during the period' %}</td>
-              <td class="text-end">{{ statement.contributed_capital|floatformat:2 }}</td>
+              <td class="text-end money">{{ statement.contributed_capital|money }}</td>
             </tr>
             <tr>
               <td>{% trans 'Net profit / (loss) for the period' %}</td>
-              <td class="text-end">
+              <td class="text-end money">
                 {% if statement.retained_earnings >= 0 %}
-                  <span class="text-success">+{{ statement.retained_earnings|floatformat:2 }}</span>
+                  <span class="text-success">{{ statement.retained_earnings|money_signed }}</span>
                 {% else %}
-                  <span class="text-danger">{{ statement.retained_earnings|floatformat:2 }}</span>
+                  <span class="text-danger">{{ statement.retained_earnings|money_signed }}</span>
                 {% endif %}
               </td>
             </tr>
           {% else %}
             <tr>
               <td>{% trans 'Capital contributed during the period' %}</td>
-              <td class="text-end text-success">{{ statement.contributions|floatformat:2 }}</td>
+              <td class="text-end money text-success">{{ statement.contributions|money }}</td>
             </tr>
             <tr>
               <td>{% trans 'Withdrawals during the period' %}</td>
-              <td class="text-end text-danger">({{ statement.withdrawals|floatformat:2 }})</td>
+              <td class="text-end money text-danger">({{ statement.withdrawals|money }})</td>
             </tr>
           {% endif %}
 
           <tr>
             <td>{% trans 'Other changes' %}</td>
-            <td class="text-end">
+            <td class="text-end money">
               {% if statement.other_changes >= 0 %}
-                <span class="text-success">+{{ statement.other_changes|floatformat:2 }}</span>
+                <span class="text-success">{{ statement.other_changes|money_signed }}</span>
               {% else %}
-                <span class="text-danger">{{ statement.other_changes|floatformat:2 }}</span>
+                <span class="text-danger">{{ statement.other_changes|money_signed }}</span>
               {% endif %}
             </td>
           </tr>
 
           <tr class="report-grand-total">
             <th>{% trans 'Equity at end of period' %}</th>
-            <td class="text-end">
+            <td class="text-end money">
               {% if statement.closing >= 0 %}
-                <span class="text-success">{{ statement.closing|floatformat:2 }}</span>
+                <span class="text-success">{{ statement.closing|money }}</span>
               {% else %}
-                <span class="text-danger">{{ statement.closing|floatformat:2 }}</span>
+                <span class="text-danger">{{ statement.closing|money }}</span>
               {% endif %}
             </td>
           </tr>

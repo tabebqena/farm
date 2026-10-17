@@ -1,4 +1,5 @@
 {% load i18n %}
+{% load money %}
 
 {# Inventory Movement Status — shown when the operation has invoice items #}
 {% if items %}
@@ -45,7 +46,7 @@
               {# Unit Price #}
               <div class="col-4 col-md-2 text-end">
                 <small class="text-muted d-md-none d-block">{% trans 'Price' %}</small>
-                <span class="small">{{ entry.item.adjusted_unit_price }}</span>
+                <span class="small">{{ entry.item.adjusted_unit_price|money }}</span>
               </div>
               {# Net moved qty (Received/Delivered) #}
               <div class="col-4 col-md-2 text-end">

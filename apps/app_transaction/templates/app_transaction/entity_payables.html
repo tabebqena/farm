@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load i18n %}
+{% load money %}
 
 {% block title %}
   {% trans 'Payables' %} - {{ entity.get_display_name }}
@@ -37,7 +38,7 @@
         <div class="card-body">
           <div class="small text-muted text-uppercase fw-bold mb-1">{% trans 'Current Payables' %}</div>
           <div class="fw-bold fs-4 {% if current_obligation > 0 %}text-danger{% else %}text-success{% endif %}">
-            {{ currency }}{{ current_obligation|floatformat:2 }}
+            {{ current_obligation|money }}
           </div>
         </div>
       </div>
@@ -46,7 +47,7 @@
       <div class="card border-0 shadow-sm h-100">
         <div class="card-body">
           <div class="small text-muted text-uppercase fw-bold mb-1">{% trans 'Total Added' %}</div>
-          <div class="fw-bold fs-4 text-danger">{{ currency }}{{ total_increase|floatformat:2 }}</div>
+          <div class="fw-bold fs-4 text-danger">{{ total_increase|money }}</div>
         </div>
       </div>
     </div>
@@ -54,7 +55,7 @@
       <div class="card border-0 shadow-sm h-100">
         <div class="card-body">
           <div class="small text-muted text-uppercase fw-bold mb-1">{% trans 'Total Settled' %}</div>
-          <div class="fw-bold fs-4 text-success">{{ currency }}{{ total_decrease|floatformat:2 }}</div>
+          <div class="fw-bold fs-4 text-success">{{ total_decrease|money }}</div>
         </div>
       </div>
     </div>
@@ -124,10 +125,10 @@
                     {% endif %}
                   </td>
                   <td class="py-2 text-end text-nowrap {% if tx.direction == 'increase' %}text-danger{% else %}text-success{% endif %} fw-semibold">
-                    {% if tx.direction == 'increase' %}+{% else %}-{% endif %}{{ currency }}{{ tx.amount|floatformat:2 }}
+                    {% if tx.direction == 'increase' %}+{% else %}-{% endif %}{{ tx.amount|money }}
                   </td>
                   <td class="py-2 text-end text-nowrap fw-semibold {% if tx.running_balance > 0 %}text-danger{% else %}text-dark{% endif %}">
-                    {{ currency }}{{ tx.running_balance|floatformat:2 }}
+                    {{ tx.running_balance|money }}
                   </td>
                   <td class="py-2 text-center">
                     {% if tx.is_reversed %}

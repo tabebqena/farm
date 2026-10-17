@@ -263,17 +263,19 @@ class UiTestCase(LiveServerTestCase):
     def fill_amount(self, value, name="amount"):
         """Fill a formatter-managed amount input (visible + hidden name twin).
 
-        AmountInputFormatter (amount-input-formatter.js) converts any
-        ``input.amount-input`` into a visible text input (drops the name, keeps
-        ``data-original-name``) plus a hidden input that keeps the original name for
-        POST. Setting both via JS is deterministic — typing through the formatter's
-        listener proved unreliable in headless Chrome.
+        amount-input.js converts any ``input.amount-input`` into a visible text
+        input (drops the name, keeps ``data-original-name``) plus a hidden input
+        that keeps the original name for POST. We drive the public
+        ``AmountInput.setValue`` API when present, then force the hidden value
+        deterministically so headless Chrome always POSTs exactly ``value``.
         """
         self.driver.execute_script(
             "var hidden=document.querySelector('input[name=\"%(name)s\"]');"
             "var visible=document.querySelector("
             "'input[data-original-name=\"%(name)s\"]');"
-            "if(visible){visible.value=arguments[0];"
+            "if(visible && window.AmountInput){"
+            "window.AmountInput.setValue(visible, arguments[0]);}"
+            "else if(visible){visible.value=arguments[0];"
             "visible.dispatchEvent(new Event('input',{bubbles:true}));"
             "visible.dispatchEvent(new Event('change',{bubbles:true}));}"
             "if(hidden){hidden.value=arguments[0];}" % {"name": name},

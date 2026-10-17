@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load i18n %}
+{% load money %}
 
 {% block title %}{% trans "Entity Registry" %}{% endblock %}
 
@@ -150,7 +151,7 @@
                 <td>
                   {% if entity %}
                     <div class="text-dark small fw-semibold">
-                      <i class="bi bi-wallet2 me-1"></i> {{ entity.balance|default:'0.00' }}
+                      <i class="bi bi-wallet2 me-1"></i> {{ entity.balance|money }}
                     </div>
                     {% if entity.active %}
                       <span class="text-success small" style="font-size: 0.7rem;"><i class="bi bi-check-circle-fill"></i> {% trans "Ready" %}</span>
@@ -247,7 +248,7 @@
                       <small class="text-muted d-block mb-1">{% trans "Fund Status" %}</small>
                       {% if entity %}
                         <div class="text-dark small fw-semibold">
-                          <i class="bi bi-wallet2 me-1"></i>{{ entity.balance|default:'0.00' }}
+                          <i class="bi bi-wallet2 me-1"></i>{{ entity.balance|money }}
                         </div>
                       {% else %}
                         <span class="text-danger small"><i class="bi bi-exclamation-triangle"></i> {% trans "Missing Fund" %}</span>

@@ -16,6 +16,75 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 ---
 
 
+## 2026-10-17 — Unified money display (grouping, symbol, alignment)
+
+Every read-only monetary amount now renders through one formatter so figures
+show a currency symbol, thousands grouping and 2 decimals consistently, instead
+of the previous mix of `floatformat:2`, raw `Decimal.__str__` and hand-built
+`"$ " + x.toFixed(2)` strings. Quantities/counts are untouched.
+
+### Added
+- `apps/app_base/templatetags/money.py` with `money`, `money_plain` and
+  `money_signed` filters (`{{ v|money }}` → `$1,234.56`; `money_plain` without
+  the symbol; `money_signed` forces `+`/`-`). Half-up rounding, 0 for
+  `None`/blank/invalid, optional symbol override.
+- `static/js/money.js` exposing `window.FarmMoney` (`format`, `signed`, `plain`)
+  mirroring the server filter for client-side totals.
+- `apps.app_base.context_processors.currency` (registered in
+  `TEMPLATES`) so `{{ currency }}` is global and `<body data-currency>` feeds JS.
+- `.money` CSS utility (tabular figures, forced LTR) in `static/css/main.css`.
+- `apps/app_base/tests/test_money_filter.py`.
+
+### Changed
+- Migrated all money displays to `|money` / `FarmMoney`: reports
+  (`balance_sheet`, `cash_flow`, `equity_statement`, `income_statement`), entity
+  pages, operation list/detail/period/invoice/wizard snippets, adjustments, and
+  transaction ledgers. JS totals in `operation-formset.js`,
+  `partial-payment-subform.js`, `record_adjustment.html`,
+  `record_item_adjustment.html` and `evaluation_form.html` use `FarmMoney`.
+
+### Fixed
+- `entity_detail.html` used a non-existent `entity.currency` (always `$`);
+  `entity_list.html` showed balances with no symbol; reports showed no currency
+  symbol; several templates printed raw `Decimal` values without 2 decimals or
+  grouping.
+
+
+## 2026-10-17 — Money inputs rebuilt on IMask
+
+All operation amount/quantity inputs now use the **IMask** number mask instead of
+the bespoke `AmountInputFormatter`. Formatting and caret handling are delegated to
+IMask's model/view engine, which tracks the caret by digit, so typing across the
+decimal point no longer forces the cursor back to the integer part. The visible +
+hidden input twin architecture, `+`/`−` steppers, and Arrow Up/Down stepping are
+preserved. Amount fields are now larger (tabular figures) and force a left-to-right
+numeric direction even under the Arabic RTL layout; thousands are grouped by three.
+
+### Added
+- `static/js/vendor/imask.min.js` (IMask 7.6.1, MIT) plus licence/README.
+- `static/js/amount-input.js` exposing `window.AmountInput` with
+  `getValue()`, `getNumber()`, `setValue()`, and `getInstance()` helpers used by
+  the other scripts.
+
+### Changed
+- `templates/base.html` loads `vendor/imask.min.js` then `js/amount-input.js`;
+  removed `static/js/amount-input-formatter.js`.
+- `static/js/operation-formset.js` and `static/js/partial-payment-subform.js` read
+  and write amounts through `window.AmountInput` (fixes values ≥ 1000 being parsed
+  as their integer prefix).
+- `add_payment_form.html` and `evaluation_form.html` inline scripts use the new
+  helpers.
+- `static/css/main.css`: larger amount font (`--amount-font-size`, default 1.4rem),
+  tabular figures, `direction: ltr` for the numeric field, and logical-property
+  radii for the stepper buttons.
+- `ui_tests/base.py::fill_amount` drives `AmountInput.setValue`.
+
+### Fixed
+- Caret no longer jumps while editing; the decimal part can be typed continuously.
+- Amount inputs render correctly in Arabic (RTL) mode.
+- Thousands separators are shown while typing and for pre-filled values.
+
+
 ## 2026-10-17 — Purchase from the World (ad-hoc, fully settled)
 
 The **World** entity can now act as a vendor on a **Purchase** without a

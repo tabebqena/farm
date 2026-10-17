@@ -41,30 +41,25 @@
                     row.querySelector(".row-total").textContent = "—";
                     return;
                 }
-                const qty = parseFloat(row.querySelector(".qty-input").value) || 0;
-                const price = parseFloat(row.querySelector(".price-input").value) || 0;
+                const qty = window.AmountInput.getNumber(row.querySelector(".qty-input"));
+                const price = window.AmountInput.getNumber(row.querySelector(".price-input"));
                 const rowTotal = qty * price;
-                row.querySelector(".row-total").textContent = "$ " + rowTotal.toFixed(2);
+                row.querySelector(".row-total").textContent = window.FarmMoney.format(rowTotal);
                 grandTotal += rowTotal;
             });
 
             // Update footer grand-total display (desktop and mobile views)
             document.querySelectorAll(".grand-total-display").forEach((el) => {
                 if (el.tagName === "INPUT") {
-                    el.value = "$ " + grandTotal.toFixed(2);
+                    el.value = window.FarmMoney.format(grandTotal);
                 } else {
-                    el.textContent = "$ " + grandTotal.toFixed(2);
+                    el.textContent = window.FarmMoney.format(grandTotal);
                 }
             });
 
-            if (totalAmountInput) {
-                totalAmountInput.value = grandTotal.toFixed(2);
-            }
-
             // Update the standalone total-amount input (present only when no formset)
             if (totalAmountInput) {
-                totalAmountInput.value = grandTotal.toFixed(2);
-                totalAmountInput.dispatchEvent(new Event("input", { bubbles: true }));
+                window.AmountInput.setValue(totalAmountInput, grandTotal.toFixed(2));
             }
         }
 
@@ -106,7 +101,7 @@
 
                 // Ensure the new row is visible (in case it was cloned from a deleted one).
                 newRow.classList.remove("d-none");
-                newRow.querySelector(".row-total").textContent = "$ 0.00";
+                newRow.querySelector(".row-total").textContent = window.FarmMoney.format(0);
 
                 tableBody.appendChild(newRow);
                 totalForms.value = currentCount + 1;

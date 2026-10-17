@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% load l10n %}
 {% load i18n %}
+{% load money %}
 {% block content %}
   <div class="row justify-content-center">
   <div class="col-12 col-sm-10 col-md-7 col-lg-5">
@@ -40,8 +41,8 @@
         <div class="mb-3">
           <label class="form-label fw-bold">{% trans "Maximum Allowed" %}</label>
           <div class="input-group amount-input-group">
-            <span class="input-group-text">$</span>
-            <input type="text" class="form-control font-monospace" value="{{ remaining_balance }}" readonly />
+            <span class="input-group-text">{{ currency }}</span>
+            <input type="text" class="form-control font-monospace" value="{{ remaining_balance|money_plain }}" readonly />
           </div>
         </div>
 
@@ -56,7 +57,7 @@
             <span class="text-danger">*</span>
           </label>
           <div class="input-group amount-input-group">
-            <span class="input-group-text">$</span>
+            <span class="input-group-text">{{ currency }}</span>
             {{ form.amount }}
           </div>
           {% if form.amount.errors %}
@@ -101,7 +102,7 @@
 
         toggle.addEventListener('change', function () {
           if (this.checked) {
-            amountInput.value = maxAmount
+            window.AmountInput.setValue(amountInput, maxAmount)
             amountInput.readOnly = true
           } else {
             amountInput.readOnly = false

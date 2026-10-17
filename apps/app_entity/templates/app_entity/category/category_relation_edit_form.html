@@ -63,7 +63,7 @@
                 <div class="col-md-6">
                   <label class="form-label fw-bold">{% trans 'Budget Limit ($)' %}</label>
                   <div class="input-group">
-                    <span class="input-group-text bg-light">$</span>
+                    <span class="input-group-text bg-light">{{ currency }}</span>
                     <input type="number" step="0.01" name="max_limit" class="form-control" value="{{ relation.max_limit }}" required />
                   </div>
                   <div class="form-text">

@@ -3,6 +3,7 @@
 Tests that ensure authorized users can make GET requests to pages without errors.
 """
 
+from django.conf import settings
 from django.test import Client, TestCase
 from django.urls import reverse
 
@@ -82,7 +83,7 @@ class OperationListViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("balance", response.context)
         self.assertIn("currency", response.context)
-        self.assertEqual(response.context["currency"], "$")
+        self.assertEqual(response.context["currency"], settings.CURRENCY_SYMBOL)
         self.assertEqual(response.context["balance"], Decimal("100.00"))
 
         item = response.context["operations"][0]
