@@ -322,6 +322,34 @@ class Wizard:
                     "next_param": next_param,
                 },
             )
+
+        # A World counterparty must be paid in full at creation — no partial
+        # payment, no lingering payable/receivable against the World.
+        counterpart_id = session.get(f"{self.counterpart_field}_id")
+        counterpart = (
+            Entity.objects.filter(pk=counterpart_id).first()
+            if counterpart_id
+            else None
+        )
+        if counterpart is not None and counterpart.is_world and paid != total:
+            form.add_error(
+                "amount_paid",
+                _("Payment must equal the full total when the counterparty is the World."),
+            )
+            return render(
+                request,
+                self.template_name,
+                {
+                    "project": project,
+                    "step": 3,
+                    "steps": self.steps,
+                    "current_step": self.steps[3],
+                    "form": form,
+                    "total_amount": session.get("total_amount"),
+                    "next_param": next_param,
+                },
+            )
+
         session["amount_paid"] = str(paid)
         self.save_session(request, project.pk, session)
         return redirect(self.invoice_url, pk=project.pk)

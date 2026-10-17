@@ -595,6 +595,22 @@ class Operation(
         """
         return self._is_one_shot_operation
 
+    @property
+    def counterparty_is_world(self) -> bool:
+        """Whether the external counterparty of this operation is the World.
+
+        A Purchase buys from a vendor, so the World counterparty is the
+        destination. (Sale — client on the source — is recognised too, for
+        forward compatibility, though World-sale is not enabled yet.) Operations
+        with the World as counterparty must settle in full and cannot have their
+        payment transaction reversed on its own.
+        """
+        if self.operation_type == OperationType.PURCHASE:
+            return self.destination.is_world
+        if self.operation_type == OperationType.SALE:
+            return self.source.is_world
+        return False
+
     class Meta:
         verbose_name = "Operation"
         verbose_name_plural = "Operations"
@@ -1122,6 +1138,14 @@ class Operation(
             raise ValueError(
                 _("You can't pay less than %(amount)s for this operation.")
                 % {"amount": self.amount}
+            )
+        if self.counterparty_is_world and amount_paid != self.amount:
+            raise ValueError(
+                _(
+                    "An operation whose counterparty is the World must be paid in full "
+                    "(expected %(amount)s, got %(paid)s)."
+                )
+                % {"amount": self.amount, "paid": amount_paid}
             )
         if amount_paid > 0:
             self.create_payment_transaction(

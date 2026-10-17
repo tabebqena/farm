@@ -292,6 +292,18 @@ class Adjustment(
                 f"allowed=['PURCHASE', 'SALE', 'EXPENSE']"
             )
             raise ValidationError(_("This operation cannot be adjusted."))
+        # A purchase from the World is an ad-hoc, fully-settled one-off: it must
+        # not be adjusted (the fully-settled invariant would otherwise break).
+        if (
+            self.operation.operation_type == OperationType.PURCHASE
+            and self.operation.destination.is_world
+        ):
+            logger.warning(
+                f"Adjustment blocked on World purchase | operation={self.operation.pk}"
+            )
+            raise ValidationError(
+                _("A purchase from the World cannot be adjusted.")
+            )
         if AdjustmentType.is_general(self.type) and not self.reason:
             logger.warning(
                 f"General adjustment type requires reason | type={self.type}"
@@ -413,6 +425,14 @@ class InvoiceItemAdjustment(
                 _(
                     "Invoice item adjustments are only allowed on Purchase or Sale operations."
                 )
+            )
+        # A purchase from the World is a fully-settled one-off — no item edits.
+        if (
+            self.operation.operation_type == OperationType.PURCHASE
+            and self.operation.destination.is_world
+        ):
+            raise ValidationError(
+                _("A purchase from the World cannot be adjusted.")
             )
         # Validate type matches operation
         purchase_types = (

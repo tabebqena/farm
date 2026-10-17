@@ -136,6 +136,26 @@ The tables below **register every file that implements this operation**. The spe
 - **Payment target fund:** `self.destination` (vendor)
 - **Effect split:** the issuance tx records the obligation once (project payables ↑, vendor receivables ↑); fund balances move **only** on payment.
 
+### 3.1 World as an ad-hoc vendor
+
+The **World** entity may act as a vendor (no Stakeholder record required), so a
+one-off purchase from an unregistered party can be recorded without minting a
+throw-away entity. A World purchase is an **ad-hoc, fully-settled one-off**:
+
+- The World is **always offered** as a vendor in the wizard for every project
+  (even one with zero vendor Stakeholders); the "no active vendors" hard block is
+  removed. `get_related_entities` appends the World entity.
+- The purchase **must be paid in full at creation** (step 3 `amount_paid ==
+  total`); partial / zero payment is rejected. (The wizard offers no lingering
+  payable to the World.)
+- Its `PURCHASE_PAYMENT` **cannot be reversed on its own** — the user reverses
+  the whole operation, which reverses issuance + payment together
+  (`_implicit_reversable_transaction_types`).
+- It **cannot be adjusted** (accounting or invoice-item) — the fully-settled
+  invariant would otherwise break.
+- `counterparty_is_world` (`Operation`) is the single predicate that drives all
+  four rules.
+
 ---
 
 ## 4. Settlement model
@@ -164,9 +184,9 @@ Entry points: model `PurchaseOperation.save()` (tests) or the wizard → `Purcha
 | # | Branch | Pass condition | Failure outcome | Error (on failure) | Enforced by | Pinned by test |
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
 | VC1 | Source is Project | `source.is_project` | `ValidationError` | `"Purchase source must be a Project entity."` | `clean_source` | `PurchaseCreateTest.test_source_must_be_a_project_entity` |
-| VC2 | Destination is Vendor | `destination.is_vendor` | `ValidationError` | `"Purchase destination must be a Vendor entity."` | `clean_destination` | `PurchaseCreateTest.test_destination_must_be_a_vendor_entity` |
+| VC2 | Destination is Vendor or World | `destination.is_vendor or destination.is_world` | `ValidationError` | `"Purchase destination must be a Vendor entity."` | `clean_destination` | `PurchaseCreateTest.test_destination_must_be_a_vendor_entity` · `WorldPurchaseCreateTest.test_world_vendor_is_accepted` |
 | VC3 | Destination not internal | `not destination.is_internal` | `ValidationError` | `"Internal entities cannot be vendors…"` | `clean_destination` | `PurchaseCreateFromSessionTest.test_purchase_rejects_internal_vendor` · `test_get_related_entities_excludes_internal_vendors` |
-| VC4 | Destination is an active vendor stakeholder of the source project | active `Stakeholder(parent=source, target=dest, role=VENDOR)` | `ValidationError` | `"Purchase destination must be an active vendor of the source project."` | `clean_destination` | `PurchaseCreateTest.test_destination_must_be_active_stakeholder_vendor` · `test_destination_with_inactive_stakeholder_raises_validation_error` |
+| VC4 | Destination is an active vendor stakeholder of the source project (skipped for World) | active `Stakeholder(parent=source, target=dest, role=VENDOR)` or `dest.is_world` | `ValidationError` | `"Purchase destination must be an active vendor of the source project."` | `clean_destination` | `PurchaseCreateTest.test_destination_must_be_active_stakeholder_vendor` · `test_destination_with_inactive_stakeholder_raises_validation_error` |
 | VC5 | Destination is not a Project | project is not a vendor | `ValidationError` | same as VC2 / VC3 | `clean_destination` | `PurchaseCreateTest.test_destination_project_entity_raises_validation_error` |
 | VC6 | Source entity active | `source.active` | `ValidationError` | `"Entity '%(name)s' must be active…"` | `Operation.clean()` | `PurchaseCreateTest.test_source_must_be_active` |
 | VC7 | Destination entity active | `destination.active` | `ValidationError` | same as VC6 | `Operation.clean()` | merged with VC4 (inactive vendor) |
@@ -178,9 +198,10 @@ Entry points: model `PurchaseOperation.save()` (tests) or the wizard → `Purcha
 | VC13 | Date not in a closed period (source + destination) | no closed period contains `date` | `ValidationError` | `"Cannot create an operation whose date falls within a closed financial period."` | `Operation.clean()` | shared period suite (`OperationPeriodAssignmentTest.test_operation_in_closed_period_raises`) |
 | VC14 | A covering financial period exists | `period_entity` has a period containing `date` | `ValidationError` | `"Cannot create an operation: no financial period covers this operation's date."` | `Operation.save()` | shared period suite (`OperationPeriodAssignmentTest.test_operation_raises_when_no_open_period`) |
 | VC15 | Balance exempt @ create (issuance unguarded) | not one-shot; issuance is non-cash | never fails | — | `_is_one_shot_operation=False` | structural (see `test_project_fund_balance_unchanged_after_save`) |
-| VC16 | Tx entity-type contract | `source.is_project` and `target.is_vendor` | `ValidationError` | `"Transaction type '…' has invalid entity types: …"` | `Transaction.create()` | implied by VC1/VC2 |
+| VC16 | Tx entity-type contract | `source.is_project` and (`target.is_vendor` or `target.is_world`) | `ValidationError` | `"Transaction type '…' has invalid entity types: …"` | `Transaction.create()` | implied by VC1/VC2 · `WorldPurchaseCreateTest.test_type_map_accepts_world_for_purchase` |
 | VC17 | Tx operation-type allowed | document is `PURCHASE` | `ValidationError` | `"Transaction type '…' is not allowed for operation '…'."` | `Transaction.create()` | implied by VC1/VC2 |
 | VC18 | Source ≠ target | project ≠ vendor | always true | `"Source and target funds must be different."` | `Transaction.clean()` | structural (project ≠ vendor) |
+| VC19 | World purchase fully paid at creation | if `destination.is_world` then `amount_paid == total` | `ValidationError` | `"A purchase from the World must be paid in full at creation."` | `create_from_session` | `WorldPurchaseCreateTest.test_create_from_session_full_payment_succeeds` · `test_create_from_session_zero_payment_rejected` · `test_create_from_session_partial_payment_rejected` |
 
 #### 5.1.2 Success effects
 
@@ -211,10 +232,11 @@ Entry points: model `op.reverse(officer, date, reason)` or view `operation_rever
 |---|--------|----------------|-----------------|--------------------|-------------|----------------|
 | VR1 | Not already reversed | `reversed_by is None` | `ValidationError` | `"The transaction is already reversed."` | `ReversableModel._validate_can_be_reversed` + view guard | `PurchaseReversalTest.test_cannot_reverse_already_reversed_operation` |
 | VR2 | Not itself a reversal | `reversal_of is None` | `ValidationError` | `"You can't reverse this record as it is a reversal of …"` | `ReversableModel._validate_can_be_reversed` + view guard | `PurchaseReversalTest.test_cannot_reverse_a_reversal` |
-| VR3 | No non-reversed payment tx | no `PURCHASE_PAYMENT` exists (payments are explicit, not implicit) | `ValidationError` | `"You can't reverse this object as it has non-reversed transactions…"` | `ReversableModel._requires_transaction_reversal` + `Operation._implicit_reversable_transaction_types` | `PurchaseReversalTest.test_reversal_blocked_when_payment_exists` · `test_reversible_after_payment_reversed` |
+| VR3 | No non-reversed payment tx (World purchase exempt) | no explicit `PURCHASE_PAYMENT` exists (payments are explicit, not implicit) — a World purchase's payment **is implicit** and does not block | `ValidationError` | `"You can't reverse this object as it has non-reversed transactions…"` | `ReversableModel._requires_transaction_reversal` + `Operation._implicit_reversable_transaction_types` | `PurchaseReversalTest.test_reversal_blocked_when_payment_exists` · `test_reversible_after_payment_reversed` · `WorldPurchaseCreateTest.test_operation_reversal_reverses_issuance_and_payment` |
 | VR4 | No non-reversed movement lines | all user-driven movements reversed first | `ValidationError` | `"Reverse all inventory movements first."` | `Operation.reverse()` | `PurchaseReversalAfterMovementsTest.test_reversal_blocked_while_movement_active` · `test_reversible_after_all_movements_reversed` |
 | VR5 | No non-reversed adjustments | all adjustments reversed first | `ValidationError` | `"You can't reverse this object as it has non-reversed adjustments…"` | `ReversableModel.reverse()` | covered by adjustment suite (`AdjustmentReversalTest`) |
 | VR6 | Reason required | `POST['reversal_reason']` non-empty | view redirect + message | `"A reason for reversal is required."` | `operation_reverse_view` | view contract (see §8) |
+| VR7 | World payment not reversible alone | a standalone `PURCHASE_PAYMENT` reversal on a World purchase is rejected (transaction-level view) | view redirect + message | `"This payment involves the World and cannot be reversed alone…"` | `transaction_reverse_view` + `TransactionDetailView.can_reverse` | `WorldPurchaseViewTest.test_world_payment_cannot_be_reversed_alone` · `test_world_payment_detail_hides_reverse` |
 
 #### 5.2.2 Success effects
 
@@ -246,6 +268,7 @@ Standalone action — from the wizard (step 3, initial payment), later from the 
 | VP4 | Negative blocked | `amount > 0` | `ValidationError` | same as VP2 | `validate_settlement_amount` | `PurchasePaymentTest.test_negative_payment_raises_validation_error` |
 | VP5 | Partial allowed — multiple payments | `max_payment_transaction_count == -1` | — | — | `LinkedPaymentTransactionMixin` | `PurchasePaymentTest.test_multiple_partial_payments_are_allowed` |
 | VP6 | Payment date not in a closed period | `period_entity` open on `date` | `ValidationError` | `"Cannot record a payment dated within a closed financial period."` | `create_payment_transaction` | shared period suite (`DownstreamClosedPeriodGuardTest.test_payment_rejected_in_closed_period`) |
+| VP7 | World counterparty must settle in full | if `counterparty_is_world` then `amount == amount_remaining_to_settle` (and, in `process_payment`, `== amount`) | `ValidationError` / `ValueError` | `"An operation whose counterparty is the World must be settled in full…"` | `create_payment_transaction` / `process_payment` | `WorldPurchaseCreateTest.test_process_payment_partial_rejected` · `test_create_payment_transaction_partial_rejected` |
 
 #### 5.3.2 Success effects
 
@@ -292,6 +315,7 @@ Invoice-item correction (qty / unit price) via `record_item_adjustment`. This is
 | VA1 | Adjustable + not reversed / not a reversal | `is_items_adjustable=True`; no active reversal | `ValidationError` | — | `InvoiceItemAdjustment` | `ValidationTest.test_item_adjustment_requires_purchase_or_sale` · `test_type_must_match_operation` |
 | VA2 | ≥ 1 item changed; qty/price parse | at least one delta, valid decimal | `ValidationError` | — | item-adjustment finalize | `ValidationTest.test_line_requires_at_least_one_change_field` · `test_line_must_belong_to_same_operation` |
 | VA3 | New qty ≥ already moved | `new_qty ≥ moved_qty` | `ValidationError` | — | `InvoiceItemAdjustmentLine.clean` | `DecreaseWithMovementsTest.test_decrease_below_moved_quantity_raises` · `test_decrease_to_moved_quantity_succeeds` (see note in Sale spec) |
+| VA8 | Not a World purchase | `not operation.counterparty_is_world` | `ValidationError` | `"A purchase from the World cannot be adjusted."` | `InvoiceItemAdjustment.clean` + `RecordItemAdjustmentView` guard | `WorldPurchaseAdjustmentBlockTest.test_item_adjustment_blocked` |
 
 #### 5.5.2 Success effects
 
@@ -313,6 +337,7 @@ Accounting adjustment on the operation amount via `record_accounting_adjustment`
 | VA5 | Adjustment type allowed for PURCHASE | `PURCHASE_RETURN` etc → `PURCHASE_ADJUSTMENT_INCREASE` / `PURCHASE_ADJUSTMENT_DECREASE` | `ValidationError` | — | adjustment type map | `AdjustmentDirectionTest.test_purchase_return_reverses_direction` · `test_purchase_undercharge_keeps_direction` |
 | VA6 | Amount > 0; officer staff + active | valid amount + officer | `ValidationError` | — | `Adjustment` | `AdjustmentValidationTest.test_amount_zero_raises_validation_error` · `test_amount_negative_raises_validation_error` · `test_officer_user_must_be_staff` · `test_officer_must_be_active` |
 | VA7 | Reduction can't drive below zero | `effective_amount ≥ 0` after reduction | `ValidationError` | — | `Adjustment` | `AdjustmentEffectiveAmountTest.test_single_decrease_reduces_effective_amount` (floor enforced by engine) |
+| VA9 | Not a World purchase | `not operation.counterparty_is_world` | `ValidationError` | `"A purchase from the World cannot be adjusted."` | `Adjustment.clean` + `RecordAccountingAdjustmentView` guard | `WorldPurchaseAdjustmentBlockTest.test_accounting_adjustment_blocked` |
 
 #### 5.6.2 Success effects
 
@@ -346,7 +371,7 @@ Accounting adjustment on the operation amount via `record_accounting_adjustment`
 ## 7. Entity roles & balance contract
 
 - **Source:** must be a Project — enforced at model (VC1 `clean_source`) and transaction (VC16 ) layers.
-- **Destination:** must be an external Vendor that is an **active vendor stakeholder** of the source project — enforced at model (VC2/VC3/VC4 `clean_destination`) and transaction (VC16) layers. Internal entities are never vendors (VC3); intra-farm transfers go through SALE.
+- **Destination:** must be an external Vendor that is an **active vendor stakeholder** of the source project — enforced at model (VC2/VC3/VC4 `clean_destination`) and transaction (VC16) layers. Internal entities are never vendors (VC3); intra-farm transfers go through SALE. The **World** entity is the one exception: it is accepted without a Stakeholder record as an ad-hoc, fully-settled one-off (§3.1).
 - `project.payables` and `vendor.receivables` are derived from **issuance + adjustment** types (non-cash) — `payables_at` / `receivables_at`.
 - `project.balance` and `vendor.balance` are derived exclusively from **payment-type** transactions — `balance_at`.
 - The project fund is a **real** fund, so `can_pay()` balance-checks it; `check_balance_on_payment=True` guards each payment (VP1). Issuance itself is unguarded (VC15).
@@ -359,14 +384,14 @@ Accounting adjustment on the operation amount via `record_accounting_adjustment`
 |---------|----------|
 | Create route | Wizard `GET/POST /<project_pk>/purchase/wizard/` (+ `/…/<step>/`, `/cancel/`) → `purchase_wizard_view`; submit → `purchase_submit_view` |
 | Source selection | locked to the **Project** from the URL (`_source_role="url"`); no picker |
-| Destination selection | active **vendor stakeholders** of the project, **excluding internal entities** (`get_related_entities`); picker + product templates restricted to the project |
+| Destination selection | active **vendor stakeholders** of the project, **excluding internal entities**, **plus the World** (`get_related_entities`, always available — no "no vendors" block); picker + product templates restricted to the project |
 | Category | hidden (no category) |
 | Amount | derived from invoice-item totals — wizard computes `total_amount`, validated by `_validate_item_totals`; user **cannot** manually edit the amount |
 | POST parsing | `OperationDataValidator` |
-| Initial payment | wizard step 3 — `amount_paid` (0 allowed); goes through `create_payment_transaction` |
+| Initial payment | wizard step 3 — `amount_paid` (0 allowed for normal vendors; **must equal the total for a World vendor**, VC19/VP7); goes through `create_payment_transaction` |
 | Record payment (later) | detail-page "Record Payment" → `record_transaction_payment` (URL ); template |
 | Move items | wizard step 4, detail-page shortcut, or inventory shortcut → `create_inventory_movement` |
-| Adjust / adjust items | `record_accounting_adjustment` / `record_item_adjustment` |
+| Adjust / adjust items | `record_accounting_adjustment` / `record_item_adjustment` (both hidden + rejected for a World purchase, VA8/VA9) |
 | Detail | `operation_detail_view` — total amount, paid so far, remaining; movement status; "Record Payment", adjust, and reversal actions |
 | Reverse | `operation_reverse_view` — `POST` requires `reversal_reason`; guards already-reversed / is-reversal (VR1/VR2) |
 
@@ -374,15 +399,15 @@ Accounting adjustment on the operation amount via `record_accounting_adjustment`
 
 ## 9. Branch catalog (all possible branches)
 
-**create — validation:** VC1 source=project · VC2 dest=vendor · VC3 dest not internal · VC4 dest active vendor stakeholder · VC5 dest not a project · VC6 source active · VC7 dest active · VC8 source fund active · VC9 target fund active · VC10 amount>0 · VC11 officer staff · VC12 officer active · VC13 not closed-period · VC14 covering period · VC15 issuance balance exempt · VC16 tx entity-type · VC17 tx op-type · VC18 source≠target
+**create — validation:** VC1 source=project · VC2 dest=vendor or World · VC3 dest not internal · VC4 dest active vendor stakeholder (skipped for World) · VC5 dest not a project · VC6 source active · VC7 dest active · VC8 source fund active · VC9 target fund active · VC10 amount>0 · VC11 officer staff · VC12 officer active · VC13 not closed-period · VC14 covering period · VC15 issuance balance exempt · VC16 tx entity-type · VC17 tx op-type · VC18 source≠target · VC19 World purchase fully paid at creation
 
 **create — effects:** SC1 issuance tx only · SC2 no payment tx · SC3 direction project→vendor · SC4 amount matches · SC5 non-cash (fund unchanged) · SC6 remaining == amount · SC7 not fully settled · SC8 project payables ▲ · SC9 vendor receivables ▲ · SC10 project receivables unchanged · SC11 vendor payables unchanged · SC12 invoice items · SC13 ledger/pending obligation · SC14 period assigned
 
-**reverse — validation:** VR1 not reversed · VR2 not a reversal · VR3 no payments · VR4 no movements · VR5 no adjustments · VR6 reason required (view)
+**reverse — validation:** VR1 not reversed · VR2 not a reversal · VR3 no payments (World payment implicit) · VR4 no movements · VR5 no adjustments · VR6 reason required (view) · VR7 World payment not reversible alone
 
-**reverse — effects:** SR1 reversal record · SR2 original reversed · SR3 is_reversal · SR4 identity copied · SR5 counter-tx for issuance only · SR6 counter flips funds · SR7 project fund unchanged · SR8 payables restored · SR9 receivables restored · SR10 differential invariant · SR11 reversal owns no txs
+**reverse — effects:** SR1 reversal record · SR2 original reversed · SR3 is_reversal · SR4 identity copied · SR5 counter-tx for issuance only (issuance + payment for World) · SR6 counter flips funds · SR7 project fund unchanged · SR8 payables restored · SR9 receivables restored · SR10 differential invariant · SR11 reversal owns no txs
 
-**pay — validation:** VP1 balance per payment · VP2 amount>0 · VP3 over-payment guard · VP4 negative blocked · VP5 partial/multiple allowed · VP6 closed-period blocked
+**pay — validation:** VP1 balance per payment · VP2 amount>0 · VP3 over-payment guard · VP4 negative blocked · VP5 partial/multiple allowed · VP6 closed-period blocked · VP7 World counterparty settles in full
 
 **pay — effects:** SP1 payment tx project→vendor · SP2 remaining ↓ · SP3 settled accumulates · SP4 full → fully settled · SP5 project fund ▼ · SP6 vendor fund ▲ · SP7 tx count
 
@@ -390,9 +415,9 @@ Accounting adjustment on the operation amount via `record_accounting_adjustment`
 
 **move items — effects:** SM1 movement lines + ledger · SM2 individual → one line per head · SM3 commodity → one line full qty · SM4 lazy products, remaining ↓ · SM5 movement reversible
 
-**adjust items — validation:** VA1 adjustable + not reversed · VA2 ≥1 changed · VA3 qty ≥ moved · **effects:** SA1 item adjustment + lines · SA2 accounting adj + tx · SA3 ledger entries
+**adjust items — validation:** VA1 adjustable + not reversed · VA2 ≥1 changed · VA3 qty ≥ moved · VA8 not a World purchase · **effects:** SA1 item adjustment + lines · SA2 accounting adj + tx · SA3 ledger entries
 
-**adjust — validation:** VA4 adjustable + not reversed · VA5 type allowed · VA6 amount>0/staff · VA7 reduction ≥ 0 · **effects:** SA4 `effective_amount` delta (non-cash)
+**adjust — validation:** VA4 adjustable + not reversed · VA5 type allowed · VA6 amount>0/staff · VA7 reduction ≥ 0 · VA9 not a World purchase · **effects:** SA4 `effective_amount` delta (non-cash)
 
 **immutability:** IM1 source · IM2 destination · IM3 amount (all immutable after save)
 
@@ -432,4 +457,8 @@ Accounting adjustment on the operation amount via `record_accounting_adjustment`
 | Adjust items — ledger | `LedgerEntryTest.test_purchase_price_decrease_ledger_entry` · `test_purchase_quantity_decrease_ledger_entry` · `test_purchase_removal_ledger_entry` · `test_idempotency_key_prevents_duplicate_entries` | SA3 |
 | Adjust — effective amount | `AdjustmentTransactionTest.test_purchase_adjustment_creates_purchase_adjustment_transaction` · `AdjustmentEffectiveAmountTest.test_single_decrease_reduces_effective_amount` · `test_single_increase_raises_effective_amount` · `test_reversed_adjustment_excluded_from_effective_amount` | SA4 |
 | Adjust — payables / reverse | `AdjustmentReversalTest.test_purchase_return_reduces_project_payables` · `test_reverse_adjustment_restores_project_payables` · `test_reverse_adjustment_restores_vendor_receivables` | SA4, VR5 |
+| World vendor (ad-hoc) | `WorldPurchaseCreateTest.test_world_vendor_is_accepted` · `test_get_related_entities_includes_world` · `test_wizard_vendor_queryset_includes_world` · `test_type_map_accepts_world_for_purchase` | VC2, VC4, VC16 |
+| World full settlement | `WorldPurchaseCreateTest.test_create_from_session_full_payment_succeeds` · `test_create_from_session_zero_payment_rejected` · `test_create_from_session_partial_payment_rejected` · `test_process_payment_partial_rejected` · `test_create_payment_transaction_partial_rejected` | VC19, VP7 |
+| World reversal | `WorldPurchaseCreateTest.test_operation_reversal_reverses_issuance_and_payment` · `test_create_pay_reverse_leaves_world_unchanged` · `WorldPurchaseViewTest.test_world_payment_cannot_be_reversed_alone` · `test_world_payment_detail_hides_reverse` · `test_wizard_available_without_vendor_stakeholders` | VR3, VR7, SR5, SR10 |
+| World adjustments blocked | `WorldPurchaseAdjustmentBlockTest.test_accounting_adjustment_blocked` · `test_item_adjustment_blocked` | VA8, VA9 |
 

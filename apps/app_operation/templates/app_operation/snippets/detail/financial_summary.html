@@ -10,7 +10,7 @@
           {% if operation.max_payment_transaction_count < 0 and not operation.is_fully_settled %}
             <a href="{% url 'record_transaction_payment' operation.pk %}" class="btn btn-sm btn-outline-success text-white border-success"><i class="bi bi-cash-coin me-1"></i>{% trans 'Record Payment' %}</a>
           {% endif %}
-          {% if operation.is_adjustable %}
+          {% if operation.is_adjustable and not operation.counterparty_is_world %}
             <a href="{% url 'record_accounting_adjustment' operation.pk %}" class="btn btn-sm btn-outline-light"><i class="bi bi-pencil-square me-1"></i>{% trans 'Accounting Adj.' %}</a>
           {% endif %}
         </div>

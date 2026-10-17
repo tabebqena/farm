@@ -514,6 +514,19 @@ class LinkedPaymentTransactionMixin(
                     )
 
             self.validate_settlement_amount(amount)
+            # A World counterparty must be fully settled: a payment may not be
+            # partial. (Purchase from the World is fully paid at creation and has
+            # no outstanding balance; this guards any standalone pay attempt.)
+            if getattr(self, "counterparty_is_world", False):
+                remaining = self.amount_remaining_to_settle
+                if amount != remaining:
+                    raise ValidationError(
+                        _(
+                            "An operation whose counterparty is the World must be "
+                            "settled in full (expected %(remaining)s, got %(amount)s)."
+                        )
+                        % {"remaining": remaining, "amount": amount}
+                    )
             return Transaction.create(
                 source=self.payment_source_fund,
                 target=self.payment_target_fund,

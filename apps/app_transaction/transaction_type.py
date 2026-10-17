@@ -467,17 +467,19 @@ def _build_tx_entity_type_map():
     is_person = _named(lambda e: e.is_person, "person")
     is_system = _named(lambda e: e.is_system, "system")
     is_world = _named(lambda e: e.is_world, "world")
-    is_vendor = _named(lambda e: e.is_vendor, "vendor")
     is_client = _named(lambda e: e.is_client, "client")
+    is_vendor_or_world = _named(
+        lambda e: e.is_vendor or e.is_world, "vendor or world"
+    )
     is_worker = _named(lambda e: e.is_worker, "worker")
     is_shareholder = _named(lambda e: e.is_shareholder, "shareholder")
     not_virtual = _named(lambda e: not e.is_virtual, "non-virtual")
     return {
-        # Purchase: project pays a vendor
-        T.PURCHASE_ISSUANCE: (is_project, is_vendor),
-        T.PURCHASE_PAYMENT: (is_project, is_vendor),
-        T.PURCHASE_ADJUSTMENT_INCREASE: (is_project, is_vendor),
-        T.PURCHASE_ADJUSTMENT_DECREASE: (is_vendor, is_project),
+        # Purchase: project pays a vendor (the World may act as an ad-hoc vendor)
+        T.PURCHASE_ISSUANCE: (is_project, is_vendor_or_world),
+        T.PURCHASE_PAYMENT: (is_project, is_vendor_or_world),
+        T.PURCHASE_ADJUSTMENT_INCREASE: (is_project, is_vendor_or_world),
+        T.PURCHASE_ADJUSTMENT_DECREASE: (is_vendor_or_world, is_project),
         # Sale: client owes the project
         T.SALE_ISSUANCE: (is_client, is_project),
         T.SALE_COLLECTION: (is_client, is_project),

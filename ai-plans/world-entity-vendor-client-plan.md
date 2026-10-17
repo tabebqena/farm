@@ -134,3 +134,47 @@ Adjustment should be blocked also.
 
 
 User: Too complicated , I wil decide later
+
+---
+
+## Implemented (purchase-only scope) — 2026-10-17
+
+The full plan (purchase **and** sale) was not executed. Instead, a narrower
+**purchase-only** slice was implemented per the user's decision:
+
+- **Purchase from the World only** — sale, expense and every other World flow are
+  untouched.
+- **Fully paid at creation** (not "pay later in full"): the wizard step 3 and
+  `create_from_session` reject a partial/zero payment when the vendor is World;
+  `process_payment` / `create_payment_transaction` enforce full settlement.
+- **No standalone payment reversal**: `transaction_reverse_view` blocks it and
+  `TransactionDetailView.can_reverse` hides the button; operation-level reversal
+  reverses issuance + payment implicitly.
+- **Adjustments blocked** on a World purchase (accounting + invoice-item), at the
+  model and view layers.
+
+### Files touched
+- `apps/app_operation/models/operation.py` — `counterparty_is_world`,
+  `process_payment` full-settlement rule.
+- `apps/app_operation/models/proxies/op_purchase.py` — World allowed in
+  `clean_destination`, World appended in `get_related_entities`, full-payment
+  guard in `create_from_session`, implicit payment reversal.
+- `apps/app_transaction/transaction_type.py` — `is_vendor_or_world` predicate for
+  the `PURCHASE_*` types.
+- `apps/app_base/mixins.py` — full-settlement guard in
+  `create_payment_transaction` for a World counterparty.
+- `apps/app_operation/forms.py` + `views/create_operation/purchase_wizard.py` +
+  `views/create_operation/wizard_base.py` — World in the vendor picker, no
+  "no vendors" block, step-3 full-payment guard.
+- `apps/app_adjustment/models.py` + `apps/app_operation/views/adjustment.py` +
+  adjustment templates — World-purchase adjustment block.
+- `apps/app_transaction/views.py` — World-payment standalone reversal block +
+  `can_reverse`.
+- `apps/app_operation/tests/operations/purchase/test_purchase_world.py` — new
+  suite (16 tests).
+- `docs/operations/op_9_purchase.md`, `VERSION` (1.6.0), `CHANGES.md`.
+
+### Not done (still open)
+- Sale to the World (World as client) — deferred.
+- The old plan's `is_vendor`/Stakeholder flag changes — deliberately avoided in
+  favour of the `is_world` branch.

@@ -100,6 +100,14 @@ class RecordAccountingAdjustmentView(View):
             )
             return None, redirect("operation_detail_view", pk=pk)
 
+        # A purchase from the World is a fully-settled one-off — not adjustable.
+        if getattr(operation, "counterparty_is_world", False):
+            messages.warning(
+                self.request,
+                _("A purchase from the World cannot be adjusted."),
+            )
+            return None, redirect("operation_detail_view", pk=pk)
+
         if operation.is_reversed or operation.is_reversal:
             messages.warning(
                 self.request,
@@ -222,6 +230,14 @@ class RecordItemAdjustmentView(View):
             messages.warning(
                 self.request,
                 _("Cannot adjust a reversed or reversal operation."),
+            )
+            return None, None, redirect("operation_detail_view", pk=pk)
+
+        # A purchase from the World is a fully-settled one-off — no item edits.
+        if getattr(operation, "counterparty_is_world", False):
+            messages.warning(
+                self.request,
+                _("A purchase from the World cannot be adjusted."),
             )
             return None, None, redirect("operation_detail_view", pk=pk)
 

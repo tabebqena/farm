@@ -16,6 +16,50 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 ---
 
 
+## 2026-10-17 — Purchase from the World (ad-hoc, fully settled)
+
+The **World** entity can now act as a vendor on a **Purchase** without a
+Stakeholder record, so a one-off purchase from an unregistered party can be
+recorded without minting a throw-away entity. A World purchase is an ad-hoc,
+fully-settled one-off: it is paid in full at creation, its payment cannot be
+reversed on its own, and it cannot be adjusted.
+
+### Added
+- `Operation.counterparty_is_world` — the single predicate driving the World
+  rules (Purchase → destination is World).
+- World is always offered in the purchase wizard's vendor picker for every
+  project (`PurchaseWizardStep1Form`, `PurchaseOperation.get_related_entities`),
+  even when the project has no vendor Stakeholders.
+- `is_vendor_or_world` transaction-type predicate for the `PURCHASE_*` types
+  (`_TX_ENTITY_TYPE_MAP`).
+
+### Changed
+- `PurchaseOperation.clean_destination()` accepts the World without an active
+  VENDOR Stakeholder (all other destinations keep the strict validation).
+- `PurchaseOperation.create_from_session()` requires `amount_paid == total` when
+  the vendor is the World; `Operation.process_payment()` and
+  `LinkedPaymentTransactionMixin.create_payment_transaction()` enforce full
+  settlement for a World counterparty.
+- The purchase wizard no longer hard-blocks a project with no vendors; step 3
+  rejects a partial/zero payment when the counterparty is the World.
+- World purchases reverse issuance + payment together
+  (`PurchaseOperation._implicit_reversable_transaction_types`); a standalone
+  `PURCHASE_PAYMENT` reversal is blocked in `transaction_reverse_view` and hidden
+  by `TransactionDetailView.can_reverse`.
+- Accounting and invoice-item adjustments are rejected on a World purchase
+  (`Adjustment.clean()`, `InvoiceItemAdjustment.clean()`, both adjustment views,
+  and the adjustment action buttons in the detail templates).
+
+### Tests
+- New purchase-from-World suite: acceptance, full-settlement enforcement,
+  reversal (issuance + payment), standalone-payment-reversal block, no-vendor
+  wizard access, and adjustment block
+  (`app_operation.tests.operations.purchase.test_purchase_world`).
+- Existing purchase, adjustment and transaction suites stay green.
+
+---
+
+
 ## 2026-10-17 — Make soft deletes work from Django admin; operations own their transactions
 
 Two soft-delete defects made admin cleanup impossible. First, Django admin

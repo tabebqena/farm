@@ -26,10 +26,10 @@
         <small class="text-muted">{{ operation.date }} &middot; {{ operation.source.name }} &rarr; {{ operation.destination.name }}</small>
       </div>
       <div class="d-flex gap-2">
-        {% if operation.is_adjustable %}
+        {% if operation.is_adjustable and not operation.counterparty_is_world %}
           <a href="{% url 'record_accounting_adjustment' operation.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil-square me-1"></i>{% trans 'New Accounting Adj.' %}</a>
         {% endif %}
-        {% if has_invoice %}
+        {% if has_invoice and not operation.counterparty_is_world %}
           <a href="{% url 'record_item_adjustment' operation.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-sliders me-1"></i>{% trans 'New Item Adj.' %}</a>
         {% endif %}
       </div>

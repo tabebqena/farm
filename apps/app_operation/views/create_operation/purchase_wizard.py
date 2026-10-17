@@ -9,7 +9,7 @@ from django.contrib import messages
 from django.shortcuts import redirect, render
 from django.utils.translation import gettext as _
 
-from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
+from apps.app_entity.models import Entity, EntityType
 from apps.app_inventory.models import ProductTemplate
 from apps.app_operation.forms import (
     PurchaseItemForm,
@@ -56,22 +56,17 @@ PURCHASE_WIZARD = Wizard(
 
 
 def _load_project(request, pk):
-    """Return (project, None) or (None, redirect_response)."""
+    """Return (project, None) or (None, redirect_response).
+
+    There is no hard block on a project without vendor Stakeholders: the World
+    entity is always available as an ad-hoc vendor.
+    """
     project = get_object_or_404(
         Entity,
         pk=pk,
         entity_type=EntityType.PROJECT,
         error_message="Project not found or has been deleted.",
     )
-    vendor_count = Stakeholder.objects.filter(
-        parent=project, role=StakeholderRole.VENDOR, active=True
-    ).count()
-    if vendor_count == 0:
-        messages.warning(
-            request,
-            _("Cannot create purchase: no active vendors configured for this project."),
-        )
-        return None, redirect("operation_list_view", person_pk=pk)
     return project, None
 
 

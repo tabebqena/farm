@@ -13,7 +13,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from apps.app_base.form_logging import LoggingFormMixin
-from apps.app_entity.models import Entity, Stakeholder, StakeholderRole
+from apps.app_entity.models import Entity, EntityType, Stakeholder, StakeholderRole
 from apps.app_inventory.models import Product
 
 
@@ -46,8 +46,12 @@ class PurchaseWizardStep1Form(LoggingFormMixin, forms.Form):
                 active=True,
             ).values_list("target_id", flat=True)
             # Internal entities cannot be vendors — purchases are external-only.
+            # The World entity is always offered as an ad-hoc vendor (no
+            # Stakeholder record required) so one-off purchases can be recorded.
+            from django.db.models import Q
+
             self.fields["vendor"].queryset = Entity.objects.filter(
-                pk__in=vendor_ids
+                Q(pk__in=vendor_ids) | Q(entity_type=EntityType.WORLD)
             ).exclude(is_internal=True)
 
 

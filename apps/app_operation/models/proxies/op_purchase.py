@@ -76,8 +76,18 @@ class PurchaseOperation(AdjustableTransactionMixin, Operation):
 
     @classmethod
     def get_related_entities(cls, url_entity, config):
-        """External entities registered as active vendors of the project."""
-        from apps.app_entity.models import Stakeholder, StakeholderRole
+        """External entities registered as active vendors of the project.
+
+        The World entity is always offered as an ad-hoc vendor (no Stakeholder
+        record required), so the user can register a one-off purchase against an
+        entity that is not worth creating in the database.
+        """
+        from apps.app_entity.models import (
+            Entity,
+            EntityType,
+            Stakeholder,
+            StakeholderRole,
+        )
 
         # Internal entities cannot be vendors — purchases are external-only.
         relationships = (
@@ -88,10 +98,21 @@ class PurchaseOperation(AdjustableTransactionMixin, Operation):
             .select_related("target")
             .all()
         )
-        return [s.target for s in relationships]
+        related = [s.target for s in relationships]
+        world = Entity.objects.filter(entity_type=EntityType.WORLD).first()
+        if world is not None and world not in related:
+            related.append(world)
+        return related
 
     def clean_destination(self):
-        """Require an active, non-internal vendor of the source project."""
+        """Require an active, non-internal vendor of the source project.
+
+        The World entity is allowed without a Stakeholder record (ad-hoc
+        purchase). All other destinations keep the strict vendor + Stakeholder
+        validation.
+        """
+        if self.destination.is_world:
+            return
         if not self.destination.is_vendor:
             raise ValidationError("Purchase destination must be a Vendor entity.")
         # Internal entities cannot be vendors — purchases are external-only and
@@ -112,6 +133,20 @@ class PurchaseOperation(AdjustableTransactionMixin, Operation):
             raise ValidationError(
                 "Purchase destination must be an active vendor of the source project."
             )
+
+    @property
+    def _implicit_reversable_transaction_types(self):
+        """Payment is reversed implicitly for a World purchase.
+
+        A World purchase is fully paid at creation and its payment can never be
+        reversed on its own, so operation-level reversal must reverse both the
+        issuance and the payment together.
+        """
+        types = list(super()._implicit_reversable_transaction_types)
+        payment = getattr(self, "_payment_transaction_type", None)
+        if self.destination.is_world and payment is not None:
+            types.append(payment)
+        return types
 
     # ------------------------------------------------------------------
     # Factory — consolidate wizard submit logic
@@ -153,6 +188,12 @@ class PurchaseOperation(AdjustableTransactionMixin, Operation):
         total = Decimal(session_data["total_amount"])
         paid = Decimal(session_data.get("amount_paid", "0"))
         items_data = session_data["items"]
+
+        # ── 0. World purchases must be fully paid at creation ──────────
+        if vendor.is_world and paid != total:
+            raise ValidationError(
+                _("A purchase from the World must be paid in full at creation.")
+            )
 
         # ── 1. Integrity check (shared base method) ────────────────────
         cls._validate_item_totals(items_data, total)

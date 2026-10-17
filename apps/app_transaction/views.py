@@ -24,6 +24,22 @@ from apps.app_transaction.transaction_type import TransactionType
 from farm.shortcuts import get_object_or_404, paginate
 
 
+def _is_world_counterparty_payment(transaction) -> bool:
+    """True for a payment transaction whose parent operation has the World as
+    counterparty (a Purchase from the World).
+
+    Such a payment is fully-settled at creation and must never be reversed on its
+    own — reversing the whole operation reverses issuance + payment together.
+    """
+    operation = transaction.document
+    if operation is None:
+        return False
+    return (
+        transaction.type == TransactionType.PURCHASE_PAYMENT
+        and getattr(operation, "counterparty_is_world", False)
+    )
+
+
 def _build_obligation_transactions(
     entity,
     increase_source_types,
@@ -341,7 +357,11 @@ class TransactionDetailView(View):
 
         context = {
             "transaction": transaction,
-            "can_reverse": not transaction.is_reversed and not transaction.is_reversal,
+            "can_reverse": (
+                not transaction.is_reversed
+                and not transaction.is_reversal
+                and not _is_world_counterparty_payment(transaction)
+            ),
             "currency": getattr(settings, "CURRENCY_SYMBOL", "$"),
         }
         return render(request, "app_transaction/transaction_detail.html", context)
@@ -419,6 +439,25 @@ class TransactionReverseView(View):
                 f"reversal_attempt_on_one_shot_operation | Transaction:{transaction.pk} | "
                 f"user={request.user.username} | reason=one_shot_operation | "
                 f"operation_pk={operation.pk} | operation_type={operation.operation_type}"
+            )
+            messages.warning(request, error_msg)
+            return redirect("operation_detail_view", pk=transaction.object_id)
+
+        # A World-counterparty payment (Purchase from the World) must not be
+        # reversed on its own — the user reverses the whole operation instead.
+        if _is_world_counterparty_payment(transaction):
+            error_msg = (
+                "This payment involves the World and cannot be reversed alone. "
+                "Reverse the entire operation instead."
+            )
+            logger.warning(
+                f"{error_msg} | transaction_pk={transaction.pk} | "
+                f"operation_pk={getattr(operation, 'pk', None)}"
+            )
+            audit_logger.info(
+                f"reversal_attempt_on_world_payment | Transaction:{transaction.pk} | "
+                f"user={request.user.username} | reason=world_counterparty_payment | "
+                f"operation_pk={getattr(operation, 'pk', None)}"
             )
             messages.warning(request, error_msg)
             return redirect("operation_detail_view", pk=transaction.object_id)
