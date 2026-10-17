@@ -183,12 +183,26 @@ def purchase_add_item_view(request, pk, idx=None):
         error_message="Product template not found or is not assigned to this project.",
     )
 
+    # Tags already used by the other pending (not-yet-saved) session lines.
+    # Auto-suggested tags must avoid them or the duplicate guard below would
+    # falsely reject a blank Tag/ID on the second line of the same template.
+    reserved_tags = {
+        (it.get("unique_id") or "").strip()
+        for i, it in enumerate(items)
+        if i != idx and it.get("unique_id")
+    }
+
     if request.method == "POST":
-        form = PurchaseItemForm(request.POST, template=template, entity=project)
+        form = PurchaseItemForm(
+            request.POST,
+            template=template,
+            entity=project,
+            reserved_tags=reserved_tags,
+        )
         if form.is_valid():
             cd = form.cleaned_data
-            # Duplicate unique_id guard (auto-suggested tags are unique by
-            # construction; only explicit user-typed tags need this check)
+            # Duplicate unique_id guard for explicitly user-typed tags; the
+            # auto-suggested ones already skip `reserved_tags` above.
             uid = (cd.get("unique_id") or "").strip()
             if (
                 uid
@@ -237,8 +251,18 @@ def purchase_add_item_view(request, pk, idx=None):
             }
         else:
             initial = {"product_template_id": template.pk, "received_qty": "0"}
+            # Show the next free tag up front (stock + already-added lines),
+            # so the user sees the suggestion instead of it being assigned
+            # invisibly on submit.
+            if template.tracking_mode == ProductTemplate.TrackingMode.INDIVIDUAL:
+                initial["unique_id"] = template.next_tag(
+                    project, reserved=reserved_tags
+                )
         form = PurchaseItemForm(
-            initial=initial, template=template, entity=project
+            initial=initial,
+            template=template,
+            entity=project,
+            reserved_tags=reserved_tags,
         )
 
     return render(

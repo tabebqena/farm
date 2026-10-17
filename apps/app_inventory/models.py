@@ -257,7 +257,7 @@ class ProductTemplate(BaseModel):
         chars = "".join(c for c in self.name.upper() if c.isalnum())[:4]
         return chars or "AN"
 
-    def next_tag(self, entity) -> str:
+    def next_tag(self, entity, reserved=()) -> str:
         """
         Next suggested unique tag for *entity* on this template:
         ``{PREFIX}{max_existing_numeric_suffix + 1}`` (1 when none exist).
@@ -267,10 +267,16 @@ class ProductTemplate(BaseModel):
         which now applies to live rows only (soft-deleted rows no longer keep a
         tag taken). The caller may edit the suggested value; the constraint is
         the hard backstop.
+
+        *reserved* is an optional iterable of tags already spoken for but not
+        yet persisted — e.g. sibling lines still sitting in a wizard session.
+        The suggestion skips them so two pending lines never receive the same
+        auto-generated tag before either exists in the database.
         """
         from apps.app_inventory.models import Product
 
         prefix = self.effective_tag_prefix
+        reserved = {str(r) for r in (reserved or ()) if r}
         existing = Product.all_objects.filter(
             entity=entity, product_template=self, unique_id__startswith=prefix
         ).values_list("unique_id", flat=True)
@@ -279,7 +285,10 @@ class ProductTemplate(BaseModel):
             suffix = uid[len(prefix):] if uid else ""
             if suffix.isdigit():
                 max_num = max(max_num, int(suffix))
-        return f"{prefix}{max_num + 1}"
+        candidate = max_num + 1
+        while f"{prefix}{candidate}" in reserved:
+            candidate += 1
+        return f"{prefix}{candidate}"
 
     def __str__(self):
         return self.name

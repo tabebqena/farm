@@ -164,10 +164,14 @@ class PurchaseItemForm(LoggingFormMixin, forms.Form):
         ),
     )
 
-    def __init__(self, *args, template=None, entity=None, **kwargs):
+    def __init__(self, *args, template=None, entity=None, reserved_tags=None, **kwargs):
         super().__init__(*args, **kwargs)
         self._template = template
         self._entity = entity
+        # Tags already used by sibling lines in the same (unpersisted) invoice:
+        # the auto-suggestion must skip them so blank Tag/ID inputs never
+        # collide before anything is saved.
+        self._reserved_tags = {t for t in (reserved_tags or ()) if t}
         if template:
             step = str(template.minimum_quantity)
             self.fields["quantity"].widget.attrs["step"] = step
@@ -188,7 +192,9 @@ class PurchaseItemForm(LoggingFormMixin, forms.Form):
         ):
             uid = (cleaned.get("unique_id") or "").strip()
             if not uid and self._entity is not None:
-                uid = template.next_tag(self._entity)
+                uid = template.next_tag(
+                    self._entity, reserved=self._reserved_tags
+                )
                 cleaned["unique_id"] = uid
 
         received: Decimal = cleaned.get("received_qty") or Decimal("0")

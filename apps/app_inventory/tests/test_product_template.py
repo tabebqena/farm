@@ -180,6 +180,24 @@ class ProductTemplateTest(TestCase):
         )
         self.assertEqual(t.next_tag(entity), "CALF1")
 
+    def test_next_tag_skips_reserved_pending_tags(self):
+        entity = make_entity(EntityType.PROJECT)
+        t = ProductTemplate.objects.create(
+            name="Calves",
+            nature=ProductTemplate.Nature.ANIMAL,
+            sub_category="Cattle",
+            default_unit="Head",
+            tag_prefix="CALF",
+        )
+        # No products persisted, but sibling wizard lines reserve CALF1/CALF2.
+        self.assertEqual(t.next_tag(entity), "CALF1")
+        self.assertEqual(t.next_tag(entity, reserved=["CALF1"]), "CALF2")
+        self.assertEqual(
+            t.next_tag(entity, reserved=["CALF1", "CALF2"]), "CALF3"
+        )
+        # Non-matching prefixes in the reserve set do not bump the candidate.
+        self.assertEqual(t.next_tag(entity, reserved=["OTHER1"]), "CALF1")
+
     def test_next_tag_unique_per_entity(self):
         e1 = make_entity(EntityType.PROJECT, "Farm A")
         e2 = make_entity(EntityType.PROJECT, "Farm B")

@@ -16,6 +16,26 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 ---
 
 
+## 2026-10-17 — Fix false duplicate-tag error in the purchase wizard
+
+### Fixed
+- Adding a second invoice line for the same individually-tracked (tagged)
+  template with a blank **Tag / ID** no longer fails with *"This Tag/ID is
+  already used by another item."* The wizard auto-suggests tags via
+  `ProductTemplate.next_tag`, which only looked at already-persisted `Product`
+  rows; since the wizard keeps pending lines in the session, both lines were
+  suggested the same tag (`CALF1`) and the duplicate guard rejected the second.
+  `next_tag` now accepts a `reserved` set of pending tags and skips them, and
+  the add-item view passes the other session lines' tags through. Explicitly
+  user-typed duplicates are still rejected.
+
+### Changed
+- The purchase wizard's add-item form now **prefills** the Tag / ID with the
+  next available tag (derived from existing stock plus the lines already added
+  to the invoice) instead of leaving it blank and assigning it invisibly on
+  submit.
+
+
 ## 2026-10-17 — Hide fund balance for World, System and external entities
 
 ### Changed
