@@ -183,26 +183,31 @@ def purchase_add_item_view(request, pk, idx=None):
         error_message="Product template not found or is not assigned to this project.",
     )
 
-    # Tags already used by the other pending (not-yet-saved) session lines.
-    # Auto-suggested tags must avoid them or the duplicate guard below would
-    # falsely reject a blank Tag/ID on the second line of the same template.
+    # Tags explicitly set on the other pending (not-yet-saved) session lines.
+    # Used only to render the "next available tag" hint below; the Tag / ID
+    # field itself is never auto-filled — blank means "let the backend number
+    # it".
     reserved_tags = {
         (it.get("unique_id") or "").strip()
         for i, it in enumerate(items)
-        if i != idx and it.get("unique_id")
+        if i != idx and (it.get("unique_id") or "").strip()
     }
 
+    # Read-only hint: the next free tag given current stock and the explicit
+    # tags already added. The user may copy it or type their own.
+    suggested_tag = ""
+    if (
+        not is_edit
+        and template.tracking_mode == ProductTemplate.TrackingMode.INDIVIDUAL
+    ):
+        suggested_tag = template.next_tag(project, reserved=reserved_tags)
+
     if request.method == "POST":
-        form = PurchaseItemForm(
-            request.POST,
-            template=template,
-            entity=project,
-            reserved_tags=reserved_tags,
-        )
+        form = PurchaseItemForm(request.POST, template=template)
         if form.is_valid():
             cd = form.cleaned_data
-            # Duplicate unique_id guard for explicitly user-typed tags; the
-            # auto-suggested ones already skip `reserved_tags` above.
+            # Duplicate guard for explicitly typed tags. Blank tags are left to
+            # the backend, which auto-numbers every head uniquely.
             uid = (cd.get("unique_id") or "").strip()
             if (
                 uid
@@ -251,19 +256,7 @@ def purchase_add_item_view(request, pk, idx=None):
             }
         else:
             initial = {"product_template_id": template.pk, "received_qty": "0"}
-            # Show the next free tag up front (stock + already-added lines),
-            # so the user sees the suggestion instead of it being assigned
-            # invisibly on submit.
-            if template.tracking_mode == ProductTemplate.TrackingMode.INDIVIDUAL:
-                initial["unique_id"] = template.next_tag(
-                    project, reserved=reserved_tags
-                )
-        form = PurchaseItemForm(
-            initial=initial,
-            template=template,
-            entity=project,
-            reserved_tags=reserved_tags,
-        )
+        form = PurchaseItemForm(initial=initial, template=template)
 
     return render(
         request,
@@ -274,6 +267,7 @@ def purchase_add_item_view(request, pk, idx=None):
             "template": template,
             "is_edit": is_edit,
             "idx": idx,
+            "suggested_tag": suggested_tag,
         },
     )
 

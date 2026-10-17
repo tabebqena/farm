@@ -1,8 +1,8 @@
-"""POST tests for the purchase wizard's add-item view.
+"""Tests for the purchase wizard's add-item view.
 
-Covers tag auto-suggestion for INDIVIDUAL templates: two pending lines of the
-same template must never be assigned the same auto-generated tag before either
-is persisted (the false "already used by another item" error).
+The Tag / ID is user-controlled: the field is never auto-filled (a blank value
+is stored as-is, and the backend numbers the heads when products are created);
+the view only shows the next available tag as a read-only hint.
 """
 
 from decimal import Decimal
@@ -58,18 +58,19 @@ class PurchaseAddItemTagTest(TestCase):
     def _session_items(self):
         return self.client.session[f"purchase_wizard_{self.project.pk}"]["items"]
 
-    def _add_form_suggestion(self):
-        response = self.client.get(self.url, {"template_id": self.template.pk})
-        return response.context["form"].initial.get("unique_id")
+    def _get_form(self):
+        return self.client.get(self.url, {"template_id": self.template.pk})
 
-    def test_add_form_prefills_first_free_tag(self):
-        self.assertEqual(self._add_form_suggestion(), "CALF1")
+    def test_field_is_left_empty_with_hint(self):
+        response = self._get_form()
+        self.assertEqual(response.context["form"].initial.get("unique_id"), None)
+        self.assertEqual(response.context["suggested_tag"], "CALF1")
 
-    def test_add_form_suggestion_accounts_for_pending_items(self):
-        self._add_item("")
-        self.assertEqual(self._add_form_suggestion(), "CALF2")
+    def test_hint_accounts_for_explicit_pending_tags(self):
+        self._add_item("CALF1")
+        self.assertEqual(self._get_form().context["suggested_tag"], "CALF2")
 
-    def test_add_form_suggestion_accounts_for_existing_stock(self):
+    def test_hint_accounts_for_existing_stock(self):
         Product.objects.create(
             entity=self.project,
             product_template=self.template,
@@ -77,27 +78,22 @@ class PurchaseAddItemTagTest(TestCase):
             unit_price=Decimal("100.00"),
             unique_id="CALF7",
         )
-        self.assertEqual(self._add_form_suggestion(), "CALF8")
+        self.assertEqual(self._get_form().context["suggested_tag"], "CALF8")
 
-    def test_blank_tag_on_second_line_gets_distinct_suggestion(self):
+    def test_blank_tag_is_stored_blank_for_backend_to_number(self):
         self._add_item("")
         self._add_item("")
         tags = [it["unique_id"] for it in self._session_items()]
-        self.assertEqual(tags, ["CALF1", "CALF2"])
+        self.assertEqual(tags, ["", ""])
+
+    def test_explicit_tag_is_stored_as_typed(self):
+        self._add_item("CALF42")
+        self.assertEqual(self._session_items()[0]["unique_id"], "CALF42")
 
     def test_explicit_duplicate_tag_is_still_rejected(self):
         self._add_item("CALF1")
         response = self._add_item("CALF1")
         self.assertEqual(response.status_code, 200)
         form = response.context["form"]
-        self.assertIn(
-            "unique_id",
-            form.errors,
-        )
+        self.assertIn("unique_id", form.errors)
         self.assertEqual(len(self._session_items()), 1)
-
-    def test_explicit_tag_reserves_it_for_next_blank_line(self):
-        self._add_item("CALF2")
-        self._add_item("")
-        tags = [it["unique_id"] for it in self._session_items()]
-        self.assertEqual(tags, ["CALF2", "CALF1"])

@@ -16,6 +16,19 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 ---
 
 
+## 2026-10-17 — Show next tag as a hint instead of auto-filling it
+
+### Changed
+- The purchase wizard no longer auto-fills the Tag / ID field. It is the user's
+  to set: blank is stored blank and the backend numbers every head uniquely at
+  product-creation time. The add-item form now shows the next available tag
+  (based on stock and the explicit tags already added) as a read-only hint, so
+  the user can copy it or type their own.
+- `PurchaseItemForm.clean()` no longer generates a tag for blank input; only
+  explicitly typed tags are stored, and the duplicate guard still applies to
+  them (`purchase_add_item.html`, `purchase_wizard.py`).
+
+
 ## 2026-10-17 — Fix tag collision when a purchase line has multiple heads
 
 ### Fixed
