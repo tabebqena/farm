@@ -16,6 +16,16 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 ---
 
 
+## 2026-10-17 — Fix production Bad Gateway (static manifest)
+
+### Fixed
+- In production (`DEBUG=0`) the container entrypoint aborted: WhiteNoise's
+  `CompressedManifestStaticFilesStorage` failed `collectstatic` because the
+  vendored `imask.min.js` referenced a missing `imask.min.js.map`. The dangling
+  `//# sourceMappingURL=imask.min.js.map` comment was removed, so `collectstatic`
+  completes and gunicorn starts (no more 502 Bad Gateway behind the proxy).
+
+
 ## 2026-10-17 — Unified money display (grouping, symbol, alignment)
 
 Every read-only monetary amount now renders through one formatter so figures
