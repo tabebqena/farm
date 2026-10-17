@@ -16,6 +16,63 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 ---
 
 
+## 2026-10-18 — Navigation hides virtual/external entities; stakeholder tabs
+
+### Changed
+- The operation-detail navigation bar no longer links to **World**, **System**
+  or **external** (non-internal) counterpart entities: neither the
+  "Source/Destination Entity" link nor the per-entity operations-list link is
+  rendered for them. Only real internal entities are navigable
+  (`_is_navigable_entity` in `apps/app_operation/views/detail.py`).
+- The entity detail **Stakeholders** list now shows **active** stakeholder
+  links by default and moves **inactive** links to a separate tab, each with a
+  count badge. The split uses the stakeholder link's own `active` flag (the one
+  toggled by the edit form), not the target entity's active state.
+
+---
+
+## 2026-10-18 — Complete-payment option and live partial-payment subform
+
+### Added
+- The operation create form's payment-terms subform now offers a **Complete
+  Payment** switch alongside **Partial Payment**. Selecting it marks the whole
+  total as paid now (locks the paid field, shows a full-payment notice and a
+  zero remaining balance); the two switches are mutually exclusive.
+
+### Fixed
+- The partial-payment subform now reacts to direct typing in the **Paid Now**
+  field. `amount-input.js` is backed by IMask, which emits only its own
+  `accept` event (no native `input`), so the subform previously updated the
+  remaining balance only when the `+` / `-` buttons or arrow stepping fired a
+  programmatic `change`. It now listens for `input` / `keyup` / `change` and
+  hooks the IMask `accept` event, so the remaining balance and over-payment
+  guard track every keystroke.
+
+---
+
+## 2026-10-18 — Client-side unit validation for invoice-item quantities
+
+### Added
+- `static/js/item-quantity-validation.js`: a per-item guard that blocks form
+  submission unless each invoice item's quantity is a positive multiple of its
+  product template's `minimum_quantity` increment. The increment is resolved per
+  item from the quantity input's `data-minimum-quantity`, the selected
+  `.product-select` option's `data-minimum-quantity` (create-mode formsets), or
+  the input's `step`, so the rule adapts to whichever template each item
+  references. Loaded globally from `base.html` (opt-in per input).
+- `PurchaseItemForm` / `SaleItemForm` now stamp `data-minimum-quantity` and a
+  localised `data-error-message` on their quantity widget; `HasTagSelect` stamps
+  `data-minimum-quantity` on each `ProductTemplate` option, and the add-item /
+  invoice-formset templates expose a `.js-quantity-error` slot.
+
+### Fixed
+- The add-item forms (rendered with `novalidate`) no longer accept a quantity
+  that is not a multiple of the template's minimum increment — e.g. `1.5` head
+  for an animal template — which previously only failed at wizard submit.
+
+
+
+
 ## 2026-10-17 — Show next tag as a hint instead of auto-filling it
 
 ### Changed
