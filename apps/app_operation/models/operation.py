@@ -216,7 +216,25 @@ class InventoryOperationMixin:
             OperationType.DEATH,
             OperationType.CONSUMPTION,
         ):
-            self._auto_create_inventory_movements(bound_formset)
+            from apps.app_audit import context as provenance
+            from apps.app_audit import reasons
+
+            role, reason = {
+                OperationType.BIRTH: (
+                    reasons.ROLE_BIRTH_LINE,
+                    reasons.REASON_AUTO_BIRTH_LINE,
+                ),
+                OperationType.DEATH: (
+                    reasons.ROLE_DEATH_LINE,
+                    reasons.REASON_AUTO_DEATH_LINE,
+                ),
+                OperationType.CONSUMPTION: (
+                    reasons.ROLE_CONSUMPTION_LINE,
+                    reasons.REASON_AUTO_CONSUMPTION_LINE,
+                ),
+            }[self.operation_type]
+            with provenance.derived(role, reason):
+                self._auto_create_inventory_movements(bound_formset)
 
         if self.operation_type in (
             OperationType.DEATH,

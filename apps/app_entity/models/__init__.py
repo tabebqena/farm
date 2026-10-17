@@ -707,6 +707,8 @@ class Entity(ImmutableMixin, BaseModel):
         """
         is_new = self.pk is None
         from apps.app_operation.models.period import FinancialPeriod
+        from apps.app_audit import context as provenance
+        from apps.app_audit import reasons
 
         with db_transaction.atomic():
             rv = super().save(*args, **kwargs)
@@ -714,7 +716,12 @@ class Entity(ImmutableMixin, BaseModel):
                 open_period = self.financial_periods.filter(end_date__isnull=True).first()
                 if self.active and open_period is None:
                     start_date = self.created_at.date() if is_new else date_type.today()
-                    FinancialPeriod.objects.create(entity=self, start_date=start_date)
+                    with provenance.derived(
+                        reasons.ROLE_PERIOD, reasons.REASON_PERIOD_CREATED
+                    ):
+                        FinancialPeriod.objects.create(
+                            entity=self, start_date=start_date
+                        )
                     logger.debug(
                         f"Financial period created | entity_pk={self.pk} | "
                         f"start_date={start_date} | "
@@ -726,7 +733,10 @@ class Entity(ImmutableMixin, BaseModel):
                     if end_date <= open_period.start_date:
                         end_date = open_period.start_date + timedelta(days=1)
                     open_period.end_date = end_date
-                    open_period.save()
+                    with provenance.derived(
+                        reasons.ROLE_PERIOD, reasons.REASON_PERIOD_CLOSED
+                    ):
+                        open_period.save()
                     logger.debug(
                         f"Financial period closed | entity_pk={self.pk} | "
                         f"period_pk={open_period.pk} | end_date={end_date} | "

@@ -1324,16 +1324,22 @@ class InventoryMovementLine(ImmutableMixin, BaseModel):
             # The owning entity is the project — for PURCHASE that is the source,
             # for BIRTH the destination (its source is the System entity).
             receiving_entity = self.operation.inventory_receiving_entity
-            products = InvoiceItem.create_products_for_item(
-                invoice_item=self.invoice_item,
-                entity=receiving_entity or self.operation.source,
-                quantity=self.quantity,
-                unit_price=self.invoice_item.unit_price,
-                unique_id=getattr(self, "_lazy_unique_id", None) or None,
-                gender=getattr(self, "_lazy_gender", None),
-                birth_date=getattr(self, "_lazy_birth_date", None),
-                mother=getattr(self, "_lazy_mother", None),
-            )
+            from apps.app_audit import context as provenance
+            from apps.app_audit import reasons
+
+            with provenance.derived(
+                reasons.ROLE_PRODUCT, reasons.REASON_AUTO_PRODUCT
+            ):
+                products = InvoiceItem.create_products_for_item(
+                    invoice_item=self.invoice_item,
+                    entity=receiving_entity or self.operation.source,
+                    quantity=self.quantity,
+                    unit_price=self.invoice_item.unit_price,
+                    unique_id=getattr(self, "_lazy_unique_id", None) or None,
+                    gender=getattr(self, "_lazy_gender", None),
+                    birth_date=getattr(self, "_lazy_birth_date", None),
+                    mother=getattr(self, "_lazy_mother", None),
+                )
             self.product = products[0]
         super().save(*args, **kwargs)
 

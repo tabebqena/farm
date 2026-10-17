@@ -281,7 +281,11 @@ class Transaction(AmountCleanMixin, ImmutableMixin, BaseModel):
             object_id=self.object_id,
             document=self.document,
         )
-        reversal.save()
+        from apps.app_audit import context as provenance
+        from apps.app_audit import reasons
+
+        with provenance.derived(reasons.ROLE_REVERSAL, reasons.REASON_REVERSAL):
+            reversal.save()
         logger.debug(f"Reversal transaction created | reversal_pk={reversal.pk}")
 
         setattr(self, "reversed_by", reversal)

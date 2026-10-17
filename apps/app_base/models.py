@@ -144,8 +144,10 @@ class BaseModel(models.Model):
             f(*f_args, **f_kwargs)
 
     def save(self, *args, **kwargs):
-        """Full-validate, then run post-save tasks."""
+        """Full-validate, then run post-save tasks, recording the write."""
         self.full_clean()
+        provenance_kind = kwargs.pop("provenance_kind", None)
+        kind = provenance_kind or ("create" if self._state.adding else "update")
         rv = super().save(
             force_insert=kwargs.get("force_insert", False),
             force_update=kwargs.get("force_update", False),
@@ -153,8 +155,22 @@ class BaseModel(models.Model):
             update_fields=kwargs.get("update_fields", None),
         )
 
+        self._record_provenance(kind)
         self.post_save(kwargs.get("post_save_tasks", []))
         return rv
+
+    def _record_provenance(self, kind):
+        """Record this save in the audit trail (no-op when tracking is off).
+
+        Delegates to :mod:`apps.app_audit.context`; the provenance layer never
+        raises into the write it observes.
+        """
+        try:
+            from apps.app_audit import context as provenance
+
+            provenance.record_save(self, kind)
+        except Exception:  # pragma: no cover - defensive; must never break save
+            logger.exception("provenance: failed to record save for %s", self)
 
     # ------------------------------------------------------------------ #
     # Soft-delete guard (mirror of DB PROTECT)
@@ -320,7 +336,7 @@ class BaseModel(models.Model):
             f"deleted_at={deleted_at} | {context}"
         )
 
-        return self.save(*args, **kwargs)
+        return self.save(*args, provenance_kind="soft_delete", **kwargs)
 
     def _delete_log_context(self) -> str:
         """Build the flat ``key=value`` context for the central delete log.
@@ -495,22 +511,28 @@ class ReversableModel(HasRelatedTransactions, BaseModel):
                         "You can't reverse this object as it has non-reversed adjustments. To continue, you should manually reverse all of them."
                     )
                 )
-        for tx in all_txs.filter(type__in=self._reversable_transaction_types).all():
-            if not tx.is_reversal and not tx.is_reversed:
-                tx.reverse(officer=officer)
-        kwargs = self._get_reverse_kwargs(
-            officer=officer,
-            date=date or timezone.now(),
-            description=reason
-            or _("reversal of %(model)s (%(pk)s)")
-            % {"model": self.__class__.__name__, "pk": self.pk},
-        )
-        # We clone the object and link it back via reversal_of
-        with db_transaction.atomic():
-            reversal_record = self.__class__(**kwargs)
-            reversal_record.save()
-            self.reversed_by = reversal_record
-            return reversal_record
+        from apps.app_audit import context as provenance
+        from apps.app_audit import reasons
+
+        with provenance.derived(reasons.ROLE_REVERSAL, reasons.REASON_REVERSAL):
+            for tx in all_txs.filter(
+                type__in=self._reversable_transaction_types
+            ).all():
+                if not tx.is_reversal and not tx.is_reversed:
+                    tx.reverse(officer=officer)
+            kwargs = self._get_reverse_kwargs(
+                officer=officer,
+                date=date or timezone.now(),
+                description=reason
+                or _("reversal of %(model)s (%(pk)s)")
+                % {"model": self.__class__.__name__, "pk": self.pk},
+            )
+            # We clone the object and link it back via reversal_of
+            with db_transaction.atomic():
+                reversal_record = self.__class__(**kwargs)
+                reversal_record.save()
+                self.reversed_by = reversal_record
+                return reversal_record
 
     def save(self, *args, **kwargs) -> None:
         return super().save(*args, **kwargs)

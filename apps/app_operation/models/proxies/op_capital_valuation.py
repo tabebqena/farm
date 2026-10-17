@@ -140,7 +140,13 @@ class CapitalValuationOperation(StockEventMixin, Operation):
             officer=officer,
         )
         entry.full_clean()
-        entry.save()
+        from apps.app_audit import context as provenance
+        from apps.app_audit import reasons
+
+        with provenance.derived(
+            reasons.ROLE_VALUATION, reasons.REASON_CAPITAL_VALUATION
+        ):
+            entry.save()
         return entry
 
     @classmethod

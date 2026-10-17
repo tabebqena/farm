@@ -291,8 +291,12 @@ class LinkedIssuanceTransactionMixin(
                 _("An issuance transaction already exists for this operation.")
             )
         from apps.app_transaction.models import Transaction
+        from apps.app_audit import context as provenance
+        from apps.app_audit import reasons
 
-        with db_transaction.atomic():
+        with db_transaction.atomic(), provenance.derived(
+            reasons.ROLE_ISSUANCE_TXN, reasons.REASON_AUTO_ISSUANCE
+        ):
             return Transaction.create(
                 source=self.payment_source_fund,
                 target=self.payment_target_fund,
@@ -439,12 +443,16 @@ class LinkedPaymentTransactionMixin(
         payer fund, and enforces one-shot / closed-period / overpayment rules.
         """
         from apps.app_transaction.models import Transaction
+        from apps.app_audit import context as provenance
+        from apps.app_audit import reasons
 
         # The whole method runs inside one transaction so the balance check and
         # the payment insert are atomic, and the payer fund row can be locked
         # (SELECT ... FOR UPDATE) to stop concurrent payments both passing the
         # balance check. No-op on backends without row locking (e.g. SQLite).
-        with db_transaction.atomic():
+        with db_transaction.atomic(), provenance.derived(
+            reasons.ROLE_PAYMENT_TXN, reasons.REASON_AUTO_PAYMENT
+        ):
             # Reject payments dated inside a closed financial period of the
             # operation's governing entity.
             from apps.app_operation.models.period import is_date_in_closed_period
@@ -633,10 +641,14 @@ class LinkedRePaymentTransactionMixin(
         financial period.
         """
         from apps.app_transaction.models import Transaction
+        from apps.app_audit import context as provenance
+        from apps.app_audit import reasons
 
         self.validate_repayement_amount(amount)
 
-        with db_transaction.atomic():
+        with db_transaction.atomic(), provenance.derived(
+            reasons.ROLE_REPAYMENT_TXN, reasons.REASON_AUTO_REPAYMENT
+        ):
             # Reject repayments dated inside a closed financial period of the
             # operation's governing entity.
             from apps.app_operation.models.period import is_date_in_closed_period
