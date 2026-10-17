@@ -525,6 +525,52 @@ class PurchaseCreateFromSessionTest(TestCase):
         self.assertEqual(op.items.count(), 2)
         self.assertEqual(op.amount, Decimal("650.00"))
 
+    def test_create_from_session_bulk_line_does_not_steal_sibling_tag(self):
+        """
+        Regression: a bulk INDIVIDUAL line's auto-numbered extra heads must not
+        take a tag that a sibling line already reserved, or the
+        (entity, unique_id) UniqueConstraint rejects the purchase mid-creation.
+        """
+        self.template.tag_prefix = "CALF"
+        self.template.save()
+        items = [
+            _item_data(
+                self.template.pk,
+                quantity="3.00",
+                unit_price="100.00",
+                received_qty="3.00",
+                unique_id="CALF1",
+            ),
+            _item_data(
+                self.template.pk,
+                quantity="1.00",
+                unit_price="100.00",
+                received_qty="1.00",
+                unique_id="CALF2",
+            ),
+        ]
+        session = _session_data(
+            vendor_id=self.vendor_entity.pk,
+            total_amount=Decimal("400.00"),
+            items=items,
+        )
+
+        op = PurchaseOperation.create_from_session(
+            project=self.project_entity,
+            session_data=session,
+            officer=self.officer_user,
+        )
+
+        tags = list(
+            Product.objects.filter(product_template=self.template).values_list(
+                "unique_id", flat=True
+            )
+        )
+        self.assertEqual(len(tags), 4)
+        self.assertEqual(len(set(tags)), 4, "Tags must be unique")
+        self.assertIn("CALF1", tags)
+        self.assertIn("CALF2", tags)
+
     def test_create_from_session_creates_issuance_transaction(self):
         """Verify the issuance transaction details."""
         items = [_item_data(self.template.pk)]

@@ -16,6 +16,25 @@ is tracked in the [`VERSION`](VERSION) file (semantic versioning).
 ---
 
 
+## 2026-10-17 — Fix tag collision when a purchase line has multiple heads
+
+### Fixed
+- Submitting a purchase whose invoice has a bulk individually-tracked line
+  (quantity > 1) alongside another line of the same template no longer aborts
+  with `Constraint "unique_product_tag_per_entity" is violated.` Each line
+  stores a single tag, but the extra heads were auto-numbered by
+  `ProductTemplate.next_tag` with no knowledge of the tags the *other* lines
+  would use, so a later line could claim a tag an earlier line had already
+  generated. `create_from_session` now collects every line's explicit tag and
+  passes it as a reserved set through
+  `InventoryMovementLine.create_received_movement_lines` →
+  `Product.objects` lazy creation → `create_products_for_item` → `next_tag`, so
+  auto-generated heads skip tags reserved for sibling lines.
+
+### Tests
+- `PurchaseCreateFromSessionTest.test_create_from_session_bulk_line_does_not_steal_sibling_tag`.
+
+
 ## 2026-10-17 — Fix false duplicate-tag error in the purchase wizard
 
 ### Fixed

@@ -475,6 +475,7 @@ class InvoiceItem(AmountCleanMixin, BaseModel):
         gender=None,
         birth_date=None,
         mother=None,
+        reserved_unique_ids=None,
     ):
         """
         Create Product record(s) for *invoice_item* based on the template's
@@ -484,6 +485,12 @@ class InvoiceItem(AmountCleanMixin, BaseModel):
         own unique tag.  A provided ``unique_id`` is used for the first head;
         any remaining heads get an auto-generated tag via
         ``template.next_tag(entity)`` so every animal is uniquely identified.
+
+        *reserved_unique_ids* is an optional set of tags that other lines of the
+        same operation/entity will use (their explicit tags).  Auto-generated
+        heads skip them so a bulk line never steals a tag reserved for a sibling
+        line — the ``(entity, unique_id)`` UniqueConstraint is the hard backstop
+        but must not be tripped during creation.
 
         **COMMODITY** → a single ``Product`` with the full quantity (bulk).
 
@@ -520,7 +527,9 @@ class InvoiceItem(AmountCleanMixin, BaseModel):
             for i in range(max(qty, 1)):
                 uid = unique_id if i == 0 else None
                 if not uid:
-                    uid = template.next_tag(entity)
+                    uid = template.next_tag(
+                        entity, reserved=reserved_unique_ids
+                    )
                 product = Product.objects.create(
                     entity=entity,
                     product_template=template,
@@ -1324,7 +1333,8 @@ class InventoryMovementLine(ImmutableMixin, BaseModel):
         # ``_lazy_unique_id`` (a transient, non-model attribute) lets the caller
         # forward the user-edited tag through to the created product; when
         # absent, create_products_for_item() auto-generates one for INDIVIDUAL
-        # templates.
+        # templates.  ``_lazy_reserved_tags`` carries the tags reserved by
+        # sibling lines so auto-generated heads never collide with them.
         #
         # ``_lazy_gender`` / ``_lazy_birth_date`` / ``_lazy_mother`` are set by
         # the birth flow so a lazily-created newborn carries its sex, birth date
@@ -1348,6 +1358,9 @@ class InventoryMovementLine(ImmutableMixin, BaseModel):
                     gender=getattr(self, "_lazy_gender", None),
                     birth_date=getattr(self, "_lazy_birth_date", None),
                     mother=getattr(self, "_lazy_mother", None),
+                    reserved_unique_ids=getattr(
+                        self, "_lazy_reserved_tags", None
+                    ),
                 )
             self.product = products[0]
         super().save(*args, **kwargs)
@@ -1484,6 +1497,7 @@ class InventoryMovementLine(ImmutableMixin, BaseModel):
         officer,
         group_key,
         lazy_unique_id=None,
+        reserved_unique_ids=None,
     ):
         """
         Create inbound ``InventoryMovementLine``(s) for a received quantity.
@@ -1492,6 +1506,10 @@ class InventoryMovementLine(ImmutableMixin, BaseModel):
         own tagged ``Product``; the first head takes *lazy_unique_id* (the
         user-typed tag), subsequent heads auto-generate from the template's
         tag prefix. COMMODITY → a single flat line with the full quantity.
+
+        *reserved_unique_ids* is an optional set of tags that other lines of the
+        same operation will use; auto-generated heads skip them so a bulk line
+        never collides with a sibling line's explicit tag.
 
         Shared by the ``create_from_session`` factories (Purchase / Sale
         internal-client receipt) and mirrors the INDIVIDUAL-expansion contract
@@ -1515,6 +1533,8 @@ class InventoryMovementLine(ImmutableMixin, BaseModel):
                     group_key=group_key,
                 )
                 line._lazy_unique_id = uid
+                if uid is None:
+                    line._lazy_reserved_tags = reserved_unique_ids
                 line.save()
                 uid = None  # subsequent heads auto-generate their tag
                 created_count += 1

@@ -218,6 +218,16 @@ class PurchaseOperation(AdjustableTransactionMixin, Operation):
         #      lazy-create materialises its own tagged Product, so buying 10
         #      heads creates 10 individual Products (one per animal).
         #      COMMODITY  → one line with the full quantity.
+        #
+        #      Reserve every line's explicit tag up front: a bulk line's extra
+        #      heads are auto-numbered and must not steal a tag that a sibling
+        #      line will use (the (entity, unique_id) UniqueConstraint would
+        #      otherwise reject the purchase mid-creation).
+        reserved_unique_ids = {
+            (item.get("unique_id") or "").strip()
+            for item in items_data
+            if (item.get("unique_id") or "").strip()
+        }
         group_key = uuid.uuid4().hex[:8]
         for item_data, invoice_item in zip(items_data, invoice_items):
             received_qty = Decimal(item_data.get("received_qty", "0"))
@@ -232,6 +242,7 @@ class PurchaseOperation(AdjustableTransactionMixin, Operation):
                 officer=officer,
                 group_key=group_key,
                 lazy_unique_id=uid,
+                reserved_unique_ids=reserved_unique_ids,
             )
 
         # ── 5. Payment processing (shared base method) ─────────────────
